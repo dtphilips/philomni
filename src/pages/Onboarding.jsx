@@ -74,8 +74,8 @@ export default function Onboarding() {
       >
         {/* Header */}
         <div className="text-center mb-10">
-          <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-5 shadow-lg">
-            <span className="text-primary-foreground font-bold text-2xl font-display">P</span>
+          <div className="w-14 h-14 rounded-2xl mx-auto mb-5 shadow-lg">
+            <img src="/logo_v2.svg" alt="Philomni" className="w-14 h-14 rounded-2xl" />
           </div>
           <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-3">
             Welcome to Philomni

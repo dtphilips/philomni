@@ -149,8 +149,8 @@ export default function TrendingSidebar() {
 
       {/* Philomni promo */}
       <div className="bg-gradient-to-br from-primary to-primary/70 rounded-2xl p-4 text-primary-foreground">
-        <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center mb-3">
-          <span className="font-bold text-sm font-display">P</span>
+        <div className="w-8 h-8 rounded-xl overflow-hidden mb-3">
+          <img src="/logo_v2.svg" alt="Philomni" className="w-8 h-8" />
         </div>
         <h4 className="font-bold text-sm mb-1">Go Pro</h4>
         <p className="text-xs opacity-80 mb-3">Unlock AI tools, advanced analytics, priority in discovery, and more.</p>

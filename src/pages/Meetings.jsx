@@ -77,8 +77,8 @@ function CallFrame({ roomUrl, onLeave }) {
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       <div className="flex items-center justify-between p-3 bg-black/80">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-white font-bold text-sm">P</span>
+          <div className="w-7 h-7 rounded-lg overflow-hidden">
+            <img src="/logo_v2.svg" alt="Philomni" className="w-7 h-7" />
           </div>
           <span className="text-white font-semibold text-sm">Philomni Call</span>
         </div>

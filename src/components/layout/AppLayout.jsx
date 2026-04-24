@@ -66,11 +66,7 @@ function MobileHeader({ user }) {
       {isFeed ? (
         <>
           <Link to="/" className="flex items-center gap-2 mr-auto">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                 style={{ background: 'linear-gradient(135deg, #6d28d9 0%, #9333ea 100%)' }}>
-              <span className="text-white font-bold font-display text-sm">P</span>
-            </div>
-            <span className="font-bold text-foreground text-base" style={{ fontFamily:'var(--font-display)' }}>Philomni</span>
+            <img src="/logo-full.svg" alt="Philomni" className="h-8 w-auto" />
           </Link>
           <Link to="/search" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors">
             <Search className="w-5 h-5 text-muted-foreground" />

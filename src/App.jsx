@@ -74,8 +74,8 @@ import UGCCreatorSuite from '@/pages/UGCCreatorSuite';
 const LoadingScreen = () => (
   <div className="fixed inset-0 flex items-center justify-center bg-background">
     <div className="text-center">
-      <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-        <span className="text-primary-foreground font-bold text-xl font-display">P</span>
+      <div className="mx-auto mb-4">
+        <img src="/logo_v2.svg" alt="Philomni" className="w-12 h-12 rounded-xl" />
       </div>
       <div className="w-8 h-8 border-2 border-muted border-t-primary rounded-full animate-spin mx-auto" />
     </div>

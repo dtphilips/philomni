@@ -105,11 +105,11 @@ export default function Login() {
             <div
               className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center"
               style={{
-                background: 'linear-gradient(135deg, #6d28d9 0%, #9333ea 100%)',
+                background: 'transparent',
                 boxShadow: '0 0 32px rgba(124,58,237,0.45), 0 4px 16px rgba(0,0,0,0.4)',
               }}
             >
-              <span className="font-bold text-2xl text-white select-none">P</span>
+              <img src="/logo_v2.svg" alt="Philomni" className="w-14 h-14 rounded-2xl" />
             </div>
             <h1 className="text-2xl font-bold text-white mb-1 tracking-tight">Welcome back</h1>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
