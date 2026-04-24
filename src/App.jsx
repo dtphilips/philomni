@@ -82,23 +82,23 @@ const LoadingScreen = () => (
 // Redirects to login page using client-side navigation (no full page reload).
 // A full-page redirect re-sends all cookies including large Supabase JWTs,
 // which can trigger HTTP 431 on the Vite dev server.
+// Guards against looping: if already on a public auth page, renders nothing.
+const PUBLIC_AUTH_PATHS = ['/login', '/signup', '/onboarding'];
 const LoginRedirect = () => {
   const { DEV_MODE } = useAuth();
   const location = useLocation();
   if (DEV_MODE) return null;
+  if (PUBLIC_AUTH_PATHS.some(p => location.pathname === p || location.pathname.startsWith(p + '/'))) {
+    return null;
+  }
   const returnUrl = encodeURIComponent(location.pathname + location.search);
   return <Navigate to={`/login?returnUrl=${returnUrl}`} replace />;
 };
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, DEV_MODE } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings } = useAuth();
 
   if (isLoadingPublicSettings || isLoadingAuth) return <LoadingScreen />;
-
-  if (authError && !DEV_MODE) {
-    if (authError.type === 'auth_required') return <LoginRedirect />;
-    // For other errors, still show the app (might be network error)
-  }
 
   return (
     <Routes>
