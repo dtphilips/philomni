@@ -20,17 +20,16 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(DEV_MODE ? DEV_USER : null);
   const [isAuthenticated, setIsAuthenticated] = useState(DEV_MODE);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(!DEV_MODE);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(false);
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
   const [authError, setAuthError] = useState(null);
-  const [authChecked, setAuthChecked] = useState(DEV_MODE);
+  const [authChecked, setAuthChecked] = useState(true);
   const appPublicSettings = { id: 'philomni', public_settings: {} };
 
   useEffect(() => {
     if (DEV_MODE) return;
     checkUserAuth();
 
-    // Listen for Supabase auth state changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         await loadUserProfile(session.user);
@@ -44,7 +43,7 @@ export const AuthProvider = ({ children }) => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadUserProfile = async (authUser) => {
     try {
@@ -78,27 +77,24 @@ export const AuthProvider = ({ children }) => {
 
   const checkUserAuth = async () => {
     if (DEV_MODE) return;
-    setIsLoadingAuth(true);
     try {
-      const { data: { session }, error } = await supabase.auth.getSession();
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('auth_timeout')), 2000)
+      );
+      const sessionCheck = supabase.auth.getSession();
+      const { data: { session }, error } = await Promise.race([sessionCheck, timeout]);
       if (session?.user) {
         await loadUserProfile(session.user);
       } else {
         setIsAuthenticated(false);
-        // Only set auth_required when Supabase is reachable — if it errors
-        // (e.g. placeholder URL in .env.local) treat as unauthenticated but
-        // don't trigger the redirect loop.
         if (!error) {
           setAuthError({ type: 'auth_required', message: 'Please sign in' });
         }
       }
     } catch (err) {
-      // Network error / unreachable — don't loop-redirect, just show login.
-      console.warn('Auth check failed (check Supabase env vars):', err.message);
+      console.warn('Auth check failed:', err.message);
       setIsAuthenticated(false);
-      setAuthError({ type: 'auth_required', message: 'Please sign in' });
     } finally {
-      setIsLoadingAuth(false);
       setAuthChecked(true);
     }
   };
