@@ -1,0 +1,54 @@
+{
+  "name": "DiscussionPost",
+  "type": "object",
+  "properties": {
+    "board": {
+      "type": "string",
+      "enum": [
+        "general",
+        "careers",
+        "investing",
+        "creators",
+        "tech",
+        "events"
+      ],
+      "default": "general"
+    },
+    "author_id": {
+      "type": "string"
+    },
+    "author_name": {
+      "type": "string"
+    },
+    "author_avatar": {
+      "type": "string"
+    },
+    "author_role": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "reply_count": {
+      "type": "number",
+      "default": 0
+    },
+    "like_count": {
+      "type": "number",
+      "default": 0
+    },
+    "is_pinned": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "board",
+    "author_id",
+    "title",
+    "content"
+  ]
+}

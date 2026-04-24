@@ -1,0 +1,42 @@
+{
+  "name": "PodcastReview",
+  "type": "object",
+  "properties": {
+    "podcast_id": {
+      "type": "string"
+    },
+    "reviewer_id": {
+      "type": "string"
+    },
+    "reviewer_name": {
+      "type": "string"
+    },
+    "reviewer_avatar": {
+      "type": "string"
+    },
+    "rating": {
+      "type": "number",
+      "description": "Rating 1-5"
+    },
+    "review_text": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "podcast_id",
+    "reviewer_id",
+    "rating"
+  ],
+  "rls": {
+    "create": {
+      "data.reviewer_id": "{{user.id}}"
+    },
+    "read": {},
+    "update": {
+      "data.reviewer_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.reviewer_id": "{{user.id}}"
+    }
+  }
+}

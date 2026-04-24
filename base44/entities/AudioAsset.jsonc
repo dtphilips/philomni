@@ -1,0 +1,154 @@
+{
+  "name": "AudioAsset",
+  "type": "object",
+  "properties": {
+    "owner_id": {
+      "type": "string",
+      "description": "User ID of the audio owner"
+    },
+    "owner_name": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string",
+      "description": "Audio file name or custom title"
+    },
+    "description": {
+      "type": "string"
+    },
+    "audio_url": {
+      "type": "string",
+      "description": "URL to the uploaded audio file"
+    },
+    "duration": {
+      "type": "number",
+      "description": "Duration in seconds"
+    },
+    "file_size": {
+      "type": "number",
+      "description": "File size in bytes"
+    },
+    "genre": {
+      "type": "string",
+      "description": "Primary genre (e.g., Electronic, Jazz, Classical)",
+      "index": true
+    },
+    "secondary_genres": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Additional genres"
+    },
+    "tempo": {
+      "type": "number",
+      "description": "BPM (beats per minute)",
+      "index": true
+    },
+    "tempo_range": {
+      "type": "string",
+      "enum": [
+        "slow",
+        "moderate",
+        "fast",
+        "very-fast"
+      ],
+      "description": "Tempo classification"
+    },
+    "mood": {
+      "type": "string",
+      "description": "Primary mood (e.g., Energetic, Calm, Dark, Happy)",
+      "index": true
+    },
+    "mood_scores": {
+      "type": "object",
+      "properties": {
+        "energetic": {
+          "type": "number",
+          "description": "0-100 score"
+        },
+        "calm": {
+          "type": "number"
+        },
+        "dark": {
+          "type": "number"
+        },
+        "happy": {
+          "type": "number"
+        },
+        "sad": {
+          "type": "number"
+        },
+        "aggressive": {
+          "type": "number"
+        }
+      }
+    },
+    "instrumentation": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Detected instruments/sounds (e.g., Piano, Drums, Strings)"
+    },
+    "key": {
+      "type": "string",
+      "description": "Musical key (e.g., C Major, A Minor)"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "index": true
+    },
+    "analysis_confidence": {
+      "type": "number",
+      "description": "0-100 confidence score for AI analysis"
+    },
+    "is_analyzed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether AI analysis has been completed"
+    },
+    "analysis_data": {
+      "type": "object",
+      "description": "Full AI analysis response"
+    },
+    "favorite": {
+      "type": "boolean",
+      "default": false
+    },
+    "download_count": {
+      "type": "number",
+      "default": 0
+    },
+    "use_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of times used in projects"
+    }
+  },
+  "required": [
+    "owner_id",
+    "title",
+    "audio_url"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_id": "{{user.id}}"
+    },
+    "read": {
+      "data.owner_id": "{{user.id}}"
+    },
+    "update": {
+      "data.owner_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.owner_id": "{{user.id}}"
+    }
+  }
+}

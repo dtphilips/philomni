@@ -1,0 +1,78 @@
+{
+  "name": "ScheduledPublication",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "User who scheduled the publication"
+    },
+    "item_id": {
+      "type": "string",
+      "description": "ID of SharedProject or SharedVideo"
+    },
+    "item_type": {
+      "type": "string",
+      "enum": [
+        "project",
+        "video"
+      ],
+      "description": "Type of item being scheduled"
+    },
+    "item_title": {
+      "type": "string"
+    },
+    "item_thumbnail": {
+      "type": "string"
+    },
+    "marketplace_type": {
+      "type": "string",
+      "enum": [
+        "template",
+        "asset"
+      ],
+      "description": "What type to publish as"
+    },
+    "marketplace_description": {
+      "type": "string"
+    },
+    "scheduled_publish_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When to publish to marketplace"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "published",
+        "cancelled"
+      ],
+      "default": "scheduled"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "user_id",
+    "item_id",
+    "item_type",
+    "marketplace_type",
+    "scheduled_publish_date"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "update": {
+      "data.user_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.user_id": "{{user.id}}"
+    }
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "name": "JobAlert",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "user_email": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string",
+      "description": "Friendly name for this alert"
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Category filters"
+    },
+    "job_types": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "e.g. gig, contract, full_time"
+    },
+    "remote_only": {
+      "type": "boolean",
+      "default": false
+    },
+    "min_budget": {
+      "type": "number"
+    },
+    "max_budget": {
+      "type": "number"
+    },
+    "keywords": {
+      "type": "string"
+    },
+    "digest_frequency": {
+      "type": "string",
+      "enum": [
+        "instant",
+        "weekly"
+      ],
+      "default": "weekly"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "last_sent_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "user_id",
+    "user_email"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "update": {
+      "data.user_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.user_id": "{{user.id}}"
+    }
+  }
+}

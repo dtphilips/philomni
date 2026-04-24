@@ -1,0 +1,91 @@
+{
+  "name": "Status",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "User who posted the status"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "user_avatar": {
+      "type": "string"
+    },
+    "content_type": {
+      "type": "string",
+      "enum": [
+        "text",
+        "image",
+        "video"
+      ],
+      "default": "text"
+    },
+    "caption": {
+      "type": "string",
+      "description": "Status caption/text"
+    },
+    "media_url": {
+      "type": "string",
+      "description": "Image or video URL"
+    },
+    "media_type": {
+      "type": "string",
+      "enum": [
+        "image",
+        "video",
+        "text"
+      ],
+      "default": "text"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When status disappears (24 hours after creation)"
+    },
+    "viewer_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Users who viewed this status",
+      "default": []
+    },
+    "viewer_count": {
+      "type": "number",
+      "default": 0
+    },
+    "hashtags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "is_archived": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether status is kept after expiration for memories"
+    }
+  },
+  "required": [
+    "user_id",
+    "caption",
+    "media_url"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": {},
+    "update": {
+      "data.user_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.user_id": "{{user.id}}"
+    }
+  }
+}

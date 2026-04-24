@@ -1,0 +1,68 @@
+{
+  "name": "SharedVideo",
+  "type": "object",
+  "properties": {
+    "owner_id": {
+      "type": "string"
+    },
+    "owner_name": {
+      "type": "string"
+    },
+    "owner_avatar": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "prompt": {
+      "type": "string"
+    },
+    "video_url": {
+      "type": "string"
+    },
+    "thumbnail_url": {
+      "type": "string",
+      "description": "Auto-generated AI thumbnail"
+    },
+    "duration": {
+      "type": "number",
+      "description": "Duration in seconds"
+    },
+    "video_type": {
+      "type": "string",
+      "enum": [
+        "text_to_video",
+        "image_to_video"
+      ],
+      "description": "How the video was generated"
+    },
+    "view_count": {
+      "type": "number",
+      "default": 0
+    },
+    "fork_count": {
+      "type": "number",
+      "default": 0
+    },
+    "marketplace_type": {
+      "type": "string",
+      "enum": [
+        "none",
+        "template",
+        "asset"
+      ],
+      "default": "none"
+    },
+    "marketplace_description": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "owner_id",
+    "title",
+    "video_url"
+  ]
+}

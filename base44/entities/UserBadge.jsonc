@@ -1,0 +1,58 @@
+{
+  "name": "UserBadge",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "badge_id": {
+      "type": "string",
+      "description": "Unique badge identifier"
+    },
+    "badge_name": {
+      "type": "string"
+    },
+    "badge_icon": {
+      "type": "string",
+      "description": "Emoji or icon"
+    },
+    "description": {
+      "type": "string"
+    },
+    "earned_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "posting",
+        "sharing",
+        "helping",
+        "engagement",
+        "milestone"
+      ],
+      "description": "Badge category"
+    }
+  },
+  "required": [
+    "user_id",
+    "badge_id",
+    "badge_name",
+    "badge_icon"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

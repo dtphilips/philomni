@@ -1,0 +1,73 @@
+{
+  "name": "SharedProject",
+  "type": "object",
+  "properties": {
+    "owner_id": {
+      "type": "string"
+    },
+    "owner_name": {
+      "type": "string"
+    },
+    "owner_avatar": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "prompt": {
+      "type": "string"
+    },
+    "enhanced_prompt": {
+      "type": "string"
+    },
+    "style_id": {
+      "type": "string"
+    },
+    "style_label": {
+      "type": "string"
+    },
+    "style_emoji": {
+      "type": "string"
+    },
+    "image_url": {
+      "type": "string"
+    },
+    "thumbnail_url": {
+      "type": "string",
+      "description": "Auto-generated AI thumbnail"
+    },
+    "animation_id": {
+      "type": "string"
+    },
+    "animation_label": {
+      "type": "string"
+    },
+    "view_count": {
+      "type": "number",
+      "default": 0
+    },
+    "marketplace_type": {
+      "type": "string",
+      "enum": [
+        "none",
+        "template",
+        "asset"
+      ],
+      "default": "none",
+      "description": "Mark as template or asset for marketplace"
+    },
+    "marketplace_description": {
+      "type": "string",
+      "description": "Short description for marketplace listing"
+    },
+    "fork_count": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "owner_id",
+    "image_url",
+    "prompt"
+  ]
+}

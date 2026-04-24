@@ -1,0 +1,73 @@
+{
+  "name": "BrandVoice",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Owner of the brand voice"
+    },
+    "name": {
+      "type": "string",
+      "description": "Name of the brand voice profile"
+    },
+    "description": {
+      "type": "string",
+      "description": "Description of the brand/voice"
+    },
+    "tone": {
+      "type": "string",
+      "description": "e.g., Professional, Casual, Inspirational"
+    },
+    "examples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "file_url": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Writing samples/examples"
+    },
+    "brand_guidelines": {
+      "type": "string",
+      "description": "Brand guidelines and voice characteristics"
+    },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Key terms and phrases"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "user_id",
+    "name"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "update": {
+      "data.user_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.user_id": "{{user.id}}"
+    }
+  }
+}

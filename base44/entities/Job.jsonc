@@ -1,0 +1,78 @@
+{
+  "name": "Job",
+  "type": "object",
+  "properties": {
+    "poster_id": {
+      "type": "string"
+    },
+    "poster_name": {
+      "type": "string"
+    },
+    "poster_avatar": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "full_time",
+        "part_time",
+        "contract",
+        "gig",
+        "internship"
+      ],
+      "default": "full_time"
+    },
+    "category": {
+      "type": "string"
+    },
+    "subcategory": {
+      "type": "string"
+    },
+    "budget_min": {
+      "type": "number"
+    },
+    "budget_max": {
+      "type": "number"
+    },
+    "location": {
+      "type": "string"
+    },
+    "remote": {
+      "type": "boolean",
+      "default": false
+    },
+    "skills_required": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "application_count": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "closed",
+        "filled"
+      ],
+      "default": "open"
+    },
+    "is_boosted": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "title",
+    "poster_id"
+  ]
+}

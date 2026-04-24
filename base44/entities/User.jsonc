@@ -1,0 +1,165 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "creator",
+        "professional",
+        "investor",
+        "business",
+        "member",
+        "admin"
+      ],
+      "description": "User role on Philomni"
+    },
+    "onboarding_complete": {
+      "type": "boolean",
+      "default": false
+    },
+    "plan": {
+      "type": "string",
+      "enum": [
+        "free",
+        "pro"
+      ],
+      "default": "free"
+    },
+    "avatar_url": {
+      "type": "string"
+    },
+    "cover_url": {
+      "type": "string"
+    },
+    "headline": {
+      "type": "string",
+      "description": "Short tagline or title"
+    },
+    "bio": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "website": {
+      "type": "string"
+    },
+    "verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "portfolio_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "genre_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "For creators: genre and style tags"
+    },
+    "open_to_collabs": {
+      "type": "boolean",
+      "default": false
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "primary_category": {
+      "type": "string"
+    },
+    "secondary_category": {
+      "type": "string"
+    },
+    "third_category": {
+      "type": "string"
+    },
+    "hourly_rate": {
+      "type": "number"
+    },
+    "availability": {
+      "type": "string",
+      "enum": [
+        "available",
+        "busy",
+        "not_available"
+      ]
+    },
+    "investment_focus": {
+      "type": "string"
+    },
+    "deal_size_min": {
+      "type": "number"
+    },
+    "deal_size_max": {
+      "type": "number"
+    },
+    "industries_of_interest": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "company_name": {
+      "type": "string"
+    },
+    "company_size": {
+      "type": "string",
+      "enum": [
+        "1-10",
+        "11-50",
+        "51-200",
+        "201-500",
+        "501-1000",
+        "1000+"
+      ]
+    },
+    "industry": {
+      "type": "string"
+    },
+    "interests": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "follower_count": {
+      "type": "number",
+      "default": 0
+    },
+    "following_count": {
+      "type": "number",
+      "default": 0
+    },
+    "social_links": {
+      "type": "object",
+      "properties": {
+        "twitter": {
+          "type": "string"
+        },
+        "instagram": {
+          "type": "string"
+        },
+        "linkedin": {
+          "type": "string"
+        },
+        "youtube": {
+          "type": "string"
+        },
+        "tiktok": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": [
+    "role"
+  ]
+}

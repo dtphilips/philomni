@@ -1,0 +1,74 @@
+{
+  "name": "ScheduledPublicationCollaborator",
+  "type": "object",
+  "properties": {
+    "scheduled_publication_id": {
+      "type": "string",
+      "description": "ID of the ScheduledPublication"
+    },
+    "owner_id": {
+      "type": "string",
+      "description": "User ID of the publication owner"
+    },
+    "collaborator_email": {
+      "type": "string",
+      "description": "Email of the collaborator"
+    },
+    "collaborator_id": {
+      "type": "string",
+      "description": "User ID if collaborator has account"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "viewer",
+        "editor"
+      ],
+      "default": "viewer",
+      "description": "Viewer can see only, Editor can edit"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "accepted"
+      ],
+      "default": "pending"
+    },
+    "invited_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "accepted_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "scheduled_publication_id",
+    "owner_id",
+    "collaborator_email",
+    "role"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_id": "{{user.id}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_id": "{{user.id}}"
+        },
+        {
+          "data.collaborator_id": "{{user.id}}"
+        }
+      ]
+    },
+    "update": {
+      "data.owner_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.owner_id": "{{user.id}}"
+    }
+  }
+}

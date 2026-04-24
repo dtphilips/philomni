@@ -1,0 +1,108 @@
+{
+  "name": "AudioRevision",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "ID of the audio project"
+    },
+    "creator_id": {
+      "type": "string"
+    },
+    "revision_number": {
+      "type": "number",
+      "description": "Sequential revision number"
+    },
+    "snapshot_name": {
+      "type": "string",
+      "description": "User-friendly name for this revision"
+    },
+    "description": {
+      "type": "string",
+      "description": "What changed in this revision"
+    },
+    "audio_url": {
+      "type": "string",
+      "description": "URL to the audio file at this revision"
+    },
+    "timeline_comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "number"
+          },
+          "author_id": {
+            "type": "string"
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "text_summary": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "description": "Snapshot of timeline comments at this revision"
+    },
+    "edits_data": {
+      "type": "object",
+      "description": "Stored edits/effects applied to audio"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "has_effects": {
+          "type": "boolean"
+        },
+        "total_comments": {
+          "type": "number"
+        }
+      }
+    },
+    "is_auto_save": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this was automatically saved or manually created"
+    },
+    "is_current": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this is the current/active version"
+    }
+  },
+  "required": [
+    "project_id",
+    "creator_id",
+    "revision_number",
+    "audio_url"
+  ],
+  "rls": {
+    "create": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "read": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "update": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.creator_id": "{{user.id}}"
+    }
+  }
+}

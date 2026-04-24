@@ -1,0 +1,67 @@
+{
+  "name": "ContentVersion",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Owner of the content"
+    },
+    "content_id": {
+      "type": "string",
+      "description": "ID of the original generated content"
+    },
+    "content_type": {
+      "type": "string",
+      "enum": [
+        "blog",
+        "script",
+        "pitch",
+        "copy",
+        "other"
+      ],
+      "description": "Type of content"
+    },
+    "title": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string",
+      "description": "The actual content text"
+    },
+    "version_number": {
+      "type": "number",
+      "description": "Version number (1, 2, 3, etc)"
+    },
+    "changes_summary": {
+      "type": "string",
+      "description": "Summary of what changed in this version"
+    },
+    "is_current": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this is the current/active version"
+    }
+  },
+  "required": [
+    "user_id",
+    "content_id",
+    "content_type",
+    "title",
+    "content",
+    "version_number"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "update": {
+      "data.user_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.user_id": "{{user.id}}"
+    }
+  }
+}

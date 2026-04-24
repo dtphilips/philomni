@@ -1,0 +1,99 @@
+{
+  "name": "Application",
+  "type": "object",
+  "properties": {
+    "job_id": {
+      "type": "string"
+    },
+    "job_title": {
+      "type": "string"
+    },
+    "poster_id": {
+      "type": "string",
+      "description": "User ID of the job poster (employer)"
+    },
+    "poster_name": {
+      "type": "string"
+    },
+    "applicant_id": {
+      "type": "string"
+    },
+    "applicant_name": {
+      "type": "string"
+    },
+    "applicant_avatar": {
+      "type": "string"
+    },
+    "applicant_headline": {
+      "type": "string"
+    },
+    "cover_message": {
+      "type": "string",
+      "description": "Cover letter / message from applicant"
+    },
+    "resume_url": {
+      "type": "string",
+      "description": "Link to resume or portfolio"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "reviewed",
+        "accepted",
+        "rejected"
+      ],
+      "default": "pending"
+    }
+  },
+  "required": [
+    "job_id",
+    "job_title",
+    "poster_id",
+    "applicant_id"
+  ],
+  "rls": {
+    "create": {
+      "data.applicant_id": "{{user.id}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.applicant_id": "{{user.id}}"
+        },
+        {
+          "data.poster_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.poster_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.applicant_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

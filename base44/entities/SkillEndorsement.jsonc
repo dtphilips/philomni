@@ -1,0 +1,84 @@
+{
+  "name": "SkillEndorsement",
+  "type": "object",
+  "properties": {
+    "endorsed_user_id": {
+      "type": "string",
+      "description": "User ID of the person being endorsed"
+    },
+    "endorsed_user_name": {
+      "type": "string"
+    },
+    "endorser_id": {
+      "type": "string",
+      "description": "User ID of the person giving endorsement"
+    },
+    "endorser_name": {
+      "type": "string"
+    },
+    "endorser_avatar": {
+      "type": "string"
+    },
+    "skill": {
+      "type": "string",
+      "description": "The skill being endorsed",
+      "index": true
+    },
+    "skill_category": {
+      "type": "string",
+      "enum": [
+        "design",
+        "development",
+        "marketing",
+        "audio",
+        "video",
+        "writing",
+        "business",
+        "other"
+      ],
+      "description": "Category of the skill"
+    },
+    "endorsement_message": {
+      "type": "string",
+      "description": "Optional message about why endorsing this skill"
+    },
+    "is_verified": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether endorsed by someone with that skill"
+    }
+  },
+  "required": [
+    "endorsed_user_id",
+    "endorser_id",
+    "skill"
+  ],
+  "rls": {
+    "create": {
+      "data.endorser_id": "{{user.id}}"
+    },
+    "read": {},
+    "update": {
+      "$or": [
+        {
+          "data.endorser_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.endorser_id": "{{user.id}}"
+        },
+        {
+          "data.endorsed_user_id": "{{user.id}}"
+        }
+      ]
+    }
+  }
+}

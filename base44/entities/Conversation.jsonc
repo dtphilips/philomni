@@ -1,0 +1,68 @@
+{
+  "name": "Conversation",
+  "type": "object",
+  "properties": {
+    "participant_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of user IDs in the conversation"
+    },
+    "participant_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of user names"
+    },
+    "participant_avatars": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of user avatar URLs"
+    },
+    "is_group": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this is a group chat"
+    },
+    "group_name": {
+      "type": "string",
+      "description": "Name of the group (if is_group is true)"
+    },
+    "last_message": {
+      "type": "string",
+      "description": "Preview of the last message"
+    },
+    "last_message_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of the last message"
+    },
+    "last_message_sender_id": {
+      "type": "string",
+      "description": "ID of who sent the last message"
+    },
+    "unread_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of unread messages"
+    },
+    "muted": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether notifications are muted"
+    }
+  },
+  "required": [
+    "participant_ids"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
+}

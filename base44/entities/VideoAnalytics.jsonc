@@ -1,0 +1,84 @@
+{
+  "name": "VideoAnalytics",
+  "type": "object",
+  "properties": {
+    "video_id": {
+      "type": "string"
+    },
+    "creator_id": {
+      "type": "string"
+    },
+    "total_views": {
+      "type": "number",
+      "default": 0
+    },
+    "unique_viewers": {
+      "type": "number",
+      "default": 0
+    },
+    "total_engagement_seconds": {
+      "type": "number",
+      "default": 0
+    },
+    "average_watch_duration": {
+      "type": "number",
+      "default": 0,
+      "description": "Average watch time in seconds"
+    },
+    "audience_retention": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "percentage": {
+            "type": "number"
+          },
+          "viewers": {
+            "type": "number"
+          }
+        }
+      },
+      "description": "Retention at different video progress points"
+    },
+    "peak_playback_hour": {
+      "type": "number",
+      "description": "Hour of day with most views (0-23)"
+    },
+    "likes": {
+      "type": "number",
+      "default": 0
+    },
+    "comments": {
+      "type": "number",
+      "default": 0
+    },
+    "shares": {
+      "type": "number",
+      "default": 0
+    },
+    "click_through_rate": {
+      "type": "number",
+      "description": "Percentage of viewers who clicked on profile"
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "video_id",
+    "creator_id"
+  ],
+  "rls": {
+    "create": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "read": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "update": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "delete": {}
+  }
+}

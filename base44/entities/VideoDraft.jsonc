@@ -1,0 +1,90 @@
+{
+  "name": "VideoDraft",
+  "type": "object",
+  "properties": {
+    "creator_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "video_url": {
+      "type": "string"
+    },
+    "thumbnail_url": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "editing",
+        "in_review",
+        "ready_to_publish"
+      ],
+      "default": "editing"
+    },
+    "category": {
+      "type": "string",
+      "description": "User-defined category"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "edits": {
+      "type": "object",
+      "description": "Stored video edits data (text overlays, filters, etc)"
+    },
+    "collaborators": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of collaborator IDs"
+    },
+    "last_edited_by": {
+      "type": "string"
+    },
+    "last_edited_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "creator_id",
+    "title"
+  ],
+  "rls": {
+    "create": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.creator_id": "{{user.id}}"
+        },
+        {
+          "data.collaborators": "{{user.id}}"
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.creator_id": "{{user.id}}"
+        },
+        {
+          "data.collaborators": "{{user.id}}"
+        }
+      ]
+    },
+    "delete": {
+      "data.creator_id": "{{user.id}}"
+    }
+  }
+}

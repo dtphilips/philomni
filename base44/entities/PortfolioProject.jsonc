@@ -1,0 +1,136 @@
+{
+  "name": "PortfolioProject",
+  "type": "object",
+  "properties": {
+    "owner_id": {
+      "type": "string",
+      "description": "User ID of the project owner"
+    },
+    "owner_name": {
+      "type": "string"
+    },
+    "owner_avatar": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "web-design",
+        "mobile-app",
+        "graphic-design",
+        "video-production",
+        "writing",
+        "photography",
+        "audio-production",
+        "3d-modeling",
+        "illustration",
+        "other"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "image_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Gallery of project images/media"
+    },
+    "thumbnail_url": {
+      "type": "string",
+      "description": "Primary thumbnail for the project"
+    },
+    "project_url": {
+      "type": "string",
+      "description": "Link to live project or portfolio item"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date"
+    },
+    "client_name": {
+      "type": "string"
+    },
+    "open_to_collaborate": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the owner is open to collaboration on this project"
+    },
+    "collaboration_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "feedback",
+          "freelance",
+          "partnership",
+          "mentoring",
+          "learning"
+        ]
+      },
+      "default": [],
+      "description": "Types of collaboration the owner is interested in"
+    },
+    "view_count": {
+      "type": "number",
+      "default": 0
+    },
+    "like_count": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "published",
+        "draft"
+      ],
+      "default": "published",
+      "description": "Whether the project is publicly visible or saved as a draft"
+    }
+  },
+  "required": [
+    "owner_id",
+    "title"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_id": "{{user.id}}"
+    },
+    "read": {},
+    "update": {
+      "$or": [
+        {
+          "data.owner_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.owner_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

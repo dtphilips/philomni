@@ -1,0 +1,60 @@
+{
+  "name": "UserPoints",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "total_points": {
+      "type": "number",
+      "default": 0
+    },
+    "posting_points": {
+      "type": "number",
+      "default": 0
+    },
+    "sharing_points": {
+      "type": "number",
+      "default": 0
+    },
+    "helping_points": {
+      "type": "number",
+      "default": 0
+    },
+    "engagement_points": {
+      "type": "number",
+      "default": 0
+    },
+    "level": {
+      "type": "number",
+      "default": 1,
+      "description": "User level based on points"
+    },
+    "streak_days": {
+      "type": "number",
+      "default": 0,
+      "description": "Days of continuous activity"
+    },
+    "last_activity_date": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "user_id"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

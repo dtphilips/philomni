@@ -1,0 +1,101 @@
+{
+  "name": "CreatorContent",
+  "type": "object",
+  "properties": {
+    "creator_id": {
+      "type": "string"
+    },
+    "creator_name": {
+      "type": "string"
+    },
+    "creator_avatar": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "content_type": {
+      "type": "string",
+      "enum": [
+        "template",
+        "script",
+        "blog_post",
+        "social_pack",
+        "video",
+        "asset"
+      ],
+      "description": "Type of content being sold"
+    },
+    "category": {
+      "type": "string"
+    },
+    "price": {
+      "type": "number",
+      "description": "Price in USD"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "Link to downloadable content"
+    },
+    "thumbnail_url": {
+      "type": "string"
+    },
+    "preview_content": {
+      "type": "string",
+      "description": "Preview text/snippet"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "purchase_count": {
+      "type": "number",
+      "default": 0
+    },
+    "rating": {
+      "type": "number",
+      "description": "Average rating"
+    },
+    "review_count": {
+      "type": "number",
+      "default": 0
+    },
+    "is_featured": {
+      "type": "boolean",
+      "default": false
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "published",
+        "archived"
+      ],
+      "default": "draft"
+    }
+  },
+  "required": [
+    "creator_id",
+    "title",
+    "content_type",
+    "price",
+    "file_url"
+  ],
+  "rls": {
+    "create": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "read": {},
+    "update": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.creator_id": "{{user.id}}"
+    }
+  }
+}

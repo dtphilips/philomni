@@ -1,0 +1,74 @@
+{
+  "name": "AudioVoiceNote",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "ID of the audio project"
+    },
+    "author_id": {
+      "type": "string"
+    },
+    "author_name": {
+      "type": "string"
+    },
+    "author_avatar": {
+      "type": "string"
+    },
+    "audio_url": {
+      "type": "string",
+      "description": "URL to the voice note audio file"
+    },
+    "timestamp": {
+      "type": "number",
+      "description": "Time position in seconds where comment is placed"
+    },
+    "duration": {
+      "type": "number",
+      "description": "Duration of voice note in seconds"
+    },
+    "text_summary": {
+      "type": "string",
+      "description": "Optional transcribed text or summary"
+    },
+    "is_resolved": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether feedback has been addressed"
+    },
+    "replies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "author_id": {
+            "type": "string"
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "audio_url": {
+            "type": "string"
+          },
+          "text_summary": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "default": []
+    }
+  },
+  "required": [
+    "project_id",
+    "author_id",
+    "audio_url",
+    "timestamp"
+  ]
+}

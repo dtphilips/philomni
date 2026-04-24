@@ -1,0 +1,74 @@
+{
+  "name": "Group",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Group name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Group description"
+    },
+    "owner_id": {
+      "type": "string",
+      "description": "User ID of group creator"
+    },
+    "owner_name": {
+      "type": "string"
+    },
+    "owner_avatar": {
+      "type": "string"
+    },
+    "is_private": {
+      "type": "boolean",
+      "default": false,
+      "description": "Private groups require approval to join"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "tech",
+        "creative",
+        "business",
+        "lifestyle",
+        "education",
+        "entertainment",
+        "other"
+      ],
+      "default": "other"
+    },
+    "cover_image": {
+      "type": "string"
+    },
+    "member_count": {
+      "type": "number",
+      "default": 1
+    },
+    "rules": {
+      "type": "string",
+      "description": "Group rules or guidelines"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "owner_id"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
+}

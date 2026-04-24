@@ -1,0 +1,74 @@
+{
+  "name": "VideoCaption",
+  "type": "object",
+  "properties": {
+    "draft_id": {
+      "type": "string"
+    },
+    "creator_id": {
+      "type": "string"
+    },
+    "language": {
+      "type": "string",
+      "default": "en",
+      "description": "ISO 639-1 language code"
+    },
+    "captions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "start_time": {
+            "type": "number",
+            "description": "Start time in seconds"
+          },
+          "end_time": {
+            "type": "number",
+            "description": "End time in seconds"
+          },
+          "text": {
+            "type": "string"
+          },
+          "edited": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "transcript": {
+      "type": "string",
+      "description": "Full transcript text"
+    },
+    "auto_generated": {
+      "type": "boolean",
+      "default": true
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "draft_id",
+    "creator_id",
+    "captions"
+  ],
+  "rls": {
+    "create": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "read": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "update": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.creator_id": "{{user.id}}"
+    }
+  }
+}

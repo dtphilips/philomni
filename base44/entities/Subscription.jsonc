@@ -1,0 +1,85 @@
+{
+  "name": "Subscription",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "plan": {
+      "type": "string",
+      "enum": [
+        "free",
+        "pro",
+        "enterprise"
+      ],
+      "default": "free"
+    },
+    "stripe_customer_id": {
+      "type": "string"
+    },
+    "stripe_subscription_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "cancelled",
+        "past_due",
+        "inactive"
+      ],
+      "default": "inactive"
+    },
+    "monthly_price": {
+      "type": "number"
+    },
+    "unlimited_ai_generations": {
+      "type": "boolean",
+      "default": false
+    },
+    "priority_processing": {
+      "type": "boolean",
+      "default": false
+    },
+    "private_collaboration": {
+      "type": "boolean",
+      "default": false
+    },
+    "podcast_hosting": {
+      "type": "boolean",
+      "default": false
+    },
+    "custom_branding": {
+      "type": "boolean",
+      "default": false
+    },
+    "current_period_start": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "current_period_end": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cancel_at_period_end": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "user_id",
+    "plan"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "update": {
+      "data.user_id": "{{user.id}}"
+    },
+    "delete": {}
+  }
+}

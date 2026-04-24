@@ -1,0 +1,71 @@
+{
+  "name": "Review",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "ID of the PortfolioProject being reviewed"
+    },
+    "project_owner_id": {
+      "type": "string",
+      "description": "User ID of the project owner"
+    },
+    "reviewer_id": {
+      "type": "string"
+    },
+    "reviewer_name": {
+      "type": "string"
+    },
+    "reviewer_avatar": {
+      "type": "string"
+    },
+    "rating": {
+      "type": "number",
+      "description": "1\u20135 star rating"
+    },
+    "feedback": {
+      "type": "string"
+    },
+    "relationship": {
+      "type": "string",
+      "enum": [
+        "client",
+        "collaborator",
+        "colleague",
+        "other"
+      ],
+      "default": "client",
+      "description": "Reviewer's relationship to the project"
+    }
+  },
+  "required": [
+    "project_id",
+    "project_owner_id",
+    "reviewer_id",
+    "rating"
+  ],
+  "rls": {
+    "create": {
+      "data.reviewer_id": "{{user.id}}"
+    },
+    "read": {},
+    "update": {
+      "data.reviewer_id": "{{user.id}}"
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.reviewer_id": "{{user.id}}"
+        },
+        {
+          "data.project_owner_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

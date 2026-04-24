@@ -1,0 +1,66 @@
+{
+  "name": "AnalyticsEvent",
+  "type": "object",
+  "properties": {
+    "creator_id": {
+      "type": "string"
+    },
+    "content_id": {
+      "type": "string",
+      "description": "ID of the shared/published content"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "view",
+        "click",
+        "share",
+        "download",
+        "comment",
+        "like"
+      ],
+      "description": "Type of user interaction"
+    },
+    "visitor_id": {
+      "type": "string",
+      "description": "Anonymous or authenticated visitor ID"
+    },
+    "visitor_country": {
+      "type": "string"
+    },
+    "visitor_device": {
+      "type": "string",
+      "enum": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ]
+    },
+    "referral_source": {
+      "type": "string",
+      "description": "Where traffic came from"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "conversion": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this led to a purchase/conversion"
+    }
+  },
+  "required": [
+    "creator_id",
+    "content_id",
+    "event_type"
+  ],
+  "rls": {
+    "create": {},
+    "read": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "update": {},
+    "delete": {}
+  }
+}

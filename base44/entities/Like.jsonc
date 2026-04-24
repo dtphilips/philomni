@@ -1,0 +1,27 @@
+{
+  "name": "Like",
+  "type": "object",
+  "properties": {
+    "post_id": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "reaction_type": {
+      "type": "string",
+      "enum": [
+        "like",
+        "love",
+        "celebrate",
+        "insightful",
+        "curious"
+      ],
+      "default": "like"
+    }
+  },
+  "required": [
+    "post_id",
+    "user_id"
+  ]
+}

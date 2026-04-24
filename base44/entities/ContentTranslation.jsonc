@@ -1,0 +1,63 @@
+{
+  "name": "ContentTranslation",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "original_content_id": {
+      "type": "string",
+      "description": "ID of the original content"
+    },
+    "original_language": {
+      "type": "string",
+      "default": "en",
+      "description": "ISO 639-1 code"
+    },
+    "target_language": {
+      "type": "string",
+      "description": "ISO 639-1 code for translation"
+    },
+    "content_type": {
+      "type": "string",
+      "enum": [
+        "blog",
+        "script",
+        "social_post"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "original_title": {
+      "type": "string"
+    },
+    "translated_content": {
+      "type": "string"
+    },
+    "is_published": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "user_id",
+    "original_content_id",
+    "target_language",
+    "translated_content"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "update": {
+      "data.user_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.user_id": "{{user.id}}"
+    }
+  }
+}

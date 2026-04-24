@@ -1,0 +1,49 @@
+{
+  "name": "ProjectCollaborator",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "ID of the video project"
+    },
+    "collaborator_email": {
+      "type": "string",
+      "description": "Email of the collaborator"
+    },
+    "permission": {
+      "type": "string",
+      "enum": [
+        "viewer",
+        "editor",
+        "admin"
+      ],
+      "default": "viewer",
+      "description": "Permission level for the collaborator"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "accepted",
+        "declined"
+      ],
+      "default": "pending",
+      "description": "Status of the collaboration invitation"
+    },
+    "joined_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "project_id",
+    "collaborator_email",
+    "permission"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
+}

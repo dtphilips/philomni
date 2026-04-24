@@ -1,0 +1,90 @@
+{
+  "name": "MemberReview",
+  "type": "object",
+  "properties": {
+    "reviewed_user_id": {
+      "type": "string",
+      "description": "ID of the user being reviewed"
+    },
+    "reviewed_user_name": {
+      "type": "string"
+    },
+    "reviewer_id": {
+      "type": "string",
+      "description": "ID of the person leaving the review"
+    },
+    "reviewer_name": {
+      "type": "string"
+    },
+    "reviewer_avatar": {
+      "type": "string"
+    },
+    "rating": {
+      "type": "number",
+      "description": "Star rating 1-5"
+    },
+    "feedback": {
+      "type": "string",
+      "description": "Written review text"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "collaboration",
+        "communication",
+        "quality",
+        "reliability",
+        "expertise"
+      ],
+      "description": "Category of review"
+    },
+    "workspace_id": {
+      "type": "string",
+      "description": "Workspace where collaboration occurred (optional)"
+    },
+    "project_id": {
+      "type": "string",
+      "description": "Project associated with review (optional)"
+    },
+    "helpful_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of users who found review helpful"
+    },
+    "is_verified_collaboration": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether reviewer worked with this user"
+    }
+  },
+  "required": [
+    "reviewed_user_id",
+    "reviewer_id",
+    "rating",
+    "feedback"
+  ],
+  "rls": {
+    "create": {
+      "data.reviewer_id": "{{user.id}}"
+    },
+    "read": {},
+    "update": {
+      "data.reviewer_id": "{{user.id}}"
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.reviewer_id": "{{user.id}}"
+        },
+        {
+          "data.reviewed_user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

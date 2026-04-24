@@ -1,0 +1,79 @@
+{
+  "name": "FileAttachment",
+  "type": "object",
+  "properties": {
+    "file_name": {
+      "type": "string",
+      "description": "Original file name"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "URL to the uploaded file"
+    },
+    "file_size": {
+      "type": "number",
+      "description": "File size in bytes"
+    },
+    "file_type": {
+      "type": "string",
+      "enum": [
+        "image",
+        "pdf",
+        "document",
+        "video",
+        "audio",
+        "code",
+        "other"
+      ],
+      "description": "File category"
+    },
+    "mime_type": {
+      "type": "string",
+      "description": "MIME type of the file"
+    },
+    "uploaded_by": {
+      "type": "string",
+      "description": "User ID of uploader"
+    },
+    "uploader_name": {
+      "type": "string"
+    },
+    "attached_to_type": {
+      "type": "string",
+      "enum": [
+        "project",
+        "message",
+        "group_post",
+        "workspace_task"
+      ],
+      "description": "What entity this file is attached to"
+    },
+    "attached_to_id": {
+      "type": "string",
+      "description": "ID of the entity this file is attached to"
+    },
+    "thumbnail_url": {
+      "type": "string",
+      "description": "URL to thumbnail preview"
+    },
+    "is_public": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether file is publicly accessible"
+    }
+  },
+  "required": [
+    "file_name",
+    "file_url",
+    "file_type",
+    "uploaded_by",
+    "attached_to_type",
+    "attached_to_id"
+  ],
+  "rls": {
+    "create": {},
+    "read": {},
+    "update": {},
+    "delete": {}
+  }
+}

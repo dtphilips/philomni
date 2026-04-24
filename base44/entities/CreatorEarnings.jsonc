@@ -1,0 +1,63 @@
+{
+  "name": "CreatorEarnings",
+  "type": "object",
+  "properties": {
+    "creator_id": {
+      "type": "string"
+    },
+    "total_earnings": {
+      "type": "number",
+      "default": 0
+    },
+    "tips_received": {
+      "type": "number",
+      "default": 0
+    },
+    "premium_content_revenue": {
+      "type": "number",
+      "default": 0
+    },
+    "podcast_revenue": {
+      "type": "number",
+      "default": 0
+    },
+    "booking_revenue": {
+      "type": "number",
+      "default": 0
+    },
+    "membership_revenue": {
+      "type": "number",
+      "default": 0
+    },
+    "stripe_customer_id": {
+      "type": "string"
+    },
+    "stripe_connected_account": {
+      "type": "string",
+      "description": "Stripe Connect ID for payouts"
+    },
+    "available_balance": {
+      "type": "number",
+      "default": 0
+    },
+    "pending_balance": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "creator_id"
+  ],
+  "rls": {
+    "create": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "read": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "update": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "delete": {}
+  }
+}

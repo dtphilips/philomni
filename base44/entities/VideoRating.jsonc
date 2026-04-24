@@ -1,0 +1,36 @@
+{
+  "name": "VideoRating",
+  "type": "object",
+  "properties": {
+    "video_id": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "rating": {
+      "type": "number",
+      "description": "Rating from 1 to 5"
+    },
+    "review": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "video_id",
+    "user_id",
+    "rating"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": {},
+    "update": {
+      "data.user_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.user_id": "{{user.id}}"
+    }
+  }
+}

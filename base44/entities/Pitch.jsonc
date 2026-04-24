@@ -1,0 +1,50 @@
+{
+  "name": "Pitch",
+  "type": "object",
+  "properties": {
+    "creator_id": {
+      "type": "string"
+    },
+    "creator_name": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "teaser": {
+      "type": "string",
+      "description": "One-line public description"
+    },
+    "full_description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "file_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "funded",
+        "archived"
+      ],
+      "default": "active"
+    },
+    "view_count": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "title",
+    "creator_id",
+    "teaser"
+  ]
+}

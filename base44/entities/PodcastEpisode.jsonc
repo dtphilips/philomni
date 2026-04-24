@@ -1,0 +1,68 @@
+{
+  "name": "PodcastEpisode",
+  "type": "object",
+  "properties": {
+    "podcast_id": {
+      "type": "string"
+    },
+    "creator_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "episode_number": {
+      "type": "number"
+    },
+    "season": {
+      "type": "number",
+      "default": 1
+    },
+    "audio_url": {
+      "type": "string"
+    },
+    "cover_image_url": {
+      "type": "string"
+    },
+    "duration_seconds": {
+      "type": "number"
+    },
+    "is_premium": {
+      "type": "boolean",
+      "default": false
+    },
+    "price": {
+      "type": "number",
+      "description": "One-time purchase price for premium episodes"
+    },
+    "plays": {
+      "type": "number",
+      "default": 0
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "podcast_id",
+    "creator_id",
+    "title",
+    "audio_url"
+  ],
+  "rls": {
+    "create": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "read": {},
+    "update": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.creator_id": "{{user.id}}"
+    }
+  }
+}

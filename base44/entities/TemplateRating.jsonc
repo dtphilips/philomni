@@ -1,0 +1,39 @@
+{
+  "name": "TemplateRating",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "SharedProject ID being rated"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "User who gave the rating"
+    },
+    "rating": {
+      "type": "number",
+      "description": "Rating from 1 to 5"
+    },
+    "review": {
+      "type": "string",
+      "description": "Optional review text"
+    }
+  },
+  "required": [
+    "project_id",
+    "user_id",
+    "rating"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": {},
+    "update": {
+      "data.user_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.user_id": "{{user.id}}"
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "name": "CollaborativeComment",
+  "type": "object",
+  "properties": {
+    "workspace_id": {
+      "type": "string"
+    },
+    "author_id": {
+      "type": "string"
+    },
+    "author_name": {
+      "type": "string"
+    },
+    "author_avatar": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "number",
+      "description": "Timestamp in the content (seconds)"
+    },
+    "resolved": {
+      "type": "boolean",
+      "default": false
+    },
+    "mentions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "User IDs mentioned in comment"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "author_id",
+    "content"
+  ],
+  "rls": {
+    "create": {
+      "data.author_id": "{{user.id}}"
+    },
+    "read": {},
+    "update": {
+      "data.author_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.author_id": "{{user.id}}"
+    }
+  }
+}

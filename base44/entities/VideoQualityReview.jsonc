@@ -1,0 +1,134 @@
+{
+  "name": "VideoQualityReview",
+  "type": "object",
+  "properties": {
+    "draft_id": {
+      "type": "string"
+    },
+    "creator_id": {
+      "type": "string"
+    },
+    "overall_score": {
+      "type": "number",
+      "description": "Quality score 0-100"
+    },
+    "audio_analysis": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "good",
+            "warning",
+            "critical"
+          ]
+        },
+        "average_level": {
+          "type": "number",
+          "description": "dB level"
+        },
+        "peak_level": {
+          "type": "number"
+        },
+        "noise_detected": {
+          "type": "boolean"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "visual_analysis": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "good",
+            "warning",
+            "critical"
+          ]
+        },
+        "brightness_consistency": {
+          "type": "number",
+          "description": "0-100 consistency score"
+        },
+        "color_grading_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lighting_quality": {
+          "type": "string",
+          "enum": [
+            "poor",
+            "fair",
+            "good",
+            "excellent"
+          ]
+        }
+      }
+    },
+    "transition_analysis": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "good",
+            "warning",
+            "critical"
+          ]
+        },
+        "total_transitions": {
+          "type": "number"
+        },
+        "broken_transitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "number"
+              },
+              "issue": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "draft_id",
+    "creator_id",
+    "overall_score"
+  ],
+  "rls": {
+    "create": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "read": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "update": {
+      "data.creator_id": "{{user.id}}"
+    },
+    "delete": {}
+  }
+}

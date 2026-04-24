@@ -1,0 +1,79 @@
+{
+  "name": "ContentAsset",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "original_content_id": {
+      "type": "string",
+      "description": "ID of the source content"
+    },
+    "original_type": {
+      "type": "string",
+      "enum": [
+        "blog",
+        "script",
+        "social_post"
+      ],
+      "description": "Type of original content"
+    },
+    "asset_type": {
+      "type": "string",
+      "enum": [
+        "linkedin_thread",
+        "twitter_summary",
+        "video_script",
+        "instagram_post",
+        "email_newsletter"
+      ],
+      "description": "Type of reformatted asset"
+    },
+    "title": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "hashtags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "views": {
+      "type": "number",
+      "default": 0
+    },
+    "engagement_rate": {
+      "type": "number",
+      "default": 0,
+      "description": "Percentage (0-100)"
+    },
+    "click_through_rate": {
+      "type": "number",
+      "default": 0,
+      "description": "Percentage (0-100)"
+    }
+  },
+  "required": [
+    "user_id",
+    "original_content_id",
+    "asset_type",
+    "content"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "update": {
+      "data.user_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.user_id": "{{user.id}}"
+    }
+  }
+}
