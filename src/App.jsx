@@ -1,3 +1,4 @@
+import { LightboxProvider } from '@/components/common/Lightbox';
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as Sonner } from 'sonner'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -66,6 +67,8 @@ import Meetings from '@/pages/Meetings';
 import Stories from '@/pages/Stories';
 import SkillExchange from '@/pages/SkillExchange';
 import BusinessContentSuite from '@/pages/BusinessContentSuite';
+import MusicLibrary from '@/pages/MusicLibrary';
+import UGCCreatorSuite from '@/pages/UGCCreatorSuite';
 
 // Loading screen
 const LoadingScreen = () => (
@@ -108,10 +111,17 @@ const AuthenticatedApp = () => {
       <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/onboarding/profile" element={<OnboardingProfile />} />
 
-      {/* Publicly viewable without login */}
+      {/* Publicly viewable without login — no auth required */}
       <Route element={<AppLayout />}>
         <Route path="/shared-project/:projectId" element={<SharedProjectView />} />
         <Route path="/shared-video/:videoId" element={<SharedVideoView />} />
+        <Route path="/explore" element={<Explore />} />
+        <Route path="/discover" element={<Discover />} />
+        <Route path="/creators" element={<Creators />} />
+        <Route path="/user/:userId" element={<Profile />} />
+        <Route path="/creative-studio" element={<CreativeStudio />} />
+        <Route path="/music-library" element={<MusicLibrary />} />
+        <Route path="/ugc-suite" element={<UGCCreatorSuite />} />
       </Route>
 
       {/* All protected routes */}
@@ -168,6 +178,8 @@ const AuthenticatedApp = () => {
           <Route path="/stories" element={<Stories />} />
           <Route path="/skill-exchange" element={<SkillExchange />} />
           <Route path="/business-content" element={<BusinessContentSuite />} />
+          <Route path="/music-library" element={<MusicLibrary />} />
+          <Route path="/ugc-suite" element={<UGCCreatorSuite />} />
         </Route>
       </Route>
 
@@ -180,15 +192,17 @@ const AuthenticatedApp = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <AuthenticatedApp />
-        </Router>
-        <Toaster />
-        <Sonner richColors closeButton position="bottom-right" />
-      </QueryClientProvider>
-    </AuthProvider>
+    <LightboxProvider>
+      <AuthProvider>
+        <QueryClientProvider client={queryClientInstance}>
+          <Router>
+            <AuthenticatedApp />
+          </Router>
+          <Toaster />
+          <Sonner richColors closeButton position="bottom-right" />
+        </QueryClientProvider>
+      </AuthProvider>
+    </LightboxProvider>
   );
 }
 

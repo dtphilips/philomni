@@ -20,6 +20,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import PostComments from './PostComments';
 import ShareMenu from '@/components/common/ShareMenu';
+import { useLightbox } from '@/components/common/Lightbox';
 
 export default function PostCard({ post, user, userLikes = [], userBookmarks = [] }) {
   const [showComments, setShowComments] = useState(false);
@@ -33,6 +34,7 @@ export default function PostCard({ post, user, userLikes = [], userBookmarks = [
   const videoRef = React.useRef(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { openLightbox } = useLightbox();
 
   const handleVideoUnmute = () => {
     if (videoRef.current?.paused) {
@@ -224,7 +226,7 @@ export default function PostCard({ post, user, userLikes = [], userBookmarks = [
                   onVolumeChange={handleVideoUnmute}
                 />
               ) : (
-                <img src={url} className="w-full h-full object-cover" alt="" loading="lazy" />
+                <img src={url} className="w-full h-full object-cover cursor-zoom-in" alt="" loading="lazy" onClick={() => openLightbox(url)} />
               )}
             </div>
           ))}
