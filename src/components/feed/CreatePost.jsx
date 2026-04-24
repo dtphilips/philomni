@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -213,6 +214,24 @@ export default function CreatePost({ user }) {
 
   const hasContent = extractPlainText(content).trim() || mediaFiles.length > 0;
   const isTextOnly = mediaFiles.length === 0;
+
+  if (!user) {
+    return (
+      <div className="bg-card rounded-2xl border border-border shadow-sm mb-6 p-4 flex items-center gap-4">
+        <div className="w-10 h-10 rounded-full bg-muted flex-shrink-0 flex items-center justify-center text-muted-foreground text-sm font-bold">?</div>
+        <div className="flex-1 min-h-[42px] border border-border rounded-xl px-4 py-2.5 bg-muted/30 text-muted-foreground/50 text-sm flex items-center select-none">
+          Share something with the community...
+        </div>
+        <Link
+          to="/login"
+          className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+          style={{ background: 'rgba(109,40,217,0.15)', color: 'hsl(var(--primary))', border: '1px solid rgba(109,40,217,0.25)' }}
+        >
+          Sign in to post
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-card rounded-2xl border border-border shadow-sm mb-6 overflow-hidden">

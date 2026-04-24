@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 
 const Spinner = () => (
@@ -8,16 +9,20 @@ const Spinner = () => (
 );
 
 export default function ProtectedRoute({ unauthenticatedElement = null }) {
-  const { isAuthenticated, isLoadingAuth, authChecked, DEV_MODE } = useAuth();
+  const { isAuthenticated, DEV_MODE } = useAuth();
+  // Give auth state up to 1.5 s to settle after a fresh login before
+  // redirecting — prevents a flash-redirect race when onAuthStateChange
+  // hasn't fired yet but Supabase session is already valid.
+  const [settling, setSettling] = useState(!isAuthenticated);
 
-  // Dev mode: always authenticated
+  useEffect(() => {
+    if (isAuthenticated) { setSettling(false); return; }
+    const t = setTimeout(() => setSettling(false), 1500);
+    return () => clearTimeout(t);
+  }, [isAuthenticated]);
+
   if (DEV_MODE) return <Outlet />;
-
-  // Still checking
-  if (isLoadingAuth || !authChecked) return <Spinner />;
-
-  // Not authenticated
+  if (settling) return <Spinner />;
   if (!isAuthenticated) return unauthenticatedElement;
-
   return <Outlet />;
 }

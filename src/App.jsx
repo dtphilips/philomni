@@ -111,44 +111,45 @@ const AuthenticatedApp = () => {
       <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/onboarding/profile" element={<OnboardingProfile />} />
 
-      {/* Publicly viewable without login — no auth required */}
+      {/* Public routes — fully browsable without login */}
       <Route element={<AppLayout />}>
         <Route path="/shared-project/:projectId" element={<SharedProjectView />} />
         <Route path="/shared-video/:videoId" element={<SharedVideoView />} />
+        <Route path="/" element={<Feed />} />
         <Route path="/explore" element={<Explore />} />
         <Route path="/discover" element={<Discover />} />
+        <Route path="/search" element={<GlobalSearch />} />
         <Route path="/creators" element={<Creators />} />
-        <Route path="/user/:userId" element={<Profile />} />
-        <Route path="/creative-studio" element={<CreativeStudio />} />
+        <Route path="/directory" element={<Directory />} />
+        <Route path="/marketplace" element={<Marketplace />} />
+        <Route path="/pitch-vault" element={<PitchVault />} />
+        <Route path="/community" element={<Community />} />
+        <Route path="/reels" element={<Reels />} />
+        <Route path="/rooms" element={<Rooms />} />
+        <Route path="/meetings" element={<Meetings />} />
         <Route path="/music-library" element={<MusicLibrary />} />
+        <Route path="/creative-studio" element={<CreativeStudio />} />
         <Route path="/ugc-suite" element={<UGCCreatorSuite />} />
+        <Route path="/ai-tools" element={<AITools />} />
+        <Route path="/skill-exchange" element={<SkillExchange />} />
+        <Route path="/creator-marketplace" element={<CreatorMarketplace />} />
+        <Route path="/user/:userId" element={<Profile />} />
+        <Route path="/upgrade" element={<Upgrade />} />
       </Route>
 
-      {/* All protected routes */}
+      {/* Protected routes — require login */}
       <Route element={<ProtectedRoute unauthenticatedElement={<LoginRedirect />} />}>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<Feed />} />
-          <Route path="/discover" element={<Discover />} />
-          <Route path="/explore" element={<Explore />} />
-          <Route path="/marketplace" element={<Marketplace />} />
-          <Route path="/pitch-vault" element={<PitchVault />} />
-          <Route path="/creators" element={<Creators />} />
-          <Route path="/directory" element={<Directory />} />
           <Route path="/messages" element={<Messages />} />
-          <Route path="/community" element={<Community />} />
           <Route path="/groups" element={<Groups />} />
-          <Route path="/ai-tools" element={<AITools />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/profile/edit" element={<EditProfile />} />
-          <Route path="/user/:userId" element={<Profile />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/admin" element={<Admin />} />
-          <Route path="/upgrade" element={<Upgrade />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/creator-analytics" element={<CreatorAnalytics />} />
           <Route path="/audio-studio" element={<AudioStudio />} />
-          <Route path="/creative-studio" element={<CreativeStudio />} />
           <Route path="/templates" element={<TemplateMarketplace />} />
           <Route path="/video-studio" element={<VideoStudio />} />
           <Route path="/video-marketplace" element={<VideoMarketplace />} />
@@ -167,19 +168,11 @@ const AuthenticatedApp = () => {
           <Route path="/quality-review/:draftId" element={<QualityReview />} />
           <Route path="/video-captions/:draftId" element={<VideoCaptions />} />
           <Route path="/edit-video/:postId" element={<PostVideoEditorPage />} />
-          <Route path="/search" element={<GlobalSearch />} />
           <Route path="/project-matcher" element={<ProjectMatcher />} />
           <Route path="/collaboration-feed" element={<CollaborationFeed />} />
           <Route path="/content-calendar" element={<ContentCalendar />} />
-          <Route path="/creator-marketplace" element={<CreatorMarketplace />} />
-          <Route path="/reels" element={<Reels />} />
-          <Route path="/rooms" element={<Rooms />} />
-          <Route path="/meetings" element={<Meetings />} />
           <Route path="/stories" element={<Stories />} />
-          <Route path="/skill-exchange" element={<SkillExchange />} />
           <Route path="/business-content" element={<BusinessContentSuite />} />
-          <Route path="/music-library" element={<MusicLibrary />} />
-          <Route path="/ugc-suite" element={<UGCCreatorSuite />} />
         </Route>
       </Route>
 
