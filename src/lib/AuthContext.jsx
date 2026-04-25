@@ -29,17 +29,17 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (DEV_MODE) return;
-    checkUserAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
+    // onAuthStateChange fires INITIAL_SESSION on mount (restores from localStorage),
+    // then SIGNED_IN / SIGNED_OUT / TOKEN_REFRESHED on subsequent changes.
+    // This single handler covers all cases without a separate getSession() call.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
         await loadUserProfile(session.user);
-      } else if (event === 'SIGNED_OUT') {
+      } else {
         setUser(null);
         setIsAuthenticated(false);
         setAuthChecked(true);
-      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        await loadUserProfile(session.user);
       }
     });
 
@@ -78,29 +78,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Kept for manual re-checks (e.g. after OAuth redirect). Primary auth
+  // restoration is handled by onAuthStateChange(INITIAL_SESSION) above.
   const checkUserAuth = async () => {
     if (DEV_MODE) return;
     try {
-      const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('auth_timeout')), 3000)
-      );
-      const sessionCheck = supabase.auth.getSession();
-      const { data: { session }, error } = await Promise.race([sessionCheck, timeout]);
-      if (session?.user) {
-        await loadUserProfile(session.user);
-        // loadUserProfile sets authChecked in its finally block
-        return;
-      } else {
-        setIsAuthenticated(false);
-        if (!error) {
-          setAuthError({ type: 'auth_required', message: 'Please sign in' });
-        }
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) await loadUserProfile(session.user);
+      else { setIsAuthenticated(false); setAuthChecked(true); }
     } catch (err) {
       console.warn('Auth check failed:', err.message);
       setIsAuthenticated(false);
+      setAuthChecked(true);
     }
-    setAuthChecked(true);
   };
 
   const logout = async () => {

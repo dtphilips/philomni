@@ -86,6 +86,48 @@ function MobileHeader({ user }) {
   );
 }
 
+function AuthDebugBar() {
+  const { user, isAuthenticated, authChecked } = useAuth();
+  const [storageKey, setStorageKey] = React.useState('checking…');
+
+  React.useEffect(() => {
+    const check = () => {
+      const keys = Object.keys(localStorage);
+      const found = keys.some(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+      setStorageKey(found ? `yes (${keys.find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))})` : 'no');
+    };
+    check();
+    window.addEventListener('storage', check);
+    return () => window.removeEventListener('storage', check);
+  }, [isAuthenticated]);
+
+  const pill = (label, ok) => (
+    <span style={{
+      background: ok ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.18)',
+      color: ok ? '#4ade80' : '#f87171',
+      border: `1px solid ${ok ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)'}`,
+      borderRadius: '4px', padding: '1px 6px', fontFamily: 'monospace', fontSize: '11px',
+    }}>{label}</span>
+  );
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+      height: '30px', background: '#0d0d1a',
+      borderBottom: '1px solid rgba(255,255,255,0.08)',
+      display: 'flex', alignItems: 'center', gap: '12px',
+      padding: '0 12px', fontSize: '11px', color: 'rgba(255,255,255,0.5)',
+      fontFamily: 'monospace', overflow: 'hidden',
+    }}>
+      <span style={{ color: '#a78bfa', fontWeight: 700, flexShrink: 0 }}>AUTH DEBUG</span>
+      <span>isAuthenticated: {pill(String(isAuthenticated), isAuthenticated)}</span>
+      <span>authChecked: {pill(String(authChecked), authChecked)}</span>
+      <span>user: {pill(user?.email ?? 'null', !!user)}</span>
+      <span style={{ flexShrink: 0 }}>sb-token in localStorage: {pill(storageKey, storageKey !== 'no')}</span>
+    </div>
+  );
+}
+
 export default function AppLayout() {
   const { user, DEV_MODE } = useAuth();
   const location = useLocation();
@@ -93,9 +135,11 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background flex">
+      <AuthDebugBar />
+
       {DEV_MODE && (
-        <div className="fixed top-0 left-0 right-0 z-[100] text-xs font-semibold text-center py-1 px-4"
-             style={{ background:'#f59e0b', color:'#451a03' }}>
+        <div className="fixed left-0 right-0 z-[9998] text-xs font-semibold text-center py-1 px-4"
+             style={{ top: '30px', background:'#f59e0b', color:'#451a03' }}>
           DEV MODE — auth bypassed · Set VITE_DEV_MODE=false for production
         </div>
       )}
@@ -105,7 +149,8 @@ export default function AppLayout() {
 
       <main className={`
         flex-1 lg:ml-64 xl:ml-72
-        ${DEV_MODE ? 'mt-6' : ''}
+        mt-[30px]
+        ${DEV_MODE ? 'mt-[54px]' : ''}
         pt-14 lg:pt-0
         ${episode ? 'pb-36 lg:pb-28' : 'pb-20 lg:pb-6'}
         min-h-screen w-full overflow-x-hidden
