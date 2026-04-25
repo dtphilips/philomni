@@ -1,6 +1,16 @@
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 
+const hasStoredToken = () => {
+  try {
+    return Object.keys(localStorage).some(
+      k => k.startsWith('sb-') && k.endsWith('-auth-token')
+    );
+  } catch {
+    return false;
+  }
+};
+
 const Spinner = () => (
   <div className="fixed inset-0 flex items-center justify-center bg-background">
     <div className="flex flex-col items-center gap-4">
@@ -15,7 +25,11 @@ export default function ProtectedRoute({ unauthenticatedElement = null }) {
 
   if (DEV_MODE) return <Outlet />;
 
-  // Wait until auth state has been determined before redirecting
+  // If a token exists in localStorage, render immediately — don't flash the
+  // spinner or redirect while onAuthStateChange is still resolving.
+  if (!authChecked && hasStoredToken()) return <Outlet />;
+
+  // No token — wait for async auth check before deciding to redirect
   if (!authChecked) return <Spinner />;
 
   if (!isAuthenticated) return unauthenticatedElement;

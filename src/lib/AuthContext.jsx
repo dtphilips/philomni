@@ -15,16 +15,35 @@ const DEV_USER = {
   location: 'Localhost',
 };
 
+// Synchronous check — reads the Supabase token from localStorage before
+// any async call so initial state is correct on the very first render.
+const getStoredSession = () => {
+  try {
+    const authKey = Object.keys(localStorage).find(
+      k => k.startsWith('sb-') && k.endsWith('-auth-token')
+    );
+    if (!authKey) return null;
+    const parsed = JSON.parse(localStorage.getItem(authKey));
+    return parsed?.access_token ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(DEV_MODE ? DEV_USER : null);
-  const [isAuthenticated, setIsAuthenticated] = useState(DEV_MODE);
+  const storedSession = DEV_MODE ? null : getStoredSession();
+
+  const [user, setUser] = useState(
+    DEV_MODE ? DEV_USER : (storedSession ? { email: storedSession.user?.email ?? 'loading…' } : null)
+  );
+  const [isAuthenticated, setIsAuthenticated] = useState(DEV_MODE || !!storedSession);
   const [isLoadingAuth, setIsLoadingAuth] = useState(false);
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
   const [authError, setAuthError] = useState(null);
-  // Start as false in prod so ProtectedRoute waits before making redirect decision
-  const [authChecked, setAuthChecked] = useState(DEV_MODE);
+  // If a stored token exists we're already checked — no need to wait for async
+  const [authChecked, setAuthChecked] = useState(DEV_MODE || !!storedSession);
   const appPublicSettings = { id: 'philomni', public_settings: {} };
 
   useEffect(() => {
