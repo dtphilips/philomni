@@ -6,6 +6,8 @@ import Sidebar from './Sidebar';
 import BottomNavBar from './BottomNavBar';
 import NotificationCenter from '@/components/feed/NotificationCenter';
 import SmartTextToolbar from '@/components/common/SmartTextToolbar';
+import PersistentPodcastPlayer from '@/components/podcast/PersistentPodcastPlayer';
+import { usePodcastPlayer } from '@/lib/PodcastPlayerContext';
 import { Search } from 'lucide-react';
 
 const PAGE_TITLES = {
@@ -41,6 +43,7 @@ const PAGE_TITLES = {
   '/skill-exchange': 'Skill Exchange',
   '/business-content': 'Content Suite',
   '/ugc-suite': 'UGC Creator Suite',
+  '/podcasts': 'Podcasts',
 };
 
 const pageVariants = {
@@ -86,6 +89,7 @@ function MobileHeader({ user }) {
 export default function AppLayout() {
   const { user, DEV_MODE } = useAuth();
   const location = useLocation();
+  const { episode } = usePodcastPlayer();
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -103,7 +107,7 @@ export default function AppLayout() {
         flex-1 lg:ml-64 xl:ml-72
         ${DEV_MODE ? 'mt-6' : ''}
         pt-14 lg:pt-0
-        pb-20 lg:pb-6
+        ${episode ? 'pb-36 lg:pb-28' : 'pb-20 lg:pb-6'}
         min-h-screen w-full overflow-x-hidden
       `}>
         <div className="w-full max-w-screen-xl mx-auto px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8 py-4 sm:py-5 lg:py-6">
@@ -124,6 +128,7 @@ export default function AppLayout() {
 
       <BottomNavBar user={user} />
       <SmartTextToolbar />
+      <PersistentPodcastPlayer />
     </div>
   );
 }

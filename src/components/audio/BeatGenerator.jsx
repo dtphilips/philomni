@@ -395,7 +395,7 @@ export default function BeatGenerator() {
       )}
 
       <p className="text-xs text-muted-foreground text-center">
-        Powered by ElevenLabs Sound Generation · Add your API key for AI-generated audio
+        AI-powered beat generation · Unique variations every time
       </p>
 
       <audio ref={audioRef} src={audioUrl || ''} onEnded={handleEnded} className="hidden" />

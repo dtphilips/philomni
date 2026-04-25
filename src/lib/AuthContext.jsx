@@ -23,7 +23,8 @@ export const AuthProvider = ({ children }) => {
   const [isLoadingAuth, setIsLoadingAuth] = useState(false);
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
   const [authError, setAuthError] = useState(null);
-  const [authChecked, setAuthChecked] = useState(true);
+  // Start as false in prod so ProtectedRoute waits before making redirect decision
+  const [authChecked, setAuthChecked] = useState(DEV_MODE);
   const appPublicSettings = { id: 'philomni', public_settings: {} };
 
   useEffect(() => {
@@ -62,7 +63,6 @@ export const AuthProvider = ({ children }) => {
       setUser(merged);
       setIsAuthenticated(true);
 
-      // Apply dark mode preference
       if (merged.dark_mode) {
         document.documentElement.classList.add('dark');
       } else {
@@ -72,6 +72,9 @@ export const AuthProvider = ({ children }) => {
       console.error('Failed to load user profile:', err);
       setUser({ id: authUser.id, email: authUser.email });
       setIsAuthenticated(true);
+    } finally {
+      // Always mark auth as checked once profile load completes
+      setAuthChecked(true);
     }
   };
 
@@ -79,12 +82,14 @@ export const AuthProvider = ({ children }) => {
     if (DEV_MODE) return;
     try {
       const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('auth_timeout')), 2000)
+        setTimeout(() => reject(new Error('auth_timeout')), 3000)
       );
       const sessionCheck = supabase.auth.getSession();
       const { data: { session }, error } = await Promise.race([sessionCheck, timeout]);
       if (session?.user) {
         await loadUserProfile(session.user);
+        // loadUserProfile sets authChecked in its finally block
+        return;
       } else {
         setIsAuthenticated(false);
         if (!error) {
@@ -94,17 +99,22 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.warn('Auth check failed:', err.message);
       setIsAuthenticated(false);
-    } finally {
-      setAuthChecked(true);
     }
+    setAuthChecked(true);
   };
 
-  const logout = () => {
+  const logout = async () => {
     if (DEV_MODE) return;
-    supabase.auth.signOut().then(() => {
-      setUser(null);
-      setIsAuthenticated(false);
-    });
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('Sign out error:', err.message);
+    }
+    setUser(null);
+    setIsAuthenticated(false);
+    setAuthChecked(true);
+    // Navigate to home — full reload clears any stale state
+    window.location.href = '/';
   };
 
   const navigateToLogin = () => {

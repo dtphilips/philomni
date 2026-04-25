@@ -65,9 +65,16 @@ export default function CreatePost({ user }) {
   const handleMediaUpload = (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
+    const startIdx = mediaFiles.length;
     setMediaFiles(prev => [...prev, ...files]);
     files.forEach(file => setMediaPreviews(prev => [...prev, URL.createObjectURL(file)]));
     setExpanded(true);
+    // Auto-open editor for the first uploaded video
+    const firstVideo = files.findIndex(f => f.type?.startsWith('video'));
+    if (firstVideo !== -1) {
+      setEditingIndex(startIdx + firstVideo);
+      setEditorOpen(true);
+    }
   };
 
   const removeMedia = (index) => {
@@ -234,7 +241,7 @@ export default function CreatePost({ user }) {
   }
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm mb-6 overflow-hidden">
+    <div className="bg-card rounded-2xl border border-border shadow-sm mb-6 overflow-hidden" id="create-post-composer">
       <div className="p-4">
         <div className="flex gap-3">
           <div className="w-10 h-10 rounded-full bg-muted flex-shrink-0 overflow-hidden ring-2 ring-border/50">
@@ -296,10 +303,10 @@ export default function CreatePost({ user }) {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className={`px-4 pb-3 ${mediaPreviews.length > 1 ? 'grid grid-cols-2 gap-1.5' : ''}`}>
             {mediaPreviews.map((url, i) => (
-              <div key={i} className="relative aspect-video rounded-xl overflow-hidden bg-black group">
+              <div key={i} className="relative rounded-xl overflow-hidden bg-black group max-h-[480px] flex items-center justify-center">
                 {mediaFiles[i]?.type?.startsWith('video')
-                  ? <video src={url} className="w-full h-full object-cover" />
-                  : <img src={url} className="w-full h-full object-cover" alt="" />
+                  ? <video src={url} className="max-w-full max-h-[480px] w-auto h-auto object-contain" style={{ display: 'block' }} />
+                  : <img src={url} className="max-w-full max-h-[480px] w-auto h-auto object-contain" alt="" style={{ display: 'block' }} />
                 }
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                   <button onClick={() => { setEditingIndex(i); setEditorOpen(true); }}

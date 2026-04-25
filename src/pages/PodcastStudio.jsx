@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
@@ -12,73 +12,244 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   Plus, Loader2, Mic, Upload, Play, Pause, Lock, DollarSign,
-  Star, MoreHorizontal, Edit, Trash2, Clock, Headphones, ChevronRight
+  Star, MoreHorizontal, Edit, Trash2, Clock, Headphones, ChevronRight,
+  Square, Circle, Sparkles, FileText, BarChart3, Wand2
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
+import { usePodcastPlayer } from '@/lib/PodcastPlayerContext';
+
+// ── In-app Recorder ────────────────────────────────────────────────────────────
+function InAppRecorder({ onRecorded }) {
+  const [state, setState] = useState('idle'); // idle | recording | done
+  const [seconds, setSeconds] = useState(0);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const mediaRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
+  const barsRef = useRef(Array(20).fill(4));
+
+  const start = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = e => chunksRef.current.push(e.data);
+      mr.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        setAudioUrl(url);
+        const file = new File([blob], `recording-${Date.now()}.webm`, { type: 'audio/webm' });
+        onRecorded(file, url);
+        setState('done');
+      };
+      mediaRef.current = mr;
+      mr.start(100);
+      setState('recording');
+      setSeconds(0);
+      timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
+    } catch {
+      toast.error('Microphone access denied');
+    }
+  };
+
+  const stop = () => {
+    clearInterval(timerRef.current);
+    mediaRef.current?.stop();
+  };
+
+  const reset = () => {
+    setAudioUrl(null);
+    setSeconds(0);
+    setState('idle');
+    onRecorded(null, null);
+  };
+
+  const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+  return (
+    <div className="rounded-xl border border-border p-4 space-y-3">
+      {/* Waveform bars */}
+      <div className="flex items-center justify-center gap-0.5 h-12">
+        {Array(24).fill(0).map((_, i) => (
+          <div
+            key={i}
+            className="w-1 rounded-full bg-primary/60 transition-all"
+            style={{
+              height: state === 'recording'
+                ? `${8 + Math.random() * 32}px`
+                : state === 'done' ? '8px' : '4px',
+              animation: state === 'recording' ? `waveBar ${0.4 + (i % 5) * 0.1}s ease-in-out infinite alternate` : 'none',
+            }}
+          />
+        ))}
+      </div>
+      <style>{`@keyframes waveBar { from { transform: scaleY(0.3); } to { transform: scaleY(1); } }`}</style>
+
+      <div className="flex items-center justify-center gap-3">
+        {state === 'idle' && (
+          <Button onClick={start} className="gap-2">
+            <Circle className="w-3.5 h-3.5 fill-current" /> Start Recording
+          </Button>
+        )}
+        {state === 'recording' && (
+          <>
+            <span className="text-sm font-mono text-primary">{fmt(seconds)}</span>
+            <Button variant="destructive" onClick={stop} className="gap-2">
+              <Square className="w-3.5 h-3.5 fill-current" /> Stop
+            </Button>
+          </>
+        )}
+        {state === 'done' && (
+          <>
+            <audio src={audioUrl} controls className="h-8 flex-1 min-w-0" />
+            <Button variant="outline" size="sm" onClick={reset}>Re-record</Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── AI Tools Tab ───────────────────────────────────────────────────────────────
+function PodcastAITools() {
+  const [activeTool, setActiveTool] = useState('title');
+  const [topic, setTopic] = useState('');
+  const [notes, setNotes] = useState('');
+  const [output, setOutput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const tools = [
+    { id: 'title', icon: Sparkles, label: 'Title Generator' },
+    { id: 'shownotes', icon: FileText, label: 'Show Notes Writer' },
+    { id: 'transcript', icon: BarChart3, label: 'Description Writer' },
+  ];
+
+  const run = async () => {
+    if (!topic.trim()) { toast.error('Enter a topic first'); return; }
+    setLoading(true);
+    setOutput('');
+    try {
+      let prompt = '';
+      if (activeTool === 'title') {
+        prompt = `Generate 7 compelling podcast episode titles for this topic: "${topic}". Make them curiosity-driven, SEO-friendly, and click-worthy. Format as a numbered list.`;
+      } else if (activeTool === 'shownotes') {
+        prompt = `Write comprehensive podcast show notes for an episode about: "${topic}".\n\nAdditional context: ${notes || 'none'}\n\nInclude: Episode summary (2-3 sentences), Key topics covered (bullet points), Key takeaways (3-5 points), Resources mentioned section, Guest bio section (placeholder), Subscribe/review CTA. Format with clear headers.`;
+      } else {
+        prompt = `Write a compelling podcast episode description for: "${topic}".\n\nAdditional notes: ${notes || 'none'}\n\nInclude: Hook opening sentence, What listeners will learn, Why this matters now, Who this episode is for, A compelling CTA. Keep it under 200 words and optimized for Apple Podcasts and Spotify search.`;
+      }
+      const res = await base44.integrations.Core.InvokeLLM({ prompt });
+      setOutput(typeof res === 'string' ? res : (res?.result ?? res?.text ?? JSON.stringify(res)));
+    } catch {
+      toast.error('Generation failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 flex-wrap">
+        {tools.map(t => (
+          <button
+            key={t.id}
+            onClick={() => { setActiveTool(t.id); setOutput(''); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+              activeTool === t.id
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/40'
+            }`}
+          >
+            <t.icon className="w-3.5 h-3.5" />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <Label>Episode Topic / Title</Label>
+          <Input
+            value={topic}
+            onChange={e => setTopic(e.target.value)}
+            placeholder="e.g. How I grew to 10k subscribers in 6 months"
+            className="mt-1"
+          />
+        </div>
+        {activeTool !== 'title' && (
+          <div>
+            <Label>Additional Notes (optional)</Label>
+            <Textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Key points, guest name, topics covered..."
+              className="mt-1"
+            />
+          </div>
+        )}
+        <Button onClick={run} disabled={loading} className="gap-2 w-full sm:w-auto">
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+          {loading ? 'Generating…' : 'Generate'}
+        </Button>
+      </div>
+
+      {output && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-primary uppercase tracking-wider">Result</span>
+            <button
+              onClick={() => { navigator.clipboard.writeText(output); toast.success('Copied!'); }}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Copy
+            </button>
+          </div>
+          <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">{output}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PODCAST_CATEGORIES = [
   'Business', 'Technology', 'Comedy', 'Education', 'Health & Fitness',
   'Arts', 'True Crime', 'News', 'Sports', 'Society & Culture', 'Science'
 ];
 
-// Mini audio player
-function AudioPlayer({ src, title }) {
-  const audioRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
+// Episode play button wired to global persistent player
+function AudioPlayer({ src, title, episodeId, podcastTitle, podcastCover }) {
+  const { play, pause, episode: current, isPlaying } = usePodcastPlayer();
+  const active = current?.id === episodeId && isPlaying;
 
-  const toggle = () => {
-    if (!audioRef.current) return;
-    if (playing) {
-      audioRef.current.pause();
+  const handleClick = () => {
+    if (active) {
+      pause();
     } else {
-      audioRef.current.play().catch(() => {});
+      play({ id: episodeId, audio_url: src, title, podcast_name: podcastTitle, cover_image_url: podcastCover });
     }
-    setPlaying(!playing);
   };
 
-  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-
+  if (!src) return null;
   return (
     <div className="flex items-center gap-3 bg-muted/50 rounded-lg px-3 py-2">
-      <audio
-        ref={audioRef}
-        src={src}
-        onTimeUpdate={() => setProgress(audioRef.current?.currentTime || 0)}
-        onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
-        onEnded={() => setPlaying(false)}
-        preload="metadata"
-      />
-      <button onClick={toggle} className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-        {playing ? <Pause className="w-3.5 h-3.5 text-white" /> : <Play className="w-3.5 h-3.5 text-white ml-0.5" />}
+      <button onClick={handleClick} className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+        {active ? <Pause className="w-3.5 h-3.5 text-white" /> : <Play className="w-3.5 h-3.5 text-white ml-0.5" />}
       </button>
-      <div className="flex-1 min-w-0">
-        <input
-          type="range"
-          min={0}
-          max={duration || 100}
-          value={progress}
-          onChange={e => {
-            if (audioRef.current) audioRef.current.currentTime = +e.target.value;
-            setProgress(+e.target.value);
-          }}
-          className="w-full h-1 accent-primary cursor-pointer"
-        />
-      </div>
-      <span className="text-xs text-muted-foreground flex-shrink-0 tabular-nums">
-        {fmt(progress)} / {fmt(duration)}
+      <span className="text-xs text-muted-foreground flex-1 truncate">{title}</span>
+      <span className="text-xs text-primary font-medium flex-shrink-0">
+        {active ? 'Playing ▸' : 'Play in player'}
       </span>
     </div>
   );
 }
 
 // Episode card
-function EpisodeCard({ episode, isOwner, onEdit, onDelete }) {
+function EpisodeCard({ episode, podcast, isOwner, onEdit, onDelete }) {
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -120,7 +291,15 @@ function EpisodeCard({ episode, isOwner, onEdit, onDelete }) {
         )}
       </div>
 
-      {episode.audio_url && <AudioPlayer src={episode.audio_url} title={episode.title} />}
+      {episode.audio_url && (
+        <AudioPlayer
+          src={episode.audio_url}
+          title={episode.title}
+          episodeId={episode.id}
+          podcastTitle={podcast?.title}
+          podcastCover={podcast?.cover_image_url}
+        />
+      )}
 
       <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
         <div className="flex items-center gap-3">
@@ -154,12 +333,21 @@ function EpisodeCard({ episode, isOwner, onEdit, onDelete }) {
 // Podcast card with expand
 function PodcastCard({ podcast, currentUser, onManage }) {
   const isOwner = podcast.creator_id === currentUser?.id;
+  const { play, pause, episode: currentEpisode, isPlaying } = usePodcastPlayer();
 
   const { data: episodes = [] } = useQuery({
     queryKey: ['episodes', podcast.id],
     queryFn: () => base44.entities.PodcastEpisode.filter({ podcast_id: podcast.id }, '-episode_number', 50),
     enabled: !!podcast.id,
   });
+
+  const handlePlayEp = (ep) => {
+    if (currentEpisode?.id === ep.id && isPlaying) {
+      pause();
+    } else {
+      play({ ...ep, podcast_name: podcast.title, cover_image_url: podcast.cover_image_url });
+    }
+  };
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -195,20 +383,30 @@ function PodcastCard({ podcast, currentUser, onManage }) {
 
       {episodes.length > 0 && (
         <div className="border-t border-border divide-y divide-border">
-          {episodes.slice(0, 3).map(ep => (
-            <div key={ep.id} className="px-4 py-2.5 flex items-center gap-3">
-              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Play className="w-3 h-3 text-primary ml-0.5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{ep.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {ep.duration_seconds ? `${Math.floor(ep.duration_seconds / 60)}m` : 'Audio'} ·{' '}
-                  {ep.is_premium ? '🔒 Premium' : 'Free'}
-                </p>
-              </div>
-            </div>
-          ))}
+          {episodes.slice(0, 3).map(ep => {
+            const active = currentEpisode?.id === ep.id && isPlaying;
+            return (
+              <button
+                key={ep.id}
+                onClick={() => ep.audio_url && handlePlayEp(ep)}
+                className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-muted/40 transition-colors text-left"
+                disabled={!ep.audio_url}
+              >
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${active ? 'bg-primary' : 'bg-primary/10'}`}>
+                  {active
+                    ? <Pause className="w-3 h-3 text-white" />
+                    : <Play className="w-3 h-3 text-primary ml-0.5" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium truncate ${active ? 'text-primary' : ''}`}>{ep.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {ep.duration_seconds ? `${Math.floor(ep.duration_seconds / 60)}m` : 'Audio'} ·{' '}
+                    {ep.is_premium ? '🔒 Premium' : 'Free'}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
           {episodes.length > 3 && (
             <div className="px-4 py-2 text-xs text-muted-foreground text-center">
               +{episodes.length - 3} more episodes
@@ -229,6 +427,7 @@ export default function PodcastStudio() {
   const [editingEpisode, setEditingEpisode] = useState(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [epInputMode, setEpInputMode] = useState('upload'); // 'upload' | 'record'
 
   const [podcastForm, setPodcastForm] = useState({ title: '', description: '', category: 'Business' });
   const [epForm, setEpForm] = useState({
@@ -373,6 +572,9 @@ export default function PodcastStudio() {
         <TabsList className="mb-5">
           <TabsTrigger value="discover">Discover</TabsTrigger>
           <TabsTrigger value="mine">My Podcasts ({myPodcasts.length})</TabsTrigger>
+          <TabsTrigger value="ai-tools" className="gap-1.5">
+            <Wand2 className="w-3.5 h-3.5" /> AI Tools
+          </TabsTrigger>
           {managingPodcast && (
             <TabsTrigger value="episodes" className="gap-1.5">
               <Mic className="w-3.5 h-3.5" />
@@ -401,6 +603,17 @@ export default function PodcastStudio() {
               )}
             </div>
           )}
+        </TabsContent>
+
+        {/* AI Tools */}
+        <TabsContent value="ai-tools">
+          <div className="max-w-2xl">
+            <div className="mb-5">
+              <h2 className="font-semibold text-lg">Podcast AI Tools</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">Generate titles, show notes, and episode descriptions with AI</p>
+            </div>
+            <PodcastAITools />
+          </div>
         </TabsContent>
 
         {/* My Podcasts */}
@@ -450,6 +663,7 @@ export default function PodcastStudio() {
                   <EpisodeCard
                     key={ep.id}
                     episode={ep}
+                    podcast={managingPodcast}
                     isOwner
                     onEdit={openEditEpisode}
                     onDelete={handleDeleteEpisode}
@@ -513,26 +727,48 @@ export default function PodcastStudio() {
               <Textarea value={epForm.description} onChange={e => setEpForm(p => ({ ...p, description: e.target.value }))} rows={3} className="mt-1" placeholder="What is this episode about?" />
             </div>
 
-            {/* Audio upload */}
+            {/* Audio — upload or record */}
             <div>
-              <Label>Audio File</Label>
-              <label className="mt-1 flex items-center gap-3 border-2 border-dashed border-border rounded-lg p-3 cursor-pointer hover:border-primary/50 transition-colors">
-                <Upload className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                <div className="min-w-0">
-                  {epForm.audio_file
-                    ? <p className="text-sm truncate">{epForm.audio_file.name}</p>
-                    : epForm.audio_url
-                    ? <p className="text-sm text-primary truncate">Audio uploaded ✓</p>
-                    : <p className="text-sm text-muted-foreground">Click to upload MP3, WAV, M4A...</p>
-                  }
+              <div className="flex items-center justify-between mb-2">
+                <Label>Audio</Label>
+                <div className="flex gap-1 border border-border rounded-lg p-0.5">
+                  <button
+                    onClick={() => setEpInputMode('upload')}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${epInputMode === 'upload' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                  >
+                    <Upload className="w-3 h-3 inline mr-1" />Upload
+                  </button>
+                  <button
+                    onClick={() => setEpInputMode('record')}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${epInputMode === 'record' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                  >
+                    <Mic className="w-3 h-3 inline mr-1" />Record
+                  </button>
                 </div>
-                <input
-                  type="file"
-                  accept="audio/*"
-                  className="hidden"
-                  onChange={e => setEpForm(p => ({ ...p, audio_file: e.target.files[0] }))}
+              </div>
+              {epInputMode === 'upload' ? (
+                <label className="flex items-center gap-3 border-2 border-dashed border-border rounded-lg p-3 cursor-pointer hover:border-primary/50 transition-colors">
+                  <Upload className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                  <div className="min-w-0">
+                    {epForm.audio_file
+                      ? <p className="text-sm truncate">{epForm.audio_file.name}</p>
+                      : epForm.audio_url
+                      ? <p className="text-sm text-primary truncate">Audio uploaded ✓</p>
+                      : <p className="text-sm text-muted-foreground">Click to upload MP3, WAV, M4A...</p>
+                    }
+                  </div>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={e => setEpForm(p => ({ ...p, audio_file: e.target.files[0] }))}
+                  />
+                </label>
+              ) : (
+                <InAppRecorder
+                  onRecorded={(file, url) => setEpForm(p => ({ ...p, audio_file: file || null, audio_url: file ? '' : p.audio_url }))}
                 />
-              </label>
+              )}
             </div>
 
             {/* Premium toggle */}

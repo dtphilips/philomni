@@ -6,6 +6,7 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { PodcastPlayerProvider } from '@/lib/PodcastPlayerContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AppLayout from '@/components/layout/AppLayout';
 
@@ -69,6 +70,7 @@ import SkillExchange from '@/pages/SkillExchange';
 import BusinessContentSuite from '@/pages/BusinessContentSuite';
 import MusicLibrary from '@/pages/MusicLibrary';
 import UGCCreatorSuite from '@/pages/UGCCreatorSuite';
+import Podcasts from '@/pages/Podcasts';
 
 // Loading screen
 const LoadingScreen = () => (
@@ -144,36 +146,37 @@ const AuthenticatedApp = () => {
         <Route path="/gamification" element={<Gamification />} />
         <Route path="/collaboration-feed" element={<CollaborationFeed />} />
         <Route path="/project-matcher" element={<ProjectMatcher />} />
+        <Route path="/podcasts" element={<Podcasts />} />
+        {/* Pages that benefit from being public with inline auth prompts */}
+        <Route path="/audio-studio" element={<AudioStudio />} />
+        <Route path="/analytics" element={<Analytics />} />
+        <Route path="/creator-analytics" element={<CreatorAnalytics />} />
+        <Route path="/templates" element={<TemplateMarketplace />} />
+        <Route path="/video-studio" element={<VideoStudio />} />
+        <Route path="/video-marketplace" element={<VideoMarketplace />} />
+        <Route path="/workflows" element={<WorkflowAutomation />} />
+        <Route path="/collaborative" element={<CollaborativeStudioPage />} />
+        <Route path="/collaborative/:workspaceId" element={<CollaborativeStudioPage />} />
+        <Route path="/podcast-studio" element={<PodcastStudio />} />
+        <Route path="/monetization" element={<MonetizationHub />} />
+        <Route path="/bookings" element={<BookingCalendar />} />
+        <Route path="/content-performance" element={<ContentPerformance />} />
+        <Route path="/drafts" element={<Drafts />} />
+        <Route path="/video-messages" element={<VideoMessages />} />
+        <Route path="/video-analytics" element={<VideoAnalyticsDashboard />} />
+        <Route path="/quality-review/:draftId" element={<QualityReview />} />
+        <Route path="/video-captions/:draftId" element={<VideoCaptions />} />
+        <Route path="/edit-video/:postId" element={<PostVideoEditorPage />} />
       </Route>
 
-      {/* Protected routes — require login for private/account pages */}
+      {/* Protected routes — require login for account-sensitive pages only */}
       <Route element={<ProtectedRoute unauthenticatedElement={<LoginRedirect />} />}>
         <Route element={<AppLayout />}>
-          <Route path="/profile/edit" element={<EditProfile />} />
           <Route path="/profile/edit" element={<EditProfile />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/admin" element={<Admin />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/creator-analytics" element={<CreatorAnalytics />} />
-          <Route path="/audio-studio" element={<AudioStudio />} />
-          <Route path="/templates" element={<TemplateMarketplace />} />
-          <Route path="/video-studio" element={<VideoStudio />} />
-          <Route path="/video-marketplace" element={<VideoMarketplace />} />
-          <Route path="/workflows" element={<WorkflowAutomation />} />
-          <Route path="/collaborative" element={<CollaborativeStudioPage />} />
-          <Route path="/collaborative/:workspaceId" element={<CollaborativeStudioPage />} />
           <Route path="/billing" element={<Billing />} />
-          <Route path="/podcast-studio" element={<PodcastStudio />} />
-          <Route path="/monetization" element={<MonetizationHub />} />
-          <Route path="/bookings" element={<BookingCalendar />} />
-          <Route path="/content-performance" element={<ContentPerformance />} />
-          <Route path="/drafts" element={<Drafts />} />
-          <Route path="/video-messages" element={<VideoMessages />} />
-          <Route path="/video-analytics" element={<VideoAnalyticsDashboard />} />
-          <Route path="/quality-review/:draftId" element={<QualityReview />} />
-          <Route path="/video-captions/:draftId" element={<VideoCaptions />} />
-          <Route path="/edit-video/:postId" element={<PostVideoEditorPage />} />
         </Route>
       </Route>
 
@@ -188,13 +191,15 @@ function App() {
   return (
     <LightboxProvider>
       <AuthProvider>
-        <QueryClientProvider client={queryClientInstance}>
-          <Router>
-            <AuthenticatedApp />
-          </Router>
-          <Toaster />
-          <Sonner richColors closeButton position="bottom-right" />
-        </QueryClientProvider>
+        <PodcastPlayerProvider>
+          <QueryClientProvider client={queryClientInstance}>
+            <Router>
+              <AuthenticatedApp />
+            </Router>
+            <Toaster />
+            <Sonner richColors closeButton position="bottom-right" />
+          </QueryClientProvider>
+        </PodcastPlayerProvider>
       </AuthProvider>
     </LightboxProvider>
   );

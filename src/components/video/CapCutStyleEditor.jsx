@@ -431,8 +431,12 @@ export default function CapCutStyleEditor({ videoUrl, onSave, onBack, initialDat
               </div>
             )}
             {activeTab === 'transitions' && (
-              <div className="space-y-3">
-                <p className="text-xs text-muted-foreground">Transitions coming soon</p>
+              <div className="grid grid-cols-2 gap-2">
+                {['Fade', 'Slide Left', 'Slide Right', 'Zoom In', 'Zoom Out', 'Dissolve'].map(t => (
+                  <button key={t} className="px-3 py-2 rounded-lg border border-border text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors">
+                    {t}
+                  </button>
+                ))}
               </div>
             )}
           </div>

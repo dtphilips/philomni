@@ -315,18 +315,53 @@ export default function CreativeStudio() {
     setT2vGenerating(false);
   };
 
-  const handleI2VFile = (file) => {
+  const compressImageToBase64 = (file, maxKB = 900) => new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      let { width, height } = img;
+      // Scale down if too large
+      const maxDim = 1280;
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      // Try quality steps until under maxKB
+      let quality = 0.85;
+      const tryExport = () => {
+        const b64 = canvas.toDataURL('image/jpeg', quality);
+        const sizeKB = (b64.length * 0.75) / 1024;
+        if (sizeKB <= maxKB || quality <= 0.3) return resolve(b64);
+        quality -= 0.1;
+        tryExport();
+      };
+      tryExport();
+    };
+    img.src = url;
+  });
+
+  const handleI2VFile = async (file) => {
     setI2vFile(file);
-    const reader = new FileReader();
-    reader.onload = e => { setI2vPreview(e.target.result); setI2vBase64(e.target.result); };
-    reader.readAsDataURL(file);
+    const preview = URL.createObjectURL(file);
+    setI2vPreview(preview);
+    // Compress before storing as base64 (avoid 413 Request Entity Too Large)
+    const b64 = await compressImageToBase64(file);
+    setI2vBase64(b64);
   };
 
   const handleI2V = async () => {
     if (!i2vFile) { toast.error('Upload an image first'); return; }
     setI2vGenerating(true); setI2vResult(null); setI2vMock(false);
     try {
-      const data = await callVideoApi({ type: 'image', imageUrl: i2vBase64, prompt: i2vPrompt.trim(), duration: i2vDuration });
+      // Ensure image is compressed (re-compress if needed)
+      const compressedUrl = i2vBase64 || await compressImageToBase64(i2vFile);
+      const data = await callVideoApi({ type: 'image', imageUrl: compressedUrl, prompt: i2vPrompt.trim(), duration: i2vDuration });
       setI2vResult(data.video_url);
       setI2vMock(data.status === 'mock');
     } catch (e) { toast.error('Video generation failed: ' + e.message); }

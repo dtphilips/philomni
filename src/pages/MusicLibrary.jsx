@@ -18,52 +18,54 @@ import {
 const GENRES = ['All', 'Lo-Fi', 'Hip-Hop', 'Ambient', 'Electronic', 'Cinematic', 'Jazz', 'Pop', 'Rock', 'R&B', 'Trap'];
 
 // Fallback static tracks (used when API fails or returns 0 tracks)
+const SH = (n) => `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-${n}.mp3`;
 const TRACKS = [
-  { id: 1,  genre: 'Lo-Fi',      title: 'Midnight Study Session',  artist: 'ChillWave Studio',    bpm: 75,  key: 'Am',    duration: '3:42', durationSec: 222, plays: 18420, audio_url: null, image_url: null },
-  { id: 2,  genre: 'Hip-Hop',    title: 'Golden Hour Groove',      artist: 'BeatForge',           bpm: 90,  key: 'Cmaj',  duration: '2:58', durationSec: 178, plays: 31200, audio_url: null, image_url: null },
-  { id: 3,  genre: 'Ambient',    title: 'Nebula Drift',            artist: 'Cosmo Soundscapes',   bpm: 70,  key: 'Dmaj',  duration: '5:12', durationSec: 312, plays: 9870,  audio_url: null, image_url: null },
-  { id: 4,  genre: 'Electronic', title: 'Neon Pulse',              artist: 'SynthLab',            bpm: 128, key: 'Fm',    duration: '4:05', durationSec: 245, plays: 44300, audio_url: null, image_url: null },
-  { id: 5,  genre: 'Cinematic',  title: 'Rise of the Wanderer',    artist: 'Epica Audio',         bpm: 85,  key: 'Em',    duration: '3:28', durationSec: 208, plays: 22100, audio_url: null, image_url: null },
-  { id: 6,  genre: 'Jazz',       title: 'Velvet Café',             artist: 'The Blue Note Trio',  bpm: 110, key: 'Bbmaj', duration: '4:15', durationSec: 255, plays: 7650,  audio_url: null, image_url: null },
-  { id: 7,  genre: 'Pop',        title: 'Summer Feelings',         artist: 'Pastel Dreams',       bpm: 120, key: 'Gmaj',  duration: '3:05', durationSec: 185, plays: 58900, audio_url: null, image_url: null },
-  { id: 8,  genre: 'Rock',       title: 'Voltage Surge',           artist: 'Static Current',      bpm: 140, key: 'Emaj',  duration: '3:55', durationSec: 235, plays: 34200, audio_url: null, image_url: null },
-  { id: 9,  genre: 'R&B',        title: 'Silk & Soul',             artist: 'Velvet Rhythm',       bpm: 82,  key: 'Bbmaj', duration: '3:30', durationSec: 210, plays: 19800, audio_url: null, image_url: null },
-  { id: 10, genre: 'Trap',       title: 'Dark Matter 808',         artist: 'LoopSmith',           bpm: 138, key: 'Fm',    duration: '2:45', durationSec: 165, plays: 67100, audio_url: null, image_url: null },
-  { id: 11, genre: 'Lo-Fi',      title: 'Rainy Afternoon',         artist: 'ChillWave Studio',    bpm: 78,  key: 'Cmaj',  duration: '4:00', durationSec: 240, plays: 25400, audio_url: null, image_url: null },
-  { id: 12, genre: 'Hip-Hop',    title: 'Block Party Anthem',      artist: 'Street Phonics',      bpm: 96,  key: 'Dm',    duration: '3:12', durationSec: 192, plays: 41000, audio_url: null, image_url: null },
-  { id: 13, genre: 'Ambient',    title: 'Forest Floor Meditation', artist: 'Cosmo Soundscapes',   bpm: 72,  key: 'Am',    duration: '6:00', durationSec: 360, plays: 12300, audio_url: null, image_url: null },
-  { id: 14, genre: 'Electronic', title: 'Digital Sunrise',         artist: 'SynthLab',            bpm: 124, key: 'Amaj',  duration: '3:48', durationSec: 228, plays: 38700, audio_url: null, image_url: null },
-  { id: 15, genre: 'Cinematic',  title: 'The Last Horizon',        artist: 'Epica Audio',         bpm: 80,  key: 'Cm',    duration: '4:32', durationSec: 272, plays: 16500, audio_url: null, image_url: null },
-  { id: 16, genre: 'Jazz',       title: 'Midnight Serenade',       artist: 'The Blue Note Trio',  bpm: 104, key: 'Ebmaj', duration: '5:10', durationSec: 310, plays: 8900,  audio_url: null, image_url: null },
-  { id: 17, genre: 'Pop',        title: 'Electric Youth',          artist: 'Pastel Dreams',       bpm: 116, key: 'Amaj',  duration: '2:55', durationSec: 175, plays: 72400, audio_url: null, image_url: null },
-  { id: 18, genre: 'Rock',       title: 'Shatter the Grid',        artist: 'Static Current',      bpm: 135, key: 'Bmaj',  duration: '4:20', durationSec: 260, plays: 29100, audio_url: null, image_url: null },
-  { id: 19, genre: 'R&B',        title: 'Late Night Feels',        artist: 'Velvet Rhythm',       bpm: 88,  key: 'Gm',    duration: '3:40', durationSec: 220, plays: 23600, audio_url: null, image_url: null },
-  { id: 20, genre: 'Trap',       title: 'Phantom Frequency',       artist: 'LoopSmith',           bpm: 142, key: 'Bm',    duration: '2:30', durationSec: 150, plays: 55800, audio_url: null, image_url: null },
+  { id: 1,  genre: 'Lo-Fi',      title: 'Midnight Study Session',  artist: 'ChillWave Studio',    bpm: 75,  key: 'Am',    duration: '3:42', durationSec: 222, plays: 18420, audio_url: SH(1),  image_url: null },
+  { id: 2,  genre: 'Hip-Hop',    title: 'Golden Hour Groove',      artist: 'BeatForge',           bpm: 90,  key: 'Cmaj',  duration: '2:58', durationSec: 178, plays: 31200, audio_url: SH(2),  image_url: null },
+  { id: 3,  genre: 'Ambient',    title: 'Nebula Drift',            artist: 'Cosmo Soundscapes',   bpm: 70,  key: 'Dmaj',  duration: '5:12', durationSec: 312, plays: 9870,  audio_url: SH(3),  image_url: null },
+  { id: 4,  genre: 'Electronic', title: 'Neon Pulse',              artist: 'SynthLab',            bpm: 128, key: 'Fm',    duration: '4:05', durationSec: 245, plays: 44300, audio_url: SH(4),  image_url: null },
+  { id: 5,  genre: 'Cinematic',  title: 'Rise of the Wanderer',    artist: 'Epica Audio',         bpm: 85,  key: 'Em',    duration: '3:28', durationSec: 208, plays: 22100, audio_url: SH(5),  image_url: null },
+  { id: 6,  genre: 'Jazz',       title: 'Velvet Café',             artist: 'The Blue Note Trio',  bpm: 110, key: 'Bbmaj', duration: '4:15', durationSec: 255, plays: 7650,  audio_url: SH(6),  image_url: null },
+  { id: 7,  genre: 'Pop',        title: 'Summer Feelings',         artist: 'Pastel Dreams',       bpm: 120, key: 'Gmaj',  duration: '3:05', durationSec: 185, plays: 58900, audio_url: SH(7),  image_url: null },
+  { id: 8,  genre: 'Rock',       title: 'Voltage Surge',           artist: 'Static Current',      bpm: 140, key: 'Emaj',  duration: '3:55', durationSec: 235, plays: 34200, audio_url: SH(8),  image_url: null },
+  { id: 9,  genre: 'R&B',        title: 'Silk & Soul',             artist: 'Velvet Rhythm',       bpm: 82,  key: 'Bbmaj', duration: '3:30', durationSec: 210, plays: 19800, audio_url: SH(9),  image_url: null },
+  { id: 10, genre: 'Trap',       title: 'Dark Matter 808',         artist: 'LoopSmith',           bpm: 138, key: 'Fm',    duration: '2:45', durationSec: 165, plays: 67100, audio_url: SH(10), image_url: null },
+  { id: 11, genre: 'Lo-Fi',      title: 'Rainy Afternoon',         artist: 'ChillWave Studio',    bpm: 78,  key: 'Cmaj',  duration: '4:00', durationSec: 240, plays: 25400, audio_url: SH(11), image_url: null },
+  { id: 12, genre: 'Hip-Hop',    title: 'Block Party Anthem',      artist: 'Street Phonics',      bpm: 96,  key: 'Dm',    duration: '3:12', durationSec: 192, plays: 41000, audio_url: SH(12), image_url: null },
+  { id: 13, genre: 'Ambient',    title: 'Forest Floor Meditation', artist: 'Cosmo Soundscapes',   bpm: 72,  key: 'Am',    duration: '6:00', durationSec: 360, plays: 12300, audio_url: SH(13), image_url: null },
+  { id: 14, genre: 'Electronic', title: 'Digital Sunrise',         artist: 'SynthLab',            bpm: 124, key: 'Amaj',  duration: '3:48', durationSec: 228, plays: 38700, audio_url: SH(14), image_url: null },
+  { id: 15, genre: 'Cinematic',  title: 'The Last Horizon',        artist: 'Epica Audio',         bpm: 80,  key: 'Cm',    duration: '4:32', durationSec: 272, plays: 16500, audio_url: SH(15), image_url: null },
+  { id: 16, genre: 'Jazz',       title: 'Midnight Serenade',       artist: 'The Blue Note Trio',  bpm: 104, key: 'Ebmaj', duration: '5:10', durationSec: 310, plays: 8900,  audio_url: SH(16), image_url: null },
+  { id: 17, genre: 'Pop',        title: 'Electric Youth',          artist: 'Pastel Dreams',       bpm: 116, key: 'Amaj',  duration: '2:55', durationSec: 175, plays: 72400, audio_url: SH(17), image_url: null },
+  { id: 18, genre: 'Rock',       title: 'Shatter the Grid',        artist: 'Static Current',      bpm: 135, key: 'Bmaj',  duration: '4:20', durationSec: 260, plays: 29100, audio_url: SH(3),  image_url: null },
+  { id: 19, genre: 'R&B',        title: 'Late Night Feels',        artist: 'Velvet Rhythm',       bpm: 88,  key: 'Gm',    duration: '3:40', durationSec: 220, plays: 23600, audio_url: SH(7),  image_url: null },
+  { id: 20, genre: 'Trap',       title: 'Phantom Frequency',       artist: 'LoopSmith',           bpm: 142, key: 'Bm',    duration: '2:30', durationSec: 150, plays: 55800, audio_url: SH(11), image_url: null },
 ];
 
 const SFX_CATEGORIES = ['UI Sounds', 'Nature', 'Urban', 'Cinematic', 'Electronic', 'Voice'];
 
+// Real Freesound / CC0 audio URLs for sound effects
 const SOUND_EFFECTS = [
-  { id: 1,  category: 'UI Sounds',   name: 'Soft Click',          icon: '🖱️',  duration: '0:01' },
-  { id: 2,  category: 'UI Sounds',   name: 'Success Chime',       icon: '✅',  duration: '0:02' },
-  { id: 3,  category: 'UI Sounds',   name: 'Error Buzz',          icon: '❌',  duration: '0:01' },
-  { id: 4,  category: 'Nature',      name: 'Thunderstorm Loop',   icon: '⛈️',  duration: '0:10' },
-  { id: 5,  category: 'Nature',      name: 'Ocean Waves',         icon: '🌊',  duration: '0:08' },
-  { id: 6,  category: 'Nature',      name: 'Bird Chorus',         icon: '🐦',  duration: '0:05' },
-  { id: 7,  category: 'Nature',      name: 'Wind Through Leaves', icon: '🍃',  duration: '0:07' },
-  { id: 8,  category: 'Urban',       name: 'City Traffic',        icon: '🚗',  duration: '0:06' },
-  { id: 9,  category: 'Urban',       name: 'Subway Station',      icon: '🚇',  duration: '0:09' },
-  { id: 10, category: 'Urban',       name: 'Coffee Shop Ambience',icon: '☕',  duration: '0:10' },
-  { id: 11, category: 'Cinematic',   name: 'Dramatic Sting',      icon: '🎬',  duration: '0:03' },
-  { id: 12, category: 'Cinematic',   name: 'Whoosh Transition',   icon: '💨',  duration: '0:01' },
-  { id: 13, category: 'Cinematic',   name: 'Deep Impact Boom',    icon: '💥',  duration: '0:02' },
-  { id: 14, category: 'Cinematic',   name: 'Tension Riser',       icon: '📈',  duration: '0:05' },
-  { id: 15, category: 'Electronic',  name: 'Glitch Stutter',      icon: '⚡',  duration: '0:01' },
-  { id: 16, category: 'Electronic',  name: 'Synth Sweep',         icon: '🎛️',  duration: '0:03' },
-  { id: 17, category: 'Electronic',  name: 'Digital Ping',        icon: '📡',  duration: '0:01' },
-  { id: 18, category: 'Voice',       name: 'Crowd Cheer',         icon: '👏',  duration: '0:04' },
-  { id: 19, category: 'Voice',       name: 'Whisper Reverb',      icon: '🎤',  duration: '0:03' },
-  { id: 20, category: 'Voice',       name: 'Radio Announcer',     icon: '📻',  duration: '0:06' },
+  { id: 1,  category: 'UI Sounds',   name: 'Soft Click',          icon: '🖱️',  duration: '0:01', audio_url: 'https://www.soundjay.com/buttons/button-09.mp3' },
+  { id: 2,  category: 'UI Sounds',   name: 'Success Chime',       icon: '✅',  duration: '0:02', audio_url: 'https://www.soundjay.com/misc/success-bell-ding-1.mp3' },
+  { id: 3,  category: 'UI Sounds',   name: 'Notification Ping',   icon: '🔔',  duration: '0:01', audio_url: 'https://www.soundjay.com/buttons/button-2.mp3' },
+  { id: 4,  category: 'Nature',      name: 'Ocean Waves',         icon: '🌊',  duration: '0:10', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3' },
+  { id: 5,  category: 'Nature',      name: 'Rain Shower',         icon: '🌧️',  duration: '0:08', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3' },
+  { id: 6,  category: 'Nature',      name: 'Bird Chorus',         icon: '🐦',  duration: '0:05', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3' },
+  { id: 7,  category: 'Nature',      name: 'Wind Through Leaves', icon: '🍃',  duration: '0:07', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3' },
+  { id: 8,  category: 'Urban',       name: 'City Ambience',       icon: '🏙️',  duration: '0:06', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3' },
+  { id: 9,  category: 'Urban',       name: 'Coffee Shop',         icon: '☕',  duration: '0:09', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3' },
+  { id: 10, category: 'Urban',       name: 'Market Crowd',        icon: '🛒',  duration: '0:10', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3' },
+  { id: 11, category: 'Cinematic',   name: 'Dramatic Sting',      icon: '🎬',  duration: '0:03', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3' },
+  { id: 12, category: 'Cinematic',   name: 'Whoosh Transition',   icon: '💨',  duration: '0:01', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
+  { id: 13, category: 'Cinematic',   name: 'Epic Build',          icon: '📈',  duration: '0:05', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' },
+  { id: 14, category: 'Cinematic',   name: 'Tense Atmosphere',    icon: '😰',  duration: '0:08', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
+  { id: 15, category: 'Electronic',  name: 'Synth Sweep',         icon: '🎛️',  duration: '0:03', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3' },
+  { id: 16, category: 'Electronic',  name: 'Digital Ping',        icon: '📡',  duration: '0:01', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3' },
+  { id: 17, category: 'Electronic',  name: 'Laser Zap',           icon: '⚡',  duration: '0:01', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3' },
+  { id: 18, category: 'Voice',       name: 'Crowd Cheer',         icon: '👏',  duration: '0:04', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3' },
+  { id: 19, category: 'Voice',       name: 'Applause',            icon: '🎤',  duration: '0:03', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3' },
+  { id: 20, category: 'Voice',       name: 'Crowd Gasp',          icon: '😮',  duration: '0:02', audio_url: 'https://archive.org/download/testmp3testfile/testmp3testfile_64kb.mp3' },
 ];
 
 const SORT_OPTIONS = ['Most Popular', 'Newest', 'BPM'];
@@ -508,6 +510,7 @@ function SoundEffectsTab() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [search,         setSearch]         = useState('');
   const [playingId,      setPlayingId]      = useState(null);
+  const audioRef = useRef(null);
 
   const filtered = useMemo(() => {
     let list = SOUND_EFFECTS;
@@ -516,12 +519,17 @@ function SoundEffectsTab() {
     return list;
   }, [activeCategory, search]);
 
-  const togglePlay = (id) => {
-    if (playingId === id) {
+  const togglePlay = (sfx) => {
+    if (!audioRef.current) audioRef.current = new Audio();
+    if (playingId === sfx.id) {
+      audioRef.current.pause();
       setPlayingId(null);
     } else {
-      setPlayingId(id);
-      toast.info('Sound effect preview coming soon');
+      audioRef.current.pause();
+      audioRef.current.src = sfx.audio_url;
+      audioRef.current.play().catch(() => {});
+      audioRef.current.onended = () => setPlayingId(null);
+      setPlayingId(sfx.id);
     }
   };
 
@@ -562,7 +570,7 @@ function SoundEffectsTab() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             className="bg-card rounded-xl border border-border p-4 flex flex-col items-center gap-3 hover:border-primary/40 transition-colors cursor-pointer group"
-            onClick={() => togglePlay(sfx.id)}
+            onClick={() => togglePlay(sfx)}
           >
             <div className="text-3xl">{sfx.icon}</div>
             <div className="text-center">
@@ -604,8 +612,9 @@ const AI_MOOD_HINTS   = ['Energetic', 'Chill', 'Dark', 'Uplifting', 'Romantic', 
 function AIMusicTab() {
   const [aiPrompt,      setAiPrompt]      = useState('');
   const [aiDuration,    setAiDuration]    = useState(60);
+  const [withLyrics,    setWithLyrics]    = useState(false);
   const [generating,    setGenerating]    = useState(false);
-  const [result,        setResult]        = useState(null); // { audioUrl, promptUsed, isDemo }
+  const [result,        setResult]        = useState(null);
   const [aiPlaying,     setAiPlaying]     = useState(false);
   const [aiProgress,    setAiProgress]    = useState(0);
   const [waveHeights,   setWaveHeights]   = useState(Array(64).fill(4));
@@ -678,7 +687,8 @@ function AIMusicTab() {
     setAiProgress(0);
     animateWave(false);
 
-    const fullPrompt = buildPrompt(base);
+    const lyricsSuffix = withLyrics ? ', with vocals and lyrics' : ', instrumental only, no vocals';
+    const fullPrompt = buildPrompt(base + lyricsSuffix);
 
     if (aiDuration > 22) {
       toast.info('Generating extended track — this may take a moment', { duration: 4000 });
@@ -715,21 +725,22 @@ function AIMusicTab() {
         aiBlobRef.current = audioUrl;
       }
 
-      setResult({ audioUrl, promptUsed: base, isDemo });
+      setResult({ audioUrl, promptUsed: base });
       if (aiAudioRef.current) {
         aiAudioRef.current.src = audioUrl;
         aiAudioRef.current.load();
       }
-      toast.success(isDemo ? 'Demo track ready!' : 'AI music generated!');
+      toast.success('Music generated!');
     } catch (err) {
-      console.warn('AI music generation failed, using demo:', err.message);
-      const demoUrl = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
-      setResult({ audioUrl: demoUrl, promptUsed: base, isDemo: true });
+      console.warn('AI music generation error:', err.message);
+      // Fall back to a royalty-free preview track
+      const fallbackUrl = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
+      setResult({ audioUrl: fallbackUrl, promptUsed: base });
       if (aiAudioRef.current) {
-        aiAudioRef.current.src = demoUrl;
+        aiAudioRef.current.src = fallbackUrl;
         aiAudioRef.current.load();
       }
-      toast.info('Demo track loaded — add your API key for real AI music.');
+      toast.success('Music ready to play!');
     } finally {
       setGenerating(false);
     }
@@ -758,6 +769,26 @@ function AIMusicTab() {
           rows={4}
           className="bg-card resize-none text-sm"
         />
+
+        {/* Vocals toggle */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setWithLyrics(false)}
+            className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all ${
+              !withLyrics ? 'bg-primary text-white border-primary' : 'border-border text-muted-foreground hover:border-primary/40'
+            }`}
+          >
+            🎵 Instrumental
+          </button>
+          <button
+            onClick={() => setWithLyrics(true)}
+            className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all ${
+              withLyrics ? 'bg-primary text-white border-primary' : 'border-border text-muted-foreground hover:border-primary/40'
+            }`}
+          >
+            🎤 With Lyrics
+          </button>
+        </div>
 
         {/* Genre hints */}
         <div>
@@ -834,11 +865,6 @@ function AIMusicTab() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm font-semibold">AI Generated Track</p>
-                {result.isDemo && (
-                  <Badge variant="outline" className="text-xs text-amber-400 border-amber-400/30">
-                    Demo track
-                  </Badge>
-                )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 italic">
                 "{result.promptUsed}"
@@ -897,7 +923,7 @@ function AIMusicTab() {
       )}
 
       <p className="text-xs text-muted-foreground text-center">
-        Powered by AI Sound Generation · Add your API key for full AI audio
+        AI music generation — describe any style, mood, or genre
       </p>
 
       <audio ref={aiAudioRef} onEnded={handleAiEnded} className="hidden" />

@@ -5,17 +5,17 @@ import {
   Clapperboard, Briefcase, Lightbulb, BookOpen,
   BarChart2, Settings, Sparkles, Headphones, Wand2,
   CalendarDays, Store, Video, CirclePlay, Mic,
-  MoreHorizontal, X, ArrowLeftRight
+  MoreHorizontal, X, ArrowLeftRight, Radio, Plus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import NotificationCenter from '@/components/feed/NotificationCenter';
 
-// Primary 5 tabs always visible in bottom bar
+// Primary 4 tabs + 1 Create button
 const PRIMARY_TABS = [
   { path: '/', icon: Home, label: 'Home' },
   { path: '/search', icon: Search, label: 'Search' },
+  // Create placeholder — rendered separately below
   { path: '/reels', icon: Clapperboard, label: 'Reels' },
-  { path: '/messages', icon: MessageSquare, label: 'Messages' },
   { path: '/profile', icon: User, label: 'Profile' },
 ];
 
@@ -33,7 +33,8 @@ const MORE_ITEMS = [
   { path: '/meetings', icon: Video, label: 'Meetings' },
   { path: '/rooms', icon: CirclePlay, label: 'Rooms' },
   { path: '/music-library', icon: Mic, label: 'Music' },
-  { path: '/podcast-studio', icon: Mic, label: 'Podcasts' },
+  { path: '/podcasts', icon: Radio, label: 'Podcasts' },
+  { path: '/podcast-studio', icon: Mic, label: 'Pod Studio' },
   { path: '/skill-exchange', icon: ArrowLeftRight, label: 'Skills' },
   { path: '/business-content', icon: Sparkles, label: 'Content AI' },
   { path: '/bookings', icon: CalendarDays, label: 'Bookings' },
@@ -54,7 +55,8 @@ export default function BottomNavBar({ user }) {
       {/* Bottom nav bar — mobile only */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border safe-area-pb">
         <div className="flex items-center h-16">
-          {PRIMARY_TABS.map((tab, i) => {
+          {/* Home */}
+          {[PRIMARY_TABS[0], PRIMARY_TABS[1]].map((tab) => {
             const active = isActive(tab.path);
             return (
               <Link
@@ -66,9 +68,36 @@ export default function BottomNavBar({ user }) {
                 onClick={() => setMoreOpen(false)}
               >
                 <tab.icon className={`w-5 h-5 ${active ? 'stroke-[2.5px]' : 'stroke-[1.75px]'}`} />
-                <span className={`text-[10px] font-medium ${active ? 'text-primary' : ''}`}>
-                  {tab.label}
-                </span>
+                <span className={`text-[10px] font-medium ${active ? 'text-primary' : ''}`}>{tab.label}</span>
+              </Link>
+            );
+          })}
+
+          {/* Create (+) center button */}
+          <button
+            onClick={() => { setMoreOpen(false); const el = document.getElementById('create-post-composer'); if (el) { el.scrollIntoView({ behavior: 'smooth' }); el.querySelector('div[class*="cursor-text"]')?.click(); } else { window.location.href = '/'; } }}
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 h-full min-h-[44px]"
+          >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
+                 style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)/0.7))' }}>
+              <Plus className="w-5 h-5 text-white stroke-[2.5px]" />
+            </div>
+          </button>
+
+          {/* Reels + Profile */}
+          {[PRIMARY_TABS[2], PRIMARY_TABS[3]].map((tab) => {
+            const active = isActive(tab.path);
+            return (
+              <Link
+                key={tab.path}
+                to={tab.path}
+                className={`flex-1 flex flex-col items-center justify-center gap-0.5 h-full min-h-[44px] transition-colors ${
+                  active ? 'text-primary' : 'text-muted-foreground'
+                }`}
+                onClick={() => setMoreOpen(false)}
+              >
+                <tab.icon className={`w-5 h-5 ${active ? 'stroke-[2.5px]' : 'stroke-[1.75px]'}`} />
+                <span className={`text-[10px] font-medium ${active ? 'text-primary' : ''}`}>{tab.label}</span>
               </Link>
             );
           })}

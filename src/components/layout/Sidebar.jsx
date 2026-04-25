@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Search, Briefcase, Lightbulb, Users, Building2,
   MessageSquare, BookOpen, Sparkles, User, Settings,
   LogOut, Crown, BarChart2, Headphones, Wand2,
   CalendarDays, Store, Clapperboard, CirclePlay, Video, Mic,
-  ArrowLeftRight, Music4
+  ArrowLeftRight, Music4, Radio
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import NotificationCenter from '@/components/feed/NotificationCenter';
@@ -32,10 +32,27 @@ const NAV_ITEMS = [
   { path: '/creator-marketplace', icon: Store,       label: 'Creator Market' },
   { path: '/skill-exchange',    icon: ArrowLeftRight,label: 'Skill Exchange' },
   { path: '/business-content',  icon: Mic,           label: 'Content Suite' },
+  { path: '/podcasts',          icon: Radio,         label: 'Podcasts' },
 ];
 
 export default function Sidebar({ user }) {
   const location = useLocation();
+  const navRef = useRef(null);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const saved = sessionStorage.getItem('sidebar_scroll');
+    if (saved) nav.scrollTop = parseInt(saved, 10);
+  }, []);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const onScroll = () => sessionStorage.setItem('sidebar_scroll', nav.scrollTop);
+    nav.addEventListener('scroll', onScroll, { passive: true });
+    return () => nav.removeEventListener('scroll', onScroll);
+  }, []);
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/';
@@ -66,7 +83,7 @@ export default function Sidebar({ user }) {
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto scrollbar-thin">
+      <nav ref={navRef} className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto scrollbar-thin">
         {NAV_ITEMS.map((item) => {
           const active = isActive(item.path);
           return (

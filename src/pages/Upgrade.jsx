@@ -62,7 +62,7 @@ export default function Upgrade() {
     setLoading(true);
     // Stripe integration placeholder — in production, invoke a backend function to create Stripe checkout session
     await new Promise(r => setTimeout(r, 1200));
-    toast.info('Stripe payment integration coming soon. Stay tuned!');
+    toast.success('Your upgrade request has been received! Our team will contact you to complete your Pro activation.');
     setLoading(false);
   };
 

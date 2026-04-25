@@ -28,7 +28,7 @@ const HOOK_TYPES = [
   'Curiosity Gap', 'Before/After', 'Number Hook',
 ];
 
-const PLATFORMS = ['TikTok', 'Instagram Reels', 'YouTube Shorts', 'LinkedIn'];
+const PLATFORMS = ['Philomni', 'TikTok', 'Instagram Reels', 'YouTube Shorts', 'LinkedIn', 'Pinterest', 'X (Twitter)'];
 
 const TRENDING_AUDIO = [
   { title: 'Flowers - Miley Cyrus', genre: 'Pop', platform: 'TikTok', score: 98 },
@@ -41,7 +41,7 @@ const TRENDING_AUDIO = [
   { title: 'Lift Me Up - Rihanna', genre: 'Soul', platform: 'TikTok', score: 84 },
 ];
 
-const SCRIPT_CATEGORIES = ['Fitness', 'Finance', 'Food', 'Tech', 'Fashion', 'Travel', 'Education', 'Entertainment'];
+const SCRIPT_CATEGORIES = ['Fitness', 'Finance', 'Food', 'Tech', 'Fashion', 'Travel', 'Education', 'Entertainment', 'UGC Formats', 'Creator Business'];
 
 const SCRIPT_TEMPLATES = {
   Fitness: [
@@ -180,9 +180,73 @@ const SCRIPT_TEMPLATES = {
       template: `My definitive [category] tier list. Argue with me:\n\nS Tier (GOATs): [Items]\nA Tier (Elite): [Items]\nB Tier (Solid): [Items]\nC Tier (Mid): [Items]\nD Tier (Skip): [Items]\n\nDrop your tier list in the comments 👇`,
     },
   ],
+  'UGC Formats': [
+    {
+      title: 'Product Unboxing Script',
+      description: 'Authentic unboxing with first impressions and honest reaction.',
+      template: `POV: I just received [product name] — let's see what's inside.\n\n[Describe the packaging and your first reaction]\n\nWhat comes in the box:\n• [Item 1]\n• [Item 2]\n• [Item 3]\n\nFirst impressions out of the box: [Honest reaction]\n\nStay tuned for my full review after testing it!\n\nDrop your questions below 📦`,
+    },
+    {
+      title: 'Before & After Story',
+      description: 'Powerful transformation story using a product.',
+      template: `Before [product/service]: I was dealing with [problem]\n\nAfter [X weeks] of using [product]:\n✅ [Result 1]\n✅ [Result 2]\n✅ [Result 3]\n\nThe biggest change: [Most impactful result]\n\nWould I recommend it? [Honest answer + why]\n\nCheck the link if you want to see the same results ✨`,
+    },
+    {
+      title: 'Day in My Life Script',
+      description: 'Day-in-the-life format naturally featuring a product.',
+      template: `5am — [Morning routine, mention product naturally]\n8am — [Work/activity, product helps here]\n12pm — [Midday, product benefit moment]\n4pm — [Afternoon routine]\n8pm — [Evening, product wind-down]\n\nFavorite moment of the day: [Genuine highlight]\n\nThe one thing making every day better: [Product + why]\n\nCode [CODE] saves you [X%] 🌟`,
+    },
+    {
+      title: 'Get Ready With Me',
+      description: 'GRWM format incorporating a product into your routine.',
+      template: `Get ready with me using [product]!\n\nStep 1: [Step + how product is used]\nStep 2: [Step + product benefit]\nStep 3: [Final result — show it]\n\nThe game-changer in my routine: [Specific feature or benefit]\n\nBefore [product]: [Old problem]\nAfter [product]: [New result]\n\nTotal time: [X] minutes — quicker and better\n\nLink in bio for [X% off] 💄`,
+    },
+    {
+      title: 'Viral Sound Pairing Suggestions',
+      description: 'Match trending audio to your content type.',
+      template: `Best sounds for [niche] content right now:\n\n🔥 High-energy content: [Trending sound name] — use for [type of clip]\n😂 Relatable moments: [Trending sound] — perfect for [scenario]\n💭 Educational content: [Sound] — works well when [use case]\n✨ Aesthetic/GRWM: [Sound] — ideal for [mood]\n\nPro tip: Use trending sounds within the first 48 hours for max reach.\n\nSave this for your next batch 📲`,
+    },
+    {
+      title: 'Trending Transition Ideas',
+      description: 'Viral transition techniques for your videos.',
+      template: `5 transitions blowing up right now:\n\n1️⃣ [Transition name] — How to do it: [brief instruction]\n2️⃣ [Transition name] — Best for: [content type]\n3️⃣ [Transition name] — Trending on: [platform]\n4️⃣ [Transition name] — Difficulty: [Easy/Medium/Hard]\n5️⃣ [Transition name] — Goes viral when: [context]\n\nSave this for your next video! 🎬`,
+    },
+    {
+      title: 'Comment Reply Templates',
+      description: 'Professional comment replies for brand partnerships.',
+      template: `For positive comments:\n"Thank you so much! I'm so glad [product] worked for you too! 💖"\n\nFor questions about the product:\n"Yes! The [specific feature] is what I love most. DM me for the link!"\n\nFor skeptics:\n"I totally get it — I was skeptical too! But [specific result] convinced me 🙌"\n\nFor competitors:\n"There are lots of great options out there! This one works best for my [routine/lifestyle]"\n\nFor general engagement:\n"Which one would you want me to try next? Drop it below! 👇"`,
+    },
+  ],
+  'Creator Business': [
+    {
+      title: 'UGC Rate Card Pitch',
+      description: 'Professional rate card for brand outreach.',
+      template: `Hi [Brand Name],\n\nI'm [Name], a UGC creator specializing in [niche]. Here's what I offer:\n\n📱 Single UGC Video (30-60s): $[price]\n📱 3-Pack Bundle: $[price] (save [%])\n📱 Monthly Retainer (4 videos/mo): $[price]\n\nEach video includes:\n✅ Hook + problem/solution format\n✅ Natural product integration\n✅ Full usage rights (ads, website, email)\n✅ [X] revisions included\n\nDelivery: [X] business days\n\nI'd love to create content for [product]. Reply to get started!\n\n[Your name]`,
+    },
+    {
+      title: 'Collab Pitch Email',
+      description: 'Compelling outreach email for brand partnerships.',
+      template: `Subject: UGC Partnership — [Your Niche] Creator\n\nHi [Brand/Contact name],\n\nI've been using [product] for [time period] — specifically [what you love about it]. It's genuinely changed [aspect of your life/work].\n\nI'm a UGC creator focused on [niche] with content across [platforms]. My audience is [demographic description].\n\nI'd love to create [type of content] showcasing [campaign goal]. Deliverables:\n• [Deliverable 1]\n• [Deliverable 2]\n• Timeline: [X weeks]\n\nPortfolio: [link]\n\nOpen to a 15-minute call this week?\n\nBest,\n[Name]`,
+    },
+    {
+      title: 'UGC Portfolio Bio',
+      description: 'Bio text for your UGC creator portfolio.',
+      template: `[Name] | UGC Creator & [Niche] Enthusiast\n\nI create authentic, conversion-focused content for [type] brands in the [niche] space.\n\nWhat I do:\n• Short-form video (TikTok/Reels/Shorts)\n• Product demos & unboxings\n• Before/after testimonials\n• Lifestyle integrations\n\nPast brands: [Brand 1], [Brand 2], [Brand 3]\n\nContent that converts because it's real — not scripted.\n\n📩 [email] | 📸 [instagram] | 🎥 [portfolio link]`,
+    },
+    {
+      title: 'Brand Partnership Disclosure',
+      description: 'FTC-compliant sponsored content disclosure templates.',
+      template: `Short form (for captions):\n"#ad | #sponsored | #gifted"\n\nMedium form (for video):\n"This video is sponsored by [Brand]. All opinions are genuinely my own."\n\nDetailed form (for blogs/long content):\n"I received [product/compensation] from [Brand] to create this content. However, my review reflects my honest experience — I only partner with brands I actually use and believe in."\n\nGifted (no payment):\n"[Brand] gifted me this product, but all opinions are 100% my own and unsponsored."`,
+    },
+    {
+      title: 'Usage Rights Agreement Template',
+      description: 'Basic usage rights template for brand content deals.',
+      template: `CONTENT USAGE RIGHTS — [Your Name] x [Brand Name]\n\nContent: [Description of deliverable]\nDelivery date: [Date]\nPayment: $[amount]\n\nRights granted:\n✅ [Platform] ads — [duration]\n✅ Brand website/landing pages — [duration]\n✅ Email marketing — [duration]\n❌ Out-of-home/print (not included)\n❌ Whitelabeling (not included)\n\nCreator retains original ownership. Brand may not edit, crop, or alter content without approval.\n\nQuestions? [contact email]`,
+    },
+  ],
 };
 
-const CAPTION_PLATFORMS = ['TikTok', 'Instagram', 'Twitter/X', 'LinkedIn', 'YouTube'];
+const CAPTION_PLATFORMS = ['Philomni', 'TikTok', 'Instagram', 'Twitter/X', 'LinkedIn', 'YouTube'];
 const CAPTION_TONES = ['Funny', 'Professional', 'Inspirational', 'Casual', 'Educational'];
 
 const THUMBNAIL_TIPS = [

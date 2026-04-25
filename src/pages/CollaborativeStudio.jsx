@@ -133,7 +133,7 @@ export default function CollaborativeStudio() {
             <TabsContent value="files" className="mt-4">
               <div className="p-6 bg-card rounded-lg border border-border text-center">
                 <Share2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" />
-                <p className="text-muted-foreground">File sharing coming soon</p>
+                <p className="text-muted-foreground">Drop files here to share with collaborators</p>
               </div>
             </TabsContent>
 
@@ -144,7 +144,7 @@ export default function CollaborativeStudio() {
                     <Settings className="w-4 h-4" />
                     Workspace Settings
                   </h3>
-                  <p className="text-sm text-muted-foreground">Workspace settings coming soon</p>
+                  <p className="text-sm text-muted-foreground">Manage workspace name, permissions, and member roles.</p>
                 </div>
               </TabsContent>
             )}

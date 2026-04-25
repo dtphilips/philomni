@@ -40,11 +40,11 @@ export default function Profile() {
   const { data: profileUser } = useQuery({
     queryKey: ['profile', userId || currentUser?.id],
     queryFn: async () => {
-      if (isOwnProfile) return currentUser;
+      if (isOwnProfile) return currentUser || null;
       const users = await base44.entities.User.filter({ id: userId });
       return users[0] || null;
     },
-    enabled: !!currentUser,
+    enabled: isOwnProfile ? !!currentUser : !!userId,
   });
 
   const { data: posts = [] } = useQuery({
@@ -96,7 +96,28 @@ export default function Profile() {
   });
 
   const user = profileUser;
-  if (!user) return null;
+  if (!user) {
+    if (isOwnProfile && !currentUser) {
+      return (
+        <div className="text-center py-24">
+          <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mx-auto mb-5">
+            <svg className="w-10 h-10 text-muted-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+          </div>
+          <h2 className="text-xl font-bold mb-2">Sign in to view your profile</h2>
+          <p className="text-muted-foreground text-sm mb-6">Create posts, connect with creators, and build your presence.</p>
+          <Link to="/login" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm"
+                style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>
+            Sign In
+          </Link>
+        </div>
+      );
+    }
+    return (
+      <div className="text-center py-24">
+        <p className="text-muted-foreground">Profile not found.</p>
+      </div>
+    );
+  }
 
   const handleUploadProfilePic = async (event) => {
     const file = event.target.files?.[0];

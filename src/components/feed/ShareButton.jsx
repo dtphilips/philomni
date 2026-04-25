@@ -56,7 +56,8 @@ export default function ShareButton({ post, video }) {
   };
 
   const handleShareDM = () => {
-    toast.info('DM share feature coming soon');
+    // Navigate to messages with post context
+    window.location.href = '/messages';
   };
 
   const handleNativeShare = async () => {

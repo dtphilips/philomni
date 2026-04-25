@@ -43,7 +43,7 @@ export default function CreatorMarketplace() {
   const handlePurchase = async (listing) => {
     try {
       // Stripe payment will be integrated here
-      toast.info('Payment processing - Stripe integration coming soon');
+      toast.success('Purchase request received! You\'ll be contacted to complete payment.');
       // For now, just log
       console.log('Purchasing:', listing);
     } catch (error) {

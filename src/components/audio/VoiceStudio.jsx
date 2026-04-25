@@ -453,9 +453,7 @@ Topic: ${scriptPrompt}`,
       </div>
 
       <p className="text-xs text-muted-foreground text-center">
-        {useElevenLabs
-          ? 'Powered by ElevenLabs · High-quality neural voice synthesis'
-          : "Powered by your browser's speech engine · Enable ElevenLabs for premium quality"}
+        AI voice synthesis · High-quality neural text-to-speech
       </p>
     </div>
   );
