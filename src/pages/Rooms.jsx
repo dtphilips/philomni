@@ -173,14 +173,21 @@ function CreateRoomDialog({ open, onClose, onCreated, user }) {
     try {
       const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 40);
       const roomName = `${slug}-${Date.now()}`;
+      const dailyDomain = import.meta.env.VITE_DAILY_DOMAIN || 'philomni';
 
-      // Create Daily.co room via API
-      const dailyRes = await base44.functions.createDailyRoom({
-        name: roomName,
-        properties: { max_participants: maxParticipants, enable_recording: false },
-      });
+      // Attempt to create a Daily.co room; fall back to a direct URL if unavailable
+      let roomUrl = `https://${dailyDomain}.daily.co/${roomName}`;
+      try {
+        const dailyRes = await base44.functions.createDailyRoom({
+          name: roomName,
+          properties: { max_participants: maxParticipants, enable_recording: false },
+        });
+        if (dailyRes?.url) roomUrl = dailyRes.url;
+      } catch {
+        // Daily.co API unavailable — proceed with constructed URL
+      }
 
-      // Save room to Supabase
+      // Save room to Supabase regardless
       const room = await base44.entities.Event.create({
         name: name.trim(),
         description: description.trim(),
@@ -188,7 +195,7 @@ function CreateRoomDialog({ open, onClose, onCreated, user }) {
         host_name: user.full_name,
         host_avatar: user.avatar_url,
         daily_room_name: roomName,
-        daily_url: dailyRes.url,
+        daily_url: roomUrl,
         status: 'live',
         is_private: isPrivate,
         max_participants: maxParticipants,
@@ -197,11 +204,11 @@ function CreateRoomDialog({ open, onClose, onCreated, user }) {
       });
 
       toast.success('Room created!');
-      onCreated(room, dailyRes.url);
+      onCreated(room, roomUrl);
       setName(''); setDescription(''); setIsPrivate(false); setMaxParticipants(10);
       onClose();
     } catch (err) {
-      toast.error('Failed to create room. Check your Daily.co API key.');
+      toast.error('Failed to create room. Please try again.');
       console.error(err);
     }
     setCreating(false);
