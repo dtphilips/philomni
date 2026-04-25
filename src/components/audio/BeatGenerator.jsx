@@ -21,22 +21,30 @@ const MOOD_PRESETS = [
 ];
 
 const DURATIONS = [
-  { label: '10s', value: 10 },
-  { label: '15s', value: 15 },
-  { label: '22s', value: 22 },
+  { label: '10s',   value: 10 },
+  { label: '15s',   value: 15 },
+  { label: '22s',   value: 22 },
+  { label: '1 min', value: 60 },
+  { label: '2 min', value: 120 },
+  { label: '3 min', value: 180 },
+  { label: '5 min', value: 300 },
 ];
 
+// ElevenLabs max is ~22s; durations above this need special handling
+const ELEVENLABS_MAX = 22;
+
 export default function BeatGenerator() {
-  const [prompt, setPrompt] = useState('');
-  const [duration, setDuration] = useState(22);
+  const [prompt, setPrompt]         = useState('');
+  const [duration, setDuration]     = useState(22);
   const [generating, setGenerating] = useState(false);
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [playing, setPlaying] = useState(false);
-  const [volume, setVolume] = useState([0.8]);
+  const [audioUrl, setAudioUrl]     = useState(null);
+  const [playing, setPlaying]       = useState(false);
+  const [volume, setVolume]         = useState([0.8]);
   const [waveHeights, setWaveHeights] = useState(Array(48).fill(4));
-  const audioRef = useRef(null);
+  const [lastPromptUsed, setLastPromptUsed] = useState('');
+  const audioRef    = useRef(null);
   const waveAnimRef = useRef(null);
-  const blobRef = useRef(null);
+  const blobRef     = useRef(null);
 
   const animateWave = (active) => {
     clearInterval(waveAnimRef.current);
@@ -49,18 +57,37 @@ export default function BeatGenerator() {
     }
   };
 
-  const generate = async () => {
-    if (!prompt.trim()) { toast.error('Describe your beat first.'); return; }
+  // Build a prompt with a random seed for uniqueness
+  const buildFullPrompt = (basePrompt) => {
+    const seed = Math.random().toString(36).slice(2, 8);
+    return `${basePrompt} [variation: ${seed}]`;
+  };
+
+  const generate = async (basePrompt) => {
+    const effectivePrompt = basePrompt || prompt;
+    if (!effectivePrompt.trim()) { toast.error('Describe your beat first.'); return; }
+
     setGenerating(true);
     setAudioUrl(null);
     setPlaying(false);
     if (audioRef.current) audioRef.current.pause();
 
+    const fullPrompt = buildFullPrompt(effectivePrompt);
+    setLastPromptUsed(effectivePrompt);
+
+    // Warn about extended durations
+    if (duration > ELEVENLABS_MAX) {
+      toast.info('Generating extended track — this may take a moment', { duration: 4000 });
+    }
+
+    // For durations > ELEVENLABS_MAX, cap at 22s for the API call and note the limitation
+    const apiDuration = Math.min(duration, ELEVENLABS_MAX);
+
     try {
       const res = await fetch('/api/sound-generation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: prompt, duration_seconds: duration }),
+        body: JSON.stringify({ text: fullPrompt, duration_seconds: apiDuration }),
       });
 
       if (!res.ok) {
@@ -72,7 +99,6 @@ export default function BeatGenerator() {
       if (contentType.includes('application/json')) {
         const data = await res.json();
         if (data.fallback) {
-          // ElevenLabs not configured — generate demo beat with Web Audio API
           generateWebAudioBeat();
           return;
         }
@@ -85,7 +111,12 @@ export default function BeatGenerator() {
       const url = URL.createObjectURL(blob);
       blobRef.current = url;
       setAudioUrl(url);
-      toast.success('Beat generated!');
+
+      if (duration > ELEVENLABS_MAX) {
+        toast.success(`Beat generated! (${apiDuration}s preview — ElevenLabs max is ${ELEVENLABS_MAX}s)`);
+      } else {
+        toast.success('Beat generated!');
+      }
     } catch (err) {
       console.warn('ElevenLabs not available, falling back to Web Audio:', err.message);
       generateWebAudioBeat();
@@ -94,16 +125,20 @@ export default function BeatGenerator() {
     }
   };
 
+  const handleRegenerate = () => {
+    generate(lastPromptUsed || prompt);
+  };
+
   // Fallback: generate a short demo beat with Web Audio API
   const generateWebAudioBeat = () => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const totalTime = duration;
+      // Cap at 22s for Web Audio fallback too (rendering longer clips is impractical)
+      const totalTime = Math.min(duration, ELEVENLABS_MAX);
       const bpm = 120;
       const beatLen = 60 / bpm;
       const beats = Math.floor(totalTime / beatLen);
 
-      // Create an offline context for rendering
       const offCtx = new OfflineAudioContext(2, ctx.sampleRate * totalTime, ctx.sampleRate);
       const masterGain = offCtx.createGain();
       masterGain.gain.value = 0.7;
@@ -112,7 +147,7 @@ export default function BeatGenerator() {
       // Kick drum on every beat
       for (let i = 0; i < beats; i++) {
         const t = i * beatLen;
-        const osc = offCtx.createOscillator();
+        const osc  = offCtx.createOscillator();
         const gain = offCtx.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(150, t);
@@ -124,15 +159,15 @@ export default function BeatGenerator() {
       }
 
       // Hi-hats on 8ths
-      const bufferSize = offCtx.sampleRate * 0.05;
+      const bufferSize  = offCtx.sampleRate * 0.05;
       const noiseBuffer = offCtx.createBuffer(1, bufferSize, offCtx.sampleRate);
-      const data = noiseBuffer.getChannelData(0);
+      const data        = noiseBuffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
 
       for (let i = 0; i < beats * 2; i++) {
-        const t = i * (beatLen / 2);
-        const src = offCtx.createBufferSource();
-        const g = offCtx.createGain();
+        const t      = i * (beatLen / 2);
+        const src    = offCtx.createBufferSource();
+        const g      = offCtx.createGain();
         const filter = offCtx.createBiquadFilter();
         src.buffer = noiseBuffer;
         filter.type = 'highpass'; filter.frequency.value = 8000;
@@ -143,25 +178,27 @@ export default function BeatGenerator() {
       }
 
       // Bass pad
-      const bassOsc = offCtx.createOscillator();
-      const bassGain = offCtx.createGain();
+      const bassOsc    = offCtx.createOscillator();
+      const bassGain   = offCtx.createGain();
+      const bassFilter = offCtx.createBiquadFilter();
       bassOsc.type = 'sawtooth';
       bassOsc.frequency.value = 55;
       bassGain.gain.value = 0.1;
-      const bassFilter = offCtx.createBiquadFilter();
       bassFilter.type = 'lowpass'; bassFilter.frequency.value = 200;
       bassOsc.connect(bassFilter); bassFilter.connect(bassGain); bassGain.connect(masterGain);
       bassOsc.start(0); bassOsc.stop(totalTime);
 
       offCtx.startRendering().then(buffer => {
-        // Encode to WAV
-        const wav = encodeWAV(buffer);
+        const wav  = encodeWAV(buffer);
         const blob = new Blob([wav], { type: 'audio/wav' });
         if (blobRef.current) URL.revokeObjectURL(blobRef.current);
         const url = URL.createObjectURL(blob);
         blobRef.current = url;
         setAudioUrl(url);
-        toast.success('Demo beat generated! Add your ElevenLabs key for AI-generated beats.');
+        const note = duration > ELEVENLABS_MAX
+          ? ` (${totalTime}s demo — add ElevenLabs key for longer AI beats)`
+          : '';
+        toast.success(`Demo beat generated!${note}`);
       });
     } catch {
       toast.error('Beat generation failed.');
@@ -170,14 +207,14 @@ export default function BeatGenerator() {
   };
 
   function encodeWAV(buffer) {
-    const numChannels = buffer.numberOfChannels;
-    const sampleRate = buffer.sampleRate;
-    const numSamples = buffer.length;
+    const numChannels  = buffer.numberOfChannels;
+    const sampleRate   = buffer.sampleRate;
+    const numSamples   = buffer.length;
     const bitsPerSample = 16;
-    const blockAlign = numChannels * (bitsPerSample / 8);
-    const byteRate = sampleRate * blockAlign;
-    const dataSize = numSamples * blockAlign;
-    const ab = new ArrayBuffer(44 + dataSize);
+    const blockAlign   = numChannels * (bitsPerSample / 8);
+    const byteRate     = sampleRate * blockAlign;
+    const dataSize     = numSamples * blockAlign;
+    const ab   = new ArrayBuffer(44 + dataSize);
     const view = new DataView(ab);
     const writeStr = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
     writeStr(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeStr(8, 'WAVE');
@@ -260,12 +297,22 @@ export default function BeatGenerator() {
               className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${duration === d.value ? 'bg-primary text-primary-foreground' : 'border border-border hover:border-primary/50'}`}
             >
               {d.label}
+              {d.value > ELEVENLABS_MAX && (
+                <span className="ml-1 opacity-60 text-[10px]">~{ELEVENLABS_MAX}s</span>
+              )}
             </button>
           ))}
         </div>
 
+        {duration > ELEVENLABS_MAX && (
+          <p className="text-xs text-amber-400/80 flex items-center gap-1">
+            <Sparkles className="w-3 h-3" />
+            ElevenLabs max is {ELEVENLABS_MAX}s — a {ELEVENLABS_MAX}s preview will be generated for longer durations.
+          </p>
+        )}
+
         <Button
-          onClick={generate}
+          onClick={() => generate()}
           disabled={generating || !prompt.trim()}
           className="w-full gap-2"
         >
@@ -282,7 +329,9 @@ export default function BeatGenerator() {
             <Music2 className="w-5 h-5 text-primary flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">Generated Beat</p>
-              <p className="text-xs text-muted-foreground truncate">{duration}s · Custom AI Beat</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {Math.min(duration, ELEVENLABS_MAX)}s · Custom AI Beat
+              </p>
             </div>
             <Badge variant="outline" className="text-xs">Ready</Badge>
           </div>
@@ -317,13 +366,31 @@ export default function BeatGenerator() {
               />
             </div>
 
-            <button onClick={generate} className="p-2 rounded-lg border border-border hover:bg-muted transition-colors" title="Regenerate">
-              <RefreshCw className="w-4 h-4 text-muted-foreground" />
+            <button
+              onClick={handleRegenerate}
+              disabled={generating}
+              className="p-2 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50"
+              title="Regenerate (new variation)"
+            >
+              <RefreshCw className={`w-4 h-4 text-muted-foreground ${generating ? 'animate-spin' : ''}`} />
             </button>
             <button onClick={download} className="p-2 rounded-lg border border-border hover:bg-muted transition-colors" title="Download">
               <Download className="w-4 h-4 text-muted-foreground" />
             </button>
           </div>
+
+          {/* Regenerate button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRegenerate}
+            disabled={generating}
+            className="w-full gap-2"
+          >
+            {generating
+              ? <><Loader2 className="w-3 h-3 animate-spin" /> Generating new variation…</>
+              : <><RefreshCw className="w-3 h-3" /> Regenerate (new variation)</>}
+          </Button>
         </div>
       )}
 

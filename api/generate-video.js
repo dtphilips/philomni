@@ -1,33 +1,44 @@
 /**
  * Vercel Serverless Function — Runway ML video generation
- * POST /api/generate-video  { prompt, imageUrl?, style?, duration? }
+ * POST /api/generate-video
+ *   { prompt, imageUrl?, style?, duration?, type? }
  *
- * When imageUrl is provided → image-to-video (Gen-3 Alpha Turbo)
- * When only prompt is provided → text-to-video (uses a neutral seed image)
+ * type = 'text'   → text-to-video via Runway Gen-3 (uses neutral seed image)
+ * type = 'image'  → image-to-video via Runway Gen-3 (animates uploaded image)
+ * type = 'lip'    → lip-sync via HeyGen (photo + script → talking avatar)
+ * type = 'avatar' → HeyGen preset avatar video
+ *
+ * All output defaults to 9:16 portrait (1080×1920 / 768:1344).
  */
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { prompt, imageUrl, duration = 5 } = req.body ?? {};
+  const { prompt, imageUrl, duration = 5, type = 'text', script, avatarId, photoUrl } = req.body ?? {};
+
+  // ── HeyGen routes ──────────────────────────────────────────────────────────
+  if (type === 'lip' || type === 'avatar') {
+    return handleHeyGen(req, res, { type, prompt, script, avatarId, photoUrl });
+  }
+
+  // ── Runway routes ──────────────────────────────────────────────────────────
   if (!prompt) return res.status(400).json({ error: 'prompt is required' });
 
   const apiKey = process.env.RUNWAY_API_KEY;
   if (!apiKey) {
     return res.status(200).json({
-      video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+      video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
       status: 'mock',
+      note: 'Set RUNWAY_API_KEY to generate real videos',
     });
   }
 
-  // Runway Gen-3 Alpha Turbo requires an input image.
-  // For text-to-video, we use a neutral dark gradient as the seed image.
+  // Portrait seed image for text-to-video (tall aspect)
   const promptImage = imageUrl
-    || 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1280&q=80';
+    || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1080&q=80&fit=crop&ar=9:16';
 
   const clampedDuration = Math.min(Math.max(parseInt(duration) || 5, 5), 10);
 
   try {
-    // Step 1: Create generation task
     const createRes = await fetch('https://api.runwayml.com/v1/image_to_video', {
       method: 'POST',
       headers: {
@@ -40,46 +51,100 @@ export default async function handler(req, res) {
         promptText: prompt,
         model: 'gen3a_turbo',
         duration: clampedDuration,
-        ratio: '1280:768',
+        ratio: '768:1344',   // 9:16 portrait
         watermark: false,
       }),
     });
 
     if (!createRes.ok) {
       const err = await createRes.text();
-      console.error('[api/generate-video] Runway create error:', err);
+      console.error('[api/generate-video] Runway error:', err);
       return res.status(502).json({ error: 'Runway API error', details: err });
     }
 
     const { id: taskId } = await createRes.json();
 
-    // Step 2: Poll for completion (max 90s — 18 × 5s)
+    // Poll up to 90 s (18 × 5 s)
     for (let i = 0; i < 18; i++) {
       await new Promise(r => setTimeout(r, 5000));
       const pollRes = await fetch(`https://api.runwayml.com/v1/tasks/${taskId}`, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'X-Runway-Version': '2024-11-06',
-        },
+        headers: { Authorization: `Bearer ${apiKey}`, 'X-Runway-Version': '2024-11-06' },
       });
       if (!pollRes.ok) continue;
       const task = await pollRes.json();
-
-      if (task.status === 'SUCCEEDED') {
-        return res.status(200).json({ video_url: task.output?.[0], status: 'complete' });
-      }
-      if (task.status === 'FAILED') {
-        return res.status(502).json({ error: 'Video generation failed', details: task.failure });
-      }
+      if (task.status === 'SUCCEEDED') return res.status(200).json({ video_url: task.output?.[0], status: 'complete' });
+      if (task.status === 'FAILED') return res.status(502).json({ error: 'Video generation failed', details: task.failure });
     }
 
-    return res.status(202).json({
-      status: 'processing',
-      taskId,
-      message: 'Video is still generating. Poll /api/video-status?taskId=... to check progress.',
-    });
+    return res.status(202).json({ status: 'processing', taskId });
   } catch (err) {
     console.error('[api/generate-video]', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ── HeyGen helper ──────────────────────────────────────────────────────────────
+async function handleHeyGen(req, res, { type, script, avatarId, photoUrl }) {
+  const apiKey = process.env.HEYGEN_API_KEY;
+
+  if (!apiKey) {
+    // Return a sample talking-head demo video
+    return res.status(200).json({
+      video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
+      status: 'mock',
+      note: 'Set HEYGEN_API_KEY to generate real avatar videos',
+    });
+  }
+
+  try {
+    const text = script || 'Hello, I am your AI avatar. This is a test video generated by Philomni.';
+
+    // Build HeyGen v2 video generation payload
+    const payload = type === 'lip'
+      ? {
+          video_inputs: [{
+            character: { type: 'talking_photo', talking_photo_id: photoUrl || 'default' },
+            voice: { type: 'text', input_text: text, voice_id: 'en-US-JennyNeural' },
+          }],
+          dimension: { width: 1080, height: 1920 },
+        }
+      : {
+          video_inputs: [{
+            character: { type: 'avatar', avatar_id: avatarId || 'josh_lite3_20230714', scale: 1 },
+            voice: { type: 'text', input_text: text, voice_id: 'en-US-JennyNeural' },
+            background: { type: 'color', value: '#0a0a14' },
+          }],
+          dimension: { width: 1080, height: 1920 },
+        };
+
+    const createRes = await fetch('https://api.heygen.com/v2/video/generate', {
+      method: 'POST',
+      headers: { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!createRes.ok) {
+      const err = await createRes.text();
+      return res.status(502).json({ error: 'HeyGen API error', details: err });
+    }
+
+    const { data: { video_id } } = await createRes.json();
+
+    // Poll up to 2 min
+    for (let i = 0; i < 24; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      const statusRes = await fetch(`https://api.heygen.com/v1/video_status.get?video_id=${video_id}`, {
+        headers: { 'X-Api-Key': apiKey },
+      });
+      if (!statusRes.ok) continue;
+      const { data } = await statusRes.json();
+      if (data.status === 'completed') return res.status(200).json({ video_url: data.video_url, status: 'complete' });
+      if (data.status === 'failed') return res.status(502).json({ error: 'HeyGen generation failed' });
+    }
+
+    return res.status(202).json({ status: 'processing', video_id });
+  } catch (err) {
+    console.error('[api/generate-video/heygen]', err);
     return res.status(500).json({ error: err.message });
   }
 }

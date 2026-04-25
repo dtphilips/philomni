@@ -75,9 +75,36 @@ const AVATAR_VOICES = [
   { id: 'max',     name: 'Max',     style: 'Energetic Presenter',  emoji: '⚡' },
 ];
 
+// ── Video tool constants ──────────────────────────────────────────────────────
+const VIDEO_DURATIONS = ['5s', '8s', '10s'];
+
+const CINEMATIC_STYLES = [
+  { id: 'noir',    label: 'Noir',    emoji: '🌑' },
+  { id: 'fantasy', label: 'Fantasy', emoji: '✨' },
+  { id: 'scifi',   label: 'Sci-Fi',  emoji: '🚀' },
+  { id: 'nature',  label: 'Nature',  emoji: '🌿' },
+  { id: 'urban',   label: 'Urban',   emoji: '🏙️' },
+];
+
+const PRODUCT_BG_STYLES = [
+  { id: 'studio',    label: 'Studio White' },
+  { id: 'gradient',  label: 'Gradient' },
+  { id: 'outdoor',   label: 'Outdoor' },
+  { id: 'luxury',    label: 'Luxury Dark' },
+];
+
+const PRESET_AVATARS = [
+  { id: 'Alex',   gradient: 'from-violet-500 to-purple-700' },
+  { id: 'Jordan', gradient: 'from-blue-500 to-cyan-600' },
+  { id: 'Sam',    gradient: 'from-emerald-500 to-teal-600' },
+  { id: 'Riley',  gradient: 'from-rose-500 to-pink-600' },
+  { id: 'Morgan', gradient: 'from-amber-500 to-orange-600' },
+  { id: 'Casey',  gradient: 'from-indigo-500 to-blue-700' },
+];
+
 function ImagePreview({ src, generating, placeholder, onRegenerate, onDownload, children }) {
   return (
-    <div className="aspect-square rounded-2xl overflow-hidden bg-muted border border-border relative">
+    <div className="aspect-[9/16] rounded-2xl overflow-hidden bg-muted border border-border relative">
       {generating && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
@@ -124,15 +151,50 @@ function FileDropZone({ onFile, preview, accept = 'image/*', label = 'Click or d
   );
 }
 
+// ── VideoResult helper ────────────────────────────────────────────────────────
+function VideoResult({ videoUrl, isMock, onDownload }) {
+  if (!videoUrl) return null;
+  return (
+    <div className="space-y-3">
+      <div className="relative rounded-xl overflow-hidden bg-black border border-border">
+        <video src={videoUrl} controls className="w-full" />
+        {isMock && (
+          <div className="absolute top-2 left-2">
+            <Badge className="bg-yellow-500/90 text-black border-0 text-xs">Demo video</Badge>
+          </div>
+        )}
+      </div>
+      <Button variant="outline" className="w-full gap-2" onClick={onDownload}>
+        <Download className="w-4 h-4" />Download Video
+      </Button>
+    </div>
+  );
+}
+
+// ── VideoGenerating helper ────────────────────────────────────────────────────
+function VideoGenerating() {
+  return (
+    <div className="rounded-xl border border-border bg-muted/40 p-8 flex flex-col items-center gap-4">
+      <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+        <Film className="w-7 h-7 text-primary animate-pulse" />
+      </div>
+      <div className="text-center">
+        <p className="text-sm font-medium">Generating your video...</p>
+        <p className="text-xs text-muted-foreground mt-1">This can take 30–90 seconds</p>
+      </div>
+      <Loader2 className="w-5 h-5 text-primary animate-spin" />
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function CreativeStudio() {
   let user = null;
   try { ({ user } = useOutletContext() || {}); } catch {}
 
-  // Video tools state
-  const [prompt, setPrompt] = useState('');
+  // Image AI / Video Tools shared helpers
   const [selectedStyle, setSelectedStyle] = useState(STYLE_PRESETS[0]);
-  const [selectedRatio, setSelectedRatio] = useState(ASPECT_RATIOS[0]);
+  const [selectedRatio, setSelectedRatio] = useState(ASPECT_RATIOS[2]); // default 9:16
   const [generatedUrl, setGeneratedUrl] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [enhancedPrompt, setEnhancedPrompt] = useState('');
@@ -140,11 +202,12 @@ export default function CreativeStudio() {
   const [animating, setAnimating] = useState(false);
   const [animSpeed, setAnimSpeed] = useState([1]);
   const [copied, setCopied] = useState(false);
+  const [prompt, setPrompt] = useState('');
 
   // Image AI state
   const [imgPrompt, setImgPrompt] = useState('');
   const [imgStyle, setImgStyle] = useState(STYLE_PRESETS[0]);
-  const [imgRatio, setImgRatio] = useState(ASPECT_RATIOS[0]);
+  const [imgRatio, setImgRatio] = useState(ASPECT_RATIOS[2]); // default 9:16
   const [imgResult, setImgResult] = useState(null);
   const [imgGenerating, setImgGenerating] = useState(false);
   const [variationFile, setVariationFile] = useState(null);
@@ -167,11 +230,166 @@ export default function CreativeStudio() {
   // Style transfer state
   const [styleFile, setStyleFile] = useState(null);
   const [stylePreview, setStylePreview] = useState('');
+  const [styleImageBase64, setStyleImageBase64] = useState('');
   const [selectedTransferStyle, setSelectedTransferStyle] = useState(STYLE_TRANSFER_PRESETS[0]);
   const [styleResult, setStyleResult] = useState(null);
   const [styleTransferring, setStyleTransferring] = useState(false);
 
-  // ── Video tools handlers ─────────────────────────────────────────────────
+  // ── Video Tools state ────────────────────────────────────────────────────
+  // Text-to-Video
+  const [t2vPrompt, setT2vPrompt] = useState('');
+  const [t2vDuration, setT2vDuration] = useState('8s');
+  const [t2vGenerating, setT2vGenerating] = useState(false);
+  const [t2vResult, setT2vResult] = useState(null);
+  const [t2vMock, setT2vMock] = useState(false);
+
+  // Image-to-Video
+  const [i2vFile, setI2vFile] = useState(null);
+  const [i2vPreview, setI2vPreview] = useState('');
+  const [i2vBase64, setI2vBase64] = useState('');
+  const [i2vPrompt, setI2vPrompt] = useState('');
+  const [i2vDuration, setI2vDuration] = useState('8s');
+  const [i2vGenerating, setI2vGenerating] = useState(false);
+  const [i2vResult, setI2vResult] = useState(null);
+  const [i2vMock, setI2vMock] = useState(false);
+
+  // Lip Sync
+  const [lipFile, setLipFile] = useState(null);
+  const [lipPreview, setLipPreview] = useState('');
+  const [lipBase64, setLipBase64] = useState('');
+  const [lipScript, setLipScript] = useState('');
+  const [lipGenerating, setLipGenerating] = useState(false);
+  const [lipResult, setLipResult] = useState(null);
+  const [lipMock, setLipMock] = useState(false);
+
+  // AI Avatar Video
+  const [avSelectedAvatar, setAvSelectedAvatar] = useState(PRESET_AVATARS[0].id);
+  const [avScript, setAvScript] = useState('');
+  const [avGenerating, setAvGenerating] = useState(false);
+  const [avResult, setAvResult] = useState(null);
+  const [avMock, setAvMock] = useState(false);
+
+  // Cinematic Scene
+  const [cinDesc, setCinDesc] = useState('');
+  const [cinStyle, setCinStyle] = useState(CINEMATIC_STYLES[0].id);
+  const [cinGenerating, setCinGenerating] = useState(false);
+  const [cinResult, setCinResult] = useState(null);
+  const [cinMock, setCinMock] = useState(false);
+
+  // Product Showcase
+  const [prodName, setProdName] = useState('');
+  const [prodDesc, setProdDesc] = useState('');
+  const [prodBg, setProdBg] = useState(PRODUCT_BG_STYLES[0].id);
+  const [prodGenerating, setProdGenerating] = useState(false);
+  const [prodResult, setProdResult] = useState(null);
+  const [prodMock, setProdMock] = useState(false);
+
+  // ── Shared video API caller ───────────────────────────────────────────────
+  const callVideoApi = async (body) => {
+    const res = await fetch('/api/generate-video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  };
+
+  const downloadUrl = (url, name = 'philomni-video.mp4') => {
+    const a = document.createElement('a'); a.href = url; a.download = name; a.target = '_blank'; a.click();
+  };
+
+  const downloadImageUrl = (url, name = 'philomni-image.jpg') => {
+    const a = document.createElement('a'); a.href = url; a.download = name; a.target = '_blank'; a.click();
+  };
+
+  // ── Video handlers ────────────────────────────────────────────────────────
+  const handleT2V = async () => {
+    if (!t2vPrompt.trim()) { toast.error('Enter a prompt first'); return; }
+    setT2vGenerating(true); setT2vResult(null); setT2vMock(false);
+    try {
+      const data = await callVideoApi({ type: 'text', prompt: t2vPrompt.trim(), duration: t2vDuration });
+      setT2vResult(data.video_url);
+      setT2vMock(data.status === 'mock');
+    } catch (e) { toast.error('Video generation failed: ' + e.message); }
+    setT2vGenerating(false);
+  };
+
+  const handleI2VFile = (file) => {
+    setI2vFile(file);
+    const reader = new FileReader();
+    reader.onload = e => { setI2vPreview(e.target.result); setI2vBase64(e.target.result); };
+    reader.readAsDataURL(file);
+  };
+
+  const handleI2V = async () => {
+    if (!i2vFile) { toast.error('Upload an image first'); return; }
+    setI2vGenerating(true); setI2vResult(null); setI2vMock(false);
+    try {
+      const data = await callVideoApi({ type: 'image', imageUrl: i2vBase64, prompt: i2vPrompt.trim(), duration: i2vDuration });
+      setI2vResult(data.video_url);
+      setI2vMock(data.status === 'mock');
+    } catch (e) { toast.error('Video generation failed: ' + e.message); }
+    setI2vGenerating(false);
+  };
+
+  const handleLipFile = (file) => {
+    setLipFile(file);
+    const reader = new FileReader();
+    reader.onload = e => { setLipPreview(e.target.result); setLipBase64(e.target.result); };
+    reader.readAsDataURL(file);
+  };
+
+  const handleLipSync = async () => {
+    if (!lipFile) { toast.error('Upload a face photo first'); return; }
+    if (!lipScript.trim()) { toast.error('Enter the script first'); return; }
+    setLipGenerating(true); setLipResult(null); setLipMock(false);
+    try {
+      const data = await callVideoApi({ type: 'lip', photoUrl: lipBase64, script: lipScript.trim() });
+      setLipResult(data.video_url);
+      setLipMock(data.status === 'mock');
+    } catch (e) { toast.error('Lip sync generation failed: ' + e.message); }
+    setLipGenerating(false);
+  };
+
+  const handleAvatarVideo = async () => {
+    if (!avScript.trim()) { toast.error('Enter a script first'); return; }
+    setAvGenerating(true); setAvResult(null); setAvMock(false);
+    try {
+      const data = await callVideoApi({ type: 'avatar', avatarId: avSelectedAvatar, script: avScript.trim() });
+      setAvResult(data.video_url);
+      setAvMock(data.status === 'mock');
+    } catch (e) { toast.error('Avatar video generation failed: ' + e.message); }
+    setAvGenerating(false);
+  };
+
+  const handleCinematic = async () => {
+    if (!cinDesc.trim()) { toast.error('Describe your scene first'); return; }
+    const styleLabel = CINEMATIC_STYLES.find(s => s.id === cinStyle)?.label || cinStyle;
+    const enhancedCinPrompt = `${cinDesc.trim()}, ${styleLabel} style, cinematic composition, dramatic lighting, high production value, 4K`;
+    setCinGenerating(true); setCinResult(null); setCinMock(false);
+    try {
+      const data = await callVideoApi({ type: 'text', prompt: enhancedCinPrompt, duration: '10s' });
+      setCinResult(data.video_url);
+      setCinMock(data.status === 'mock');
+    } catch (e) { toast.error('Scene generation failed: ' + e.message); }
+    setCinGenerating(false);
+  };
+
+  const handleProductShowcase = async () => {
+    if (!prodName.trim()) { toast.error('Enter a product name first'); return; }
+    const bgLabel = PRODUCT_BG_STYLES.find(b => b.id === prodBg)?.label || prodBg;
+    const prodPrompt = `Professional product showcase video of ${prodName.trim()}${prodDesc.trim() ? ': ' + prodDesc.trim() : ''}, ${bgLabel} background, commercial quality, smooth camera movement, product demo`;
+    setProdGenerating(true); setProdResult(null); setProdMock(false);
+    try {
+      const data = await callVideoApi({ type: 'text', prompt: prodPrompt, duration: '8s' });
+      setProdResult(data.video_url);
+      setProdMock(data.status === 'mock');
+    } catch (e) { toast.error('Product showcase generation failed: ' + e.message); }
+    setProdGenerating(false);
+  };
+
+  // ── Image AI handlers ────────────────────────────────────────────────────
   const buildPrompt = () => prompt.trim() ? `${prompt.trim()}, ${selectedStyle.suffix}` : '';
 
   const handleGenerate = async () => {
@@ -206,17 +424,14 @@ export default function CreativeStudio() {
     return selectedAnimation.css.replace(/(\d+(\.\d+)?)s/g, (_, n) => `${(parseFloat(n) / animSpeed[0]).toFixed(2)}s`);
   };
 
-  const downloadUrl = (url, name = 'philomni-image.jpg') => {
-    const a = document.createElement('a'); a.href = url; a.download = name; a.target = '_blank'; a.click();
-  };
-
-  // ── Image AI handlers ────────────────────────────────────────────────────
   const handleImageGenerate = async () => {
     if (!imgPrompt.trim()) { toast.error('Describe your image first'); return; }
     setImgGenerating(true); setImgResult(null);
     try {
       const full = `${imgPrompt.trim()}, ${imgStyle.suffix}`;
-      const res = await base44.integrations.Core.GenerateImage({ prompt: full });
+      const params = { prompt: full, size: imgRatio.value };
+      if (imgRatio.label === '9:16') params.aspectRatio = '9:16';
+      const res = await base44.integrations.Core.GenerateImage(params);
       setImgResult(res.url);
     } catch { toast.error('Generation failed'); }
     setImgGenerating(false);
@@ -226,8 +441,8 @@ export default function CreativeStudio() {
     if (!variationDesc.trim()) { toast.error('Describe the variation you want'); return; }
     setVariationGenerating(true); setVariationResult(null);
     try {
-      const prompt = variationDesc.trim() + (variationFile ? ', based on uploaded image' : '');
-      const res = await base44.integrations.Core.GenerateImage({ prompt, style: imgStyle.id });
+      const variationPrompt = variationDesc.trim() + (variationFile ? ', based on uploaded image' : '');
+      const res = await base44.integrations.Core.GenerateImage({ prompt: variationPrompt, style: imgStyle.id });
       setVariationResult(res.url);
     } catch { toast.error('Variation failed'); }
     setVariationGenerating(false);
@@ -276,7 +491,10 @@ export default function CreativeStudio() {
   const handleStyleFile = (file) => {
     setStyleFile(file);
     const reader = new FileReader();
-    reader.onload = e => setStylePreview(e.target.result);
+    reader.onload = e => {
+      setStylePreview(e.target.result);
+      setStyleImageBase64(e.target.result);
+    };
     reader.readAsDataURL(file);
   };
 
@@ -284,8 +502,10 @@ export default function CreativeStudio() {
     if (!styleFile && !stylePreview) { toast.error('Upload a source image first'); return; }
     setStyleTransferring(true); setStyleResult(null);
     try {
-      const prompt = `The subject from the image, ${selectedTransferStyle.suffix}, masterful artistic rendering, museum quality artwork`;
-      const res = await base44.integrations.Core.GenerateImage({ prompt });
+      const transferPrompt = `${selectedTransferStyle.suffix}, maintaining the exact subject and composition from the reference photo, masterful artistic rendering, museum quality artwork`;
+      const params = { prompt: transferPrompt, mode: 'style_transfer' };
+      if (styleImageBase64) params.imageUrl = styleImageBase64;
+      const res = await base44.integrations.Core.GenerateImage(params);
       setStyleResult(res.url);
     } catch { toast.error('Style transfer failed'); }
     setStyleTransferring(false);
@@ -315,83 +535,282 @@ export default function CreativeStudio() {
 
         {/* ── VIDEO TOOLS ───────────────────────────────────────────────────── */}
         <TabsContent value="video-tools">
-          <div className="grid lg:grid-cols-2 gap-8">
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                  <Camera className="w-3.5 h-3.5" /> Describe Your Vision
-                </label>
-                <Textarea value={prompt} onChange={e => setPrompt(e.target.value)}
-                  placeholder="e.g. A lone samurai standing on a misty cliff at sunrise, cherry blossoms falling"
-                  rows={4} className="resize-none" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Visual Style</label>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {STYLE_PRESETS.map(style => (
-                    <button key={style.id} onClick={() => setSelectedStyle(style)}
-                      className={`p-2 rounded-xl border text-center transition-all ${selectedStyle.id === style.id ? 'border-primary bg-accent text-primary' : 'border-border bg-card hover:border-primary/40 text-muted-foreground'}`}>
-                      <div className="text-lg">{style.emoji}</div>
-                      <div className="text-xs font-medium mt-0.5">{style.label}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <Button onClick={handleGenerate} disabled={generating || !prompt.trim()} size="lg" className="w-full gap-2">
-                {generating ? <><Loader2 className="w-5 h-5 animate-spin" />Generating...</> : <><Sparkles className="w-5 h-5" />Generate Image</>}
-              </Button>
-              {enhancedPrompt && (
-                <div className="bg-muted/50 rounded-xl p-3 text-xs text-muted-foreground leading-relaxed">
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <span className="font-medium text-foreground">Enhanced prompt:</span>
-                    <button onClick={() => { navigator.clipboard.writeText(enhancedPrompt); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
-                      {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                  {enhancedPrompt}
-                </div>
-              )}
-            </div>
+          <div className="space-y-8">
 
-            <div className="space-y-5">
-              <div className="aspect-square rounded-2xl overflow-hidden bg-muted border border-border relative">
-                {generating && <div className="absolute inset-0 flex flex-col items-center justify-center gap-4"><div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center"><Sparkles className="w-7 h-7 text-primary animate-pulse" /></div><p className="text-sm font-medium">Creating your image...</p></div>}
-                {!generating && !generatedUrl && <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-3"><Mountain className="w-12 h-12 opacity-20" /><p className="text-sm">Your image will appear here</p></div>}
-                {generatedUrl && (<><style>{getAnimCss()}</style><img src={generatedUrl} alt="Generated" className={`w-full h-full object-cover ${animating ? 'anim-img' : ''}`} />{animating && selectedAnimation && <div className="absolute bottom-3 left-3"><Badge className="bg-black/60 text-white border-0 text-xs backdrop-blur-sm"><Film className="w-3 h-3 mr-1" />{selectedAnimation.label}</Badge></div>}</>)}
-              </div>
-              {generatedUrl && (
-                <>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={handleRegenerate} disabled={generating} className="gap-2 flex-1"><RefreshCw className="w-4 h-4" />Regenerate</Button>
-                    <Button variant="outline" onClick={() => downloadUrl(generatedUrl)} className="gap-2 flex-1"><Download className="w-4 h-4" />Download</Button>
-                    {user && <ShareProjectButton user={user} prompt={prompt} enhancedPrompt={enhancedPrompt} styleId={selectedStyle.id} styleLabel={selectedStyle.label} styleEmoji={selectedStyle.emoji} imageUrl={generatedUrl} animationId={selectedAnimation?.id} animationLabel={selectedAnimation?.label} />}
+            {/* 1. Text-to-Video */}
+            <section className="bg-card rounded-2xl border border-border p-6 space-y-5">
+              <h2 className="font-semibold flex items-center gap-2 text-lg">
+                <Sparkles className="w-5 h-5 text-primary" />Text-to-Video
+              </h2>
+              <div className="grid lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Prompt</label>
+                    <Textarea
+                      value={t2vPrompt}
+                      onChange={e => setT2vPrompt(e.target.value)}
+                      placeholder="A lone samurai standing on a misty cliff at sunrise, cherry blossoms falling..."
+                      rows={4}
+                      className="resize-none"
+                    />
                   </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2"><Film className="w-3.5 h-3.5" />Animate Your Image</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {ANIMATION_PRESETS.map(anim => (
-                        <button key={anim.id} onClick={() => toggleAnimation(anim)}
-                          className={`p-3 rounded-xl border text-left transition-all ${selectedAnimation?.id === anim.id && animating ? 'border-primary bg-accent' : 'border-border bg-card hover:border-primary/40'}`}>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span>{anim.emoji}</span>
-                            <span className={`text-xs font-semibold ${selectedAnimation?.id === anim.id && animating ? 'text-primary' : ''}`}>{anim.label}</span>
-                            {selectedAnimation?.id === anim.id && animating && <Badge className="ml-auto text-xs px-1.5 py-0 h-4 bg-primary/20 text-primary border-0">Live</Badge>}
-                          </div>
-                          <p className="text-xs text-muted-foreground">{anim.desc}</p>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Duration</label>
+                    <div className="flex gap-2">
+                      {VIDEO_DURATIONS.map(d => (
+                        <button
+                          key={d}
+                          onClick={() => setT2vDuration(d)}
+                          className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-all ${t2vDuration === d ? 'border-primary bg-accent text-primary' : 'border-border hover:border-primary/40 text-muted-foreground'}`}
+                        >{d}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <Button onClick={handleT2V} disabled={t2vGenerating || !t2vPrompt.trim()} className="w-full gap-2">
+                    {t2vGenerating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating...</> : <><Video className="w-4 h-4" />Generate Video</>}
+                  </Button>
+                </div>
+                <div>
+                  {t2vGenerating ? <VideoGenerating /> : <VideoResult videoUrl={t2vResult} isMock={t2vMock} onDownload={() => downloadUrl(t2vResult)} />}
+                  {!t2vGenerating && !t2vResult && (
+                    <div className="rounded-xl border border-border bg-muted/30 h-40 flex items-center justify-center text-muted-foreground">
+                      <div className="text-center"><Video className="w-10 h-10 opacity-20 mx-auto mb-2" /><p className="text-sm">Video will appear here</p></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* 2. Image-to-Video */}
+            <section className="bg-card rounded-2xl border border-border p-6 space-y-5">
+              <h2 className="font-semibold flex items-center gap-2 text-lg">
+                <Camera className="w-5 h-5 text-primary" />Image-to-Video
+              </h2>
+              <div className="grid lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Source Image</label>
+                    <FileDropZone onFile={handleI2VFile} preview={i2vPreview} label="Upload image to animate" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Motion Prompt</label>
+                    <Textarea
+                      value={i2vPrompt}
+                      onChange={e => setI2vPrompt(e.target.value)}
+                      placeholder="The camera slowly zooms in while leaves gently sway in the breeze..."
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Duration</label>
+                    <div className="flex gap-2">
+                      {VIDEO_DURATIONS.map(d => (
+                        <button
+                          key={d}
+                          onClick={() => setI2vDuration(d)}
+                          className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-all ${i2vDuration === d ? 'border-primary bg-accent text-primary' : 'border-border hover:border-primary/40 text-muted-foreground'}`}
+                        >{d}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <Button onClick={handleI2V} disabled={i2vGenerating || !i2vFile} className="w-full gap-2">
+                    {i2vGenerating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating...</> : <><Video className="w-4 h-4" />Animate Image</>}
+                  </Button>
+                </div>
+                <div>
+                  {i2vGenerating ? <VideoGenerating /> : <VideoResult videoUrl={i2vResult} isMock={i2vMock} onDownload={() => downloadUrl(i2vResult)} />}
+                  {!i2vGenerating && !i2vResult && (
+                    <div className="rounded-xl border border-border bg-muted/30 h-40 flex items-center justify-center text-muted-foreground">
+                      <div className="text-center"><Video className="w-10 h-10 opacity-20 mx-auto mb-2" /><p className="text-sm">Video will appear here</p></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* 3. Lip Sync Video */}
+            <section className="bg-card rounded-2xl border border-border p-6 space-y-5">
+              <h2 className="font-semibold flex items-center gap-2 text-lg">
+                <Mic className="w-5 h-5 text-primary" />Lip Sync Video
+              </h2>
+              <div className="grid lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Face Photo</label>
+                    <FileDropZone onFile={handleLipFile} preview={lipPreview} label="Upload a clear face photo" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Script (what they will say)</label>
+                    <Textarea
+                      value={lipScript}
+                      onChange={e => setLipScript(e.target.value)}
+                      placeholder="Hello! Welcome to our platform. Let me show you what we can do..."
+                      rows={4}
+                      className="resize-none"
+                    />
+                  </div>
+                  <Button onClick={handleLipSync} disabled={lipGenerating || !lipFile || !lipScript.trim()} className="w-full gap-2">
+                    {lipGenerating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating...</> : <><Mic className="w-4 h-4" />Generate Lip Sync</>}
+                  </Button>
+                </div>
+                <div>
+                  {lipGenerating ? <VideoGenerating /> : <VideoResult videoUrl={lipResult} isMock={lipMock} onDownload={() => downloadUrl(lipResult, 'lip-sync.mp4')} />}
+                  {!lipGenerating && !lipResult && (
+                    <div className="rounded-xl border border-border bg-muted/30 h-40 flex items-center justify-center text-muted-foreground">
+                      <div className="text-center"><Mic className="w-10 h-10 opacity-20 mx-auto mb-2" /><p className="text-sm">Lip sync video will appear here</p></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* 4. AI Avatar Video */}
+            <section className="bg-card rounded-2xl border border-border p-6 space-y-5">
+              <h2 className="font-semibold flex items-center gap-2 text-lg">
+                <User className="w-5 h-5 text-primary" />AI Avatar Video
+              </h2>
+              <div className="grid lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Choose Avatar</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {PRESET_AVATARS.map(av => (
+                        <button
+                          key={av.id}
+                          onClick={() => setAvSelectedAvatar(av.id)}
+                          className={`p-3 rounded-xl border transition-all ${avSelectedAvatar === av.id ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/40'}`}
+                        >
+                          <div className={`w-full aspect-square rounded-lg bg-gradient-to-br ${av.gradient} mb-2`} />
+                          <p className="text-xs font-medium text-center">{av.id}</p>
                         </button>
                       ))}
                     </div>
-                    {selectedAnimation && animating && (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-xs"><span className="text-muted-foreground">Speed</span><span className="font-medium">{animSpeed[0].toFixed(1)}x</span></div>
-                        <Slider value={animSpeed} onValueChange={setAnimSpeed} min={0.3} max={3} step={0.1} />
-                        <Button variant="outline" size="sm" onClick={() => { setSelectedAnimation(null); setAnimating(false); }} className="w-full gap-2 text-muted-foreground"><Pause className="w-3.5 h-3.5" />Stop Animation</Button>
-                      </div>
-                    )}
                   </div>
-                </>
-              )}
-            </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Script</label>
+                    <Textarea
+                      value={avScript}
+                      onChange={e => setAvScript(e.target.value)}
+                      placeholder="Hi there! I'm here to tell you about our exciting new product..."
+                      rows={4}
+                      className="resize-none"
+                    />
+                  </div>
+                  <Button onClick={handleAvatarVideo} disabled={avGenerating || !avScript.trim()} className="w-full gap-2">
+                    {avGenerating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating...</> : <><User className="w-4 h-4" />Generate Avatar Video</>}
+                  </Button>
+                </div>
+                <div>
+                  {avGenerating ? <VideoGenerating /> : <VideoResult videoUrl={avResult} isMock={avMock} onDownload={() => downloadUrl(avResult, 'avatar-video.mp4')} />}
+                  {!avGenerating && !avResult && (
+                    <div className="rounded-xl border border-border bg-muted/30 h-40 flex items-center justify-center text-muted-foreground">
+                      <div className="text-center"><User className="w-10 h-10 opacity-20 mx-auto mb-2" /><p className="text-sm">Avatar video will appear here</p></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* 5. Cinematic Scene */}
+            <section className="bg-card rounded-2xl border border-border p-6 space-y-5">
+              <h2 className="font-semibold flex items-center gap-2 text-lg">
+                <Film className="w-5 h-5 text-primary" />Cinematic Scene
+              </h2>
+              <div className="grid lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Scene Description</label>
+                    <Textarea
+                      value={cinDesc}
+                      onChange={e => setCinDesc(e.target.value)}
+                      placeholder="A detective walks down a rain-soaked alley, neon signs reflecting in puddles..."
+                      rows={4}
+                      className="resize-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Style</label>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {CINEMATIC_STYLES.map(s => (
+                        <button
+                          key={s.id}
+                          onClick={() => setCinStyle(s.id)}
+                          className={`p-2 rounded-xl border text-center transition-all ${cinStyle === s.id ? 'border-primary bg-accent text-primary' : 'border-border hover:border-primary/40 text-muted-foreground'}`}
+                        >
+                          <div className="text-base">{s.emoji}</div>
+                          <div className="text-[11px] font-medium mt-0.5">{s.label}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Button onClick={handleCinematic} disabled={cinGenerating || !cinDesc.trim()} className="w-full gap-2">
+                    {cinGenerating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating...</> : <><Film className="w-4 h-4" />Generate Scene</>}
+                  </Button>
+                </div>
+                <div>
+                  {cinGenerating ? <VideoGenerating /> : <VideoResult videoUrl={cinResult} isMock={cinMock} onDownload={() => downloadUrl(cinResult, 'cinematic-scene.mp4')} />}
+                  {!cinGenerating && !cinResult && (
+                    <div className="rounded-xl border border-border bg-muted/30 h-40 flex items-center justify-center text-muted-foreground">
+                      <div className="text-center"><Film className="w-10 h-10 opacity-20 mx-auto mb-2" /><p className="text-sm">Cinematic video will appear here</p></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* 6. Product Showcase */}
+            <section className="bg-card rounded-2xl border border-border p-6 space-y-5">
+              <h2 className="font-semibold flex items-center gap-2 text-lg">
+                <Zap className="w-5 h-5 text-primary" />Product Showcase
+              </h2>
+              <div className="grid lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Product Name</label>
+                    <Input
+                      value={prodName}
+                      onChange={e => setProdName(e.target.value)}
+                      placeholder="e.g. AirPods Pro, Luxury Watch, Running Shoes..."
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description (optional)</label>
+                    <Textarea
+                      value={prodDesc}
+                      onChange={e => setProdDesc(e.target.value)}
+                      placeholder="Premium wireless earbuds with active noise cancellation..."
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Background Style</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {PRODUCT_BG_STYLES.map(b => (
+                        <button
+                          key={b.id}
+                          onClick={() => setProdBg(b.id)}
+                          className={`py-2 px-3 rounded-xl border text-sm font-medium transition-all ${prodBg === b.id ? 'border-primary bg-accent text-primary' : 'border-border hover:border-primary/40 text-muted-foreground'}`}
+                        >{b.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <Button onClick={handleProductShowcase} disabled={prodGenerating || !prodName.trim()} className="w-full gap-2">
+                    {prodGenerating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating...</> : <><Zap className="w-4 h-4" />Generate Showcase</>}
+                  </Button>
+                </div>
+                <div>
+                  {prodGenerating ? <VideoGenerating /> : <VideoResult videoUrl={prodResult} isMock={prodMock} onDownload={() => downloadUrl(prodResult, 'product-showcase.mp4')} />}
+                  {!prodGenerating && !prodResult && (
+                    <div className="rounded-xl border border-border bg-muted/30 h-40 flex items-center justify-center text-muted-foreground">
+                      <div className="text-center"><Zap className="w-10 h-10 opacity-20 mx-auto mb-2" /><p className="text-sm">Product video will appear here</p></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
           </div>
         </TabsContent>
 
@@ -426,12 +845,12 @@ export default function CreativeStudio() {
                   </Button>
                 </div>
                 <div className="space-y-3">
-                  <div className="aspect-square rounded-xl overflow-hidden bg-muted border border-border relative">
+                  <div className="aspect-[9/16] rounded-xl overflow-hidden bg-muted border border-border relative">
                     {imgGenerating && <div className="absolute inset-0 flex items-center justify-center"><Sparkles className="w-8 h-8 text-primary animate-pulse" /></div>}
                     {!imgGenerating && !imgResult && <div className="absolute inset-0 flex items-center justify-center text-muted-foreground"><ImageIcon className="w-12 h-12 opacity-20" /></div>}
                     {imgResult && <img src={imgResult} alt="Generated" className="w-full h-full object-cover cursor-zoom-in" />}
                   </div>
-                  {imgResult && <Button variant="outline" className="w-full gap-2" onClick={() => downloadUrl(imgResult)}><Download className="w-4 h-4" />Download Image</Button>}
+                  {imgResult && <Button variant="outline" className="w-full gap-2" onClick={() => downloadImageUrl(imgResult)}><Download className="w-4 h-4" />Download Image</Button>}
                 </div>
               </div>
             </section>
@@ -449,12 +868,12 @@ export default function CreativeStudio() {
                   </Button>
                 </div>
                 <div className="space-y-3">
-                  <div className="aspect-square rounded-xl overflow-hidden bg-muted border border-border relative">
+                  <div className="aspect-[9/16] rounded-xl overflow-hidden bg-muted border border-border relative">
                     {variationGenerating && <div className="absolute inset-0 flex items-center justify-center"><Sparkles className="w-8 h-8 text-primary animate-pulse" /></div>}
                     {!variationGenerating && !variationResult && <div className="absolute inset-0 flex items-center justify-center text-muted-foreground"><ImageIcon className="w-12 h-12 opacity-20" /></div>}
                     {variationResult && <img src={variationResult} alt="Variation" className="w-full h-full object-cover" />}
                   </div>
-                  {variationResult && <Button variant="outline" className="w-full gap-2" onClick={() => downloadUrl(variationResult)}><Download className="w-4 h-4" />Download</Button>}
+                  {variationResult && <Button variant="outline" className="w-full gap-2" onClick={() => downloadImageUrl(variationResult)}><Download className="w-4 h-4" />Download</Button>}
                 </div>
               </div>
             </section>
@@ -583,7 +1002,7 @@ export default function CreativeStudio() {
             </div>
 
             <div className="space-y-4">
-              <div className="aspect-square rounded-2xl overflow-hidden bg-muted border border-border relative">
+              <div className="aspect-[9/16] rounded-2xl overflow-hidden bg-muted border border-border relative">
                 {styleTransferring && <div className="absolute inset-0 flex flex-col items-center justify-center gap-4"><Sparkles className="w-8 h-8 text-primary animate-pulse" /><p className="text-sm">Applying {selectedTransferStyle.label} style...</p></div>}
                 {!styleTransferring && !styleResult && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-3">
@@ -597,7 +1016,7 @@ export default function CreativeStudio() {
               {styleResult && (
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={handleStyleTransfer} disabled={styleTransferring} className="gap-2 flex-1"><RefreshCw className="w-4 h-4" />Redo</Button>
-                  <Button variant="outline" onClick={() => downloadUrl(styleResult, 'style-transfer.jpg')} className="gap-2 flex-1"><Download className="w-4 h-4" />Download</Button>
+                  <Button variant="outline" onClick={() => downloadImageUrl(styleResult, 'style-transfer.jpg')} className="gap-2 flex-1"><Download className="w-4 h-4" />Download</Button>
                 </div>
               )}
             </div>

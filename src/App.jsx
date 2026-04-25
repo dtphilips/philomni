@@ -135,14 +135,21 @@ const AuthenticatedApp = () => {
         <Route path="/creator-marketplace" element={<CreatorMarketplace />} />
         <Route path="/user/:userId" element={<Profile />} />
         <Route path="/upgrade" element={<Upgrade />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/messages" element={<Messages />} />
+        <Route path="/content-calendar" element={<ContentCalendar />} />
+        <Route path="/groups" element={<Groups />} />
+        <Route path="/business-content" element={<BusinessContentSuite />} />
+        <Route path="/stories" element={<Stories />} />
+        <Route path="/gamification" element={<Gamification />} />
+        <Route path="/collaboration-feed" element={<CollaborationFeed />} />
+        <Route path="/project-matcher" element={<ProjectMatcher />} />
       </Route>
 
-      {/* Protected routes — require login */}
+      {/* Protected routes — require login for private/account pages */}
       <Route element={<ProtectedRoute unauthenticatedElement={<LoginRedirect />} />}>
         <Route element={<AppLayout />}>
-          <Route path="/messages" element={<Messages />} />
-          <Route path="/groups" element={<Groups />} />
-          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile/edit" element={<EditProfile />} />
           <Route path="/profile/edit" element={<EditProfile />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/settings" element={<Settings />} />
@@ -154,7 +161,6 @@ const AuthenticatedApp = () => {
           <Route path="/video-studio" element={<VideoStudio />} />
           <Route path="/video-marketplace" element={<VideoMarketplace />} />
           <Route path="/workflows" element={<WorkflowAutomation />} />
-          <Route path="/gamification" element={<Gamification />} />
           <Route path="/collaborative" element={<CollaborativeStudioPage />} />
           <Route path="/collaborative/:workspaceId" element={<CollaborativeStudioPage />} />
           <Route path="/billing" element={<Billing />} />
@@ -168,11 +174,6 @@ const AuthenticatedApp = () => {
           <Route path="/quality-review/:draftId" element={<QualityReview />} />
           <Route path="/video-captions/:draftId" element={<VideoCaptions />} />
           <Route path="/edit-video/:postId" element={<PostVideoEditorPage />} />
-          <Route path="/project-matcher" element={<ProjectMatcher />} />
-          <Route path="/collaboration-feed" element={<CollaborationFeed />} />
-          <Route path="/content-calendar" element={<ContentCalendar />} />
-          <Route path="/stories" element={<Stories />} />
-          <Route path="/business-content" element={<BusinessContentSuite />} />
         </Route>
       </Route>
 
