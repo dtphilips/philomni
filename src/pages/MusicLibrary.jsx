@@ -45,27 +45,56 @@ const TRACKS = [
 const SFX_CATEGORIES = ['UI Sounds', 'Nature', 'Urban', 'Cinematic', 'Electronic', 'Voice'];
 
 // Real Freesound / CC0 audio URLs for sound effects
+const MX = (slug) => `https://assets.mixkit.co/sfx/preview/${slug}.mp3`;
+
 const SOUND_EFFECTS = [
-  { id: 1,  category: 'UI Sounds',   name: 'Soft Click',          icon: '🖱️',  duration: '0:01', audio_url: 'https://www.soundjay.com/buttons/button-09.mp3' },
-  { id: 2,  category: 'UI Sounds',   name: 'Success Chime',       icon: '✅',  duration: '0:02', audio_url: 'https://www.soundjay.com/misc/success-bell-ding-1.mp3' },
-  { id: 3,  category: 'UI Sounds',   name: 'Notification Ping',   icon: '🔔',  duration: '0:01', audio_url: 'https://www.soundjay.com/buttons/button-2.mp3' },
-  { id: 4,  category: 'Nature',      name: 'Ocean Waves',         icon: '🌊',  duration: '0:10', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3' },
-  { id: 5,  category: 'Nature',      name: 'Rain Shower',         icon: '🌧️',  duration: '0:08', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3' },
-  { id: 6,  category: 'Nature',      name: 'Bird Chorus',         icon: '🐦',  duration: '0:05', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3' },
-  { id: 7,  category: 'Nature',      name: 'Wind Through Leaves', icon: '🍃',  duration: '0:07', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3' },
-  { id: 8,  category: 'Urban',       name: 'City Ambience',       icon: '🏙️',  duration: '0:06', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3' },
-  { id: 9,  category: 'Urban',       name: 'Coffee Shop',         icon: '☕',  duration: '0:09', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3' },
-  { id: 10, category: 'Urban',       name: 'Market Crowd',        icon: '🛒',  duration: '0:10', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3' },
-  { id: 11, category: 'Cinematic',   name: 'Dramatic Sting',      icon: '🎬',  duration: '0:03', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3' },
-  { id: 12, category: 'Cinematic',   name: 'Whoosh Transition',   icon: '💨',  duration: '0:01', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
-  { id: 13, category: 'Cinematic',   name: 'Epic Build',          icon: '📈',  duration: '0:05', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' },
-  { id: 14, category: 'Cinematic',   name: 'Tense Atmosphere',    icon: '😰',  duration: '0:08', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
-  { id: 15, category: 'Electronic',  name: 'Synth Sweep',         icon: '🎛️',  duration: '0:03', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3' },
-  { id: 16, category: 'Electronic',  name: 'Digital Ping',        icon: '📡',  duration: '0:01', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3' },
-  { id: 17, category: 'Electronic',  name: 'Laser Zap',           icon: '⚡',  duration: '0:01', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3' },
-  { id: 18, category: 'Voice',       name: 'Crowd Cheer',         icon: '👏',  duration: '0:04', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3' },
-  { id: 19, category: 'Voice',       name: 'Applause',            icon: '🎤',  duration: '0:03', audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3' },
-  { id: 20, category: 'Voice',       name: 'Crowd Gasp',          icon: '😮',  duration: '0:02', audio_url: 'https://archive.org/download/testmp3testfile/testmp3testfile_64kb.mp3' },
+  // ── UI Sounds ────────────────────────────────────────────────────────────────
+  { id: 1,  category: 'UI Sounds',   name: 'Soft Click',          icon: '🖱️',  duration: '0:01', audio_url: 'https://www.soundjay.com/buttons/sounds/button-09.mp3' },
+  { id: 2,  category: 'UI Sounds',   name: 'Success Chime',       icon: '✅',  duration: '0:02', audio_url: MX('mixkit-correct-answer-tone-2870') },
+  { id: 3,  category: 'UI Sounds',   name: 'Notification Ping',   icon: '🔔',  duration: '0:01', audio_url: MX('mixkit-happy-bells-notification-937') },
+  { id: 4,  category: 'UI Sounds',   name: 'Error Buzz',          icon: '❌',  duration: '0:01', audio_url: 'https://www.soundjay.com/misc/sounds/fail-buzzer-01.mp3' },
+  { id: 5,  category: 'UI Sounds',   name: 'Achievement Bell',    icon: '🏅',  duration: '0:02', audio_url: MX('mixkit-achievement-bell-600') },
+  { id: 6,  category: 'UI Sounds',   name: 'Alert Bell',          icon: '🚨',  duration: '0:02', audio_url: MX('mixkit-alert-bells-echo-765') },
+  { id: 7,  category: 'UI Sounds',   name: 'Sci-Fi Click',        icon: '🤖',  duration: '0:01', audio_url: MX('mixkit-sci-fi-click-900') },
+  { id: 8,  category: 'UI Sounds',   name: 'Camera Shutter',      icon: '📸',  duration: '0:01', audio_url: MX('mixkit-camera-shutter-click-1133') },
+  { id: 9,  category: 'UI Sounds',   name: 'Typewriter',          icon: '⌨️',  duration: '0:03', audio_url: MX('mixkit-typewriter-typing-1554') },
+  { id: 10, category: 'UI Sounds',   name: 'Alarm Beep',          icon: '⏰',  duration: '0:02', audio_url: MX('mixkit-alarm-clock-beep-988') },
+  // ── Nature ───────────────────────────────────────────────────────────────────
+  { id: 11, category: 'Nature',      name: 'Rain Shower',         icon: '🌧️',  duration: '0:30', audio_url: MX('mixkit-light-rain-loop-2393') },
+  { id: 12, category: 'Nature',      name: 'Ocean Waves',         icon: '🌊',  duration: '0:10', audio_url: 'https://www.soundjay.com/nature/sounds/ocean-wave-1.mp3' },
+  { id: 13, category: 'Nature',      name: 'Bird Chorus',         icon: '🐦',  duration: '0:05', audio_url: 'https://www.soundjay.com/nature/sounds/birds-singing-1.mp3' },
+  { id: 14, category: 'Nature',      name: 'Thunder',             icon: '⛈️',  duration: '0:04', audio_url: 'https://www.soundjay.com/nature/sounds/thunder-01.mp3' },
+  { id: 15, category: 'Nature',      name: 'Wind',                icon: '🍃',  duration: '0:07', audio_url: MX('mixkit-blowing-wind-1482') },
+  { id: 16, category: 'Nature',      name: 'Fire Crackling',      icon: '🔥',  duration: '0:08', audio_url: 'https://www.soundjay.com/nature/sounds/fire-01.mp3' },
+  // ── Urban ────────────────────────────────────────────────────────────────────
+  { id: 17, category: 'Urban',       name: 'City Ambience',       icon: '🏙️',  duration: '0:06', audio_url: 'https://www.soundjay.com/transportation/sounds/car-passing-by-1.mp3' },
+  { id: 18, category: 'Urban',       name: 'Coffee Shop',         icon: '☕',  duration: '0:09', audio_url: 'https://www.soundjay.com/human/sounds/crowd-talking-1.mp3' },
+  { id: 19, category: 'Urban',       name: 'Crowd Applause',      icon: '🛒',  duration: '0:04', audio_url: MX('mixkit-small-crowd-applause-523') },
+  { id: 20, category: 'Urban',       name: 'Crowd Cheer',         icon: '📣',  duration: '0:03', audio_url: MX('mixkit-crowd-cheering-481') },
+  { id: 21, category: 'Urban',       name: 'Helicopter',          icon: '🚁',  duration: '0:05', audio_url: MX('mixkit-helicopter-fly-1500') },
+  { id: 22, category: 'Urban',       name: 'Car Engine',          icon: '🚗',  duration: '0:04', audio_url: MX('mixkit-car-engine-start-1395') },
+  // ── Cinematic ────────────────────────────────────────────────────────────────
+  { id: 23, category: 'Cinematic',   name: 'Dramatic Sting',      icon: '🎬',  duration: '0:03', audio_url: 'https://www.soundjay.com/misc/sounds/magic-chime-02.mp3' },
+  { id: 24, category: 'Cinematic',   name: 'Whoosh Transition',   icon: '💨',  duration: '0:01', audio_url: 'https://www.soundjay.com/misc/sounds/swooshing-1.mp3' },
+  { id: 25, category: 'Cinematic',   name: 'Epic Drum Roll',      icon: '📈',  duration: '0:03', audio_url: 'https://www.soundjay.com/misc/sounds/drum-roll-1.mp3' },
+  { id: 26, category: 'Cinematic',   name: 'Tension Clock',       icon: '😰',  duration: '0:05', audio_url: 'https://www.soundjay.com/misc/sounds/clock-ticking-1.mp3' },
+  { id: 27, category: 'Cinematic',   name: 'Explosion',           icon: '💥',  duration: '0:02', audio_url: MX('mixkit-explosion-hit-1') },
+  { id: 28, category: 'Cinematic',   name: 'Magic Spell',         icon: '✨',  duration: '0:02', audio_url: MX('mixkit-magic-spell-1') },
+  { id: 29, category: 'Cinematic',   name: 'Sword Slash',         icon: '⚔️',  duration: '0:01', audio_url: MX('mixkit-sword-slash-swoosh-3') },
+  // ── Electronic ───────────────────────────────────────────────────────────────
+  { id: 30, category: 'Electronic',  name: 'Laser Zap',           icon: '⚡',  duration: '0:01', audio_url: 'https://www.soundjay.com/misc/sounds/laser-zap-1.mp3' },
+  { id: 31, category: 'Electronic',  name: 'Synth Sweep',         icon: '🎛️',  duration: '0:02', audio_url: 'https://www.soundjay.com/misc/sounds/beep-07.mp3' },
+  { id: 32, category: 'Electronic',  name: 'Digital Ping',        icon: '📡',  duration: '0:01', audio_url: 'https://www.soundjay.com/computers/sounds/computer-magic-1.mp3' },
+  { id: 33, category: 'Electronic',  name: 'Power Up',            icon: '🔋',  duration: '0:02', audio_url: 'https://www.soundjay.com/misc/sounds/beep-28.mp3' },
+  { id: 34, category: 'Electronic',  name: 'Arcade Coin',         icon: '🎮',  duration: '0:01', audio_url: MX('mixkit-arcade-game-jump-coin-216') },
+  // ── Voice & Crowd ────────────────────────────────────────────────────────────
+  { id: 35, category: 'Voice',       name: 'Applause',            icon: '👏',  duration: '0:04', audio_url: 'https://www.soundjay.com/human/sounds/audience-applause-1.mp3' },
+  { id: 36, category: 'Voice',       name: 'Market Buzz',         icon: '🎤',  duration: '0:06', audio_url: 'https://www.soundjay.com/human/sounds/crowd-talking-1.mp3' },
+  { id: 37, category: 'Voice',       name: 'Happy Bells',         icon: '🔔',  duration: '0:02', audio_url: MX('mixkit-happy-bells-notification-937') },
+  // ── Transport ────────────────────────────────────────────────────────────────
+  { id: 38, category: 'Transport',   name: 'Gun Shot',            icon: '🔫',  duration: '0:01', audio_url: MX('mixkit-gun-shot-sound-effect-2') },
+  { id: 39, category: 'Transport',   name: 'Train Pass',          icon: '🚂',  duration: '0:05', audio_url: 'https://assets.mixkit.co/sfx/preview/mixkit-train-passing-through-1395.mp3' },
+  { id: 40, category: 'Transport',   name: 'Arcade Jump',         icon: '🕹️',  duration: '0:01', audio_url: MX('mixkit-arcade-game-jump-coin-216') },
 ];
 
 const SORT_OPTIONS = ['Most Popular', 'Newest', 'BPM'];
@@ -93,6 +122,7 @@ const SFX_CAT_COLORS = {
   'Cinematic':  'text-red-400',
   'Electronic': 'text-violet-400',
   'Voice':      'text-pink-400',
+  'Transport':  'text-yellow-400',
 };
 
 // ─── Waveform ────────────────────────────────────────────────────────────────
