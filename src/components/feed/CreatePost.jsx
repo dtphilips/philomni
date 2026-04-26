@@ -11,7 +11,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import VideoEditor from '@/components/video/VideoEditor';
 import RichTextEditor from '@/components/feed/RichTextEditor';
-import { extractMentionedUsers } from '@/components/common/extractMentions';
 import HashtagSuggestions from '@/components/feed/HashtagSuggestions';
 import { toast } from 'sonner';
 
@@ -104,7 +103,8 @@ export default function CreatePost({ user }) {
     setRewriteAction(null);
   };
 
-  const buildPostData = async (visibility) => {
+  const buildPostData = (visibility) => Promise.race([
+    (async () => {
     let mediaUrls = [];
     let thumbnailUrl = null;
     for (let i = 0; i < mediaFiles.length; i++) {
@@ -144,11 +144,7 @@ export default function CreatePost({ user }) {
     const mediaType = mediaUrls.length > 0
       ? (mediaFiles[0]?.type?.startsWith('video') ? 'video' : 'image')
       : 'none';
-    let mentionedUserIds = [];
-    try {
-      const allUsers = await base44.asServiceRole.entities.User.list('', 100);
-      mentionedUserIds = extractMentionedUsers(content, allUsers);
-    } catch { /* optional */ }
+    const mentionedUserIds = [];
     return {
       content: extractPlainText(content).trim(),
       author_id: user.id,
@@ -168,7 +164,9 @@ export default function CreatePost({ user }) {
       like_count: 0, comment_count: 0, share_count: 0, bookmark_count: 0,
       visibility,
     };
-  };
+    })(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('buildPostData timed out after 5s')), 5000)),
+  ]);
 
   const reset = () => {
     setContent(''); setMediaFiles([]); setMediaPreviews([]); setExpanded(false);
