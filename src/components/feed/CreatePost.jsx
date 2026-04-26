@@ -106,6 +106,7 @@ export default function CreatePost({ user }) {
 
   const buildPostData = (visibility, fullUser) => Promise.race([
     (async () => {
+    console.log('buildPostData step 1: starting, mediaFiles:', mediaFiles.length);
     let mediaUrls = [];
     let thumbnailUrl = null;
     for (let i = 0; i < mediaFiles.length; i++) {
@@ -142,11 +143,13 @@ export default function CreatePost({ user }) {
         toast.error(`Upload failed: ${err.message}`);
       }
     }
+    console.log('buildPostData step 2: media done, count:', mediaUrls.length);
     const mediaType = mediaUrls.length > 0
       ? (mediaFiles[0]?.type?.startsWith('video') ? 'video' : 'image')
       : 'none';
     const mentionedUserIds = [];
-    return {
+    console.log('buildPostData step 3: building return object');
+    const result = {
       content: extractPlainText(content).trim(),
       author_id: fullUser.id,
       author_name: fullUser.full_name,
@@ -165,8 +168,10 @@ export default function CreatePost({ user }) {
       like_count: 0, comment_count: 0, share_count: 0, bookmark_count: 0,
       visibility,
     };
+    console.log('buildPostData step 4: complete', result.content);
+    return result;
     })(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('buildPostData timed out after 5s')), 5000)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('buildPostData timed out after 30s')), 30000)),
   ]);
 
   const reset = () => {
