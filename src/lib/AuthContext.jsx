@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
   const storedSession = DEV_MODE ? null : getStoredSession();
 
   const [user, setUser] = useState(
-    DEV_MODE ? DEV_USER : (storedSession ? { email: storedSession.user?.email ?? 'loading…' } : null)
+    DEV_MODE ? DEV_USER : (storedSession ? { id: storedSession.user?.id, email: storedSession.user?.email ?? 'loading…' } : null)
   );
   const [isAuthenticated, setIsAuthenticated] = useState(DEV_MODE || !!storedSession);
   const [isLoadingAuth, setIsLoadingAuth] = useState(false);

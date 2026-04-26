@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -103,7 +104,7 @@ export default function CreatePost({ user }) {
     setRewriteAction(null);
   };
 
-  const buildPostData = (visibility) => Promise.race([
+  const buildPostData = (visibility, fullUser) => Promise.race([
     (async () => {
     let mediaUrls = [];
     let thumbnailUrl = null;
@@ -147,12 +148,12 @@ export default function CreatePost({ user }) {
     const mentionedUserIds = [];
     return {
       content: extractPlainText(content).trim(),
-      author_id: user.id,
-      author_name: user.full_name,
-      author_avatar: user.avatar_url || '',
-      author_headline: user.headline || '',
-      author_role: user.role,
-      author_verified: user.verified || false,
+      author_id: fullUser.id,
+      author_name: fullUser.full_name,
+      author_avatar: fullUser.avatar_url || '',
+      author_headline: fullUser.headline || '',
+      author_role: fullUser.role,
+      author_verified: fullUser.verified || false,
       media_urls: mediaUrls,
       media_type: mediaType,
       thumbnail_url: thumbnailUrl,
@@ -181,7 +182,22 @@ export default function CreatePost({ user }) {
     if (!content.trim() && mediaFiles.length === 0) return;
     setPosting(true);
     try {
-      const postData = await buildPostData('public');
+      // Ensure we have a full user with id — context may have only { email } during initial load
+      let fullUser = user;
+      if (!user?.id) {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          const { data: profile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', authUser.id)
+            .single();
+          fullUser = { ...authUser, ...(profile || {}) };
+        }
+      }
+      console.log('Full user for post:', fullUser);
+
+      const postData = await buildPostData('public', fullUser);
       console.log('=== CALLING SUPABASE INSERT ===');
       console.log('Payload:', JSON.stringify(postData));
       const post = await base44.entities.Post.create(postData);
@@ -208,7 +224,7 @@ export default function CreatePost({ user }) {
     if (!content.trim() && mediaFiles.length === 0) return;
     setSavingDraft(true);
     try {
-      await base44.entities.Post.create(await buildPostData('private'));
+      await base44.entities.Post.create(await buildPostData('private', user));
       reset();
       queryClient.invalidateQueries({ queryKey: ['user-posts'] });
       toast.success('Draft saved!');
