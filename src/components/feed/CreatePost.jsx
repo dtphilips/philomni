@@ -177,10 +177,15 @@ export default function CreatePost({ user }) {
   };
 
   const handlePost = async () => {
+    console.log('=== POST SUBMIT STARTED ===');
+    console.log('User:', user);
+    console.log('isAuthenticated:', !!user);
     if (!content.trim() && mediaFiles.length === 0) return;
     setPosting(true);
     try {
       const postData = await buildPostData('public');
+      console.log('=== CALLING SUPABASE INSERT ===');
+      console.log('Payload:', JSON.stringify(postData));
       const post = await base44.entities.Post.create(postData);
       for (const uid of (postData.mentioned_user_ids || [])) {
         base44.entities.Notification.create({
@@ -194,6 +199,8 @@ export default function CreatePost({ user }) {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       toast.success('Posted!');
     } catch (err) {
+      console.error('=== POST CREATE ERROR ===', err);
+      console.error('Error details:', JSON.stringify(err, null, 2));
       toast.error('Post failed: ' + err.message);
     }
     setPosting(false);

@@ -31,9 +31,13 @@ CREATE TABLE IF NOT EXISTS posts (
   media_type      TEXT,
   visibility      TEXT DEFAULT 'public',
   created_by      UUID REFERENCES users(id) ON DELETE CASCADE,
+  author_id       UUID REFERENCES users(id) ON DELETE CASCADE,
   author_name     TEXT,
   author_avatar   TEXT,
   author_role     TEXT,
+  like_count      INT DEFAULT 0,
+  comment_count   INT DEFAULT 0,
+  share_count     INT DEFAULT 0,
   likes_count     INT DEFAULT 0,
   comments_count  INT DEFAULT 0,
   shares_count    INT DEFAULT 0,
@@ -43,20 +47,25 @@ CREATE TABLE IF NOT EXISTS posts (
 
 -- ── LIKES ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS likes (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  post_id    UUID REFERENCES posts(id) ON DELETE CASCADE,
-  created_by UUID REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id       UUID REFERENCES posts(id) ON DELETE CASCADE,
+  user_id       UUID REFERENCES users(id) ON DELETE CASCADE,
+  reaction_type TEXT DEFAULT 'like',
+  created_by    UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ── COMMENTS ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS comments (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  post_id    UUID REFERENCES posts(id) ON DELETE CASCADE,
-  content    TEXT,
-  created_by UUID REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id      UUID REFERENCES posts(id) ON DELETE CASCADE,
+  content      TEXT,
+  author_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+  author_name  TEXT,
+  author_avatar TEXT,
+  created_by   UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ── FOLLOWS ──────────────────────────────────────────────────
@@ -72,6 +81,7 @@ CREATE TABLE IF NOT EXISTS follows (
 CREATE TABLE IF NOT EXISTS bookmarks (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id    UUID REFERENCES posts(id) ON DELETE CASCADE,
+  user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
   created_by UUID REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
