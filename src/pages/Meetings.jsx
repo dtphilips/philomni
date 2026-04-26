@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
@@ -20,59 +20,35 @@ import { format } from 'date-fns';
 // DAILY_API_KEY must be set in your environment/backend
 // ────────────────────────────────────────────────────────────────
 async function createDailyRoom(roomName, isPro) {
-  // Call base44 function that wraps Daily.co API
+  const domain = import.meta.env.VITE_DAILY_DOMAIN || 'philomni';
+  const fallbackUrl = `https://${domain}.daily.co/${roomName}`;
   try {
-    const result = await base44.functions.createDailyRoom({
-      name: roomName,
-      properties: {
-        max_participants: isPro ? 50 : 2,
-        enable_recording: isPro,
-        enable_screenshare: true,
-        enable_chat: true,
-        exp: Math.floor(Date.now() / 1000) + 4 * 60 * 60, // 4h expiry
-      }
-    });
-    return result.url;
-  } catch (_) {
-    // Fallback: construct Daily.co URL directly with public room
-    // Replace DAILY_DOMAIN with your actual Daily.co domain
-    const domain = import.meta.env.VITE_DAILY_DOMAIN || 'philomni';
-    return `https://${domain}.daily.co/${roomName}`;
+    const result = await Promise.race([
+      base44.functions.createDailyRoom({
+        name: roomName,
+        properties: {
+          max_participants: isPro ? 50 : 2,
+          enable_recording: isPro,
+          enable_screenshare: true,
+          enable_chat: true,
+          exp: Math.floor(Date.now() / 1000) + 4 * 60 * 60,
+        },
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Daily.co API timeout after 8s')), 8000)
+      ),
+    ]);
+    return result?.url || fallbackUrl;
+  } catch (err) {
+    console.error('[Meetings] Daily.co API failed, using fallback URL:', err);
+    return fallbackUrl;
   }
 }
 
 // ────────────────────────────────────────────────────────────────
-// In-app call frame using Daily.co iframe embed
+// In-app call frame — plain iframe embed
 // ────────────────────────────────────────────────────────────────
 function CallFrame({ roomUrl, onLeave }) {
-  const frameRef = useRef(null);
-
-  useEffect(() => {
-    // Load Daily.co JS if not already loaded
-    if (!window.DailyIframe) {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/@daily-co/daily-js';
-      script.onload = () => initFrame();
-      document.body.appendChild(script);
-    } else {
-      initFrame();
-    }
-
-    function initFrame() {
-      if (!frameRef.current || !window.DailyIframe) return;
-      const frame = window.DailyIframe.createFrame(frameRef.current, {
-        iframeStyle: { width: '100%', height: '100%', border: 'none', borderRadius: '12px' },
-        showLeaveButton: true,
-        showFullscreenButton: true,
-      });
-      frame.join({ url: roomUrl });
-      frame.on('left-meeting', onLeave);
-    }
-    return () => {
-      if (frameRef.current) frameRef.current.innerHTML = '';
-    };
-  }, [roomUrl]);
-
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       <div className="flex items-center justify-between p-3 bg-black/80">
@@ -87,7 +63,12 @@ function CallFrame({ roomUrl, onLeave }) {
           Leave
         </Button>
       </div>
-      <div ref={frameRef} className="flex-1" />
+      <iframe
+        src={roomUrl}
+        allow="camera; microphone; fullscreen; speaker; display-capture"
+        style={{ width: '100%', height: '100%', border: 'none', flex: 1 }}
+        title="Philomni Call"
+      />
     </div>
   );
 }
@@ -120,8 +101,9 @@ function NewMeetingDialog({ open, onClose, currentUser }) {
 
       setRoomUrl(url);
       qc.invalidateQueries({ queryKey: ['meetings'] });
-    } catch (_) {
-      toast.error('Could not create room. Check Daily.co API key.');
+    } catch (err) {
+      console.error('[Meetings] NewMeetingDialog handleCreate failed:', err);
+      toast.error('Could not create room. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,71 +15,16 @@ import {
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// ── Embed a Daily.co room in an iframe ──────────────────────────────────────
-function DailyRoomEmbed({ url, onLeave }) {
-  const containerRef = useRef(null);
-  const frameRef = useRef(null);
-  const [status, setStatus] = useState('loading'); // loading | live | error
-
-  useEffect(() => {
-    if (!url || !containerRef.current) return;
-
-    let frame = null;
-    const load = async () => {
-      try {
-        // Use DailyIframe if available (loaded from CDN), else plain iframe
-        if (window.DailyIframe) {
-          frame = window.DailyIframe.createFrame(containerRef.current, {
-            showLeaveButton: false,
-            showFullscreenButton: true,
-            iframeStyle: { width: '100%', height: '100%', border: 'none', borderRadius: '12px' },
-          });
-          frame.on('joined-meeting', () => setStatus('live'));
-          frame.on('left-meeting', onLeave);
-          frame.on('error', () => setStatus('error'));
-          await frame.join({ url });
-          frameRef.current = frame;
-        } else {
-          // Fallback: plain iframe
-          setStatus('live');
-        }
-      } catch {
-        setStatus('error');
-      }
-    };
-
-    load();
-    return () => { try { frameRef.current?.destroy(); } catch {} };
-  }, [url]);
-
-  if (status === 'error') return (
-    <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-      <Video className="w-12 h-12 text-muted-foreground/30" />
-      <p className="text-muted-foreground">Could not connect to room.</p>
-      <Button variant="outline" onClick={onLeave}>Go Back</Button>
-    </div>
-  );
-
+// ── Embed a Daily.co room using a plain iframe ───────────────────────────────
+function RoomIframe({ url, onLeave }) {
   return (
     <div className="relative w-full h-full">
-      {status === 'loading' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-xl z-10">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      )}
-      {/* Always render iframe as fallback / for DailyIframe to attach to */}
-      <div ref={containerRef} className="w-full h-full rounded-xl overflow-hidden bg-black">
-        {!window.DailyIframe && (
-          <iframe
-            src={url}
-            allow="camera; microphone; fullscreen; speaker; display-capture"
-            className="w-full h-full border-0"
-            onLoad={() => setStatus('live')}
-          />
-        )}
-      </div>
-
-      {/* Leave button overlay */}
+      <iframe
+        src={url}
+        allow="camera; microphone; fullscreen; speaker; display-capture"
+        style={{ width: '100%', height: '100%', border: 'none', borderRadius: '12px' }}
+        title="Philomni Room"
+      />
       <button
         onClick={onLeave}
         className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-xs font-medium shadow-lg hover:bg-destructive/90 transition-colors"
@@ -140,11 +85,11 @@ function RoomCard({ room, currentUser, onJoin, onDelete }) {
         <Button
           onClick={() => onJoin(room)}
           size="sm"
-          className={`flex-1 gap-1.5 ${isLive ? '' : 'variant-outline'}`}
+          className="flex-1 gap-1.5"
           variant={isLive ? 'default' : 'outline'}
         >
           <Video className="w-3.5 h-3.5" />
-          {isLive ? 'Join Live' : 'Start Room'}
+          {isLive ? 'Join Live' : 'Join'}
         </Button>
         <button onClick={copyLink} className="p-2 rounded-lg border border-border hover:bg-muted transition-colors">
           {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
@@ -174,20 +119,26 @@ function CreateRoomDialog({ open, onClose, onCreated, user }) {
       const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 40);
       const roomName = `${slug}-${Date.now()}`;
       const dailyDomain = import.meta.env.VITE_DAILY_DOMAIN || 'philomni';
+      const fallbackUrl = `https://${dailyDomain}.daily.co/${roomName}`;
 
-      // Attempt to create a Daily.co room; fall back to a direct URL if unavailable
-      let roomUrl = `https://${dailyDomain}.daily.co/${roomName}`;
+      // Try Daily.co API with 8s timeout; use fallback URL immediately if it fails
+      let roomUrl = fallbackUrl;
       try {
-        const dailyRes = await base44.functions.createDailyRoom({
-          name: roomName,
-          properties: { max_participants: maxParticipants, enable_recording: false },
-        });
+        const dailyRes = await Promise.race([
+          base44.functions.createDailyRoom({
+            name: roomName,
+            properties: { max_participants: maxParticipants, enable_recording: false },
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Daily.co API timeout after 8s')), 8000)
+          ),
+        ]);
         if (dailyRes?.url) roomUrl = dailyRes.url;
-      } catch {
-        // Daily.co API unavailable — proceed with constructed URL
+      } catch (dailyErr) {
+        console.error('[Rooms] Daily.co API failed, using fallback URL:', dailyErr);
       }
 
-      // Save room to Supabase regardless
+      // Always save to Supabase and navigate
       const room = await base44.entities.Event.create({
         name: name.trim(),
         description: description.trim(),
@@ -208,8 +159,8 @@ function CreateRoomDialog({ open, onClose, onCreated, user }) {
       setName(''); setDescription(''); setIsPrivate(false); setMaxParticipants(10);
       onClose();
     } catch (err) {
-      toast.error('Failed to create room. Please try again.');
-      console.error(err);
+      console.error('[Rooms] Room creation failed:', err);
+      toast.error('Could not create room. Please try again.');
     }
     setCreating(false);
   };
@@ -270,15 +221,6 @@ export default function Rooms() {
   const [createOpen, setCreateOpen] = useState(false);
   const [activeRoom, setActiveRoom] = useState(null); // { room, url }
   const [search, setSearch] = useState('');
-
-  // Load Daily.co SDK once
-  useEffect(() => {
-    if (window.DailyIframe) return;
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/@daily-co/daily-js';
-    script.async = true;
-    document.head.appendChild(script);
-  }, []);
 
   const { data: rooms = [], isLoading } = useQuery({
     queryKey: ['rooms'],
@@ -342,8 +284,8 @@ export default function Rooms() {
         </div>
 
         {/* Room embed */}
-        <div className="flex-1 p-4 overflow-hidden">
-          <DailyRoomEmbed url={activeRoom.url} onLeave={handleLeave} />
+        <div className="flex-1 overflow-hidden">
+          <RoomIframe url={activeRoom.url} onLeave={handleLeave} />
         </div>
 
         {/* Feature chips */}
@@ -397,9 +339,11 @@ export default function Rooms() {
               HD video calls · Screen sharing · Live chat · Up to 50 participants · No download needed
             </p>
           </div>
-          <Button onClick={() => setCreateOpen(true)} size="sm" className="gap-2 flex-shrink-0">
-            <Plus className="w-4 h-4" /> Start a Room
-          </Button>
+          {rooms.length === 0 && (
+            <Button onClick={() => setCreateOpen(true)} size="sm" className="gap-2 flex-shrink-0">
+              <Plus className="w-4 h-4" /> Start a Room
+            </Button>
+          )}
         </div>
       </div>
 
