@@ -1,208 +1,60 @@
-import { LightboxProvider } from '@/components/common/Lightbox';
-import { Toaster } from "@/components/ui/toaster"
-import { Toaster as Sonner } from 'sonner'
-import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
-import PageNotFound from './lib/PageNotFound';
-import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import { PodcastPlayerProvider } from '@/lib/PodcastPlayerContext';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import AppLayout from '@/components/layout/AppLayout';
+import React from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
+import Layout from './components/Layout'
 
-// Auth pages (public)
-import Login from '@/pages/Login';
-import Signup from '@/pages/Signup';
-import Onboarding from '@/pages/Onboarding';
-import OnboardingProfile from '@/pages/OnboardingProfile';
+import Login from './pages/Login'
+import Feed from './pages/Feed'
+import Profile from './pages/Profile'
+import Rooms from './pages/Rooms'
+import Podcasts from './pages/Podcasts'
+import ContentSuite from './pages/ContentSuite'
+import Analytics from './pages/Analytics'
+import Community from './pages/Community'
+import Messages from './pages/Messages'
+import AudioStudio from './pages/AudioStudio'
+import CreativeStudio from './pages/CreativeStudio'
+import MusicLibrary from './pages/MusicLibrary'
+import PitchVault from './pages/PitchVault'
+import Directory from './pages/Directory'
+import SkillExchange from './pages/SkillExchange'
+import CreatorMarket from './pages/CreatorMarket'
+import Meetings from './pages/Meetings'
 
-// App pages
-import Feed from '@/pages/Feed';
-import Discover from '@/pages/Discover';
-import Explore from '@/pages/Explore';
-import Marketplace from '@/pages/Marketplace';
-import PitchVault from '@/pages/PitchVault';
-import Creators from '@/pages/Creators';
-import Directory from '@/pages/Directory';
-import Messages from '@/pages/Messages';
-import Community from '@/pages/Community';
-import Groups from '@/pages/Groups';
-import AITools from '@/pages/AITools';
-import Profile from '@/pages/Profile';
-import EditProfile from '@/pages/EditProfile';
-import Notifications from '@/pages/Notifications';
-import Settings from '@/pages/Settings';
-import Admin from '@/pages/Admin';
-import Upgrade from '@/pages/Upgrade';
-import Analytics from '@/pages/Analytics';
-import CreatorAnalytics from '@/pages/CreatorAnalytics';
-import AudioStudio from '@/pages/AudioStudio';
-import CreativeStudio from '@/pages/CreativeStudio';
-import TemplateMarketplace from '@/pages/TemplateMarketplace';
-import SharedProjectView from '@/pages/SharedProjectView';
-import VideoStudio from '@/pages/VideoStudio';
-import VideoMarketplace from '@/pages/VideoMarketplace';
-import SharedVideoView from '@/pages/SharedVideoView';
-import WorkflowAutomation from '@/pages/WorkflowAutomation';
-import Gamification from '@/pages/Gamification';
-import CollaborativeStudioPage from '@/pages/CollaborativeStudio';
-import Billing from '@/pages/Billing';
-import PodcastStudio from '@/pages/PodcastStudio';
-import MonetizationHub from '@/pages/MonetizationHub';
-import BookingCalendar from '@/pages/BookingCalendar';
-import ContentPerformance from '@/pages/ContentPerformance';
-import Drafts from '@/pages/Drafts';
-import VideoMessages from '@/pages/VideoMessages';
-import VideoAnalyticsDashboard from '@/pages/VideoAnalyticsDashboard';
-import QualityReview from '@/pages/QualityReview';
-import VideoCaptions from '@/pages/VideoCaptions';
-import PostVideoEditorPage from '@/pages/PostVideoEditorPage';
-import GlobalSearch from '@/pages/GlobalSearch';
-import ProjectMatcher from '@/pages/ProjectMatcher';
-import CollaborationFeed from '@/pages/CollaborationFeed';
-import ContentCalendar from '@/pages/ContentCalendar';
-import CreatorMarketplace from '@/pages/CreatorMarketplace';
-import Reels from '@/pages/Reels';
-import Rooms from '@/pages/Rooms';
-import Meetings from '@/pages/Meetings';
-import Stories from '@/pages/Stories';
-import SkillExchange from '@/pages/SkillExchange';
-import BusinessContentSuite from '@/pages/BusinessContentSuite';
-import MusicLibrary from '@/pages/MusicLibrary';
-import UGCCreatorSuite from '@/pages/UGCCreatorSuite';
-import Podcasts from '@/pages/Podcasts';
-
-// Loading screen
-const LoadingScreen = () => (
-  <div className="fixed inset-0 flex items-center justify-center bg-background">
-    <div className="text-center">
-      <div className="mx-auto mb-4">
-        <img src="/logo_v2.svg" alt="Philomni" className="w-12 h-12 rounded-xl" />
-      </div>
-      <div className="w-8 h-8 border-2 border-muted border-t-primary rounded-full animate-spin mx-auto" />
-    </div>
-  </div>
-);
-
-// Redirects to login page using client-side navigation (no full page reload).
-// A full-page redirect re-sends all cookies including large Supabase JWTs,
-// which can trigger HTTP 431 on the Vite dev server.
-// Guards against looping: if already on a public auth page, renders nothing.
-const PUBLIC_AUTH_PATHS = ['/login', '/signup', '/onboarding'];
-const LoginRedirect = () => {
-  const { DEV_MODE } = useAuth();
-  const location = useLocation();
-  if (DEV_MODE) return null;
-  if (PUBLIC_AUTH_PATHS.some(p => location.pathname === p || location.pathname.startsWith(p + '/'))) {
-    return null;
-  }
-  const returnUrl = encodeURIComponent(location.pathname + location.search);
-  return <Navigate to={`/login?returnUrl=${returnUrl}`} replace />;
-};
-
-const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings } = useAuth();
-
-  if (isLoadingPublicSettings || isLoadingAuth) return <LoadingScreen />;
-
+function ProtectedLayout({ children }) {
   return (
-    <Routes>
-      {/* Public auth routes */}
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
-      <Route path="/onboarding" element={<Onboarding />} />
-      <Route path="/onboarding/profile" element={<OnboardingProfile />} />
-
-      {/* Public routes — fully browsable without login */}
-      <Route element={<AppLayout />}>
-        <Route path="/shared-project/:projectId" element={<SharedProjectView />} />
-        <Route path="/shared-video/:videoId" element={<SharedVideoView />} />
-        <Route path="/" element={<Feed />} />
-        <Route path="/explore" element={<Explore />} />
-        <Route path="/discover" element={<Discover />} />
-        <Route path="/search" element={<GlobalSearch />} />
-        <Route path="/creators" element={<Creators />} />
-        <Route path="/directory" element={<Directory />} />
-        <Route path="/marketplace" element={<Marketplace />} />
-        <Route path="/pitch-vault" element={<PitchVault />} />
-        <Route path="/community" element={<Community />} />
-        <Route path="/reels" element={<Reels />} />
-        <Route path="/rooms" element={<Rooms />} />
-        <Route path="/meetings" element={<Meetings />} />
-        <Route path="/music-library" element={<MusicLibrary />} />
-        <Route path="/creative-studio" element={<CreativeStudio />} />
-        <Route path="/ugc-suite" element={<UGCCreatorSuite />} />
-        <Route path="/ai-tools" element={<AITools />} />
-        <Route path="/skill-exchange" element={<SkillExchange />} />
-        <Route path="/creator-marketplace" element={<CreatorMarketplace />} />
-        <Route path="/user/:userId" element={<Profile />} />
-        <Route path="/upgrade" element={<Upgrade />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/messages" element={<Messages />} />
-        <Route path="/content-calendar" element={<ContentCalendar />} />
-        <Route path="/groups" element={<Groups />} />
-        <Route path="/business-content" element={<BusinessContentSuite />} />
-        <Route path="/stories" element={<Stories />} />
-        <Route path="/gamification" element={<Gamification />} />
-        <Route path="/collaboration-feed" element={<CollaborationFeed />} />
-        <Route path="/project-matcher" element={<ProjectMatcher />} />
-        <Route path="/podcasts" element={<Podcasts />} />
-        {/* Pages that benefit from being public with inline auth prompts */}
-        <Route path="/audio-studio" element={<AudioStudio />} />
-        <Route path="/analytics" element={<Analytics />} />
-        <Route path="/creator-analytics" element={<CreatorAnalytics />} />
-        <Route path="/templates" element={<TemplateMarketplace />} />
-        <Route path="/video-studio" element={<VideoStudio />} />
-        <Route path="/video-marketplace" element={<VideoMarketplace />} />
-        <Route path="/workflows" element={<WorkflowAutomation />} />
-        <Route path="/collaborative" element={<CollaborativeStudioPage />} />
-        <Route path="/collaborative/:workspaceId" element={<CollaborativeStudioPage />} />
-        <Route path="/podcast-studio" element={<PodcastStudio />} />
-        <Route path="/monetization" element={<MonetizationHub />} />
-        <Route path="/bookings" element={<BookingCalendar />} />
-        <Route path="/content-performance" element={<ContentPerformance />} />
-        <Route path="/drafts" element={<Drafts />} />
-        <Route path="/video-messages" element={<VideoMessages />} />
-        <Route path="/video-analytics" element={<VideoAnalyticsDashboard />} />
-        <Route path="/quality-review/:draftId" element={<QualityReview />} />
-        <Route path="/video-captions/:draftId" element={<VideoCaptions />} />
-        <Route path="/edit-video/:postId" element={<PostVideoEditorPage />} />
-      </Route>
-
-      {/* Protected routes — require login for account-sensitive pages only */}
-      <Route element={<ProtectedRoute unauthenticatedElement={<LoginRedirect />} />}>
-        <Route element={<AppLayout />}>
-          <Route path="/profile/edit" element={<EditProfile />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/billing" element={<Billing />} />
-        </Route>
-      </Route>
-
-      {/* Redirect root for backwards compat */}
-      <Route path="/index.html" element={<Navigate to="/" replace />} />
-      <Route path="*" element={<PageNotFound />} />
-    </Routes>
-  );
-};
-
-function App() {
-  return (
-    <LightboxProvider>
-      <AuthProvider>
-        <PodcastPlayerProvider>
-          <QueryClientProvider client={queryClientInstance}>
-            <Router>
-              <AuthenticatedApp />
-            </Router>
-            <Toaster />
-            <Sonner richColors closeButton position="bottom-right" />
-          </QueryClientProvider>
-        </PodcastPlayerProvider>
-      </AuthProvider>
-    </LightboxProvider>
-  );
+    <ProtectedRoute>
+      <Layout>{children}</Layout>
+    </ProtectedRoute>
+  )
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<ProtectedLayout><Feed /></ProtectedLayout>} />
+          <Route path="/profile" element={<ProtectedLayout><Profile /></ProtectedLayout>} />
+          <Route path="/rooms" element={<ProtectedLayout><Rooms /></ProtectedLayout>} />
+          <Route path="/podcasts" element={<ProtectedLayout><Podcasts /></ProtectedLayout>} />
+          <Route path="/content" element={<ProtectedLayout><ContentSuite /></ProtectedLayout>} />
+          <Route path="/analytics" element={<ProtectedLayout><Analytics /></ProtectedLayout>} />
+          <Route path="/community" element={<ProtectedLayout><Community /></ProtectedLayout>} />
+          <Route path="/messages" element={<ProtectedLayout><Messages /></ProtectedLayout>} />
+          <Route path="/audio-studio" element={<ProtectedLayout><AudioStudio /></ProtectedLayout>} />
+          <Route path="/creative-studio" element={<ProtectedLayout><CreativeStudio /></ProtectedLayout>} />
+          <Route path="/music-library" element={<ProtectedLayout><MusicLibrary /></ProtectedLayout>} />
+          <Route path="/pitch-vault" element={<ProtectedLayout><PitchVault /></ProtectedLayout>} />
+          <Route path="/directory" element={<ProtectedLayout><Directory /></ProtectedLayout>} />
+          <Route path="/skills" element={<ProtectedLayout><SkillExchange /></ProtectedLayout>} />
+          <Route path="/marketplace" element={<ProtectedLayout><CreatorMarket /></ProtectedLayout>} />
+          <Route path="/meetings" element={<ProtectedLayout><Meetings /></ProtectedLayout>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  )
+}

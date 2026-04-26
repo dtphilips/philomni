@@ -1,405 +1,164 @@
-import React, { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-  Video, Users, Plus, Mic, MicOff, VideoOff, PhoneOff,
-  Monitor, MessageSquare, Lock, Globe, Loader2, Radio,
-  Copy, Check, Pencil, Trash2, X
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+import { Radio, Plus, Users, PhoneOff, Loader2, Lock, Globe } from 'lucide-react'
 
-// ── Embed a Daily.co room using a plain iframe ───────────────────────────────
 function RoomIframe({ url, onLeave }) {
   return (
-    <div className="relative w-full h-full">
+    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+      <div className="flex items-center justify-between p-3 bg-black/80 border-b border-white/10">
+        <span className="text-white font-semibold text-sm">Philomni Room</span>
+        <button onClick={onLeave} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700">
+          <PhoneOff className="w-4 h-4" /> Leave
+        </button>
+      </div>
       <iframe
         src={url}
         allow="camera; microphone; fullscreen; speaker; display-capture"
-        style={{ width: '100%', height: '100%', border: 'none', borderRadius: '12px' }}
-        title="Philomni Room"
+        style={{ flex: 1, border: 'none' }}
+        title="Room"
       />
-      <button
-        onClick={onLeave}
-        className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-xs font-medium shadow-lg hover:bg-destructive/90 transition-colors"
-      >
-        <PhoneOff className="w-3.5 h-3.5" /> Leave
-      </button>
     </div>
-  );
+  )
 }
 
-// ── Room card ────────────────────────────────────────────────────────────────
-function RoomCard({ room, currentUser, onJoin, onDelete }) {
-  const [copied, setCopied] = useState(false);
-  const isHost = room.host_id === currentUser?.id;
-  const isLive = room.status === 'live';
-
-  const copyLink = () => {
-    navigator.clipboard.writeText(room.daily_url || window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`relative bg-card rounded-2xl border p-5 flex flex-col gap-4 transition-all hover:shadow-md ${isLive ? 'border-primary/40 bg-primary/5' : 'border-border'}`}
-    >
-      {isLive && (
-        <span className="absolute top-4 right-4 flex items-center gap-1.5 text-xs font-semibold text-red-500">
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          LIVE
-        </span>
-      )}
-
-      <div className="flex items-start gap-3 pr-16">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${isLive ? 'bg-primary/20' : 'bg-muted'}`}>
-          <Radio className={`w-5 h-5 ${isLive ? 'text-primary' : 'text-muted-foreground'}`} />
-        </div>
-        <div className="min-w-0">
-          <h3 className="font-semibold text-sm truncate">{room.name}</h3>
-          {room.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{room.description}</p>}
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <Badge variant="secondary" className="text-xs gap-1">
-              <Users className="w-3 h-3" />{room.participant_count || 0} / {room.max_participants || 50}
-            </Badge>
-            {room.is_private ? (
-              <Badge variant="outline" className="text-xs gap-1"><Lock className="w-3 h-3" />Private</Badge>
-            ) : (
-              <Badge variant="outline" className="text-xs gap-1"><Globe className="w-3 h-3" />Public</Badge>
-            )}
-            {isHost && <Badge className="text-xs bg-primary/10 text-primary border-0">Host</Badge>}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex gap-2">
-        <Button
-          onClick={() => onJoin(room)}
-          size="sm"
-          className="flex-1 gap-1.5"
-          variant={isLive ? 'default' : 'outline'}
-        >
-          <Video className="w-3.5 h-3.5" />
-          {isLive ? 'Join Live' : 'Join'}
-        </Button>
-        <button onClick={copyLink} className="p-2 rounded-lg border border-border hover:bg-muted transition-colors">
-          {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
-        </button>
-        {isHost && (
-          <button onClick={() => onDelete(room.id)} className="p-2 rounded-lg border border-border hover:bg-destructive/10 hover:border-destructive/30 transition-colors">
-            <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
-          </button>
-        )}
-      </div>
-    </motion.div>
-  );
-}
-
-// ── Create Room dialog ───────────────────────────────────────────────────────
-function CreateRoomDialog({ open, onClose, onCreated, user }) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [isPrivate, setIsPrivate] = useState(false);
-  const [maxParticipants, setMaxParticipants] = useState(10);
-  const [creating, setCreating] = useState(false);
-
-  const handleCreate = async () => {
-    if (!name.trim()) return;
-    setCreating(true);
-    try {
-      const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 40);
-      const roomName = `${slug}-${Date.now()}`;
-      const dailyDomain = import.meta.env.VITE_DAILY_DOMAIN || 'philomni';
-      const fallbackUrl = `https://${dailyDomain}.daily.co/${roomName}`;
-
-      // Try Daily.co API with 8s timeout; use fallback URL immediately if it fails
-      let roomUrl = fallbackUrl;
-      try {
-        const dailyRes = await Promise.race([
-          base44.functions.createDailyRoom({
-            name: roomName,
-            properties: { max_participants: maxParticipants, enable_recording: false },
-          }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Daily.co API timeout after 8s')), 8000)
-          ),
-        ]);
-        if (dailyRes?.url) roomUrl = dailyRes.url;
-      } catch (dailyErr) {
-        console.error('[Rooms] Daily.co API failed, using fallback URL:', dailyErr);
-      }
-
-      // Always save to Supabase and navigate
-      const room = await base44.entities.Event.create({
-        name: name.trim(),
-        description: description.trim(),
-        host_id: user.id,
-        host_name: user.full_name,
-        host_avatar: user.avatar_url,
-        daily_room_name: roomName,
-        daily_url: roomUrl,
-        status: 'live',
-        is_private: isPrivate,
-        max_participants: maxParticipants,
-        participant_count: 1,
-        type: 'room',
-      });
-
-      toast.success('Room created!');
-      onCreated(room, roomUrl);
-      setName(''); setDescription(''); setIsPrivate(false); setMaxParticipants(10);
-      onClose();
-    } catch (err) {
-      console.error('[Rooms] Room creation failed:', err);
-      toast.error('Could not create room. Please try again.');
-    }
-    setCreating(false);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Plus className="w-5 h-5 text-primary" /> Create a Room
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 mt-2">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Room Name *</label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Creative Collab, Design Review…" maxLength={60} />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Description (optional)</label>
-            <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="What's this room about?" rows={2} />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">Private Room</p>
-              <p className="text-xs text-muted-foreground">Only visible to invited members</p>
-            </div>
-            <button
-              onClick={() => setIsPrivate(v => !v)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isPrivate ? 'bg-primary' : 'bg-muted-foreground/30'}`}
-            >
-              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${isPrivate ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Max Participants: {maxParticipants}</label>
-            <input type="range" min={2} max={50} value={maxParticipants} onChange={e => setMaxParticipants(Number(e.target.value))}
-              className="w-full accent-primary" />
-          </div>
-          <div className="bg-muted/50 rounded-xl p-3 text-xs text-muted-foreground space-y-1">
-            <p className="font-medium text-foreground">What you get in every room:</p>
-            <p>✓ HD Video &amp; Audio &nbsp;·&nbsp; ✓ Screen Share &nbsp;·&nbsp; ✓ Live Chat</p>
-            <p>✓ Up to {maxParticipants} participants &nbsp;·&nbsp; ✓ Shareable link</p>
-          </div>
-          <Button onClick={handleCreate} disabled={creating || !name.trim()} className="w-full gap-2">
-            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Video className="w-4 h-4" />}
-            {creating ? 'Creating Room…' : 'Create & Start Room'}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ── Main Rooms page ──────────────────────────────────────────────────────────
 export default function Rooms() {
-  const { user } = useOutletContext();
-  const qc = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [activeRoom, setActiveRoom] = useState(null); // { room, url }
-  const [search, setSearch] = useState('');
+  const { user } = useAuth()
+  const [rooms, setRooms] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [activeRoom, setActiveRoom] = useState(null)
+  const [form, setForm] = useState({ name: '', description: '', is_private: false })
 
-  const { data: rooms = [], isLoading } = useQuery({
-    queryKey: ['rooms'],
-    queryFn: () => base44.entities.Event.filter({ type: 'room' }),
-    refetchInterval: 15000,
-  });
+  useEffect(() => {
+    supabase.from('rooms').select('*').eq('status', 'live').order('created_at', { ascending: false })
+      .then(({ data }) => { setRooms(data ?? []); setLoading(false) })
+  }, [])
 
-  const handleJoin = (room) => {
-    if (!room.daily_url) {
-      toast.error('No room URL found. The room may have expired.');
-      return;
-    }
-    setActiveRoom({ room, url: room.daily_url });
-  };
+  const handleCreate = async (e) => {
+    e.preventDefault()
+    if (!form.name.trim()) return
+    setCreating(true)
 
-  const handleCreated = (room, url) => {
-    qc.invalidateQueries({ queryKey: ['rooms'] });
-    setActiveRoom({ room, url });
-  };
+    const slug = form.name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 40)
+    const roomName = `${slug}-${Date.now()}`
+    const dailyDomain = import.meta.env.VITE_DAILY_DOMAIN || 'philomni'
+    let roomUrl = `https://${dailyDomain}.daily.co/${roomName}`
 
-  const handleLeave = async () => {
-    if (activeRoom?.room?.host_id === user?.id) {
-      try { await base44.entities.Event.update(activeRoom.room.id, { status: 'ended', participant_count: 0 }); } catch {}
-      qc.invalidateQueries({ queryKey: ['rooms'] });
-    }
-    setActiveRoom(null);
-  };
-
-  const handleDelete = async (roomId) => {
     try {
-      await base44.entities.Event.delete(roomId);
-      qc.invalidateQueries({ queryKey: ['rooms'] });
-      toast.success('Room deleted.');
-    } catch { toast.error('Failed to delete room.'); }
-  };
+      const res = await Promise.race([
+        fetch('/api/daily-room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: roomName, properties: { max_participants: 50 } }),
+        }).then(r => r.json()),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+      ])
+      if (res?.url) roomUrl = res.url
+    } catch (err) {
+      console.error('[Rooms] Daily.co failed, using fallback:', err)
+    }
 
-  const filtered = rooms.filter(r =>
-    !search || r.name?.toLowerCase().includes(search.toLowerCase())
-  );
+    const { data } = await supabase.from('rooms').insert({
+      name: form.name.trim(),
+      description: form.description.trim() || null,
+      host_id: user.id,
+      host_name: user.full_name,
+      daily_url: roomUrl,
+      daily_room_name: roomName,
+      status: 'live',
+      is_private: form.is_private,
+      participant_count: 1,
+    }).select().single()
 
-  const liveRooms = filtered.filter(r => r.status === 'live');
-  const otherRooms = filtered.filter(r => r.status !== 'live');
-
-  // ── Full-screen room view ──────────────────────────────────────────────────
-  if (activeRoom) {
-    return (
-      <div className="fixed inset-0 z-50 bg-background flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-red-500">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /> LIVE
-            </span>
-            <h2 className="font-semibold text-sm truncate max-w-[200px]">{activeRoom.room.name}</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="destructive" size="sm" onClick={handleLeave} className="gap-1.5">
-              <PhoneOff className="w-3.5 h-3.5" /> Leave Room
-            </Button>
-          </div>
-        </div>
-
-        {/* Room embed */}
-        <div className="flex-1 overflow-hidden">
-          <RoomIframe url={activeRoom.url} onLeave={handleLeave} />
-        </div>
-
-        {/* Feature chips */}
-        <div className="px-4 pb-3 flex gap-2 flex-wrap flex-shrink-0">
-          {[
-            { icon: Video, label: 'HD Video' },
-            { icon: Mic, label: 'Audio' },
-            { icon: Monitor, label: 'Screen Share' },
-            { icon: MessageSquare, label: 'Live Chat' },
-          ].map(({ icon: Icon, label }) => (
-            <span key={label} className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-lg">
-              <Icon className="w-3 h-3" /> {label}
-            </span>
-          ))}
-        </div>
-      </div>
-    );
+    if (data) {
+      setRooms(prev => [data, ...prev])
+      setActiveRoom({ ...data, url: roomUrl })
+      setShowForm(false)
+      setForm({ name: '', description: '', is_private: false })
+    }
+    setCreating(false)
   }
 
-  // ── Room list ──────────────────────────────────────────────────────────────
+  if (activeRoom) return <RoomIframe url={activeRoom.daily_url} onLeave={() => setActiveRoom(null)} />
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="max-w-2xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display text-2xl font-bold">Rooms</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Live collaborative spaces with video, audio, screen share &amp; chat
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">Rooms</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Live audio & video rooms</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2">
-          <Plus className="w-4 h-4" /> Create Room
-        </Button>
+        <button
+          onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90"
+        >
+          <Plus className="w-4 h-4" /> New Room
+        </button>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search rooms…" className="pl-9" />
-      </div>
-
-      {/* Hero banner */}
-      <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 rounded-2xl p-6">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-            <Radio className="w-7 h-7 text-primary" />
+      {showForm && (
+        <form onSubmit={handleCreate} className="bg-card border border-border rounded-2xl p-5 mb-4 space-y-3">
+          <h3 className="font-semibold text-foreground">Create a Room</h3>
+          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="Room name" required
+            className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
+          <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            placeholder="Description (optional)" rows={2}
+            className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none" />
+          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+            <input type="checkbox" checked={form.is_private} onChange={e => setForm(f => ({ ...f, is_private: e.target.checked }))}
+              className="rounded" />
+            Private room
+          </label>
+          <div className="flex gap-2">
+            <button type="submit" disabled={creating}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-60">
+              {creating && <Loader2 className="w-4 h-4 animate-spin" />}
+              {creating ? 'Creating…' : 'Start Room'}
+            </button>
+            <button type="button" onClick={() => setShowForm(false)}
+              className="px-4 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted">
+              Cancel
+            </button>
           </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="font-bold text-lg">Philomni Rooms</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              HD video calls · Screen sharing · Live chat · Up to 50 participants · No download needed
-            </p>
-          </div>
-          {rooms.length === 0 && (
-            <Button onClick={() => setCreateOpen(true)} size="sm" className="gap-2 flex-shrink-0">
-              <Plus className="w-4 h-4" /> Start a Room
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-7 h-7 animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* Live rooms */}
-          {liveRooms.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <h2 className="font-semibold text-sm">Live Now</h2>
-                <Badge variant="secondary" className="text-xs">{liveRooms.length}</Badge>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {liveRooms.map(room => (
-                  <RoomCard key={room.id} room={room} currentUser={user} onJoin={handleJoin} onDelete={handleDelete} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Other / scheduled rooms */}
-          {otherRooms.length > 0 && (
-            <div>
-              <h2 className="font-semibold text-sm mb-3 text-muted-foreground">All Rooms</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {otherRooms.map(room => (
-                  <RoomCard key={room.id} room={room} currentUser={user} onJoin={handleJoin} onDelete={handleDelete} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Empty state */}
-          {filtered.length === 0 && (
-            <div className="text-center py-16 space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto">
-                <Radio className="w-8 h-8 text-muted-foreground/40" />
-              </div>
-              <div>
-                <p className="font-medium">No rooms yet</p>
-                <p className="text-sm text-muted-foreground mt-1">Create the first room and invite your collaborators</p>
-              </div>
-              <Button onClick={() => setCreateOpen(true)} className="gap-2">
-                <Plus className="w-4 h-4" /> Create First Room
-              </Button>
-            </div>
-          )}
-        </div>
+        </form>
       )}
 
-      <CreateRoomDialog open={createOpen} onClose={() => setCreateOpen(false)} onCreated={handleCreated} user={user} />
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      ) : rooms.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground">
+          <Radio className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">No live rooms</p>
+          <p className="text-sm mt-1">Start one and invite your audience</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {rooms.map(room => (
+            <div key={room.id} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                <Radio className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-foreground truncate">{room.name}</p>
+                  {room.is_private ? <Lock className="w-3 h-3 text-muted-foreground" /> : <Globe className="w-3 h-3 text-muted-foreground" />}
+                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 font-medium">LIVE</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">Hosted by {room.host_name} · <Users className="w-3 h-3 inline" /> {room.participant_count ?? 1}</p>
+              </div>
+              <button
+                onClick={() => setActiveRoom(room)}
+                className="px-4 py-1.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
+              >
+                Join
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
-  );
+  )
 }

@@ -1,75 +1,60 @@
-import React, { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Search, Building2, MapPin, Users, BadgeCheck, Loader2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { Globe, Search, Loader2, UserPlus } from 'lucide-react'
 
 export default function Directory() {
-  const { user } = useOutletContext();
-  const [search, setSearch] = useState('');
+  const [creators, setCreators] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
 
-  const { data: businesses = [], isLoading } = useQuery({
-    queryKey: ['businesses'],
-    queryFn: () => base44.entities.User.filter({ role: 'business' }, '-created_date', 50),
-  });
+  useEffect(() => {
+    supabase.from('users').select('id, full_name, avatar_url, headline, role, location').order('created_at', { ascending: false }).limit(50)
+      .then(({ data }) => { setCreators(data ?? []); setLoading(false) })
+  }, [])
 
-  const filtered = businesses.filter(b =>
-    !search || b.company_name?.toLowerCase().includes(search.toLowerCase()) || b.full_name?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = creators.filter(c =>
+    !search || c.full_name?.toLowerCase().includes(search.toLowerCase()) || c.headline?.toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="font-display text-2xl font-bold">Business Directory</h1>
-        <p className="text-sm text-muted-foreground mt-1">Discover verified businesses and organizations</p>
-      </div>
+    <div className="max-w-2xl mx-auto">
+      <h1 className="text-2xl font-bold text-foreground mb-2">Creator Directory</h1>
+      <p className="text-muted-foreground text-sm mb-6">Discover creators on Philomni</p>
 
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Search businesses..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-11 bg-muted/50" />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search creators…"
+          className="w-full bg-muted rounded-xl pl-10 pr-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <Building2 className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-          <p className="text-muted-foreground">No businesses found</p>
+        <div className="text-center py-16 text-muted-foreground">
+          <Globe className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">No creators found</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filtered.map(biz => (
-            <Link
-              key={biz.id}
-              to={`/user/${biz.id}`}
-              className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors"
-            >
-              <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {biz.avatar_url ? (
-                  <img src={biz.avatar_url} className="w-full h-full object-cover" alt="" />
-                ) : (
-                  <Building2 className="w-6 h-6 text-muted-foreground" />
-                )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {filtered.map(c => (
+            <div key={c.id} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-primary/20 flex items-center justify-center text-primary font-bold flex-shrink-0 overflow-hidden">
+                {c.avatar_url
+                  ? <img src={c.avatar_url} alt="" className="w-full h-full object-cover" />
+                  : c.full_name?.[0] ?? '?'}
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-semibold text-sm">{biz.company_name || biz.full_name}</h3>
-                  {biz.verified && <BadgeCheck className="w-4 h-4 text-primary flex-shrink-0" />}
-                </div>
-                <p className="text-xs text-muted-foreground">{biz.headline}</p>
-                <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                  {biz.industry && <span>{biz.industry}</span>}
-                  {biz.company_size && <span className="flex items-center gap-1"><Users className="w-3 h-3" />{biz.company_size} employees</span>}
-                  {biz.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{biz.location}</span>}
-                </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-foreground truncate">{c.full_name}</p>
+                {c.headline && <p className="text-xs text-muted-foreground truncate mt-0.5">{c.headline}</p>}
+                {c.location && <p className="text-xs text-muted-foreground mt-0.5">📍 {c.location}</p>}
               </div>
-            </Link>
+              <button className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 flex-shrink-0">
+                <UserPlus className="w-4 h-4" />
+              </button>
+            </div>
           ))}
         </div>
       )}
     </div>
-  );
+  )
 }

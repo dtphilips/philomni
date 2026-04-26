@@ -1,330 +1,165 @@
-import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useOutletContext } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Video, Phone, PhoneOff, VideoOff, Mic, MicOff, Monitor,
-  Plus, Users, Clock, Calendar, ExternalLink, Copy, X, ChevronRight
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { format } from 'date-fns';
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+import { Video, Phone, Plus, PhoneOff, Copy, Clock, Loader2 } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
 
-// ────────────────────────────────────────────────────────────────
-// Daily.co room creation via backend function (or direct API)
-// DAILY_API_KEY must be set in your environment/backend
-// ────────────────────────────────────────────────────────────────
-async function createDailyRoom(roomName, isPro) {
-  const domain = import.meta.env.VITE_DAILY_DOMAIN || 'philomni';
-  const fallbackUrl = `https://${domain}.daily.co/${roomName}`;
-  try {
-    const result = await Promise.race([
-      base44.functions.createDailyRoom({
-        name: roomName,
-        properties: {
-          max_participants: isPro ? 50 : 2,
-          enable_recording: isPro,
-          enable_screenshare: true,
-          enable_chat: true,
-          exp: Math.floor(Date.now() / 1000) + 4 * 60 * 60,
-        },
-      }),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Daily.co API timeout after 8s')), 8000)
-      ),
-    ]);
-    return result?.url || fallbackUrl;
-  } catch (err) {
-    console.error('[Meetings] Daily.co API failed, using fallback URL:', err);
-    return fallbackUrl;
-  }
-}
-
-// ────────────────────────────────────────────────────────────────
-// In-app call frame — plain iframe embed
-// ────────────────────────────────────────────────────────────────
-function CallFrame({ roomUrl, onLeave }) {
+function CallFrame({ url, onLeave }) {
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      <div className="flex items-center justify-between p-3 bg-black/80">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg overflow-hidden">
-            <img src="/logo_v2.svg" alt="Philomni" className="w-7 h-7" />
-          </div>
-          <span className="text-white font-semibold text-sm">Philomni Call</span>
-        </div>
-        <Button variant="destructive" size="sm" onClick={onLeave} className="gap-1.5">
-          <PhoneOff className="w-4 h-4" />
-          Leave
-        </Button>
+      <div className="flex items-center justify-between p-3 bg-black/80 border-b border-white/10">
+        <span className="text-white font-semibold text-sm">Philomni Call</span>
+        <button onClick={onLeave} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700">
+          <PhoneOff className="w-4 h-4" /> Leave
+        </button>
       </div>
-      <iframe
-        src={roomUrl}
-        allow="camera; microphone; fullscreen; speaker; display-capture"
-        style={{ width: '100%', height: '100%', border: 'none', flex: 1 }}
-        title="Philomni Call"
-      />
+      <iframe src={url} allow="camera; microphone; fullscreen; speaker; display-capture"
+        style={{ flex: 1, border: 'none' }} title="Meeting" />
     </div>
-  );
+  )
 }
 
-// ────────────────────────────────────────────────────────────────
-// New Meeting Dialog
-// ────────────────────────────────────────────────────────────────
-function NewMeetingDialog({ open, onClose, currentUser }) {
-  const [title, setTitle] = useState('');
-  const [type, setType] = useState('video'); // video | voice
-  const [loading, setLoading] = useState(false);
-  const [roomUrl, setRoomUrl] = useState(null);
-  const qc = useQueryClient();
-
-  const handleCreate = async () => {
-    setLoading(true);
-    try {
-      const slug = `philomni-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      const url = await createDailyRoom(slug, currentUser?.plan === 'pro');
-
-      // Save to DB
-      await base44.entities.Booking.create({
-        title: title || `${currentUser?.full_name}'s ${type === 'video' ? 'Video' : 'Voice'} Call`,
-        meeting_type: type,
-        room_url: url,
-        host_id: currentUser?.id,
-        status: 'active',
-        started_at: new Date().toISOString(),
-      });
-
-      setRoomUrl(url);
-      qc.invalidateQueries({ queryKey: ['meetings'] });
-    } catch (err) {
-      console.error('[Meetings] NewMeetingDialog handleCreate failed:', err);
-      toast.error('Could not create room. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (roomUrl) {
-    return <CallFrame roomUrl={roomUrl} onLeave={() => { setRoomUrl(null); onClose(); }} />;
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Start a Call</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 pt-2">
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setType('video')}
-              className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
-                type === 'video' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'
-              }`}
-            >
-              <Video className={`w-6 h-6 ${type === 'video' ? 'text-primary' : 'text-muted-foreground'}`} />
-              <span className="text-sm font-medium">Video Call</span>
-            </button>
-            <button
-              onClick={() => setType('voice')}
-              className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
-                type === 'voice' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'
-              }`}
-            >
-              <Phone className={`w-6 h-6 ${type === 'voice' ? 'text-primary' : 'text-muted-foreground'}`} />
-              <span className="text-sm font-medium">Voice Call</span>
-            </button>
-          </div>
-
-          <Input
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="Meeting title (optional)"
-          />
-
-          {currentUser?.plan !== 'pro' && (
-            <p className="text-xs text-muted-foreground bg-muted rounded-lg p-2.5">
-              Free plan: 1-on-1 calls only. <strong>Upgrade to Pro</strong> for group calls up to 50 participants, recording, and more.
-            </p>
-          )}
-
-          <Button onClick={handleCreate} disabled={loading} className="w-full">
-            {loading ? 'Creating room…' : 'Start Call Now'}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────
-// Main Meetings Page
-// ────────────────────────────────────────────────────────────────
 export default function Meetings() {
-  const { user } = useOutletContext();
-  const [tab, setTab] = useState('upcoming');
-  const [newMeetingOpen, setNewMeetingOpen] = useState(false);
-  const [activeCallUrl, setActiveCallUrl] = useState(null);
-  const [copiedId, setCopiedId] = useState(null);
+  const { user } = useAuth()
+  const [meetings, setMeetings] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
+  const [activeCall, setActiveCall] = useState(null)
+  const [showNew, setShowNew] = useState(false)
+  const [form, setForm] = useState({ title: '', type: 'video' })
+  const [copied, setCopied] = useState(null)
 
-  const { data: meetings = [] } = useQuery({
-    queryKey: ['meetings'],
-    queryFn: async () => {
-      const u = await base44.auth.me();
-      return base44.entities.Booking.filter({ host_id: u.id, meeting_type: ['video', 'voice'] });
-    },
-  });
+  useEffect(() => {
+    supabase.from('bookings').select('*').eq('host_id', user?.id).order('created_at', { ascending: false })
+      .then(({ data }) => { setMeetings(data ?? []); setLoading(false) })
+  }, [user?.id])
 
-  const upcoming = meetings.filter(m => m.status === 'scheduled' || m.status === 'active');
-  const past = meetings.filter(m => m.status === 'ended' || m.status === 'completed');
+  const createMeeting = async () => {
+    setCreating(true)
+    const slug = `philomni-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const dailyDomain = import.meta.env.VITE_DAILY_DOMAIN || 'philomni'
+    let roomUrl = `https://${dailyDomain}.daily.co/${slug}`
+
+    try {
+      const res = await Promise.race([
+        fetch('/api/daily-room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: slug }),
+        }).then(r => r.json()),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+      ])
+      if (res?.url) roomUrl = res.url
+    } catch (err) {
+      console.error('[Meetings] Daily.co failed, using fallback:', err)
+    }
+
+    const { data } = await supabase.from('bookings').insert({
+      title: form.title || `${user.full_name}'s ${form.type === 'video' ? 'Video' : 'Voice'} Call`,
+      meeting_type: form.type,
+      host_id: user.id,
+      room_url: roomUrl,
+      status: 'active',
+      started_at: new Date().toISOString(),
+    }).select().single()
+
+    if (data) {
+      setMeetings(prev => [data, ...prev])
+      setActiveCall(roomUrl)
+      setShowNew(false)
+      setForm({ title: '', type: 'video' })
+    }
+    setCreating(false)
+  }
 
   const copyLink = (url, id) => {
-    navigator.clipboard.writeText(url).then(() => {
-      setCopiedId(id);
-      toast.success('Link copied');
-      setTimeout(() => setCopiedId(null), 2000);
-    });
-  };
-
-  if (activeCallUrl) {
-    return <CallFrame roomUrl={activeCallUrl} onLeave={() => setActiveCallUrl(null)} />;
+    navigator.clipboard.writeText(url)
+    setCopied(id)
+    setTimeout(() => setCopied(null), 2000)
   }
 
+  if (activeCall) return <CallFrame url={activeCall} onLeave={() => setActiveCall(null)} />
+
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Header */}
+    <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold font-display">Meetings</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Instant video & voice calls powered by Daily.co
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">Meetings</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Video & voice calls</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setNewMeetingOpen(true)} className="gap-2">
-            <Plus className="w-4 h-4" />
-            New Call
-          </Button>
-        </div>
-      </div>
-
-      {/* Quick start cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        <button
-          onClick={() => setNewMeetingOpen(true)}
-          className="p-5 rounded-xl bg-primary/10 border border-primary/20 text-left hover:bg-primary/15 transition-colors group"
-        >
-          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center mb-3 group-hover:bg-primary/30 transition-colors">
-            <Video className="w-5 h-5 text-primary" />
-          </div>
-          <h3 className="font-semibold text-foreground">Instant Video Call</h3>
-          <p className="text-sm text-muted-foreground mt-0.5">Start a room and share the link</p>
-        </button>
-        <button
-          onClick={() => setNewMeetingOpen(true)}
-          className="p-5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-left hover:bg-emerald-500/15 transition-colors group"
-        >
-          <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center mb-3 group-hover:bg-emerald-500/30 transition-colors">
-            <Phone className="w-5 h-5 text-emerald-500" />
-          </div>
-          <h3 className="font-semibold text-foreground">Voice Call</h3>
-          <p className="text-sm text-muted-foreground mt-0.5">Audio-only call, no camera needed</p>
+        <button onClick={() => setShowNew(v => !v)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90">
+          <Plus className="w-4 h-4" /> New Call
         </button>
       </div>
 
-      {/* Meeting list */}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="upcoming">Upcoming ({upcoming.length})</TabsTrigger>
-          <TabsTrigger value="past">Past ({past.length})</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {showNew && (
+        <div className="bg-card border border-border rounded-2xl p-5 mb-4 space-y-4">
+          <h3 className="font-semibold text-foreground">Start a Call</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {['video', 'voice'].map(t => (
+              <button key={t} onClick={() => setForm(f => ({ ...f, type: t }))}
+                className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${form.type === t ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40'}`}>
+                {t === 'video' ? <Video className={`w-6 h-6 ${form.type === t ? 'text-primary' : 'text-muted-foreground'}`} />
+                  : <Phone className={`w-6 h-6 ${form.type === t ? 'text-primary' : 'text-muted-foreground'}`} />}
+                <span className="text-sm font-medium">{t === 'video' ? 'Video Call' : 'Voice Call'}</span>
+              </button>
+            ))}
+          </div>
+          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            placeholder="Meeting title (optional)"
+            className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
+          <button onClick={createMeeting} disabled={creating}
+            className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 flex items-center justify-center gap-2">
+            {creating && <Loader2 className="w-4 h-4 animate-spin" />}
+            {creating ? 'Creating…' : 'Start Call Now'}
+          </button>
+        </div>
+      )}
 
-      <div className="space-y-3">
-        {(tab === 'upcoming' ? upcoming : past).length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center">
-              <Video className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
-              <p className="text-muted-foreground">
-                {tab === 'upcoming' ? 'No upcoming meetings' : 'No past meetings'}
-              </p>
-              {tab === 'upcoming' && (
-                <Button variant="outline" className="mt-4" onClick={() => setNewMeetingOpen(true)}>
-                  Start your first call
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          (tab === 'upcoming' ? upcoming : past).map(meeting => (
-            <Card key={meeting.id} className="hover:shadow-sm transition-shadow">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  meeting.meeting_type === 'video'
-                    ? 'bg-primary/10 text-primary'
-                    : 'bg-emerald-500/10 text-emerald-500'
-                }`}>
-                  {meeting.meeting_type === 'video' ? <Video className="w-5 h-5" /> : <Phone className="w-5 h-5" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{meeting.title || 'Untitled Call'}</p>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {meeting.started_at
-                        ? format(new Date(meeting.started_at), 'MMM d, h:mm a')
-                        : 'Instant call'}
-                    </span>
-                    <Badge variant={meeting.status === 'active' ? 'default' : 'secondary'} className="text-xs h-5">
-                      {meeting.status}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {meeting.room_url && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => copyLink(meeting.room_url, meeting.id)}
-                        className="gap-1.5 text-xs"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                        {copiedId === meeting.id ? 'Copied!' : 'Copy link'}
-                      </Button>
-                      {tab === 'upcoming' && (
-                        <Button
-                          size="sm"
-                          onClick={() => setActiveCallUrl(meeting.room_url)}
-                          className="gap-1.5"
-                        >
-                          <Video className="w-3.5 h-3.5" />
-                          Join
-                        </Button>
-                      )}
-                      {tab === 'past' && meeting.recording_url && (
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={meeting.recording_url} target="_blank" rel="noreferrer">
-                            <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-                            Recording
-                          </a>
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
-
-      <NewMeetingDialog open={newMeetingOpen} onClose={() => setNewMeetingOpen(false)} currentUser={user} />
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      ) : meetings.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground">
+          <Video className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">No meetings yet</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {meetings.map(m => (
+            <div key={m.id} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${m.meeting_type === 'video' ? 'bg-primary/15' : 'bg-emerald-500/15'}`}>
+                {m.meeting_type === 'video'
+                  ? <Video className="w-5 h-5 text-primary" />
+                  : <Phone className="w-5 h-5 text-emerald-500" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground truncate">{m.title}</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                  <Clock className="w-3 h-3" />
+                  {m.started_at ? formatDistanceToNow(new Date(m.started_at), { addSuffix: true }) : 'Instant call'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {m.room_url && (
+                  <>
+                    <button onClick={() => copyLink(m.room_url, m.id)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted">
+                      <Copy className="w-3 h-3" /> {copied === m.id ? 'Copied!' : 'Copy'}
+                    </button>
+                    {m.status === 'active' && (
+                      <button onClick={() => setActiveCall(m.room_url)}
+                        className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90">
+                        Join
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
-  );
+  )
 }
