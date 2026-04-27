@@ -9,6 +9,7 @@ import {
   Copy, BookOpen, MessageSquare,
   UserPlus, Hash, Calendar, ChevronRight, Edit3, Film,
 } from 'lucide-react'
+import MediaEditor from '@/components/editor/MediaEditor'
 
 const PAGE_SIZE = 10
 
@@ -382,7 +383,7 @@ function CommentSection({ postId, currentUser, onCommentAdded }) {
 
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
-function PostCard({ post, currentUser, onDelete, onRepost }) {
+function PostCard({ post, currentUser, onDelete, onRepost, onUpdate }) {
   const [liked, setLiked] = useState(false)
   const [saved, setSaved] = useState(false)
   const [likeCount, setLikeCount] = useState(post.like_count ?? 0)
@@ -392,6 +393,13 @@ function PostCard({ post, currentUser, onDelete, onRepost }) {
   const [showMenu, setShowMenu] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [reposting, setReposting] = useState(false)
+  // Edit post state
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editContent, setEditContent] = useState(post.content?.replace(/<[^>]+>/g, '') ?? '')
+  const [editMediaUrl, setEditMediaUrl] = useState(post.media_urls?.[0] ?? null)
+  const [editMediaBlob, setEditMediaBlob] = useState(null)
+  const [showEditMedia, setShowEditMedia] = useState(false)
+  const [editSaving, setEditSaving] = useState(false)
   const menuRef = useRef()
   const isOwner = currentUser?.id === post.author_id
 
@@ -468,6 +476,34 @@ function PostCard({ post, currentUser, onDelete, onRepost }) {
     onDelete(post.id)
   }
 
+  const handleEditSave = async () => {
+    setEditSaving(true)
+    try {
+      let mediaUrls = post.media_urls
+      if (editMediaBlob) {
+        const file = new File([editMediaBlob], 'edited-media.jpg', { type: editMediaBlob.type })
+        const uploadedUrl = await uploadToStorage(file)
+        mediaUrls = [uploadedUrl]
+      }
+      const updates = { content: editContent, media_urls: mediaUrls }
+      await supabase.from('posts').update(updates).eq('id', post.id)
+      setShowEditModal(false)
+      setEditMediaBlob(null)
+      onUpdate?.({ ...post, ...updates })
+    } catch (err) {
+      console.error('Edit save failed:', err)
+    }
+    setEditSaving(false)
+  }
+
+  const openEditModal = () => {
+    setEditContent(post.content?.replace(/<[^>]+>/g, '') ?? '')
+    setEditMediaUrl(post.media_urls?.[0] ?? null)
+    setEditMediaBlob(null)
+    setShowMenu(false)
+    setShowEditModal(true)
+  }
+
   const timestamp = post.created_at
     ? formatDistanceToNow(new Date(post.created_at), { addSuffix: true })
     : ''
@@ -509,7 +545,8 @@ function PostCard({ post, currentUser, onDelete, onRepost }) {
               <div className="absolute right-0 top-9 bg-popover border border-border rounded-2xl shadow-xl py-1.5 z-20 min-w-[160px]">
                 {isOwner ? (
                   <>
-                    <button className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">
+                    <button onClick={openEditModal}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">
                       <Edit3 className="w-4 h-4 text-muted-foreground" /> Edit post
                     </button>
                     <div className="my-1 border-t border-border" />
@@ -601,6 +638,71 @@ function PostCard({ post, currentUser, onDelete, onRepost }) {
       </article>
 
       {showShare && <ShareModal post={post} onClose={() => setShowShare(false)} />}
+
+      {/* Edit Post Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowEditModal(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-lg bg-card border border-border rounded-3xl shadow-2xl p-6 mx-4"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-foreground text-base">Edit Post</h3>
+              <button onClick={() => setShowEditModal(false)}
+                className="p-1.5 rounded-xl hover:bg-muted text-muted-foreground transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <textarea
+              value={editContent}
+              onChange={e => setEditContent(e.target.value)}
+              rows={5}
+              className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none mb-4"
+              placeholder="What's on your mind?"
+            />
+            {(editMediaUrl || post.media_urls?.length > 0) && (
+              <div className="relative rounded-xl overflow-hidden bg-black mb-4 group cursor-pointer"
+                onClick={() => setShowEditMedia(true)}>
+                {post.media_type === 'video'
+                  ? <video src={editMediaUrl ?? post.media_urls?.[0]} className="max-h-48 w-full object-contain" />
+                  : <img src={editMediaUrl ?? post.media_urls?.[0]} alt="" className="max-h-48 w-full object-cover" />}
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="flex items-center gap-2 text-white font-semibold text-sm bg-black/60 px-4 py-2 rounded-xl">
+                    <Edit3 className="w-4 h-4" /> Edit Media
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:bg-muted transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleEditSave} disabled={editSaving}
+                className="px-5 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors">
+                {editSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Save changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MediaEditor for existing post media */}
+      {showEditMedia && (
+        <MediaEditor
+          url={post.media_urls?.[0]}
+          onSave={(result) => {
+            if (result instanceof Blob) {
+              setEditMediaBlob(result)
+              setEditMediaUrl(URL.createObjectURL(result))
+            } else {
+              setEditMediaUrl(result.url ?? result)
+            }
+            setShowEditMedia(false)
+          }}
+          onClose={() => setShowEditMedia(false)}
+        />
+      )}
     </>
   )
 }
@@ -618,6 +720,7 @@ function PostComposer({ user, onCreated }) {
   const imgInputRef = useRef()
   const vidInputRef = useRef()
   const [mediaFiles, setMediaFiles] = useState([])
+  const [mediaEditorIdx, setMediaEditorIdx] = useState(null)
   const [charCount, setCharCount] = useState(0)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState('')
@@ -666,6 +769,19 @@ function PostComposer({ user, onCreated }) {
       return prev.filter((_, idx) => idx !== i)
     })
   }
+
+  const handleMediaEdited = useCallback((blob) => {
+    if (mediaEditorIdx === null) return
+    const prev = mediaFiles[mediaEditorIdx]
+    const newFile = new File([blob], prev?.file?.name ?? 'edited.jpg', { type: blob.type })
+    const newPreview = URL.createObjectURL(blob)
+    setMediaFiles(files => files.map((m, i) => {
+      if (i !== mediaEditorIdx) return m
+      URL.revokeObjectURL(m.preview)
+      return { file: newFile, preview: newPreview, type: m.type }
+    }))
+    setMediaEditorIdx(null)
+  }, [mediaEditorIdx, mediaFiles])
 
   const reset = () => {
     if (editorRef.current) editorRef.current.innerHTML = ''
@@ -774,10 +890,21 @@ function PostComposer({ user, onCreated }) {
               {type === 'video'
                 ? <video src={preview} className="max-h-52 w-full object-contain" />
                 : <img src={preview} alt="" className="max-h-52 w-full object-cover" />}
-              <button onClick={() => removeMedia(i)}
-                className="absolute top-2 right-2 p-1 rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none" />
+              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => setMediaEditorIdx(i)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/75 text-white text-xs font-semibold hover:bg-black/90 transition-colors"
+                >
+                  <Edit3 className="w-3 h-3" /> Edit
+                </button>
+                <button
+                  onClick={() => removeMedia(i)}
+                  className="p-1.5 rounded-full bg-black/75 text-white hover:bg-black/90 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -818,6 +945,15 @@ function PostComposer({ user, onCreated }) {
         </div>
       )}
       {error && <p className="px-4 pb-3 text-xs text-destructive">{error}</p>}
+
+      {/* MediaEditor overlay for composer */}
+      {mediaEditorIdx !== null && mediaFiles[mediaEditorIdx] && (
+        <MediaEditor
+          file={mediaFiles[mediaEditorIdx].file}
+          onSave={handleMediaEdited}
+          onClose={() => setMediaEditorIdx(null)}
+        />
+      )}
     </div>
   )
 }
@@ -971,6 +1107,7 @@ export default function Feed() {
   const handleCreated = (post) => setPosts(prev => [post, ...prev.filter(p => p.id !== post.id)])
   const handleDelete = (id) => setPosts(prev => prev.filter(p => p.id !== id))
   const handleRepost = (post) => setPosts(prev => [post, ...prev])
+  const handleUpdate = (updated) => setPosts(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))
 
   return (
     <div className="flex gap-6 max-w-5xl mx-auto">
@@ -1014,7 +1151,7 @@ export default function Feed() {
           <>
             <div className="space-y-4">
               {posts.map(post => (
-                <PostCard key={post.id} post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} />
+                <PostCard key={post.id} post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} />
               ))}
             </div>
             <div ref={sentinelRef} className="h-12 flex items-center justify-center mt-2">

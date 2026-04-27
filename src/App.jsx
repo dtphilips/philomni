@@ -40,6 +40,7 @@ import ContentCalendar from './pages/ContentCalendar'
 // Studios
 import AudioStudio from './pages/AudioStudio'
 import CreativeStudio from './pages/CreativeStudio'
+import CreatorStudio from './pages/CreatorStudio'
 import VideoStudio from './pages/VideoStudio'
 import PodcastStudio from './pages/PodcastStudio'
 import CollaborativeStudio from './pages/CollaborativeStudio'
@@ -144,6 +145,7 @@ export default function App() {
             {/* Studios */}
             <Route path="/audio-studio" element={<P page={AudioStudio} />} />
             <Route path="/creative-studio" element={<P page={CreativeStudio} />} />
+            <Route path="/creator-studio" element={<P page={CreatorStudio} />} />
             <Route path="/video-studio" element={<P page={VideoStudio} />} />
             <Route path="/podcast-studio" element={<P page={PodcastStudio} />} />
             <Route path="/collab-studio" element={<P page={CollaborativeStudio} />} />
