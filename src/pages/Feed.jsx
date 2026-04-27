@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { formatDistanceToNow } from 'date-fns'
@@ -295,34 +295,145 @@ function MediaDisplay({ urls, type }) {
   )
 }
 
+// ─── Story Viewer ─────────────────────────────────────────────────────────────
+
+function StoryViewer({ storyList, startIndex = 0, onClose }) {
+  const [current, setCurrent]   = useState(startIndex)
+  const [progress, setProgress] = useState(0)
+  const story = storyList[current]
+
+  // Auto-advance progress bar (5 seconds per story)
+  useEffect(() => {
+    const t = setInterval(() => {
+      setProgress(p => {
+        if (p >= 100) {
+          if (current < storyList.length - 1) {
+            setCurrent(c => c + 1)
+            return 0
+          }
+          onClose()
+          return 100
+        }
+        return p + 2 // 50 ticks × 100ms = 5 s
+      })
+    }, 100)
+    return () => clearInterval(t)
+  }, [current, storyList.length, onClose])
+
+  // Reset progress whenever the story index changes
+  useEffect(() => { setProgress(0) }, [current])
+
+  if (!story) return null
+
+  const goBack = () => {
+    if (current > 0) { setCurrent(c => c - 1) } else { onClose() }
+  }
+  const goNext = () => {
+    if (current < storyList.length - 1) { setCurrent(c => c + 1) } else { onClose() }
+  }
+
+  const name   = story._user?.full_name ?? 'User'
+  const avatar = story._user?.avatar_url ?? null
+
+  return (
+    <div className="fixed inset-0 z-[200] bg-black flex flex-col select-none">
+      {/* Progress bars */}
+      <div className="flex gap-1 px-3 pt-3 pb-1 flex-shrink-0">
+        {storyList.map((_, i) => (
+          <div key={i} className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-white rounded-full"
+              style={{
+                width: i < current ? '100%' : i === current ? `${progress}%` : '0%',
+                transition: i === current ? 'none' : undefined,
+              }}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0">
+        <div className="w-9 h-9 rounded-full overflow-hidden bg-primary/20 flex items-center justify-center flex-shrink-0">
+          {avatar
+            ? <img src={avatar} alt="" className="w-full h-full object-cover" />
+            : <span className="text-white text-sm font-bold">{name[0]}</span>}
+        </div>
+        <span className="text-white text-sm font-semibold">{name}</span>
+        <span className="text-white/50 text-xs ml-auto">
+          {story.created_at ? new Date(story.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+        </span>
+        <button onClick={onClose} className="ml-2 w-8 h-8 flex items-center justify-center text-white/80 hover:text-white">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Content + tap zones */}
+      <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+        {/* Tap left → prev */}
+        <div className="absolute left-0 top-0 w-1/3 h-full z-10 cursor-pointer" onClick={goBack} />
+        {/* Tap right → next */}
+        <div className="absolute right-0 top-0 w-1/3 h-full z-10 cursor-pointer" onClick={goNext} />
+
+        {story.media_url ? (
+          story.media_type === 'video'
+            ? <video src={story.media_url} autoPlay loop playsInline className="max-h-full max-w-full object-contain" />
+            : <img src={story.media_url} alt="story" className="max-h-full max-w-full object-contain" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center p-10"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>
+            <p className="text-white text-2xl font-bold text-center leading-snug drop-shadow-lg">
+              {story.caption || ''}
+            </p>
+          </div>
+        )}
+
+        {/* Caption overlay (only when there is media too) */}
+        {story.caption && story.media_url && (
+          <div className="absolute bottom-8 left-4 right-4 z-20 pointer-events-none">
+            <p className="text-white text-base font-medium text-center drop-shadow-lg bg-black/40 rounded-2xl px-4 py-3 backdrop-blur-sm">
+              {story.caption}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Stories Bar ──────────────────────────────────────────────────────────────
 
 function StoriesBar({ currentUser }) {
-  const [stories, setStories] = useState([])
-  const [viewing, setViewing] = useState(null)
-  const [uploading, setUploading] = useState(false)
-  const [toast, setToast] = useState('')
+  const [allStories, setAllStories] = useState([])   // flat list of status rows, each with _user
+  const [viewerList,  setViewerList]  = useState(null)  // array of stories to show in viewer
+  const [viewerStart, setViewerStart] = useState(0)
+  const [uploading,  setUploading]  = useState(false)
+  const [toast,      setToast]      = useState('')
   const fileRef = useRef()
 
+  // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchStories = useCallback(async () => {
-    const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const { data } = await supabase
-      .from('statuses').select('*')
-      .gte('created_at', cutoff)
-      .order('created_at', { ascending: false }).limit(30)
-    if (!data?.length) { setStories([]); return }
-    // Enrich with user profiles via separate query
+      .from('statuses')
+      .select('*')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(60)
+    if (!data?.length) { setAllStories([]); return }
+    // Enrich with user profiles
     const ids = [...new Set(data.map(s => s.created_by).filter(Boolean))]
     const { data: users } = ids.length
       ? await supabase.from('users').select('id, full_name, avatar_url').in('id', ids)
       : { data: [] }
-    const map = {}
-    ;(users ?? []).forEach(u => { map[u.id] = u })
-    setStories(data.map(s => ({ ...s, _user: map[s.created_by] ?? null })))
+    const userMap = {}
+    ;(users ?? []).forEach(u => { userMap[u.id] = u })
+    setAllStories(data.map(s => ({ ...s, _user: userMap[s.created_by] ?? null })))
   }, [])
 
   useEffect(() => { fetchStories() }, [fetchStories])
 
+  // ── Upload ─────────────────────────────────────────────────────────────────
   const handleFile = async (e) => {
     const file = e.target.files?.[0]
     if (!file || !currentUser) return
@@ -330,9 +441,9 @@ function StoriesBar({ currentUser }) {
     try {
       const url = await uploadToStorage(file)
       const payload = {
-        media_url: url,
+        media_url:  url,
         media_type: file.type.startsWith('video') ? 'video' : 'image',
-        caption: '',
+        caption:    '',
         created_by: currentUser.id,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         created_at: new Date().toISOString(),
@@ -340,8 +451,11 @@ function StoriesBar({ currentUser }) {
       const { data, error } = await supabase.from('statuses').insert(payload).select().single()
       if (error) console.error('Story insert error:', error.message)
       if (data) {
-        const enriched = { ...data, _user: { id: currentUser.id, full_name: currentUser.full_name, avatar_url: currentUser.avatar_url } }
-        setStories(prev => [enriched, ...prev.filter(s => s.created_by !== currentUser.id)])
+        const enriched = {
+          ...data,
+          _user: { id: currentUser.id, full_name: currentUser.full_name, avatar_url: currentUser.avatar_url },
+        }
+        setAllStories(prev => [enriched, ...prev])
         setToast('Story added!')
       }
     } catch (err) { console.error(err) }
@@ -349,76 +463,106 @@ function StoriesBar({ currentUser }) {
     e.target.value = ''
   }
 
-  const myStory = stories.find(s => s.created_by === currentUser?.id)
-  const others = stories.filter(s => s.created_by !== currentUser?.id)
-  const getName = s => s._user?.full_name ?? 'User'
-  const getAvatar = s => s._user?.avatar_url ?? null
+  // ── Derived state ──────────────────────────────────────────────────────────
+  const myStories    = allStories.filter(s => s.created_by === currentUser?.id)
+  const hasMyStory   = myStories.length > 0
+  const myAvatar     = currentUser?.avatar_url ?? null
+  const myInitial    = currentUser?.full_name?.[0] ?? '+'
+
+  // Group others by user, preserving first-seen order
+  const otherGroups = useMemo(() => {
+    const seen = new Map()
+    allStories
+      .filter(s => s.created_by !== currentUser?.id)
+      .forEach(s => {
+        if (!seen.has(s.created_by)) seen.set(s.created_by, [])
+        seen.get(s.created_by).push(s)
+      })
+    return [...seen.values()]
+  }, [allStories, currentUser?.id])
+
+  // ── Open viewer helpers ────────────────────────────────────────────────────
+  const openMyStories = () => {
+    if (hasMyStory) { setViewerList(myStories); setViewerStart(0) }
+    else fileRef.current?.click()
+  }
+
+  const openOtherGroup = (group) => {
+    setViewerList(group)
+    setViewerStart(0)
+  }
+
+  const getGroupAvatar = g => g[0]?._user?.avatar_url ?? null
+  const getGroupName   = g => g[0]?._user?.full_name ?? 'User'
 
   return (
     <>
       {toast && <Toast message={toast} onDone={() => setToast('')} />}
+
       <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
-        {/* My story */}
-        <button onClick={() => fileRef.current?.click()} className="flex flex-col items-center gap-1.5 flex-shrink-0 group">
-          <div className={`relative w-16 h-16 rounded-full ${myStory ? 'p-0.5 bg-gradient-to-tr from-purple-600 to-pink-500' : 'border-2 border-dashed border-border'} overflow-visible flex items-center justify-center transition-all`}>
-            <div className="w-full h-full rounded-full bg-muted overflow-hidden flex items-center justify-center">
-              {currentUser?.avatar_url
-                ? <img src={currentUser.avatar_url} alt="" className="w-full h-full object-cover" />
-                : <span className="text-xl font-bold text-primary">{currentUser?.full_name?.[0] ?? '+'}</span>}
-              {uploading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full"><Loader2 className="w-5 h-5 text-white animate-spin" /></div>}
-            </div>
-            {!myStory && !uploading && (
-              <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center border-2 border-background z-10">
-                <Plus className="w-3 h-3 text-white" />
+        {/* ── My story circle ── */}
+        <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+          <div className="relative">
+            <button
+              onClick={openMyStories}
+              className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${
+                hasMyStory
+                  ? 'p-0.5 bg-gradient-to-tr from-purple-600 to-pink-500'
+                  : 'border-2 border-dashed border-border'
+              }`}
+            >
+              <div className="w-full h-full rounded-full bg-muted overflow-hidden flex items-center justify-center border-2 border-background">
+                {myAvatar
+                  ? <img src={myAvatar} alt="" className="w-full h-full object-cover" />
+                  : <span className="text-xl font-bold text-primary">{myInitial}</span>}
+                {uploading && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
+                    <Loader2 className="w-5 h-5 text-white animate-spin" />
+                  </div>
+                )}
               </div>
-            )}
+            </button>
+            {/* "+" add button — always visible so user can add another story */}
+            <button
+              onClick={e => { e.stopPropagation(); fileRef.current?.click() }}
+              className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-primary border-2 border-background flex items-center justify-center z-10 hover:bg-primary/80 transition-colors"
+            >
+              <Plus className="w-3 h-3 text-white" />
+            </button>
           </div>
           <span className="text-xs text-muted-foreground w-16 text-center truncate">Your story</span>
-        </button>
+        </div>
+
         <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
 
-        {others.map(story => (
-          <button key={story.id} onClick={() => setViewing(story)} className="flex flex-col items-center gap-1.5 flex-shrink-0">
+        {/* ── Other users' story circles ── */}
+        {otherGroups.map((group, i) => (
+          <button
+            key={group[0]?.id ?? i}
+            onClick={() => openOtherGroup(group)}
+            className="flex flex-col items-center gap-1.5 flex-shrink-0"
+          >
             <div className="w-16 h-16 rounded-full p-0.5 bg-gradient-to-tr from-purple-600 to-pink-500">
               <div className="w-full h-full rounded-full bg-muted overflow-hidden flex items-center justify-center border-2 border-background">
-                {getAvatar(story)
-                  ? <img src={getAvatar(story)} alt="" className="w-full h-full object-cover" />
-                  : <span className="text-sm font-bold text-primary">{getName(story)[0] ?? '?'}</span>}
+                {getGroupAvatar(group)
+                  ? <img src={getGroupAvatar(group)} alt="" className="w-full h-full object-cover" />
+                  : <span className="text-sm font-bold text-primary">{getGroupName(group)[0] ?? '?'}</span>}
               </div>
             </div>
-            <span className="text-xs text-muted-foreground w-16 text-center truncate">{getName(story).split(' ')[0]}</span>
+            <span className="text-xs text-muted-foreground w-16 text-center truncate">
+              {getGroupName(group).split(' ')[0]}
+            </span>
           </button>
         ))}
       </div>
 
-      {viewing && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center" onClick={() => setViewing(null)}>
-          <button className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white z-10"><X className="w-5 h-5" /></button>
-          <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
-            <div className="w-9 h-9 rounded-full overflow-hidden">
-              {getAvatar(viewing)
-                ? <img src={getAvatar(viewing)} alt="" className="w-full h-full object-cover" />
-                : <div className="w-full h-full bg-primary/30 flex items-center justify-center text-white text-sm">{getName(viewing)[0]}</div>}
-            </div>
-            <span className="text-white font-semibold text-sm">{getName(viewing)}</span>
-          </div>
-          {viewing.media_type === 'video'
-            ? <video src={viewing.media_url} autoPlay controls className="max-h-[85vh] max-w-[90vw] object-contain" onClick={e => e.stopPropagation()} />
-            : viewing.media_url
-              ? <img src={viewing.media_url} alt="" className="max-h-[85vh] max-w-[90vw] object-contain" onClick={e => e.stopPropagation()} />
-              : (
-                <div className="w-80 h-[500px] rounded-2xl flex items-center justify-center p-8 text-center"
-                  style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}
-                  onClick={e => e.stopPropagation()}>
-                  <p className="text-white text-xl font-bold leading-snug">{viewing.caption}</p>
-                </div>
-              )}
-          {viewing.caption && viewing.media_url && (
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/60 text-white px-4 py-2 rounded-xl text-sm max-w-[80%] text-center backdrop-blur-sm">
-              {viewing.caption}
-            </div>
-          )}
-        </div>
+      {/* ── Story viewer ── */}
+      {viewerList && (
+        <StoryViewer
+          storyList={viewerList}
+          startIndex={viewerStart}
+          onClose={() => { setViewerList(null); setViewerStart(0) }}
+        />
       )}
     </>
   )
