@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,7 +45,7 @@ function AlertForm({ user, onSaved, onClose }) {
 
   const handleSave = async () => {
     setSaving(true);
-    await base44.entities.JobAlert.create({
+    await supabase.from('job_alerts').insert({
       user_id: user.id,
       user_email: user.email,
       user_name: user.full_name,
@@ -148,17 +148,17 @@ export default function JobAlertPanel({ user }) {
 
   const { data: alerts = [], isLoading } = useQuery({
     queryKey: ['job-alerts', user?.id],
-    queryFn: () => base44.entities.JobAlert.filter({ user_id: user.id }),
+    queryFn: async () => { const { data } = await supabase.from('jobAlerts').select('*').eq('user_id', user.id); return data ?? []; },
     enabled: !!user,
   });
 
   const handleDelete = async (id) => {
-    await base44.entities.JobAlert.delete(id);
+    await supabase.from('jobAlerts').delete().eq('id', id);
     queryClient.invalidateQueries({ queryKey: ['job-alerts', user?.id] });
   };
 
   const handleToggle = async (alert) => {
-    await base44.entities.JobAlert.update(alert.id, { is_active: !alert.is_active });
+    (await supabase.from('jobAlerts').update({ is_active: !alert.is_active }).eq('id', alert.id).select().single()).data;
     queryClient.invalidateQueries({ queryKey: ['job-alerts', user?.id] });
   };
 

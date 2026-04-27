@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Star, MessageSquare, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,7 +32,7 @@ function StarRating({ value, onChange, size = 'md' }) {
 export function UserRatingSummary({ userId }) {
   const { data: reviews = [] } = useQuery({
     queryKey: ['user-reviews', userId],
-    queryFn: () => base44.entities.UserReview.filter({ reviewee_id: userId }),
+    queryFn: async () => { const { data } = await supabase.from('userReviews').select('*').eq('reviewee_id', userId); return data ?? []; },
     enabled: !!userId,
   });
   if (!reviews.length) return null;
@@ -56,7 +56,7 @@ export default function UserReviewsSection({ profileUserId, currentUser, isOwnPr
 
   const { data: reviews = [], isLoading } = useQuery({
     queryKey: ['user-reviews', profileUserId],
-    queryFn: () => base44.entities.UserReview.filter({ reviewee_id: profileUserId }, '-created_date', 20),
+    queryFn: async () => { const { data } = await supabase.from('userReviews').select('*').eq('reviewee_id', profileUserId).order('created_at', { ascending: false }).limit(20); return data ?? []; },
     enabled: !!profileUserId,
   });
 
@@ -68,14 +68,14 @@ export default function UserReviewsSection({ profileUserId, currentUser, isOwnPr
   const handleSubmit = async () => {
     if (!rating) return;
     setSaving(true);
-    await base44.entities.UserReview.create({
+    (await supabase.from('userReviews').insert({
       reviewer_id: currentUser.id,
       reviewer_name: currentUser.full_name,
       reviewer_avatar: currentUser.avatar_url || '',
       reviewee_id: profileUserId,
       job_title: '',
       rating,
-      feedback: feedback.trim() || undefined,
+      feedback: feedback.trim().select().single()).data || undefined,
       relationship,
     });
     queryClient.invalidateQueries({ queryKey: ['user-reviews', profileUserId] });
@@ -86,7 +86,7 @@ export default function UserReviewsSection({ profileUserId, currentUser, isOwnPr
   };
 
   const handleDelete = async (id) => {
-    await base44.entities.UserReview.delete(id);
+    await supabase.from('userReviews').delete().eq('id', id);
     queryClient.invalidateQueries({ queryKey: ['user-reviews', profileUserId] });
   };
 

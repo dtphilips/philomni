@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,7 +38,7 @@ export default function BrandVoiceTrainer({ isOpen, onClose, onSuccess }) {
     if (!file) return;
 
     try {
-      const response = await base44.integrations.Core.UploadFile({ file });
+      const response = await (async () => { const _uPath = `uploads/${Date.now()}-${file.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, file, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
       handleExampleChange(index, 'file_url', response.file_url);
       toast.success('File uploaded');
     } catch (error) {
@@ -53,17 +54,17 @@ export default function BrandVoiceTrainer({ isOpen, onClose, onSuccess }) {
 
     setLoading(true);
     try {
-      const user = await base44.auth.me();
+      const user = user /* useAuth() */;
       const keywordList = keywords.split(',').map(k => k.trim()).filter(k => k);
 
-      await base44.entities.BrandVoice.create({
+      (await supabase.from('brandVoices').insert({
         user_id: user.id,
         name,
         description,
         tone: tone || 'Not specified',
         brand_guidelines: guidelines,
         keywords: keywordList,
-        examples: examples.filter(e => e.content || e.file_url)
+        examples: examples.filter(e => e.content || e.file_url).select().single()).data
       });
 
       toast.success('Brand voice trained successfully!');

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ export default function PostComments({ postId, user }) {
 
   const { data: comments = [], isLoading } = useQuery({
     queryKey: ['comments', postId],
-    queryFn: () => base44.entities.Comment.filter({ post_id: postId }, '-created_date', 50),
+    queryFn: async () => { const { data } = await supabase.from('comments').select('*').eq('post_id', postId).order('created_at', { ascending: false }).limit(50); return data ?? []; },
   });
 
   const handleSubmit = async () => {
@@ -22,21 +22,21 @@ export default function PostComments({ postId, user }) {
     setSubmitting(true);
 
     // Extract mentioned users
-    const allUsers = await base44.asServiceRole.entities.User.list('', 100);
+    const allUsers = await supabase.from('users').select('*').limit(100).then(r => r.data ?? []);
     const mentionedUserIds = extractMentionedUsers(newComment, allUsers);
 
-    const comment = await base44.entities.Comment.create({
+    const { data: comment } = await supabase.from('comments').insert({
       post_id: postId,
       author_id: user.id,
       author_name: user.full_name,
       author_avatar: user.avatar_url || '',
       content: newComment.trim(),
       mentioned_user_ids: mentionedUserIds,
-    });
+    }).select().single();
 
     // Send mention notifications
     for (const userId of mentionedUserIds) {
-      await base44.entities.Notification.create({
+      await supabase.from('notifications').insert({
         user_id: userId,
         type: 'mention',
         title: `${user.full_name} mentioned you in a comment`,
@@ -47,17 +47,9 @@ export default function PostComments({ postId, user }) {
     }
 
     // Get post author and send comment notification
-    const post = (await base44.entities.Post.filter({ id: postId }))[0];
+    const post = ((await supabase.from('posts').select('*').eq('id', postId)).data ?? [])[0];
     if (post && post.author_id !== user.id) {
-      await base44.functions.invoke('sendCommentNotification', {
-        postAuthorId: post.author_id,
-        commenterName: user.full_name,
-        commenterAvatar: user.avatar_url || '',
-        commenterId: user.id,
-        postId: postId,
-        commentPreview: newComment.substring(0, 100),
-      });
-      await base44.entities.Post.update(postId, { comment_count: (post.comment_count || 0) + 1 });
+      await supabase.from('posts').update({ comment_count: (post.comment_count || 0) + 1 }).eq('id', postId);
     }
     setNewComment('');
     setSubmitting(false);

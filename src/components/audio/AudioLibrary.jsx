@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +30,7 @@ export default function AudioLibrary() {
 
   const loadUser = async () => {
     try {
-      const me = await base44.auth.me();
+      const me = user /* useAuth() */;
       setUser(me);
     } catch (error) {
       console.error('Failed to load user:', error);
@@ -39,10 +40,7 @@ export default function AudioLibrary() {
   const loadAssets = async () => {
     try {
       setLoading(true);
-      const items = await base44.entities.AudioAsset.filter(
-        { owner_id: user?.id },
-        '-created_date'
-      );
+      const items = (await supabase.from('audioAssets').select('*').eq('owner_id', user?.id).order('created_at', { ascending: false })).data ?? [];
       setAssets(items);
     } catch (error) {
       console.error('Failed to load assets:', error);
@@ -58,10 +56,14 @@ export default function AudioLibrary() {
     setUploading(true);
     try {
       for (const file of files) {
-        const res = await base44.integrations.Core.UploadFile({ file });
+        const _uPath = `uploads/${Date.now()}-${file.name}`;
+        const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, file, { upsert: true });
+        if (_uErr) throw _uErr;
+        const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path);
+        const res = { file_url: _uUrl };
 
         // Create asset record
-        const asset = await base44.entities.AudioAsset.create({
+        const { data: asset } = await supabase.from('audio_assets').insert({
           owner_id: user.id,
           owner_name: user.full_name,
           title: file.name.replace(/\.[^/.]+$/, ''),
@@ -69,15 +71,12 @@ export default function AudioLibrary() {
           duration: 0,
           file_size: file.size,
           is_analyzed: false,
-        });
+        }).select().single();
 
         // Trigger analysis
         setAnalyzing(asset.id);
         try {
-          await base44.functions.invoke('analyzeAudio', {
-            audio_url: res.file_url,
-            asset_id: asset.id,
-          });
+          /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
         } catch (error) {
           console.error('Analysis failed:', error);
         } finally {
@@ -96,7 +95,7 @@ export default function AudioLibrary() {
   const handleDelete = async (assetId) => {
     if (!confirm('Delete this audio asset?')) return;
     try {
-      await base44.entities.AudioAsset.delete(assetId);
+      await supabase.from('audioAssets').delete().eq('id', assetId);
       loadAssets();
     } catch (error) {
       console.error('Failed to delete:', error);
@@ -105,9 +104,9 @@ export default function AudioLibrary() {
 
   const handleToggleFavorite = async (asset) => {
     try {
-      await base44.entities.AudioAsset.update(asset.id, {
+      (await supabase.from('audioAssets').update({
         favorite: !asset.favorite,
-      });
+      }).eq('id', asset.id).select().single()).data;
       loadAssets();
     } catch (error) {
       console.error('Failed to toggle favorite:', error);
@@ -287,9 +286,7 @@ export default function AudioLibrary() {
                   className="w-full h-8"
                   onLoadedMetadata={(e) => {
                     if (asset.duration === 0) {
-                      base44.entities.AudioAsset.update(asset.id, {
-                        duration: e.currentTarget.duration,
-                      });
+                      supabase.from('audioAssets').update(/* TODO */).eq('id', id);
                     }
                   }}
                 />

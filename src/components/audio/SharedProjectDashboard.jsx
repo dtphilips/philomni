@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -27,9 +27,7 @@ export default function SharedProjectDashboard({ projectId, isOpen, onClose }) {
   const loadProject = async () => {
     try {
       setLoading(true);
-      const projects = await base44.entities.SharedAudioProject.filter({
-        id: projectId
-      });
+      const projects = (await supabase.from('sharedAudioProjects').select('*').eq('id', projectId)).data ?? [];
 
       if (projects.length > 0) {
         setProject(projects[0]);
@@ -51,9 +49,9 @@ export default function SharedProjectDashboard({ projectId, isOpen, onClose }) {
 
     const updatedMembers = project.team_members.filter(m => m.user_id !== userId);
     try {
-      await base44.entities.SharedAudioProject.update(projectId, {
+      (await supabase.from('sharedAudioProjects').update({
         team_members: updatedMembers
-      });
+      }).eq('id', projectId).select().single()).data;
       await loadProject();
     } catch (error) {
       console.error('Failed to remove member:', error);
@@ -72,9 +70,9 @@ export default function SharedProjectDashboard({ projectId, isOpen, onClose }) {
 
     const updatedFiles = project.shared_files.filter(f => f.id !== fileId);
     try {
-      await base44.entities.SharedAudioProject.update(projectId, {
+      (await supabase.from('sharedAudioProjects').update({
         shared_files: updatedFiles
-      });
+      }).eq('id', projectId).select().single()).data;
       await loadProject();
     } catch (error) {
       console.error('Failed to delete file:', error);

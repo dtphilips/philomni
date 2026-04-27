@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,13 +14,13 @@ export default function CollaboratorsList({ itemId, itemType, isOwner }) {
     queryFn: async () => {
       const query = {};
       query[projectField] = itemId;
-      return base44.entities[entityName].filter(query);
+      return supabase.from(entityName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '') + 's').select('*') /* TODO: add filter from query */;
     }
   });
 
   const handleRemove = async (collaboratorId) => {
     try {
-      await base44.entities[entityName].delete(collaboratorId);
+      await supabase.from(entityName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '') + 's').delete().eq('id', collaboratorId);
       toast.success('Collaborator removed');
       refetch();
     } catch (error) {

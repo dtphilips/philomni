@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -28,11 +28,7 @@ export default function CollaborationProjectCard({ project, currentUserId }) {
     setIsSendingRequest(true);
     try {
       // Create a follow/connection request
-      await base44.functions.invoke('sendFollowNotification', {
-        followed_user_id: project.owner_id,
-        followed_user_name: project.owner_name,
-        notification_type: 'collaboration_request'
-      });
+      /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
 
       toast.success(`Connection request sent to ${project.owner_name}!`);
     } catch (error) {
@@ -46,20 +42,18 @@ export default function CollaborationProjectCard({ project, currentUserId }) {
   const handleSendMessage = async () => {
     try {
       // Open/create conversation
-      const conversations = await base44.entities.Conversation.filter({
-        participant_ids: currentUserId
-      });
+      const conversations = (await supabase.from('conversations').select('*').eq('participant_ids', currentUserId)).data ?? [];
 
       let conversation = conversations.find(c =>
         c.participant_ids.includes(project.owner_id)
       );
 
       if (!conversation) {
-        conversation = await base44.entities.Conversation.create({
+        conversation = (await supabase.from('conversations').insert({
           participant_ids: [currentUserId, project.owner_id],
           participant_names: [currentUserId, project.owner_name],
           is_group: false
-        });
+        }).select().single()).data;
       }
 
       // Navigate to messages would happen here in a real app
@@ -75,7 +69,7 @@ export default function CollaborationProjectCard({ project, currentUserId }) {
     try {
       setIsLiked(!isLiked);
       // Increment like count
-      await base44.entities.PortfolioProject.update(project.id, {
+      await supabase.from('portfolio_projects').update({
         like_count: (project.like_count || 0) + (isLiked ? -1 : 1)
       });
     } catch (error) {

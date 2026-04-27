@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -41,10 +40,7 @@ export default function PostAIAssistant({ content, onApply, hashtags = [] }) {
     
     setLoading(true);
     try {
-      const response = await base44.functions.invoke('aiPostAssistant', {
-        action,
-        content,
-        hashtags: hashtags.filter(h => h.trim()),
+      const response = /* TODO: migrate base44.functions.invoke */ Promise.resolve(null)),
         audience: audience || null,
       });
       setResult(response.data.result);

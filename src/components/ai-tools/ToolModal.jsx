@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -45,7 +44,7 @@ export default function ToolModal({ isOpen, onClose, tool, isPro }) {
   });
 
   const llm = async (prompt) => {
-    const r = await base44.integrations.Core.InvokeLLM({ prompt });
+    const r = await (async () => { const _llmRes = await fetch('/api/llm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: { prompt } }) }); const _llmData = await _llmRes.json(); return { result: _llmData.result ?? '' }; })();
     return extractText(r);
   };
 
@@ -54,7 +53,7 @@ export default function ToolModal({ isOpen, onClose, tool, isPro }) {
     if (!file) return;
     setFileLoading(true);
     try {
-      const res = await base44.integrations.Core.UploadFile({ file });
+      const res = await (async () => { const _uPath = `uploads/${Date.now()}-${file.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, file, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
       setProFields(prev => ({ ...prev, [fieldName]: res.file_url }));
     } catch { toast.error('Upload failed'); }
     setFileLoading(false);
@@ -73,7 +72,7 @@ Business: ${p.businessName} | Industry: ${p.industry} | Product: ${p.productDesc
 Tone: ${p.tone}${p.location ? ` | Setting: ${p.location}` : ''}
 ${input ? `Notes: ${input}` : ''}
 Return ONLY the image prompt (1–2 vivid sentences).`);
-        const img = await base44.integrations.Core.GenerateImage({ prompt: promptText });
+        const img = await (async () => { const _r = await fetch('/api/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: promptText }) }); return await _r.json(); })();
         setGeneratedImage(img.url);
         setResult('Image generated. Download below.');
 

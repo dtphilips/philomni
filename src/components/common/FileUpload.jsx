@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Upload, X, Loader2, File, Image, FileText, Music } from 'lucide-react';
@@ -85,7 +85,7 @@ export default function FileUpload({ onFilesSelected, maxFiles = 5, className = 
 
     try {
       for (const fileObj of files) {
-        const { file_url } = await base44.integrations.Core.UploadFile({ file: fileObj.file });
+        const { file_url } = await (async () => { const _uPath = `uploads/${Date.now()}-${fileObj.file.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, fileObj.file, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
         uploadedUrls.push({
           url: file_url,
           name: fileObj.file.name,

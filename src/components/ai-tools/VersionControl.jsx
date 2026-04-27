@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -16,10 +16,10 @@ export default function VersionControl({ contentId, contentType, currentTitle, o
   const { data: versions = [] } = useQuery({
     queryKey: ['versions', contentId],
     queryFn: async () => {
-      return base44.entities.ContentVersion.filter({
+      return supabase.from('contentVersions').select('*') /* TODO filter: {
         content_id: contentId,
         content_type: contentType
-      }, '-created_date');
+      }, '-created_date' */;
     },
     enabled: isOpen
   });
@@ -28,7 +28,7 @@ export default function VersionControl({ contentId, contentType, currentTitle, o
     queryKey: ['version-preview', previewId],
     queryFn: async () => {
       if (!previewId) return null;
-      const versionData = await base44.entities.ContentVersion.filter({ id: previewId });
+      const versionData = (await supabase.from('contentVersions').select('*').eq('id', previewId)).data ?? [];
       return versionData[0] || null;
     },
     enabled: !!previewId
@@ -40,18 +40,15 @@ export default function VersionControl({ contentId, contentType, currentTitle, o
       if (!version) return;
 
       // Mark all as non-current
-      const allVersions = await base44.entities.ContentVersion.filter({
-        content_id: contentId,
-        content_type: contentType
-      });
+      const allVersions = (await supabase.from('contentVersions').select('*').eq('content_id', contentId).eq('content_type', contentType)).data ?? [];
       
       for (const v of allVersions) {
         if (v.id !== versionId) {
-          await base44.entities.ContentVersion.update(v.id, { is_current: false });
+          (await supabase.from('contentVersions').update({ is_current: false }).eq('id', v.id).select().single()).data;
         }
       }
 
-      await base44.entities.ContentVersion.update(versionId, { is_current: true });
+      (await supabase.from('contentVersions').update({ is_current: true }).eq('id', versionId).select().single()).data;
       
       toast.success(`Reverted to version ${version.version_number}`);
       queryClient.invalidateQueries({ queryKey: ['versions'] });

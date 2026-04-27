@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { base44 } from '@/api/base44Client';
 import { Loader2, Mic, Square, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -45,7 +44,7 @@ export default function VoiceNoteRecorder({ timestamp, onRecordComplete, onCance
     try {
       setUploading(true);
       const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
-      const response = await base44.integrations.Core.UploadFile({ file });
+      const response = await (async () => { const _uPath = `uploads/${Date.now()}-${file.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, file, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
       onRecordComplete(response.file_url, blob.size);
     } catch (error) {
       console.error('Failed to upload voice note:', error);

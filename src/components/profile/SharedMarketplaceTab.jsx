@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Eye, GitFork } from 'lucide-react';
 import RatingStars from '@/components/creative/RatingStars';
@@ -11,17 +11,15 @@ export default function SharedMarketplaceTab({ userId }) {
   const { data: sharedProjects = [] } = useQuery({
     queryKey: ['user-marketplace-projects', userId],
     queryFn: async () => {
-      const projects = await base44.entities.SharedProject.filter(
+      const projects = await supabase.from('shared_projects').select('*') /* TODO filter: 
         { owner_id: userId, marketplace_type: { $ne: 'none' } },
         '-created_date',
         50
-      );
+       */;
 
       const withRatings = await Promise.all(
         projects.map(async (proj) => {
-          const ratings = await base44.entities.TemplateRating.filter({
-            project_id: proj.id,
-          });
+          const ratings = (await supabase.from('template_ratings').select('*').eq('project_id', proj.id)).data ?? [];
           const avgRating =
             ratings.length > 0
               ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
@@ -37,17 +35,15 @@ export default function SharedMarketplaceTab({ userId }) {
   const { data: sharedVideos = [] } = useQuery({
     queryKey: ['user-marketplace-videos', userId],
     queryFn: async () => {
-      const videos = await base44.entities.SharedVideo.filter(
+      const videos = await supabase.from('shared_videos').select('*') /* TODO filter: 
         { owner_id: userId, marketplace_type: { $ne: 'none' } },
         '-created_date',
         50
-      );
+       */;
 
       const withRatings = await Promise.all(
         videos.map(async (vid) => {
-          const ratings = await base44.entities.VideoRating.filter({
-            video_id: vid.id,
-          });
+          const ratings = (await supabase.from('video_ratings').select('*').eq('video_id', vid.id)).data ?? [];
           const avgRating =
             ratings.length > 0
               ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length

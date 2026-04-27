@@ -1,24 +1,24 @@
 import React, { useMemo } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import PostCard from '@/components/feed/PostCard';
 import { Bookmark } from 'lucide-react';
 
 export default function SavedPostsTab({ userId, currentUser }) {
   const { data: bookmarks = [] } = useQuery({
     queryKey: ['user-bookmarks', userId],
-    queryFn: () => base44.entities.Bookmark.filter({ user_id: userId }),
+    queryFn: async () => { const { data } = await supabase.from('bookmarks').select('*').eq('user_id', userId); return data ?? []; },
     enabled: !!userId,
   });
 
   const { data: posts = [] } = useQuery({
     queryKey: ['all-posts-for-saved'],
-    queryFn: () => base44.entities.Post.list('-created_date', 500),
+    queryFn: () => supabase.from('posts').select('*'),
   });
 
   const { data: likes = [] } = useQuery({
     queryKey: ['user-likes', userId],
-    queryFn: () => base44.entities.Like.filter({ user_id: userId }),
+    queryFn: async () => { const { data } = await supabase.from('likes').select('*').eq('user_id', userId); return data ?? []; },
     enabled: !!userId,
   });
 

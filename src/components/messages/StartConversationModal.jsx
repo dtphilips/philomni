@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,7 +12,7 @@ export default function StartConversationModal({ user, open, onOpenChange, onCon
 
   const { data: allUsers = [], isLoading } = useQuery({
     queryKey: ['users'],
-    queryFn: () => base44.asServiceRole.entities.User.list('', 100),
+    queryFn: () => supabase.from('users').select('*').limit(100).then(r => r.data ?? []),
     enabled: open,
   });
 
@@ -25,22 +25,20 @@ export default function StartConversationModal({ user, open, onOpenChange, onCon
   const startConversationMutation = useMutation({
     mutationFn: async (selectedUser) => {
       // Check if conversation already exists
-      const existing = await base44.entities.Conversation.filter({
-        participant_ids: [user.id, selectedUser.id],
-      });
+      const existing = (await supabase.from('conversations').select('*').eq('participant_ids', [user.id)).data ?? [];
 
       if (existing.length > 0) {
         return existing[0];
       }
 
       // Create new conversation
-      return await base44.entities.Conversation.create({
+      return (await supabase.from('conversations').insert({
         participant_ids: [user.id, selectedUser.id],
         participant_names: [user.full_name, selectedUser.full_name],
         participant_avatars: [user.avatar_url || '', selectedUser.avatar_url || ''],
         is_group: false,
         unread_count: 0,
-      });
+      }).select().single()).data;
     },
     onSuccess: (conversation) => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });

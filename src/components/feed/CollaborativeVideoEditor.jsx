@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Share2, Lock, Eye, Edit } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 
 export default function CollaborativeVideoEditor({ isOpen, onClose, projectId }) {
@@ -18,11 +18,11 @@ export default function CollaborativeVideoEditor({ isOpen, onClose, projectId })
     if (!inviteEmail.trim()) return;
     setIsInviting(true);
     try {
-      await base44.entities.ProjectCollaborator.create({
+      (await supabase.from('projectCollaborators').insert({
         project_id: projectId,
         collaborator_email: inviteEmail,
         permission: invitePermission
-      });
+      }).select().single()).data;
       setCollaborators([
         ...collaborators,
         { email: inviteEmail, permission: invitePermission, status: 'pending' }

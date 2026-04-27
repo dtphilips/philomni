@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,7 +16,7 @@ export default function InviteCollaboratorModal({ workspace, open, onOpenChange 
 
   const { data: allUsers = [], isLoading } = useQuery({
     queryKey: ['users'],
-    queryFn: () => base44.asServiceRole.entities.User.list('', 100),
+    queryFn: () => supabase.from('users').select('*').limit(100).then(r => r.data ?? []),
     enabled: open,
   });
 
@@ -34,12 +34,12 @@ export default function InviteCollaboratorModal({ workspace, open, onOpenChange 
         },
       ];
 
-      await base44.entities.CollaborativeWorkspace.update(workspace.id, {
+      (await supabase.from('collaborative_workspaces').update({
         collaborators: updatedCollaborators,
-      });
+      }).eq('id', workspace.id).select().single()).data;
 
       // Send invitation notification
-      await base44.entities.Notification.create({
+      (await supabase.from('notifications').insert({
         user_id: userId,
         type: 'message',
         title: `Invited to collaborate on "${workspace.name}"`,
@@ -47,7 +47,7 @@ export default function InviteCollaboratorModal({ workspace, open, onOpenChange 
         from_user_id: workspace.owner_id,
         link: `/collaborative/${workspace.id}`,
         read: false,
-      });
+      }).select().single()).data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workspaces'] });

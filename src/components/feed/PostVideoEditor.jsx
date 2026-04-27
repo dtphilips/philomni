@@ -6,7 +6,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Music, Type, Loader2, Zap, Gauge, Scissors, Smile, RotateCw, Square, Wand2, Users, Subtitles } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import VideoTransitions from './VideoTransitions';
 import CollaborativeVideoEditor from './CollaborativeVideoEditor';
@@ -64,7 +63,7 @@ export default function PostVideoEditor({ isOpen, onClose, videoUrl, onSave, pro
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const response = await base44.integrations.Core.UploadFile({ file });
+      const response = await (async () => { const _uPath = `uploads/${Date.now()}-${file.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, file, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
       setMusicUrl(response.file_url);
       toast.success('Music added');
     } catch (error) {

@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
 import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -94,7 +93,7 @@ export default function CreatePost({ user }) {
     setRewriting(true);
     setRewriteAction(action.id);
     try {
-      const res = await base44.integrations.Core.InvokeLLM({ prompt: action.prompt(plain) });
+      const res = await (async () => { const _llmRes = await fetch('/api/llm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: action.prompt(plain) }) }); const _llmData = await _llmRes.json(); return { result: _llmData.result ?? '' }; })();
       const newText = typeof res === 'string' ? res : (res?.result ?? res?.text ?? '');
       if (newText) setContent(newText);
     } catch {
@@ -112,7 +111,7 @@ export default function CreatePost({ user }) {
     for (let i = 0; i < mediaFiles.length; i++) {
       const file = mediaFiles[i];
       try {
-        const res = await base44.integrations.Core.UploadFile({ file });
+        const res = await (async () => { const _uPath = `uploads/${Date.now()}-${file.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, file, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
         mediaUrls.push(res.file_url);
         if (file.type?.startsWith('video') && !thumbnailUrl) {
           try {
@@ -129,7 +128,7 @@ export default function CreatePost({ user }) {
                   canvas.getContext('2d').drawImage(video, 0, 0);
                   canvas.toBlob(async (blob) => {
                     if (blob) {
-                      const t = await base44.integrations.Core.UploadFile({ file: blob });
+                      const t = await (async () => { const _uPath = `uploads/${Date.now()}-${blob.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, blob, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
                       thumbnailUrl = t.file_url;
                     }
                     resolve();
@@ -205,12 +204,12 @@ export default function CreatePost({ user }) {
       const postData = await buildPostData('public', fullUser);
       console.log('=== CALLING SUPABASE INSERT ===');
       console.log('Payload:', JSON.stringify(postData));
-      const post = await base44.entities.Post.create(postData);
+      const post = (await supabase.from('posts').insert(postData).select().single()).data;
       for (const uid of (postData.mentioned_user_ids || [])) {
-        base44.entities.Notification.create({
+        supabase.from('notifications').insert({
           user_id: uid, type: 'mention',
           title: `${user.full_name} mentioned you`,
-          message: postData.content.substring(0, 100),
+          message: postData.content.substring(0, 100).select().single(),
           related_id: post.id, read: false,
         }).catch(() => {});
       }
@@ -229,7 +228,7 @@ export default function CreatePost({ user }) {
     if (!content.trim() && mediaFiles.length === 0) return;
     setSavingDraft(true);
     try {
-      await base44.entities.Post.create(await buildPostData('private', user));
+      (await supabase.from('posts').insert(await buildPostData('private', user).select().single()).data);
       reset();
       queryClient.invalidateQueries({ queryKey: ['user-posts'] });
       toast.success('Draft saved!');

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -33,25 +33,25 @@ export default function DiscussionBoard({ user }) {
 
   const { data: posts = [], isLoading } = useQuery({
     queryKey: ['discussion-posts', activeBoard],
-    queryFn: () => base44.entities.DiscussionPost.filter({ board: activeBoard }, '-created_date', 30),
+    queryFn: async () => { const { data } = await supabase.from('discussionPosts').select('*').eq('board', activeBoard).order('created_at', { ascending: false }).limit(30); return data ?? []; },
   });
 
   const { data: replies = [], isLoading: repliesLoading } = useQuery({
     queryKey: ['discussion-replies', activePost?.id],
-    queryFn: () => base44.entities.DiscussionReply.filter({ post_id: activePost.id }, 'created_date', 100),
+    queryFn: async () => { const { data } = await supabase.from('discussionReplys').select('*').eq('post_id', activePost.id).order('created_at', { ascending: true }).limit(100); return data ?? []; },
     enabled: !!activePost,
   });
 
   const handleCreatePost = async () => {
     if (!newTitle.trim() || !newContent.trim()) return;
     setSubmitting(true);
-    await base44.entities.DiscussionPost.create({
+    (await supabase.from('discussionPosts').insert({
       board: newBoard,
       author_id: user.id,
       author_name: user.full_name,
       author_avatar: user.avatar_url || '',
       author_role: user.role || '',
-      title: newTitle.trim(),
+      title: newTitle.trim().select().single()).data,
       content: newContent.trim(),
     });
     setNewTitle(''); setNewContent(''); setShowNew(false);
@@ -63,16 +63,16 @@ export default function DiscussionBoard({ user }) {
   const handleReply = async () => {
     if (!replyContent.trim() || !activePost) return;
     setSubmitting(true);
-    await base44.entities.DiscussionReply.create({
+    (await supabase.from('discussionReplys').insert({
       post_id: activePost.id,
       author_id: user.id,
       author_name: user.full_name,
       author_avatar: user.avatar_url || '',
       author_role: user.role || '',
-      content: replyContent.trim(),
+      content: replyContent.trim().select().single()).data,
     });
-    await base44.entities.DiscussionPost.update(activePost.id, {
-      reply_count: (activePost.reply_count || 0) + 1,
+    (await supabase.from('discussionPosts').update({
+      reply_count: (activePost.reply_count || 0).eq('id', activePost.id).select().single()).data + 1,
     });
     setReplyContent('');
     queryClient.invalidateQueries({ queryKey: ['discussion-replies', activePost.id] });

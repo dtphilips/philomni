@@ -7,7 +7,6 @@ import {
   CalendarDays, Store, Clapperboard, CirclePlay, Video, Mic,
   ArrowLeftRight, Music4, Radio
 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
 import NotificationCenter from '@/components/feed/NotificationCenter';
 import { Badge } from '@/components/ui/badge';
 
@@ -162,7 +161,7 @@ export default function Sidebar({ user }) {
         </Link>
 
         <button
-          onClick={() => base44.auth.logout()}
+          onClick={() => supabase.auth.signOut()}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors min-h-[44px]"
           style={{ color:'hsl(var(--muted-foreground))' }}
           onMouseEnter={e => { e.currentTarget.style.background='hsl(var(--muted))'; e.currentTarget.style.color='hsl(var(--foreground))'; }}

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Loader2 } from 'lucide-react';
 
 export default function MentionAutocomplete({ value, onChange, onMentionSelect, triggerRef }) {
@@ -11,7 +10,7 @@ export default function MentionAutocomplete({ value, onChange, onMentionSelect, 
 
   const { data: allUsers = [] } = useQuery({
     queryKey: ['allUsers'],
-    queryFn: () => base44.asServiceRole.entities.User.list('', 100),
+    queryFn: () => supabase.from('users').select('*').limit(100).then(r => r.data ?? []),
   });
 
   const filteredUsers = mentionQuery.length > 0

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Share2, Copy, MessageCircle, Radio } from 'lucide-react';
 import { toast } from 'sonner';
-import { base44 } from '@/api/base44Client';
 
 export default function ShareButton({ post, video }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -29,11 +30,11 @@ export default function ShareButton({ post, video }) {
   const handleShareToStatus = async () => {
     setLoading(true);
     try {
-      const user = await base44.auth.me();
+      // user from useAuth()
       const content = post?.content || video?.title || 'Check this out';
       const mediaUrl = video?.video_url || post?.media_urls?.[0];
 
-      await base44.entities.Status.create({
+      await supabase.from('statuses').insert({
         user_id: user.id,
         user_name: user.full_name,
         user_avatar: user.avatar_url || '',

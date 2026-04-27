@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MessageCircle, Play, Pause, Loader2, Trash2, Check, X } from 'lucide-react';
@@ -20,7 +21,7 @@ export default function TimelineVoiceNotes({ projectId, currentTime = 0, duratio
 
   const loadUser = async () => {
     try {
-      const me = await base44.auth.me();
+      const me = user /* useAuth() */;
       setUser(me);
     } catch (error) {
       console.error('Failed to load user:', error);
@@ -30,9 +31,7 @@ export default function TimelineVoiceNotes({ projectId, currentTime = 0, duratio
   const loadNotes = async () => {
     try {
       setLoading(true);
-      const voiceNotes = await base44.entities.AudioVoiceNote.filter({
-        project_id: projectId,
-      }, '-created_date');
+      const voiceNotes = (await supabase.from('audioVoiceNotes').select('*').eq('project_id', projectId).order('created_at', { ascending: false })).data ?? [];
       setNotes(voiceNotes);
     } catch (error) {
       console.error('Failed to load notes:', error);
@@ -43,13 +42,13 @@ export default function TimelineVoiceNotes({ projectId, currentTime = 0, duratio
 
   const handleAddNote = async (audioUrl, duration) => {
     try {
-      await base44.entities.AudioVoiceNote.create({
+      (await supabase.from('audioVoiceNotes').insert({
         project_id: projectId,
         author_id: user.id,
         author_name: user.full_name,
         author_avatar: user.avatar_url,
         audio_url: audioUrl,
-        timestamp: Math.round(recordingAt),
+        timestamp: Math.round(recordingAt).select().single()).data,
         duration: Math.round(duration),
       });
       setRecordingAt(null);
@@ -62,9 +61,9 @@ export default function TimelineVoiceNotes({ projectId, currentTime = 0, duratio
 
   const handleToggleResolve = async (noteId, isResolved) => {
     try {
-      await base44.entities.AudioVoiceNote.update(noteId, {
+      (await supabase.from('audioVoiceNotes').update({
         is_resolved: !isResolved,
-      });
+      }).eq('id', noteId).select().single()).data;
       loadNotes();
     } catch (error) {
       console.error('Failed to update note:', error);
@@ -73,7 +72,7 @@ export default function TimelineVoiceNotes({ projectId, currentTime = 0, duratio
 
   const handleDeleteNote = async (noteId) => {
     try {
-      await base44.entities.AudioVoiceNote.delete(noteId);
+      await supabase.from('audioVoiceNotes').delete().eq('id', noteId);
       loadNotes();
     } catch (error) {
       console.error('Failed to delete note:', error);

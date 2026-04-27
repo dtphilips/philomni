@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Send, ArrowLeft, Loader2, Paperclip, Video } from 'lucide-react';
@@ -18,7 +18,7 @@ export default function ChatWindow({ user, conversation, onBack }) {
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ['messages', conversation?.id],
-    queryFn: () => base44.entities.Message.filter({ conversation_id: conversation.id }, 'created_date', 200),
+    queryFn: async () => { const { data } = await supabase.from('messages').select('*').eq('conversation_id', conversation.id).order('created_at', { ascending: true }).limit(200); return data ?? []; },
     enabled: !!conversation,
     refetchInterval: 2000,
   });
@@ -27,7 +27,7 @@ export default function ChatWindow({ user, conversation, onBack }) {
   useEffect(() => {
     if (!conversation) return;
 
-    const unsubscribe = base44.entities.Message.subscribe((event) => {
+    const unsubscribe = supabase.from('messages') /* TODO: .subscribe((event) */ => {
       if (event.type === 'create' && event.data?.conversation_id === conversation.id) {
         queryClient.invalidateQueries({ queryKey: ['messages', conversation.id] });
       }
@@ -64,18 +64,18 @@ export default function ChatWindow({ user, conversation, onBack }) {
 
     const mediaUrls = attachedFiles.map(f => f.url || f.file_url);
 
-    await base44.entities.Message.create({
+    (await supabase.from('messages').insert({
       conversation_id: conversation.id,
       sender_id: user.id,
       sender_name: user.full_name,
       sender_avatar: user.avatar_url || '',
-      content: newMsg.trim(),
+      content: newMsg.trim().select().single()).data,
       media_urls: mediaUrls,
       read: false,
     });
 
-    await base44.entities.Conversation.update(conversation.id, {
-      last_message: newMsg.trim() || `Shared ${attachedFiles.length} file(s)`,
+    (await supabase.from('conversations').update({
+      last_message: newMsg.trim().eq('id', conversation.id).select().single()).data || `Shared ${attachedFiles.length} file(s)`,
       last_message_at: new Date().toISOString(),
       last_message_sender_id: user.id,
       unread_count: 0,
@@ -92,13 +92,10 @@ export default function ChatWindow({ user, conversation, onBack }) {
   const markMessagesAsRead = async () => {
     const unreadMessages = messages.filter(m => !m.read && m.sender_id !== user.id);
     for (const msg of unreadMessages) {
-      await base44.entities.Message.update(msg.id, { read: true });
+      (await supabase.from('messages').update({ read: true }).eq('id', msg.id).select().single()).data;
     }
     if (unreadMessages.length > 0) {
-      await base44.functions.invoke('updateUnreadCount', {
-        conversationId: conversation.id,
-        userId: user.id,
-      });
+      /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
     }
   };
 
@@ -133,14 +130,14 @@ export default function ChatWindow({ user, conversation, onBack }) {
               const slug = `philomni-dm-${Date.now()}`;
               const domain = import.meta.env.VITE_DAILY_DOMAIN || 'philomni';
               const roomUrl = `https://${domain}.daily.co/${slug}`;
-              await base44.entities.Message.create({
+              (await supabase.from('messages').insert({
                 conversation_id: conversation.id,
                 sender_id: user.id,
                 sender_name: user.full_name,
                 sender_avatar: user.avatar_url || '',
                 content: `📹 Video call started — join here: ${roomUrl}`,
                 read: false,
-              });
+              }).select().single()).data;
               window.open(roomUrl, '_blank', 'noopener,noreferrer');
             } catch (_) {}
           }}

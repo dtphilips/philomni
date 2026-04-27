@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -19,13 +19,12 @@ export default function ScheduledPublicationsTab({ userId }) {
 
   const { data: scheduled = [] } = useQuery({
     queryKey: ['scheduled-publications', userId],
-    queryFn: () =>
-      base44.entities.ScheduledPublication.filter({ user_id: userId }, '-scheduled_publish_date'),
+    queryFn: async () => { const { data } = await supabase.from('scheduled_publications').select('*').eq('user_id', userId).order('scheduled_publish_date', { ascending: false }); return data ?? []; },
     enabled: !!userId,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.ScheduledPublication.delete(id),
+    mutationFn: async (id) => { await supabase.from('scheduled_publications').delete().eq('id', id); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduled-publications', userId] });
     },

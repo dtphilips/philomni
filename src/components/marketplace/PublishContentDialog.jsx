@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,7 +34,7 @@ export default function PublishContentDialog({ isOpen, onClose }) {
     if (!file) return;
 
     try {
-      const response = await base44.integrations.Core.UploadFile({ file });
+      const response = await (async () => { const _uPath = `uploads/${Date.now()}-${file.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, file, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
       if (isThumbnail) {
         setThumbnailUrl(response.file_url);
         toast.success('Thumbnail uploaded');
@@ -54,10 +55,10 @@ export default function PublishContentDialog({ isOpen, onClose }) {
 
     setLoading(true);
     try {
-      const user = await base44.auth.me();
+      // user comes from useAuth()
       const tagList = tags.split(',').map(t => t.trim()).filter(t => t);
 
-      await base44.entities.CreatorContent.create({
+      await supabase.from('creator_content').insert({
         creator_id: user.id,
         creator_name: user.full_name,
         creator_avatar: user.avatar_url || '',

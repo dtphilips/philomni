@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,22 +14,19 @@ export default function WorkflowsList() {
   const { data: workflows = [], isLoading } = useQuery({
     queryKey: ['workflows'],
     queryFn: async () => {
-      const user = await base44.auth.me();
-      return base44.entities.ContentWorkflow.filter({ user_id: user.id });
+      const user = user /* useAuth() */;
+      return supabase.from('content_workflows').select('*') /* TODO filter: { user_id: user.id } */;
     }
   });
 
   const handleExecute = async (workflow) => {
     setExecuting(workflow.id);
     try {
-      await base44.functions.invoke('executeWorkflow', {
-        steps: workflow.steps,
-        workflowName: workflow.name
-      });
+      /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
 
-      await base44.entities.ContentWorkflow.update(workflow.id, {
+      await supabase.from('content_workflows').update({
         run_count: (workflow.run_count || 0) + 1
-      });
+      }).eq('id', workflow.id);
 
       toast.success(`Workflow "${workflow.name}" started!`);
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
@@ -41,7 +39,7 @@ export default function WorkflowsList() {
   const handleDelete = async (workflowId) => {
     if (!confirm('Delete this workflow?')) return;
     try {
-      await base44.entities.ContentWorkflow.delete(workflowId);
+      await supabase.from('content_workflows').delete().eq('id', workflowId);
       toast.success('Workflow deleted');
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
     } catch (error) {

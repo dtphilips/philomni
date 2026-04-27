@@ -4,7 +4,6 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Loader, Trash2, Plus } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
 
 export default function CaptionsEditor({ videoUrl, onCaptionsChange, duration }) {
   const [captions, setCaptions] = useState([]);
@@ -17,7 +16,7 @@ export default function CaptionsEditor({ videoUrl, onCaptionsChange, duration })
     
     setIsGenerating(true);
     try {
-      const response = await base44.functions.invoke('generateCaptionsFromVideo', { videoUrl });
+      const response = /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
       setCaptions(response.data.captions || []);
       onCaptionsChange?.(response.data.captions || []);
     } catch (error) {

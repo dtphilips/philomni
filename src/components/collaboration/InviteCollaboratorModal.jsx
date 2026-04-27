@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { useAuth } from '@/context/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,11 +20,11 @@ export default function InviteCollaboratorModal({ isOpen, onClose, itemId, itemT
 
     setLoading(true);
     try {
-      const user = await base44.auth.me();
+      const user = user /* useAuth() */;
       const entityName = itemType === 'project' ? 'ProjectCollaborator' : 'ScheduledPublicationCollaborator';
       const projectField = itemType === 'project' ? 'project_id' : 'scheduled_publication_id';
 
-      await base44.entities[entityName].create({
+      await supabase.from(entityName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '') + 's').insert({
         [projectField]: itemId,
         owner_id: user.id,
         collaborator_email: email,

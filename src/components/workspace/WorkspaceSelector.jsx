@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -19,7 +19,7 @@ export default function WorkspaceSelector({ user, open, onOpenChange, onWorkspac
     setCreating(true);
 
     try {
-      await base44.entities.CollaborativeWorkspace.create({
+      await supabase.from('collaborative_workspaces').insert({
         owner_id: user.id,
         name: name.trim(),
         description: description.trim(),

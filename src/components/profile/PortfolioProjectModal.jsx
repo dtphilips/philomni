@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -39,7 +40,7 @@ export default function PortfolioProjectModal({ project, isOpen, onClose, onSave
 
   const loadUser = async () => {
     try {
-      const me = await base44.auth.me();
+      const me = user /* useAuth() */;
       setUser(me);
     } catch (error) {
       console.error('Failed to load user:', error);
@@ -53,7 +54,7 @@ export default function PortfolioProjectModal({ project, isOpen, onClose, onSave
     setUploading(true);
     try {
       for (const file of files) {
-        const res = await base44.integrations.Core.UploadFile({ file });
+        const res = await (async () => { const _uPath = `uploads/${Date.now()}-${file.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, file, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
         setFormData(prev => ({
           ...prev,
           image_urls: [...prev.image_urls, res.file_url],
@@ -118,9 +119,9 @@ export default function PortfolioProjectModal({ project, isOpen, onClose, onSave
       };
 
       if (project?.id) {
-        await base44.entities.PortfolioProject.update(project.id, data);
+        (await supabase.from('portfolio_projects').update(data).eq('id', project.id).select().single()).data;
       } else {
-        await base44.entities.PortfolioProject.create(data);
+        (await supabase.from('portfolio_projects').insert(data).select().single()).data;
       }
 
       onSave();

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,13 +49,13 @@ export default function WorkflowBuilder({ isOpen, onClose, onSuccess }) {
 
     setLoading(true);
     try {
-      const user = await base44.auth.me();
-      await base44.entities.ContentWorkflow.create({
+      const user = user /* useAuth() */;
+      (await supabase.from('content_workflows').insert({
         user_id: user.id,
         name,
         description,
         steps
-      });
+      }).select().single()).data;
 
       toast.success('Workflow created!');
       setName('');
@@ -76,11 +77,8 @@ export default function WorkflowBuilder({ isOpen, onClose, onSuccess }) {
 
     setExecuting(true);
     try {
-      const user = await base44.auth.me();
-      const execution = await base44.functions.invoke('executeWorkflow', {
-        steps,
-        workflowName: name || 'Untitled Workflow'
-      });
+      const user = user /* useAuth() */;
+      const execution = /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
 
       toast.success('Workflow execution started!');
       onSuccess?.();

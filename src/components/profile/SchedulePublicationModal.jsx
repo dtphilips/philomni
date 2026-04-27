@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import {
   Dialog,
   DialogContent,
@@ -34,9 +34,7 @@ export default function SchedulePublicationModal({ isOpen, onClose, userId }) {
   const { data: unscheduledProjects = [] } = useQuery({
     queryKey: ['unscheduled-projects', userId],
     queryFn: async () => {
-      const projects = await base44.entities.SharedProject.filter({
-        owner_id: userId,
-      });
+      const projects = (await supabase.from('shared_projects').select('*').eq('owner_id', userId)).data ?? [];
       return projects.filter((p) => !p.marketplace_type || p.marketplace_type === 'none');
     },
     enabled: isOpen && !!userId,
@@ -45,9 +43,7 @@ export default function SchedulePublicationModal({ isOpen, onClose, userId }) {
   const { data: unscheduledVideos = [] } = useQuery({
     queryKey: ['unscheduled-videos', userId],
     queryFn: async () => {
-      const videos = await base44.entities.SharedVideo.filter({
-        owner_id: userId,
-      });
+      const videos = (await supabase.from('shared_videos').select('*').eq('owner_id', userId)).data ?? [];
       return videos.filter((v) => !v.marketplace_type || v.marketplace_type === 'none');
     },
     enabled: isOpen && !!userId,
@@ -56,7 +52,7 @@ export default function SchedulePublicationModal({ isOpen, onClose, userId }) {
   const scheduleMutation = useMutation({
     mutationFn: async () => {
       const dateTime = new Date(`${scheduleDate}T${scheduleTime}`);
-      await base44.entities.ScheduledPublication.create({
+      (await supabase.from('scheduled_publications').insert({
         user_id: userId,
         item_id: selectedItem.id,
         item_type: selectedItem.type,
@@ -64,7 +60,7 @@ export default function SchedulePublicationModal({ isOpen, onClose, userId }) {
         item_thumbnail: selectedItem.image_url || selectedItem.thumbnail_url,
         marketplace_type: marketplaceType,
         marketplace_description: description,
-        scheduled_publish_date: dateTime.toISOString(),
+        scheduled_publish_date: dateTime.toISOString().select().single()).data,
       });
     },
     onSuccess: () => {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -21,8 +21,8 @@ export default function ReviewCard({
   const handleHelpful = async () => {
     setLiking(true);
     try {
-      await base44.entities.MemberReview.update(review.id, {
-        helpful_count: (review.helpful_count || 0) + 1,
+      (await supabase.from('memberReviews').update({
+        helpful_count: (review.helpful_count || 0).eq('id', review.id).select().single()).data + 1,
       });
       onHelpful?.();
     } catch (error) {
@@ -37,7 +37,7 @@ export default function ReviewCard({
     
     setDeleting(true);
     try {
-      await base44.entities.MemberReview.delete(review.id);
+      await supabase.from('memberReviews').delete().eq('id', review.id);
       onDelete?.();
     } catch (error) {
       console.error('Failed to delete review:', error);

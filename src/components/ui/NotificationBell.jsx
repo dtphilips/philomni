@@ -1,6 +1,6 @@
 import React from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Link } from 'react-router-dom';
@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 export default function NotificationBell({ user }) {
   const { data: notifications = [] } = useQuery({
     queryKey: ['notifications', user?.id],
-    queryFn: () => user ? base44.entities.Notification.filter({ user_id: user.id }, '-created_date', 50) : [],
+    queryFn: async () => { if (!(user)) return []; const { data } = await supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50); return data ?? []; },
     enabled: !!user,
     refetchInterval: 5000,
   });

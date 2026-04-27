@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,24 +40,13 @@ export default function LocalizationTranslator({ isOpen, onClose, content, conte
 
     setTranslating(true);
     try {
-      const user = await base44.auth.me();
+      const user = user /* useAuth() */;
       const translations = [];
 
       for (const langCode of selectedLanguages) {
-        const response = await base44.integrations.Core.InvokeLLM({
-          prompt: `Translate the following ${contentType} into ${LANGUAGES.find(l => l.code === langCode)?.label}. 
-Maintain the tone, style, and formatting. Provide only the translated content:
+        const response = await (async () => { const _llmRes = await fetch('/api/llm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: `Translate the following ${contentType }) }); const _llmData = await _llmRes.json(); return { result: _llmData.result ?? '' }; })();
 
-${content}`,
-          response_json_schema: {
-            type: 'object',
-            properties: {
-              translated_content: { type: 'string' }
-            }
-          }
-        });
-
-        await base44.entities.ContentTranslation.create({
+        (await supabase.from('contentTranslations').insert({
           user_id: user.id,
           original_content_id: contentType, // You should pass the actual ID
           original_language: 'en',
@@ -64,7 +54,7 @@ ${content}`,
           content_type: contentType,
           translated_content: response.translated_content,
           is_published: false
-        });
+        }).select().single()).data;
 
         translations.push({
           language: langCode,

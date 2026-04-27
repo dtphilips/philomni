@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -44,7 +44,7 @@ export default function ShareProjectButton({
 
     setLoading(true);
     try {
-      const sharedProject = await base44.entities.SharedProject.create({
+      const sharedProject = (await supabase.from('shared_projects').insert({
         owner_id: user.id,
         owner_name: user.full_name || 'Anonymous',
         owner_avatar: user.avatar_url || '',
@@ -59,7 +59,7 @@ export default function ShareProjectButton({
         animation_label: animationLabel,
         marketplace_type: marketplaceType,
         marketplace_description: description,
-      });
+      }).select().single()).data;
 
       const link = `${window.location.origin}/shared-project/${sharedProject.id}`;
       setShareLink(link);

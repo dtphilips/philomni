@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '@/lib/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import Sidebar from './Sidebar';
 import BottomNavBar from './BottomNavBar';
 import NotificationCenter from '@/components/feed/NotificationCenter';

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,7 +25,7 @@ export default function CreateGroupModal({ user, open, onOpenChange }) {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const group = await base44.entities.Group.create({
+      const { data: group } = await supabase.from('groups').insert({
         name: name.trim(),
         description: description.trim(),
         owner_id: user.id,
@@ -39,7 +39,7 @@ export default function CreateGroupModal({ user, open, onOpenChange }) {
       });
 
       // Add owner as member
-      await base44.entities.GroupMember.create({
+      await supabase.from('group_members').insert({
         group_id: group.id,
         user_id: user.id,
         user_name: user.full_name,

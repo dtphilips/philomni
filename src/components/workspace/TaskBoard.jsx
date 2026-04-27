@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -15,13 +15,13 @@ export default function TaskBoard({ workspaceId, collaborators }) {
 
   const { data: tasks = [] } = useQuery({
     queryKey: ['workspace-tasks', workspaceId],
-    queryFn: () => base44.entities.WorkspaceTask.filter({ workspace_id: workspaceId }, '-created_date'),
+    queryFn: async () => { const { data } = await supabase.from('workspaceTasks').select('*').eq('workspace_id', workspaceId).order('created_at', { ascending: false }); return data ?? []; },
   });
 
   const createTaskMutation = useMutation({
-    mutationFn: (title) => base44.entities.WorkspaceTask.create({
+    mutationFn: (title) => supabase.from('workspaceTasks').insert({
       workspace_id: workspaceId,
-      title: title.trim(),
+      title: title.trim().select().single(),
       status: 'todo',
       priority: 'medium',
     }),
@@ -33,12 +33,12 @@ export default function TaskBoard({ workspaceId, collaborators }) {
   });
 
   const updateTaskMutation = useMutation({
-    mutationFn: ({ taskId, updates }) => base44.entities.WorkspaceTask.update(taskId, updates),
+    mutationFn: async ({ taskId, updates }) => { const { data: result } = await supabase.from('workspaceTasks').update(updates).eq('id', taskId).select().single(); return result; },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace-tasks'] }),
   });
 
   const deleteTaskMutation = useMutation({
-    mutationFn: (taskId) => base44.entities.WorkspaceTask.delete(taskId),
+    mutationFn: async (taskId) => { await supabase.from('workspaceTasks').delete().eq('id', taskId); },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace-tasks'] }),
   });
 

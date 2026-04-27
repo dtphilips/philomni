@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { base44 } from '@/api/base44Client';
 import { Pencil, Zap } from 'lucide-react';
 import SkillsInput from '@/components/ui/SkillsInput';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,7 +15,7 @@ export default function ExpertiseSection({ user, isOwnProfile }) {
 
   const handleSave = async () => {
     setSaving(true);
-    await base44.auth.updateMe({ skills });
+    await supabase.from('users').update({ skills }).eq('id', user.id);
     queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
     setSaving(false);
     setOpen(false);

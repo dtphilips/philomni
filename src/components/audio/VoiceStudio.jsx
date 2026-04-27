@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
@@ -119,7 +118,7 @@ export default function VoiceStudio() {
   // Load ElevenLabs voices when toggled on
   useEffect(() => {
     if (!useElevenLabs || elevenLabsVoices.length > 0) return;
-    base44.functions.elevenLabsVoices().then(({ voices }) => {
+    fetch('/api/elevenlabs', { method: 'GET' }).then(r => r.json()).then(({ voices }) => {
       if (voices?.length) setElevenLabsVoices(voices);
     });
   }, [useElevenLabs]);
@@ -147,11 +146,7 @@ export default function VoiceStudio() {
     if (!scriptPrompt.trim()) return;
     setGeneratingScript(true);
     setScript('');
-    const res = await base44.integrations.Core.InvokeLLM({
-      prompt: `You are a professional voice-over script writer. Write a compelling, natural-sounding spoken-word script for the following topic. The script should feel ${selectedPersona.style}. Write only the script itself — no stage directions, no titles, no quotation marks. Keep it to 3–5 sentences that flow naturally when read aloud.
-
-Topic: ${scriptPrompt}`,
-    });
+    const res = await (async () => { const _llmRes = await fetch('/api/llm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: `You are a professional voice-over script writer. Write a compelling, natural-sounding spoken-word script for the following topic. The script should feel ${selectedPersona.style }) }); const _llmData = await _llmRes.json(); return { result: _llmData.result ?? '' }; })();
     setScript(res);
     setGeneratingScript(false);
   };
@@ -163,10 +158,10 @@ Topic: ${scriptPrompt}`,
     if (useElevenLabs) {
       setSpeaking(true);
       try {
-        const result = await base44.functions.elevenLabsTTS({
+        const result = await (async () => { const _r = await fetch('/api/elevenlabs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
           text,
           voice_id: selectedELVoiceId,
-        });
+        }) }); return _r.ok ? await _r.arrayBuffer() : null; })();
         if (result.fallback || result.error) {
           toast.error('ElevenLabs key not configured — using browser voice.');
           setUseElevenLabs(false);

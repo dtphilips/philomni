@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,7 +21,7 @@ export default function CommunityEvents({ user }) {
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ['events'],
-    queryFn: () => base44.entities.Event.filter({ status: 'upcoming' }, 'starts_at', 50),
+    queryFn: async () => { const { data } = await supabase.from('events').select('*').eq('status', 'upcoming').order('starts_at', { ascending: true }).limit(50); return data ?? []; },
   });
 
   const update = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -29,9 +29,9 @@ export default function CommunityEvents({ user }) {
   const handleCreate = async () => {
     if (!form.title || !form.starts_at) return;
     setSubmitting(true);
-    await base44.entities.Event.create({
+    (await supabase.from('events').insert({
       ...form,
-      price: form.price ? parseFloat(form.price) : 0,
+      price: form.price ? parseFloat(form.price).select().single()).data : 0,
       organizer_id: user.id,
       organizer_name: user.full_name,
       organizer_avatar: user.avatar_url || '',
@@ -43,7 +43,7 @@ export default function CommunityEvents({ user }) {
   };
 
   const handleRSVP = async (event) => {
-    await base44.entities.Event.update(event.id, { attendee_count: (event.attendee_count || 0) + 1 });
+    (await supabase.from('events').update({ attendee_count: (event.attendee_count || 0).eq('id', event.id).select().single()).data + 1 });
     queryClient.invalidateQueries({ queryKey: ['events'] });
   };
 

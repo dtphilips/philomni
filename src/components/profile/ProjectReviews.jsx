@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -38,7 +38,7 @@ function StarRating({ value, onChange, size = 'md' }) {
 export function AverageStars({ projectId }) {
   const { data: reviews = [] } = useQuery({
     queryKey: ['reviews', projectId],
-    queryFn: () => base44.entities.Review.filter({ project_id: projectId }),
+    queryFn: async () => { const { data } = await supabase.from('reviews').select('*').eq('project_id', projectId); return data ?? []; },
     enabled: !!projectId,
   });
 
@@ -64,14 +64,14 @@ function ReviewForm({ project, currentUser, onClose, onAdded }) {
   const handleSubmit = async () => {
     if (!rating) return;
     setSaving(true);
-    await base44.entities.Review.create({
+    (await supabase.from('reviews').insert({
       project_id: project.id,
       project_owner_id: project.owner_id,
       reviewer_id: currentUser.id,
       reviewer_name: currentUser.full_name,
       reviewer_avatar: currentUser.avatar_url || '',
       rating,
-      feedback: feedback.trim() || undefined,
+      feedback: feedback.trim().select().single()).data || undefined,
       relationship,
     });
     setSaving(false);
@@ -118,12 +118,12 @@ export default function ProjectReviews({ project, currentUser, isOwner }) {
 
   const { data: reviews = [], isLoading } = useQuery({
     queryKey: ['reviews', project.id],
-    queryFn: () => base44.entities.Review.filter({ project_id: project.id }, '-created_date'),
+    queryFn: async () => { const { data } = await supabase.from('reviews').select('*').eq('project_id', project.id).order('created_at', { ascending: false }); return data ?? []; },
     enabled: !!project.id,
   });
 
   const handleDelete = async (id) => {
-    await base44.entities.Review.delete(id);
+    await supabase.from('reviews').delete().eq('id', id);
     queryClient.invalidateQueries({ queryKey: ['reviews', project.id] });
   };
 

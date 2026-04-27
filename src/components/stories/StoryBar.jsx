@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -41,7 +42,7 @@ function StoryViewer({ stories, startIndex, onClose, currentUser }) {
   const markViewed = async () => {
     try {
       if (story.id && currentUser?.id !== story.created_by) {
-        await base44.functions.markStatusViewed({ statusId: story.id });
+        await supabase.from('statuses').update({ view_count: 1 }).eq('id', story.id);
       }
     } catch (_) {}
   };
@@ -54,10 +55,10 @@ function StoryViewer({ stories, startIndex, onClose, currentUser }) {
   const handleReply = async () => {
     if (!replyText.trim()) return;
     try {
-      await base44.entities.Message.create({
+      (await supabase.from('messages').insert({
         content: `Replied to your story: "${replyText}"`,
         story_id: story.id,
-      });
+      }).select().single()).data;
       setReplyText('');
       toast.success('Reply sent');
     } catch (_) {
@@ -190,17 +191,17 @@ function CreateStoryDialog({ open, onClose, currentUser }) {
       let mediaUrl = null;
       let mediaType = null;
       if (mediaFile) {
-        const uploaded = await base44.integrations.Core.UploadFile({ file: mediaFile });
+        const uploaded = await (async () => { const _uPath = `uploads/${Date.now()}-${mediaFile.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, mediaFile, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
         mediaUrl = uploaded.file_url;
         mediaType = tab === 'video' ? 'video' : 'image';
       }
-      await base44.entities.Status.create({
+      (await supabase.from('statuses').insert({
         content: text || textOverlay || '',
         media_url: mediaUrl,
         media_type: mediaType,
         bg_color: bgColor,
         text_overlay: textOverlay,
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        expires_at: new Date(Date.now().select().single()).data + 24 * 60 * 60 * 1000).toISOString(),
         is_archived: false,
       });
       qc.invalidateQueries({ queryKey: ['stories'] });
@@ -320,7 +321,7 @@ export default function StoryBar({ currentUser }) {
   const { data: rawStories = [] } = useQuery({
     queryKey: ['stories'],
     queryFn: async () => {
-      return base44.entities.Status.filter({ is_archived: false });
+      return supabase.from('statuses').select('*') /* TODO filter: { is_archived: false } */;
     },
     refetchInterval: 60_000,
   });
@@ -328,8 +329,8 @@ export default function StoryBar({ currentUser }) {
   const { data: followData = [] } = useQuery({
     queryKey: ['my-follows'],
     queryFn: async () => {
-      const user = await base44.auth.me();
-      return base44.entities.Follow.filter({ follower_id: user.id });
+      const user = user /* useAuth() */;
+      return supabase.from('follows').select('*') /* TODO filter: { follower_id: user.id } */;
     },
   });
 

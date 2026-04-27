@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Download, Loader2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,11 +15,7 @@ export default function ExportButton({ content, title, variant = 'outline', size
   const handleExport = async (format) => {
     setLoading(format);
     try {
-      const response = await base44.functions.invoke('exportContent', {
-        content,
-        title,
-        format
-      });
+      const response = /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
 
       if (response.data) {
         const blob = new Blob([response.data], {

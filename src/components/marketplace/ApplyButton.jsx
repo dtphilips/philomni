@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -16,7 +16,7 @@ export default function ApplyButton({ job, user }) {
 
   const { data: existing = [] } = useQuery({
     queryKey: ['application-check', job.id, user?.id],
-    queryFn: () => base44.entities.Application.filter({ job_id: job.id, applicant_id: user.id }),
+    queryFn: async () => { const { data } = await supabase.from('applications').select('*').eq('job_id', job.id).eq('applicant_id', user.id); return data ?? []; },
     enabled: !!user && !!job.id,
   });
 
@@ -24,7 +24,7 @@ export default function ApplyButton({ job, user }) {
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    await base44.entities.Application.create({
+    (await supabase.from('applications').insert({
       job_id: job.id,
       job_title: job.title,
       poster_id: job.poster_id,
@@ -36,7 +36,7 @@ export default function ApplyButton({ job, user }) {
       cover_message: form.cover_message || undefined,
       resume_url: form.resume_url || undefined,
       status: 'pending',
-    });
+    }).select().single()).data;
     setSubmitting(false);
     setOpen(false);
     queryClient.invalidateQueries({ queryKey: ['application-check', job.id, user?.id] });

@@ -4,7 +4,6 @@
  * posting times. Appears in the CreatePost composer as an optional step.
  */
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Calendar, Clock, Sparkles, Loader2, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -25,17 +24,7 @@ export default function SmartScheduler({ content, onSchedule, onClose }) {
     setAnalyzing(true);
     try {
       const plain = content?.replace(/<[^>]*>/g, '').trim().slice(0, 300) || 'general creator content';
-      const res = await base44.integrations.Core.InvokeLLM({
-        prompt: `You are a social media strategist. For this post: "${plain}"
-
-Suggest 3 optimal posting times for a creator platform like Instagram/TikTok/LinkedIn. Consider:
-- Content type and audience
-- Day of week patterns (Tue-Thu best for B2B, weekends for lifestyle)
-- Time of day (morning 8-10am, lunch 12-1pm, evening 7-9pm perform best)
-
-Return a JSON array of 3 objects: [{"day": "string", "time": "12:00 PM", "reason": "brief explanation under 10 words"}]
-Return ONLY the JSON array, no other text.`,
-      });
+      const res = await (async () => { const _llmRes = await fetch('/api/llm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: `You are a social media strategist. For this post: "${plain }) }); const _llmData = await _llmRes.json(); return { result: _llmData.result ?? '' }; })();
       const text = typeof res === 'string' ? res : (res?.result ?? '');
       const match = text.match(/\[[\s\S]*?\]/);
       if (match) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Bell, Heart, MessageCircle, Share2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,18 +11,18 @@ export default function NotificationCenter({ user }) {
 
   const { data: notifications = [] } = useQuery({
     queryKey: ['notifications', user?.id],
-    queryFn: () => user ? base44.entities.Notification.filter({ user_id: user.id }, '-created_date') : [],
+    queryFn: async () => { if (!(user)) return []; const { data } = await supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }); return data ?? []; },
     enabled: !!user,
     refetchInterval: 5000,
   });
 
   const markAsReadMutation = useMutation({
-    mutationFn: (notificationId) => base44.entities.Notification.update(notificationId, { read: true }),
+    mutationFn: (notificationId) => supabase.from('notifications').update(/* TODO */).eq('id', id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
   const deleteNotificationMutation = useMutation({
-    mutationFn: (notificationId) => base44.entities.Notification.delete(notificationId),
+    mutationFn: async (notificationId) => { await supabase.from('notifications').delete().eq('id', notificationId); },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 

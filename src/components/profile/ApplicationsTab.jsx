@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -105,7 +105,7 @@ function ReviewDialog({ open, onClose, app, currentUser, revieweeId, revieweeNam
   const handleSubmit = async () => {
     if (!rating) return;
     setSaving(true);
-    await base44.entities.UserReview.create({
+    (await supabase.from('userReviews').insert({
       reviewer_id: currentUser.id,
       reviewer_name: currentUser.full_name,
       reviewer_avatar: currentUser.avatar_url || '',
@@ -113,7 +113,7 @@ function ReviewDialog({ open, onClose, app, currentUser, revieweeId, revieweeNam
       application_id: app.id,
       job_title: app.job_title,
       rating,
-      feedback: feedback.trim() || undefined,
+      feedback: feedback.trim().select().single()).data || undefined,
       relationship: 'client',
     });
     queryClient.invalidateQueries({ queryKey: ['user-reviews', revieweeId] });
@@ -155,7 +155,7 @@ function MyApplicationCard({ app, currentUser, queryClient }) {
 
   const { data: existingReviews = [] } = useQuery({
     queryKey: ['user-reviews-by-app', app.id, currentUser?.id],
-    queryFn: () => base44.entities.UserReview.filter({ application_id: app.id, reviewer_id: currentUser?.id }),
+    queryFn: async () => { const { data } = await supabase.from('userReviews').select('*').eq('application_id', app.id).eq('reviewer_id', currentUser?.id); return data ?? []; },
     enabled: !!currentUser && app.status === 'accepted',
   });
 
@@ -218,19 +218,19 @@ export default function ApplicationsTab({ user, isOwnProfile, currentUser }) {
   // My submitted applications (creator/professional view)
   const { data: myApps = [], isLoading: loadingMine } = useQuery({
     queryKey: ['my-applications', user?.id],
-    queryFn: () => base44.entities.Application.filter({ applicant_id: user.id }, '-created_date', 50),
+    queryFn: async () => { const { data } = await supabase.from('applications').select('*').eq('applicant_id', user.id).order('created_at', { ascending: false }).limit(50); return data ?? []; },
     enabled: !!user && isOwnProfile,
   });
 
   // Applications received on my posted jobs (employer view)
   const { data: receivedApps = [], isLoading: loadingReceived } = useQuery({
     queryKey: ['received-applications', user?.id],
-    queryFn: () => base44.entities.Application.filter({ poster_id: user.id }, '-created_date', 100),
+    queryFn: async () => { const { data } = await supabase.from('applications').select('*').eq('poster_id', user.id).order('created_at', { ascending: false }).limit(100); return data ?? []; },
     enabled: !!user && isOwnProfile,
   });
 
   const handleStatusChange = async (appId, status) => {
-    await base44.entities.Application.update(appId, { status });
+    (await supabase.from('applications').update({ status }).eq('id', appId).select().single()).data;
     queryClient.invalidateQueries({ queryKey: ['received-applications', user?.id] });
   };
 

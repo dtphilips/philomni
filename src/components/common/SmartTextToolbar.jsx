@@ -7,7 +7,6 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { base44 } from '@/api/base44Client';
 import { Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -109,7 +108,7 @@ export default function SmartTextToolbar() {
     setLoading(true);
     setActiveId(option.id);
     try {
-      const res = await base44.integrations.Core.InvokeLLM({ prompt: option.prompt(selectedText) });
+      const res = await (async () => { const _llmRes = await fetch('/api/llm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: option.prompt(selectedText) }) }); const _llmData = await _llmRes.json(); return { result: _llmData.result ?? '' }; })();
       const newText = typeof res === 'string' ? res : (res?.result ?? res?.text ?? '');
       if (!newText) { toast.error('No result returned'); return; }
 

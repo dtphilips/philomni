@@ -11,7 +11,6 @@ import {
   Trash2, Copy, Plus, X, Loader, Share2, Link2, Move, Eye,
   Lightbulb, Layers
 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
 import TransitionsGallery from './TransitionsGallery';
 import KeyframeEditor from './KeyframeEditor';
 import VideoThumbnailGallery from './VideoThumbnailGallery';
@@ -137,7 +136,7 @@ export default function CapCutStyleEditor({ videoUrl, onSave, onBack, initialDat
   const handleGenerateCaptions = async () => {
     setGeneratingCaptions(true);
     try {
-      const response = await base44.functions.invoke('generateCaptions', { videoUrl });
+      const response = /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
       setCaptionTracks(response.data.captions || []);
     } catch (error) {
       console.error('Caption generation failed:', error);

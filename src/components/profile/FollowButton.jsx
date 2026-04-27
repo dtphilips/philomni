@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { UserCheck, UserPlus, Loader2 } from 'lucide-react';
 
@@ -11,10 +11,7 @@ export default function FollowButton({ currentUser, targetUserId }) {
   const { data: followRecord } = useQuery({
     queryKey: ['follow', currentUser?.id, targetUserId],
     queryFn: async () => {
-      const results = await base44.entities.Follow.filter({
-        follower_id: currentUser.id,
-        following_id: targetUserId,
-      });
+      const results = (await supabase.from('follows').select('*').eq('follower_id', currentUser.id).eq('following_id', targetUserId)).data ?? [];
       return results[0] || null;
     },
     enabled: !!currentUser && !!targetUserId,
@@ -25,12 +22,12 @@ export default function FollowButton({ currentUser, targetUserId }) {
   const handleToggle = async () => {
     setLoading(true);
     if (isFollowing) {
-      await base44.entities.Follow.delete(followRecord.id);
+      await supabase.from('follows').delete().eq('id', followRecord.id);
     } else {
-      await base44.entities.Follow.create({
+      (await supabase.from('follows').insert({
         follower_id: currentUser.id,
         following_id: targetUserId,
-      });
+      }).select().single()).data;
     }
     queryClient.invalidateQueries({ queryKey: ['follow', currentUser?.id, targetUserId] });
     queryClient.invalidateQueries({ queryKey: ['follower-count', targetUserId] });

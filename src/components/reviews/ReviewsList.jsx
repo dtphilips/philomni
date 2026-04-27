@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import ReviewCard from './ReviewCard';
@@ -18,11 +18,7 @@ export default function ReviewsList({
 
   const { data: reviews = [], isLoading, refetch } = useQuery({
     queryKey: ['member-reviews', userId],
-    queryFn: () => base44.entities.MemberReview.filter(
-      { reviewed_user_id: userId },
-      '-created_date',
-      100
-    ),
+    queryFn: async () => { const { data } = await supabase.from('memberReviews').select('*').eq('reviewed_user_id', userId).order('created_at', { ascending: false }).limit(100); return data ?? []; },
   });
 
   const filteredReviews = selectedCategory

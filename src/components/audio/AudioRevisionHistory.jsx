@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -28,10 +28,7 @@ export default function AudioRevisionHistory({ projectId, isOpen, onClose, onRev
   const loadRevisions = async () => {
     try {
       setLoading(true);
-      const items = await base44.entities.AudioRevision.filter(
-        { project_id: projectId },
-        '-revision_number'
-      );
+      const items = (await supabase.from('audioRevisions').select('*').eq('project_id', projectId).order('revision_number', { ascending: false })).data ?? [];
       setRevisions(items);
     } catch (error) {
       console.error('Failed to load revisions:', error);
@@ -46,18 +43,10 @@ export default function AudioRevisionHistory({ projectId, isOpen, onClose, onRev
     setRestoring(revisionId);
     try {
       // Create a snapshot of current state first
-      await base44.functions.invoke('createAudioRevision', {
-        project_id: projectId,
-        audio_url: 'current-state-backup',
-        snapshot_name: `Auto-backup before restore`,
-        is_auto_save: true
-      });
+      /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
 
       // Restore the selected revision
-      const response = await base44.functions.invoke('restoreAudioRevision', {
-        revision_id: revisionId,
-        project_id: projectId
-      });
+      const response = /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
 
       await loadRevisions();
       if (onRevisionRestored) {
@@ -75,10 +64,7 @@ export default function AudioRevisionHistory({ projectId, isOpen, onClose, onRev
 
     setSavingAs(true);
     try {
-      await base44.functions.invoke('createAudioRevision', {
-        project_id: projectId,
-        audio_url: 'current-state',
-        snapshot_name: newSnapshotName.trim(),
+      /* TODO: migrate base44.functions.invoke */ Promise.resolve(null),
         description: 'Manually saved snapshot',
         is_auto_save: false
       });
@@ -97,7 +83,7 @@ export default function AudioRevisionHistory({ projectId, isOpen, onClose, onRev
     if (!confirm('Delete this revision? This cannot be undone.')) return;
 
     try {
-      await base44.entities.AudioRevision.delete(revisionId);
+      await supabase.from('audioRevisions').delete().eq('id', revisionId);
       await loadRevisions();
     } catch (error) {
       console.error('Failed to delete:', error);

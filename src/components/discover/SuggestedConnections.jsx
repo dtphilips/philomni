@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,12 +22,8 @@ export default function SuggestedConnections({ variant = 'compact' }) {
   const loadUserConnections = async () => {
     try {
       const [follows, groupMembers] = await Promise.all([
-        base44.asServiceRole.entities.Follow.filter({
-          follower_id: (await base44.auth.me()).id,
-        }),
-        base44.asServiceRole.entities.GroupMember.filter({
-          user_id: (await base44.auth.me()).id,
-        }),
+        supabase.from('follows').select('*').eq('follower_id', user?.id ?? '').then(r => r.data ?? []),
+        supabase.from('group_members').select('*').eq('user_id', user?.id ?? '').then(r => r.data ?? []),
       ]);
 
       setFollowingIds(new Set(follows.map(f => f.following_id)));
@@ -39,10 +36,7 @@ export default function SuggestedConnections({ variant = 'compact' }) {
   const loadSuggestions = async () => {
     try {
       setLoading(true);
-      const response = await base44.functions.invoke(
-        'getSuggestedConnections',
-        { limit: variant === 'compact' ? 6 : 12 }
-      );
+      const response = /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
       setSuggestions(response.data);
     } catch (error) {
       console.error('Failed to load suggestions:', error);
@@ -54,8 +48,8 @@ export default function SuggestedConnections({ variant = 'compact' }) {
 
   const handleFollow = async (userId) => {
     try {
-      await base44.entities.Follow.create({
-        follower_id: (await base44.auth.me()).id,
+      await supabase.from('follows').insert({
+        follower_id: user?.id,
         following_id: userId,
       });
       setFollowingIds(prev => new Set([...prev, userId]));
@@ -66,15 +60,15 @@ export default function SuggestedConnections({ variant = 'compact' }) {
 
   const handleJoinGroup = async (groupId) => {
     try {
-      const user = await base44.auth.me();
-      await base44.entities.GroupMember.create({
+      const user = user /* useAuth() */;
+      (await supabase.from('group_members').insert({
         group_id: groupId,
         user_id: user.id,
         user_name: user.full_name,
         user_avatar: user.avatar_url,
         user_email: user.email,
         role: 'member',
-      });
+      }).select().single()).data;
       setJoinedGroupIds(prev => new Set([...prev, groupId]));
     } catch (error) {
       console.error('Failed to join group:', error);

@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Download, Loader2 } from 'lucide-react';
@@ -40,10 +39,7 @@ export default function BulkExportSelector({ items, itemType = 'projects' }) {
           content: item.content || item.prompt || ''
         }));
 
-      const response = await base44.functions.invoke('createBulkExport', {
-        items: itemsToExport,
-        format: 'zip'
-      });
+      const response = /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
 
       if (response.data) {
         const blob = new Blob([response.data], { type: 'application/zip' });

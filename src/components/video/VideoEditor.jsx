@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,6 @@ import {
   Wand2, Type, Sliders, Zap, Play, Pause, RotateCcw,
   Bold, AlignCenter, Palette, Download
 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 
 // ── CSS filter presets ───────────────────────────────────────────────────────
@@ -179,7 +179,7 @@ export default function VideoEditor({ isOpen, onClose, videoUrl, onSave }) {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const r = await base44.integrations.Core.UploadFile({ file });
+      const r = await (async () => { const _uPath = `uploads/${Date.now()}-${file.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, file, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
       setMusicUrl(r.file_url);
       toast.success('Music added');
     } catch { toast.error('Music upload failed'); }
@@ -190,7 +190,7 @@ export default function VideoEditor({ isOpen, onClose, videoUrl, onSave }) {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const r = await base44.integrations.Core.UploadFile({ file });
+      const r = await (async () => { const _uPath = `uploads/${Date.now()}-${file.name}`; const { data: _uData, error: _uErr } = await supabase.storage.from('uploads').upload(_uPath, file, { upsert: true }); if (_uErr) throw _uErr; const { data: { publicUrl: _uUrl } } = supabase.storage.from('uploads').getPublicUrl(_uData.path); return { file_url: _uUrl }; })();
       setThumbnail(r.file_url);
       toast.success('Cover image set');
     } catch { toast.error('Upload failed'); }
@@ -216,11 +216,7 @@ export default function VideoEditor({ isOpen, onClose, videoUrl, onSave }) {
     setAnimating(true);
     setAnimatedVideoUrl(null);
     try {
-      const res = await base44.functions.invoke('generateVideo', {
-        prompt: animatePrompt,
-        imageUrl: videoUrl,
-        duration: 5,
-      });
+      const res = /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
       if (res.data?.video_url) {
         setAnimatedVideoUrl(res.data.video_url);
         toast.success('AI animation complete!');

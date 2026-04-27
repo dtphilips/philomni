@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -13,17 +13,17 @@ export default function GroupFeed({ groupId, user, canModerate }) {
 
   const { data: posts = [] } = useQuery({
     queryKey: ['group-posts', groupId],
-    queryFn: () => base44.entities.GroupPost.filter({ group_id: groupId }, '-created_date'),
+    queryFn: async () => { const { data } = await supabase.from('groupPosts').select('*').eq('group_id', groupId).order('created_at', { ascending: false }); return data ?? []; },
   });
 
   const createPostMutation = useMutation({
     mutationFn: (content) =>
-      base44.entities.GroupPost.create({
+      supabase.from('groupPosts').insert({
         group_id: groupId,
         author_id: user.id,
         author_name: user.full_name,
         author_avatar: user.avatar_url || '',
-        content: content.trim(),
+        content: content.trim().select().single(),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['group-posts'] });
@@ -32,14 +32,14 @@ export default function GroupFeed({ groupId, user, canModerate }) {
   });
 
   const deletePostMutation = useMutation({
-    mutationFn: (postId) => base44.entities.GroupPost.delete(postId),
+    mutationFn: async (postId) => { await supabase.from('groupPosts').delete().eq('id', postId); },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['group-posts'] }),
   });
 
   const togglePinMutation = useMutation({
     mutationFn: (postId) => {
       const post = posts.find(p => p.id === postId);
-      return base44.entities.GroupPost.update(postId, { is_pinned: !post.is_pinned });
+      return supabase.from('groupPosts').update(/* TODO */).eq('id', id);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['group-posts'] }),
   });

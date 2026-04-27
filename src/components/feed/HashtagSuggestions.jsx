@@ -4,7 +4,6 @@
  * Used inside CreatePost — shows below the editor when content is present.
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Hash, Loader2, X } from 'lucide-react';
 
 function extractPlainText(html) {
@@ -30,9 +29,7 @@ export default function HashtagSuggestions({ content, onAdd }) {
     timerRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await base44.integrations.Core.InvokeLLM({
-          prompt: `Analyze this social media post and suggest 6-8 highly relevant hashtags that would maximize reach. Return ONLY a JSON array of strings without # symbol. Example: ["creativity","design","inspiration"]\n\nPost: "${plain.slice(0, 500)}"`,
-        });
+        const res = await (async () => { const _llmRes = await fetch('/api/llm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: `Analyze this social media post and suggest 6-8 highly relevant hashtags that would maximize reach. Return ONLY a JSON array of strings without # symbol. Example: ["creativity","design","inspiration"]\n\nPost: "${plain.slice(0, 500) }) }); const _llmData = await _llmRes.json(); return { result: _llmData.result ?? '' }; })();
         const text = typeof res === 'string' ? res : (res?.result ?? '');
         const match = text.match(/\[[\s\S]*?\]/);
         if (match) {

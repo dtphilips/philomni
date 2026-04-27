@@ -3,8 +3,8 @@
  * Shows live trending hashtags, creator spotlight, and today's challenge.
  */
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { TrendingUp, Flame, Star, Hash, ChevronRight, Loader2, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ function useTopHashtags() {
   return useQuery({
     queryKey: ['trending-hashtags'],
     queryFn: async () => {
-      const posts = await base44.entities.Post.list('-created_date', 100, 0);
+      const posts = await supabase.from('posts').select('*');
       const counts = {};
       posts.forEach(p => {
         (p.hashtags || []).forEach(tag => {
@@ -35,7 +35,7 @@ function useTopCreators() {
   return useQuery({
     queryKey: ['top-creators'],
     queryFn: async () => {
-      const { data } = await base44._supabase
+      const { data } = await supabase
         .from('users')
         .select('id, full_name, avatar_url, role, bio')
         .not('avatar_url', 'is', null)

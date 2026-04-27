@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,16 +28,16 @@ export default function ReviewForm({
 
     setSubmitting(true);
     try {
-      const user = await base44.auth.me();
+      const user = user /* useAuth() */;
       
-      await base44.entities.MemberReview.create({
+      (await supabase.from('memberReviews').insert({
         reviewed_user_id: reviewedUserId,
         reviewed_user_name: reviewedUserName,
         reviewer_id: user.id,
         reviewer_name: user.full_name,
         reviewer_avatar: user.avatar_url || '',
         rating,
-        feedback: feedback.trim(),
+        feedback: feedback.trim().select().single()).data,
         category,
         workspace_id: workspaceId,
         project_id: projectId,

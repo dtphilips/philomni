@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, Plus, Loader2, X } from 'lucide-react';
@@ -13,7 +13,7 @@ export default function ChatList({ user, activeConvo, onSelectConvo, onStartNew 
   const { data: conversations = [], isLoading } = useQuery({
     queryKey: ['conversations', user?.id],
     queryFn: async () => {
-      const all = await base44.entities.Conversation.list('-last_message_at', 100);
+      const all = await supabase.from('conversations').select('*');
       return all.filter(c => c.participant_ids?.includes(user?.id));
     },
     enabled: !!user,

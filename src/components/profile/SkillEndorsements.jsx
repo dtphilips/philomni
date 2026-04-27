@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -30,7 +31,7 @@ export default function SkillEndorsements({ userId, isOwnProfile, userFullName }
 
   const loadCurrentUser = async () => {
     try {
-      const user = await base44.auth.me();
+      const user = user /* useAuth() */;
       setCurrentUser(user);
     } catch (error) {
       console.error('Failed to load current user:', error);
@@ -40,9 +41,7 @@ export default function SkillEndorsements({ userId, isOwnProfile, userFullName }
   const loadEndorsements = async () => {
     try {
       setLoading(true);
-      const items = await base44.entities.SkillEndorsement.filter({
-        endorsed_user_id: userId
-      });
+      const items = (await supabase.from('skillEndorsements').select('*').eq('endorsed_user_id', userId)).data ?? [];
 
       setEndorsements(items);
     } catch (error) {
@@ -60,13 +59,13 @@ export default function SkillEndorsements({ userId, isOwnProfile, userFullName }
 
     setSubmitting(true);
     try {
-      await base44.entities.SkillEndorsement.create({
+      (await supabase.from('skillEndorsements').insert({
         endorsed_user_id: userId,
         endorsed_user_name: userFullName,
         endorser_id: currentUser.id,
         endorser_name: currentUser.full_name,
         endorser_avatar: currentUser.avatar_url || '',
-        skill: skill.trim(),
+        skill: skill.trim().select().single()).data,
         skill_category: category,
         endorsement_message: message.trim(),
         is_verified: false
@@ -90,7 +89,7 @@ export default function SkillEndorsements({ userId, isOwnProfile, userFullName }
     if (!confirm('Remove this endorsement?')) return;
 
     try {
-      await base44.entities.SkillEndorsement.delete(endorsementId);
+      await supabase.from('skillEndorsements').delete().eq('id', endorsementId);
       await loadEndorsements();
       toast.success('Endorsement removed');
     } catch (error) {

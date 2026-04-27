@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -22,9 +22,7 @@ export default function PresenceIndicator({ projectId }) {
   const loadPresence = async () => {
     try {
       setLoading(true);
-      const members = await base44.entities.WorkspacePresence.filter({
-        workspace_id: projectId
-      });
+      const members = (await supabase.from('workspacePresences').select('*').eq('workspace_id', projectId)).data ?? [];
 
       // Filter out stale presences (older than 30 seconds)
       const now = new Date();

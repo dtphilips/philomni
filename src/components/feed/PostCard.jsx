@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -47,25 +47,19 @@ export default function PostCard({ post, user, userLikes = [], userBookmarks = [
 
   const handleLike = async () => {
     if (isLiked) {
-      const likes = await base44.entities.Like.filter({ post_id: post.id, user_id: user.id });
-      if (likes.length > 0) await base44.entities.Like.delete(likes[0].id);
-      await base44.entities.Post.update(post.id, { like_count: Math.max(0, localLikeCount - 1) });
+      const likes = (await supabase.from('likes').select('*').eq('post_id', post.id).eq('user_id', user.id)).data ?? [];
+      if (likes.length > 0) await supabase.from('likes').delete().eq('id', likes[0].id);
+      await supabase.from('posts').update({ like_count: Math.max(0, localLikeCount - 1) }).eq('id', post.id);
       setLocalLikeCount(prev => Math.max(0, prev - 1));
       setIsLiked(false);
     } else {
-      await base44.entities.Like.create({ post_id: post.id, user_id: user.id, reaction_type: 'like' });
-      await base44.entities.Post.update(post.id, { like_count: localLikeCount + 1 });
+      await supabase.from('likes').insert({ post_id: post.id, user_id: user.id, reaction_type: 'like' });
+      (await supabase.from('posts').update({ like_count: localLikeCount + 1 }).eq('id', post.id).select().single()).data;
       setLocalLikeCount(prev => prev + 1);
       setIsLiked(true);
       // Send notification to post author
       if (post.author_id !== user.id) {
-        await base44.functions.invoke('sendLikeNotification', {
-          postAuthorId: post.author_id,
-          likerName: user.full_name,
-          likerAvatar: user.avatar_url || '',
-          likerId: user.id,
-          postId: post.id,
-        });
+        /* TODO: migrate base44.functions.invoke */ Promise.resolve(null);
       }
     }
     queryClient.invalidateQueries({ queryKey: ['likes'] });
@@ -73,11 +67,11 @@ export default function PostCard({ post, user, userLikes = [], userBookmarks = [
 
   const handleBookmark = async () => {
     if (isBookmarked) {
-      const bookmarks = await base44.entities.Bookmark.filter({ post_id: post.id, user_id: user.id });
-      if (bookmarks.length > 0) await base44.entities.Bookmark.delete(bookmarks[0].id);
+      const bookmarks = (await supabase.from('bookmarks').select('*').eq('post_id', post.id).eq('user_id', user.id)).data ?? [];
+      if (bookmarks.length > 0) await supabase.from('bookmarks').delete().eq('id', bookmarks[0].id);
       setIsBookmarked(false);
     } else {
-      await base44.entities.Bookmark.create({ post_id: post.id, user_id: user.id });
+      (await supabase.from('bookmarks').insert({ post_id: post.id, user_id: user.id }).select().single()).data;
       setIsBookmarked(true);
     }
     queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
@@ -89,7 +83,7 @@ export default function PostCard({ post, user, userLikes = [], userBookmarks = [
 
   const handleShare = async () => {
     try {
-      await base44.entities.Post.update(post.id, { share_count: (post.share_count || 0) + 1 });
+      await supabase.from('posts').update({ share_count: (post.share_count || 0) + 1 }).eq('id', post.id);
       
       const postUrl = `${window.location.origin}/?post=${post.id}`;
       const shareText = post.content?.slice(0, 100) || 'Check out this post';
@@ -118,10 +112,10 @@ export default function PostCard({ post, user, userLikes = [], userBookmarks = [
   const handleEdit = async () => {
     setIsSaving(true);
     const hashtags = editHashtags.split(',').map(h => h.trim()).filter(h => h);
-    await base44.entities.Post.update(post.id, {
+    (await supabase.from('posts').update({
       content: editContent,
       hashtags
-    });
+    }).eq('id', post.id).select().single()).data;
     queryClient.invalidateQueries({ queryKey: ['posts'] });
     setIsEditOpen(false);
     setIsSaving(false);
@@ -130,7 +124,7 @@ export default function PostCard({ post, user, userLikes = [], userBookmarks = [
 
 
   const handleDelete = async () => {
-    await base44.entities.Post.delete(post.id);
+    await supabase.from('posts').delete().eq('id', post.id);
     queryClient.invalidateQueries({ queryKey: ['posts'] });
   };
 
@@ -271,7 +265,7 @@ export default function PostCard({ post, user, userLikes = [], userBookmarks = [
             trigger={
               <button
                 className="flex items-center justify-center gap-1.5 min-h-[44px] w-full rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                onClick={() => base44.entities.Post.update(post.id, { share_count: (post.share_count || 0) + 1 }).catch(() => {})}
+                onClick={() => supabase.from('posts').update({ share_count: (post.share_count || 0) + 1 }).eq('id', post.id).catch(() => {})}
               >
                 <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                 <span className="text-xs sm:text-sm">Share</span>

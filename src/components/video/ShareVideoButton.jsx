@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -29,7 +29,7 @@ export default function ShareVideoButton({ user, videoUrl, prompt, videoType }) 
       // First, generate a thumbnail (use a placeholder or first frame)
       const thumbnailUrl = videoUrl; // In production, extract actual frame
 
-      const sharedVideo = await base44.entities.SharedVideo.create({
+      const { data: sharedVideo } = await supabase.from('shared_videos').insert({
         owner_id: user.id,
         owner_name: user.full_name || 'Anonymous',
         owner_avatar: user.avatar_url || '',

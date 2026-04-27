@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -22,10 +22,7 @@ export default function PortfolioSection({ userId, isOwnProfile }) {
   const loadProjects = async () => {
     try {
       setLoading(true);
-      const items = await base44.entities.PortfolioProject.filter(
-        { owner_id: userId, status: 'published' },
-        '-created_date'
-      );
+      const items = (await supabase.from('portfolio_projects').select('*').eq('owner_id', userId).eq('status', 'published').order('created_at', { ascending: false })).data ?? [];
       setProjects(items);
     } catch (error) {
       console.error('Failed to load projects:', error);
@@ -37,7 +34,7 @@ export default function PortfolioSection({ userId, isOwnProfile }) {
   const handleDelete = async (projectId) => {
     if (!confirm('Are you sure you want to delete this project?')) return;
     try {
-      await base44.entities.PortfolioProject.delete(projectId);
+      await supabase.from('portfolio_projects').delete().eq('id', projectId);
       loadProjects();
     } catch (error) {
       console.error('Failed to delete project:', error);
