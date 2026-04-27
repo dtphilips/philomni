@@ -50,6 +50,17 @@ function fmtCount(n) {
   return String(n)
 }
 
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+function Toast({ message, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 2500); return () => clearTimeout(t) }, [onDone])
+  return (
+    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 bg-foreground text-background px-5 py-3 rounded-2xl shadow-2xl text-sm font-semibold pointer-events-none whitespace-nowrap">
+      ✅ {message}
+    </div>
+  )
+}
+
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
 function Avatar({ src, name, size = 10, className = '' }) {
@@ -96,10 +107,15 @@ function EmojiPicker({ onSelect, onClose }) {
 
 // ─── Share Modal ──────────────────────────────────────────────────────────────
 
-function ShareModal({ post, onClose }) {
+function ShareModal({ post, currentUser, onClose }) {
   const [copied, setCopied] = useState(false)
+  const [showStoryModal, setShowStoryModal] = useState(false)
+  const [storyCaption, setStoryCaption] = useState('')
+  const [storyLoading, setStoryLoading] = useState(false)
+  const [toast, setToast] = useState('')
   const url = `${window.location.origin}/post/${post.id}`
-  const text = post.content?.replace(/<[^>]+>/g, '').slice(0, 100)
+  const text = post.content?.replace(/<[^>]+>/g, '').slice(0, 100) ?? ''
+  const postImage = post.media_type !== 'video' ? post.media_urls?.[0] ?? null : null
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(url)
@@ -119,8 +135,29 @@ function ShareModal({ post, onClose }) {
     }
   }
 
+  const handleAddToStory = async () => {
+    if (!currentUser) return
+    setStoryLoading(true)
+    try {
+      const { error } = await supabase.from('statuses').insert({
+        media_url: postImage ?? null,
+        media_type: postImage ? 'image' : null,
+        caption: storyCaption || text.slice(0, 200),
+        created_by: currentUser.id,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        created_at: new Date().toISOString(),
+      })
+      if (error) console.error('Story share error:', error.message)
+      setShowStoryModal(false)
+      setToast('Added to your story!')
+      setTimeout(() => { onClose() }, 2000)
+    } catch (err) { console.error(err) }
+    setStoryLoading(false)
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+      {toast && <Toast message={toast} onDone={() => setToast('')} />}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative z-10 w-full max-w-sm bg-card border border-border rounded-t-3xl sm:rounded-3xl shadow-2xl pb-safe"
         onClick={e => e.stopPropagation()}>
@@ -141,7 +178,8 @@ function ShareModal({ post, onClose }) {
                 <p className="text-xs text-muted-foreground">philomni.com/post/{post.id?.slice(0, 8)}</p>
               </div>
             </button>
-            <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left">
+            <button onClick={() => setShowStoryModal(true)}
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-muted transition-colors text-left">
               <div className="w-10 h-10 rounded-full bg-pink-500/10 flex items-center justify-center text-pink-500">
                 <BookOpen className="w-5 h-5" />
               </div>
@@ -189,6 +227,45 @@ function ShareModal({ post, onClose }) {
           </button>
         </div>
       </div>
+
+      {/* Add to Story sub-modal */}
+      {showStoryModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={() => setShowStoryModal(false)}>
+          <div className="absolute inset-0 bg-black/70" />
+          <div className="relative z-10 w-full max-w-sm bg-card border border-border rounded-3xl shadow-2xl p-6 mx-4"
+            onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-foreground text-center mb-4">Add to Your Story</h3>
+            {/* Preview */}
+            {postImage ? (
+              <div className="w-full h-40 rounded-xl overflow-hidden mb-4 bg-black">
+                <img src={postImage} alt="" className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="w-full h-24 rounded-xl mb-4 flex items-center justify-center text-white/90 text-sm font-medium text-center px-4"
+                style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
+                {text.slice(0, 80) || 'Story'}
+              </div>
+            )}
+            <textarea
+              value={storyCaption}
+              onChange={e => setStoryCaption(e.target.value)}
+              placeholder="Add a caption… (optional)"
+              rows={2}
+              className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none mb-4"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setShowStoryModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleAddToStory} disabled={storyLoading}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+                {storyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add to Story'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -224,14 +301,27 @@ function StoriesBar({ currentUser }) {
   const [stories, setStories] = useState([])
   const [viewing, setViewing] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [toast, setToast] = useState('')
   const fileRef = useRef()
 
-  useEffect(() => {
+  const fetchStories = useCallback(async () => {
     const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
-    supabase.from('statuses').select('*').gte('created_at', cutoff)
-      .order('created_at', { ascending: false }).limit(20)
-      .then(({ data }) => setStories(data ?? []))
+    const { data } = await supabase
+      .from('statuses').select('*')
+      .gte('created_at', cutoff)
+      .order('created_at', { ascending: false }).limit(30)
+    if (!data?.length) { setStories([]); return }
+    // Enrich with user profiles via separate query
+    const ids = [...new Set(data.map(s => s.created_by).filter(Boolean))]
+    const { data: users } = ids.length
+      ? await supabase.from('users').select('id, full_name, avatar_url').in('id', ids)
+      : { data: [] }
+    const map = {}
+    ;(users ?? []).forEach(u => { map[u.id] = u })
+    setStories(data.map(s => ({ ...s, _user: map[s.created_by] ?? null })))
   }, [])
+
+  useEffect(() => { fetchStories() }, [fetchStories])
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0]
@@ -239,25 +329,34 @@ function StoriesBar({ currentUser }) {
     setUploading(true)
     try {
       const url = await uploadToStorage(file)
-      const { data } = await supabase.from('statuses').insert({
-        user_id: currentUser.id,
-        user_name: currentUser.full_name,
-        user_avatar: currentUser.avatar_url,
+      const payload = {
         media_url: url,
-        type: file.type.startsWith('video') ? 'video' : 'image',
-        expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-      }).select().single()
-      if (data) setStories(prev => [data, ...prev.filter(s => s.user_id !== currentUser.id)])
+        media_type: file.type.startsWith('video') ? 'video' : 'image',
+        caption: '',
+        created_by: currentUser.id,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        created_at: new Date().toISOString(),
+      }
+      const { data, error } = await supabase.from('statuses').insert(payload).select().single()
+      if (error) console.error('Story insert error:', error.message)
+      if (data) {
+        const enriched = { ...data, _user: { id: currentUser.id, full_name: currentUser.full_name, avatar_url: currentUser.avatar_url } }
+        setStories(prev => [enriched, ...prev.filter(s => s.created_by !== currentUser.id)])
+        setToast('Story added!')
+      }
     } catch (err) { console.error(err) }
     setUploading(false)
     e.target.value = ''
   }
 
-  const myStory = stories.find(s => s.user_id === currentUser?.id)
-  const others = stories.filter(s => s.user_id !== currentUser?.id)
+  const myStory = stories.find(s => s.created_by === currentUser?.id)
+  const others = stories.filter(s => s.created_by !== currentUser?.id)
+  const getName = s => s._user?.full_name ?? 'User'
+  const getAvatar = s => s._user?.avatar_url ?? null
 
   return (
     <>
+      {toast && <Toast message={toast} onDone={() => setToast('')} />}
       <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
         {/* My story */}
         <button onClick={() => fileRef.current?.click()} className="flex flex-col items-center gap-1.5 flex-shrink-0 group">
@@ -282,12 +381,12 @@ function StoriesBar({ currentUser }) {
           <button key={story.id} onClick={() => setViewing(story)} className="flex flex-col items-center gap-1.5 flex-shrink-0">
             <div className="w-16 h-16 rounded-full p-0.5 bg-gradient-to-tr from-purple-600 to-pink-500">
               <div className="w-full h-full rounded-full bg-muted overflow-hidden flex items-center justify-center border-2 border-background">
-                {story.user_avatar
-                  ? <img src={story.user_avatar} alt="" className="w-full h-full object-cover" />
-                  : <span className="text-sm font-bold text-primary">{story.user_name?.[0] ?? '?'}</span>}
+                {getAvatar(story)
+                  ? <img src={getAvatar(story)} alt="" className="w-full h-full object-cover" />
+                  : <span className="text-sm font-bold text-primary">{getName(story)[0] ?? '?'}</span>}
               </div>
             </div>
-            <span className="text-xs text-muted-foreground w-16 text-center truncate">{story.user_name?.split(' ')[0]}</span>
+            <span className="text-xs text-muted-foreground w-16 text-center truncate">{getName(story).split(' ')[0]}</span>
           </button>
         ))}
       </div>
@@ -297,13 +396,28 @@ function StoriesBar({ currentUser }) {
           <button className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white z-10"><X className="w-5 h-5" /></button>
           <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
             <div className="w-9 h-9 rounded-full overflow-hidden">
-              {viewing.user_avatar ? <img src={viewing.user_avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-primary/30 flex items-center justify-center text-white text-sm">{viewing.user_name?.[0]}</div>}
+              {getAvatar(viewing)
+                ? <img src={getAvatar(viewing)} alt="" className="w-full h-full object-cover" />
+                : <div className="w-full h-full bg-primary/30 flex items-center justify-center text-white text-sm">{getName(viewing)[0]}</div>}
             </div>
-            <span className="text-white font-semibold text-sm">{viewing.user_name}</span>
+            <span className="text-white font-semibold text-sm">{getName(viewing)}</span>
           </div>
-          {viewing.type === 'video'
+          {viewing.media_type === 'video'
             ? <video src={viewing.media_url} autoPlay controls className="max-h-[85vh] max-w-[90vw] object-contain" onClick={e => e.stopPropagation()} />
-            : <img src={viewing.media_url} alt="" className="max-h-[85vh] max-w-[90vw] object-contain" onClick={e => e.stopPropagation()} />}
+            : viewing.media_url
+              ? <img src={viewing.media_url} alt="" className="max-h-[85vh] max-w-[90vw] object-contain" onClick={e => e.stopPropagation()} />
+              : (
+                <div className="w-80 h-[500px] rounded-2xl flex items-center justify-center p-8 text-center"
+                  style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}
+                  onClick={e => e.stopPropagation()}>
+                  <p className="text-white text-xl font-bold leading-snug">{viewing.caption}</p>
+                </div>
+              )}
+          {viewing.caption && viewing.media_url && (
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/60 text-white px-4 py-2 rounded-xl text-sm max-w-[80%] text-center backdrop-blur-sm">
+              {viewing.caption}
+            </div>
+          )}
         </div>
       )}
     </>
@@ -393,6 +507,11 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate }) {
   const [showMenu, setShowMenu] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [reposting, setReposting] = useState(false)
+  // View counting
+  const cardRef = useRef()
+  const viewedRef = useRef(false)
+  // Post insights
+  const [showInsights, setShowInsights] = useState(false)
   // Edit post state
   const [showEditModal, setShowEditModal] = useState(false)
   const [editContent, setEditContent] = useState(post.content?.replace(/<[^>]+>/g, '') ?? '')
@@ -417,6 +536,29 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate }) {
     supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', currentUser.id).maybeSingle()
       .then(({ data }) => setSaved(!!data))
   }, [post.id, currentUser])
+
+  // Increment view_count when post is visible for 2 seconds
+  useEffect(() => {
+    if (viewedRef.current) return
+    const el = cardRef.current
+    if (!el) return
+    let timer = null
+    const baseCount = post.view_count || 0
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        timer = setTimeout(async () => {
+          if (!viewedRef.current) {
+            viewedRef.current = true
+            await supabase.from('posts').update({ view_count: baseCount + 1 }).eq('id', post.id)
+          }
+        }, 2000)
+      } else {
+        if (timer) { clearTimeout(timer); timer = null }
+      }
+    }, { threshold: 0.5 })
+    observer.observe(el)
+    return () => { observer.disconnect(); if (timer) clearTimeout(timer) }
+  }, [post.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLike = async () => {
     if (!currentUser) return
@@ -510,7 +652,7 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate }) {
 
   return (
     <>
-      <article className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+      <article ref={cardRef} className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
         {/* Repost indicator */}
         {post.reposted_by_name && (
           <div className="flex items-center gap-2 px-4 pt-3 pb-1 text-xs text-muted-foreground">
@@ -631,13 +773,95 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate }) {
           </button>
         </div>
 
+        {/* Insights bar */}
+        <div className="border-t border-border/40 px-4 py-2 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">👁 {fmtCount(post.view_count || 0)} views</span>
+          <span className="text-xs text-muted-foreground/30">·</span>
+          <span className="text-xs text-muted-foreground">❤️ {fmtCount(likeCount)}</span>
+          <span className="text-xs text-muted-foreground/30">·</span>
+          <span className="text-xs text-muted-foreground">💬 {fmtCount(commentCount)}</span>
+          <span className="text-xs text-muted-foreground/30">·</span>
+          <span className="text-xs text-muted-foreground">🔁 {fmtCount(repostCount)}</span>
+          <span className="text-xs text-muted-foreground/30">·</span>
+          <span className="text-xs text-muted-foreground">🔖 {fmtCount(post.save_count || 0)}</span>
+          {isOwner && (
+            <button onClick={() => setShowInsights(true)}
+              className="ml-auto text-xs text-primary font-semibold hover:underline flex-shrink-0">
+              See Insights →
+            </button>
+          )}
+        </div>
+
         {/* Comments */}
         {showComments && (
           <CommentSection postId={post.id} currentUser={currentUser} onCommentAdded={() => setCommentCount(c => c + 1)} />
         )}
       </article>
 
-      {showShare && <ShareModal post={post} onClose={() => setShowShare(false)} />}
+      {/* Insights Modal */}
+      {showInsights && (() => {
+        const views    = post.view_count || 0
+        const likes    = likeCount
+        const comments = commentCount
+        const reposts  = repostCount
+        const saves    = post.save_count || 0
+        const engTotal = likes + comments + reposts + saves
+        const rate     = views > 0 ? ((engTotal / views) * 100).toFixed(1) : '0.0'
+        const peak     = Math.max(views, likes, comments, reposts, saves, 1)
+        const metrics  = [
+          { label: 'Reach (views)', value: views, icon: '👁', bar: 'bg-blue-500' },
+          { label: 'Likes',         value: likes, icon: '❤️', bar: 'bg-pink-500' },
+          { label: 'Comments',      value: comments, icon: '💬', bar: 'bg-emerald-500' },
+          { label: 'Reposts',       value: reposts, icon: '🔁', bar: 'bg-amber-500' },
+          { label: 'Saves',         value: saves, icon: '🔖', bar: 'bg-violet-500' },
+        ]
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowInsights(false)}>
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="relative z-10 w-full max-w-md bg-card border border-border rounded-3xl shadow-2xl p-6 mx-4"
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-bold text-foreground">Post Insights</h3>
+                <button onClick={() => setShowInsights(false)}
+                  className="p-1.5 rounded-xl hover:bg-muted text-muted-foreground transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">How your post is performing</p>
+
+              <div className="bg-primary/10 rounded-2xl p-4 mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Engagement Rate</p>
+                  <p className="text-2xl font-bold text-primary">{rate}%</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Total engagements</p>
+                  <p className="text-xl font-bold text-foreground">{fmtCount(engTotal)}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3.5">
+                {metrics.map(m => (
+                  <div key={m.label}>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <span>{m.icon}</span>{m.label}
+                      </span>
+                      <span className="text-xs font-semibold text-foreground">{fmtCount(m.value)}</span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div className={`h-full ${m.bar} rounded-full transition-all duration-500`}
+                        style={{ width: `${Math.max(2, (m.value / peak) * 100)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {showShare && <ShareModal post={post} currentUser={currentUser} onClose={() => setShowShare(false)} />}
 
       {/* Edit Post Modal */}
       {showEditModal && (
