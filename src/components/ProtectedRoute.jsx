@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 
 const hasStoredToken = () => {
@@ -20,18 +20,14 @@ const Spinner = () => (
   </div>
 );
 
-export default function ProtectedRoute({ unauthenticatedElement = null }) {
-  const { isAuthenticated, authChecked, DEV_MODE } = useAuth();
+export default function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
 
-  if (DEV_MODE) return <Outlet />;
+  // If a token exists in localStorage, render immediately while auth resolves
+  if (loading && hasStoredToken()) return children;
 
-  // If a token exists in localStorage, render immediately — don't flash the
-  // spinner or redirect while onAuthStateChange is still resolving.
-  if (!authChecked && hasStoredToken()) return <Outlet />;
+  if (loading) return <Spinner />;
 
-  // No token — wait for async auth check before deciding to redirect
-  if (!authChecked) return <Spinner />;
-
-  if (!isAuthenticated) return unauthenticatedElement;
-  return <Outlet />;
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
 }

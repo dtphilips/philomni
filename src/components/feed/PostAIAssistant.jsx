@@ -40,10 +40,13 @@ export default function PostAIAssistant({ content, onApply, hashtags = [] }) {
     
     setLoading(true);
     try {
-      const response = /* TODO: migrate base44.functions.invoke */ Promise.resolve(null)),
-        audience: audience || null,
+      const _res = await fetch('/api/llm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: `${action} this post${audience ? ` for ${audience}` : ''}: "${content}"` }),
       });
-      setResult(response.data.result);
+      const _data = await _res.json();
+      setResult(_data.result ?? '');
     } catch (error) {
       console.error('Failed to generate:', error);
     } finally {
