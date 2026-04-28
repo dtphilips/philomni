@@ -1567,20 +1567,32 @@ function PostComposer({ user, onCreated }) {
       {expanded && (
         <div className="px-4 py-2.5 border-t border-border/60 flex items-center justify-between gap-2 flex-wrap bg-muted/10">
           <div className="flex items-center gap-1">
-            <label title="Add photo" className="cursor-pointer p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-emerald-500">
-              <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => handleFile(e, 'image')} />
-              <ImageIcon className="w-4 h-4" />
-            </label>
-            <label title="Add video" className="cursor-pointer p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-blue-500">
-              <input ref={vidInputRef} type="file" accept="video/*" className="hidden" onChange={e => handleFile(e, 'video')} />
-              <VideoIcon className="w-4 h-4" />
-            </label>
-            <button className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-pink-500">
-              <Film className="w-4 h-4" />
-            </button>
-            <button className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-orange-500">
-              <MapPin className="w-4 h-4" />
-            </button>
+            <div className="relative group">
+              <label className="cursor-pointer p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-emerald-500 flex items-center">
+                <input ref={imgInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => handleFile(e, 'image')} />
+                <ImageIcon className="w-4 h-4" />
+              </label>
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">Add Photo</span>
+            </div>
+            <div className="relative group">
+              <label className="cursor-pointer p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-blue-500 flex items-center">
+                <input ref={vidInputRef} type="file" accept="video/*" className="hidden" onChange={e => handleFile(e, 'video')} />
+                <VideoIcon className="w-4 h-4" />
+              </label>
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">Add Video</span>
+            </div>
+            <div className="relative group">
+              <button className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-pink-500">
+                <Film className="w-4 h-4" />
+              </button>
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">Add GIF</span>
+            </div>
+            <div className="relative group">
+              <button className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-orange-500">
+                <MapPin className="w-4 h-4" />
+              </button>
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">Add Location</span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {charCount > 0 && (
