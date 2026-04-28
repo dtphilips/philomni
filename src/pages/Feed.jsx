@@ -25,6 +25,15 @@ const EMOJIS = {
 
 const MAX_CHARS = 2000
 
+const TEXT_STORY_GRADIENTS = [
+  { label: 'Violet',  style: 'linear-gradient(135deg, #7c3aed, #4f46e5)' },
+  { label: 'Sunset',  style: 'linear-gradient(135deg, #f97316, #db2777)' },
+  { label: 'Ocean',   style: 'linear-gradient(135deg, #0ea5e9, #6366f1)' },
+  { label: 'Emerald', style: 'linear-gradient(135deg, #10b981, #3b82f6)' },
+  { label: 'Rose',    style: 'linear-gradient(135deg, #f43f5e, #f97316)' },
+  { label: 'Dark',    style: 'linear-gradient(135deg, #1e293b, #334155)' },
+]
+
 const PLATFORMS = [
   { name: 'WhatsApp', icon: '💬', color: '#25D366', getUrl: (url, text) => `https://wa.me/?text=${encodeURIComponent((text ? text + '\n' : '') + url)}` },
   { name: 'Twitter/X', icon: '🐦', color: '#1DA1F2', getUrl: (url, text) => `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text ?? '')}` },
@@ -139,10 +148,15 @@ function ShareModal({ post, currentUser, onClose }) {
     if (!currentUser) return
     setStoryLoading(true)
     try {
+      // Get the actual media URL (first item in array)
+      const mediaUrl = post.media_urls?.[0] ?? null
+      // Detect video by media_type field or by URL extension
+      const isVideo = post.media_type === 'video' ||
+        /\.(mp4|mov|webm|avi)(\?|$)/i.test(mediaUrl ?? '')
       const { error } = await supabase.from('statuses').insert({
-        media_url: postImage ?? null,
-        media_type: postImage ? 'image' : null,
-        caption: storyCaption || text.slice(0, 200),
+        media_url:  mediaUrl,
+        media_type: mediaUrl ? (isVideo ? 'video' : 'image') : null,
+        caption:    storyCaption || text.slice(0, 200),
         created_by: currentUser.id,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         created_at: new Date().toISOString(),
@@ -236,16 +250,31 @@ function ShareModal({ post, currentUser, onClose }) {
             onClick={e => e.stopPropagation()}>
             <h3 className="font-bold text-foreground text-center mb-4">Add to Your Story</h3>
             {/* Preview */}
-            {postImage ? (
-              <div className="w-full h-40 rounded-xl overflow-hidden mb-4 bg-black">
-                <img src={postImage} alt="" className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <div className="w-full h-24 rounded-xl mb-4 flex items-center justify-center text-white/90 text-sm font-medium text-center px-4"
-                style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
-                {text.slice(0, 80) || 'Story'}
-              </div>
-            )}
+            {(() => {
+              const mediaUrl = post.media_urls?.[0] ?? null
+              const isVideo  = post.media_type === 'video' ||
+                /\.(mp4|mov|webm|avi)(\?|$)/i.test(mediaUrl ?? '')
+              if (mediaUrl && isVideo) {
+                return (
+                  <div className="w-full h-40 rounded-xl overflow-hidden mb-4 bg-black">
+                    <video src={mediaUrl} className="w-full h-full object-cover" muted playsInline />
+                  </div>
+                )
+              }
+              if (mediaUrl) {
+                return (
+                  <div className="w-full h-40 rounded-xl overflow-hidden mb-4 bg-black">
+                    <img src={mediaUrl} alt="" className="w-full h-full object-cover" />
+                  </div>
+                )
+              }
+              return (
+                <div className="w-full h-24 rounded-xl mb-4 flex items-center justify-center text-white/90 text-sm font-medium text-center px-4"
+                  style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
+                  {text.slice(0, 80) || 'Story'}
+                </div>
+              )
+            })()}
             <textarea
               value={storyCaption}
               onChange={e => setStoryCaption(e.target.value)}
@@ -401,14 +430,230 @@ function StoryViewer({ storyList, startIndex = 0, onClose }) {
   )
 }
 
+// ─── Story Options Modal ──────────────────────────────────────────────────────
+
+function StoryOptionsModal({ onPickFile, onTextStory, onClose }) {
+  return (
+    <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative z-10 w-full max-w-xs bg-card border border-border rounded-t-3xl sm:rounded-3xl shadow-2xl pb-safe mx-auto"
+        onClick={e => e.stopPropagation()}>
+        <div className="w-10 h-1 bg-muted rounded-full mx-auto mt-3 mb-1 sm:hidden" />
+        <div className="px-5 py-5 space-y-3">
+          <h3 className="font-bold text-foreground text-center mb-4">Create a Story</h3>
+          <button
+            onClick={onPickFile}
+            className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl hover:bg-muted transition-colors text-left border border-border">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-xl flex-shrink-0">📷</div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Photo or Video</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Upload from your device</p>
+            </div>
+          </button>
+          <button
+            onClick={onTextStory}
+            className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl hover:bg-muted transition-colors text-left border border-border">
+            <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-xl flex-shrink-0">✏️</div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Text Story</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Write something with a colourful background</p>
+            </div>
+          </button>
+          <button onClick={onClose}
+            className="w-full py-3 rounded-xl bg-muted text-sm text-muted-foreground hover:bg-muted/80 transition-colors mt-2">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Text Story Creator ───────────────────────────────────────────────────────
+
+function TextStoryCreator({ currentUser, onDone, onClose }) {
+  const [text, setText]           = useState('')
+  const [gradientIdx, setGradientIdx] = useState(0)
+  const [fontSize, setFontSize]   = useState(32)
+  const [align, setAlign]         = useState('center') // left | center | right
+  const [saving, setSaving]       = useState(false)
+
+  const gradient = TEXT_STORY_GRADIENTS[gradientIdx]
+
+  // Word-wrap helper for canvas
+  const wrapText = (ctx, str, x, y, maxW, lineH) => {
+    const words = str.split(' ')
+    let line = ''
+    let curY = y
+    for (let i = 0; i < words.length; i++) {
+      const test = line + (line ? ' ' : '') + words[i]
+      if (ctx.measureText(test).width > maxW && line) {
+        ctx.fillText(line, x, curY)
+        line = words[i]
+        curY += lineH
+      } else {
+        line = test
+      }
+    }
+    if (line) ctx.fillText(line, x, curY)
+    return curY
+  }
+
+  const handlePost = async () => {
+    if (!text.trim() || !currentUser) return
+    setSaving(true)
+    try {
+      // Render onto a 1080×1920 canvas
+      const W = 1080, H = 1920
+      const canvas = document.createElement('canvas')
+      canvas.width  = W
+      canvas.height = H
+      const ctx = canvas.getContext('2d')
+
+      // Background gradient
+      const grd = ctx.createLinearGradient(0, 0, W, H)
+      // Parse the two-stop gradient from the style string
+      const stops = gradient.style.match(/#[0-9a-fA-F]{3,8}/g) ?? ['#7c3aed', '#4f46e5']
+      grd.addColorStop(0, stops[0])
+      grd.addColorStop(1, stops[1] ?? stops[0])
+      ctx.fillStyle = grd
+      ctx.fillRect(0, 0, W, H)
+
+      // Text
+      const scale = W / 390               // map phone-width px → canvas px
+      const canvasFontSize = fontSize * scale
+      ctx.font        = `bold ${canvasFontSize}px sans-serif`
+      ctx.fillStyle   = '#ffffff'
+      ctx.textAlign   = align
+      ctx.textBaseline = 'middle'
+      const padding = W * 0.08
+      const textX = align === 'left' ? padding : align === 'right' ? W - padding : W / 2
+      const maxWidth = W - padding * 2
+      const lineH = canvasFontSize * 1.35
+      // Start vertically centred
+      const lines = text.split('\n')
+      const totalH = lines.length * lineH
+      let startY = (H - totalH) / 2
+
+      for (const line of lines) {
+        startY = wrapText(ctx, line, textX, startY, maxWidth, lineH) + lineH
+      }
+
+      // Convert to blob → File → upload
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92))
+      const file = new File([blob], `text-story-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const url  = await uploadToStorage(file)
+
+      const { data, error } = await supabase.from('statuses').insert({
+        media_url:  url,
+        media_type: 'image',
+        caption:    text.slice(0, 200),
+        created_by: currentUser.id,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        created_at: new Date().toISOString(),
+      }).select().single()
+
+      if (error) { console.error('Text story error:', error.message); setSaving(false); return }
+      onDone(data)
+    } catch (err) { console.error(err); setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[160] flex flex-col bg-black">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-3 flex-shrink-0">
+        <button onClick={onClose} className="w-9 h-9 flex items-center justify-center text-white/80 hover:text-white">
+          <X className="w-5 h-5" />
+        </button>
+        <p className="text-white text-sm font-semibold">Text Story</p>
+        <button
+          onClick={handlePost}
+          disabled={!text.trim() || saving}
+          className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold disabled:opacity-40 flex items-center gap-2">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Post'}
+        </button>
+      </div>
+
+      {/* Preview */}
+      <div
+        className="flex-1 flex items-center justify-center px-8 cursor-text"
+        style={{ background: gradient.style }}
+        onClick={() => document.getElementById('text-story-input')?.focus()}
+      >
+        <textarea
+          id="text-story-input"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Start typing…"
+          className="w-full bg-transparent text-white placeholder:text-white/40 focus:outline-none resize-none text-center leading-snug"
+          style={{
+            fontSize: `${fontSize}px`,
+            textAlign: align,
+            fontWeight: 700,
+            border: 'none',
+            caretColor: 'white',
+          }}
+          rows={8}
+        />
+      </div>
+
+      {/* Controls */}
+      <div className="flex-shrink-0 bg-black/80 px-4 py-4 space-y-3">
+        {/* Gradient swatches */}
+        <div className="flex items-center gap-2">
+          <span className="text-white/50 text-xs w-16">Background</span>
+          <div className="flex gap-2">
+            {TEXT_STORY_GRADIENTS.map((g, i) => (
+              <button
+                key={g.label}
+                onClick={() => setGradientIdx(i)}
+                className={`w-7 h-7 rounded-full transition-all ${gradientIdx === i ? 'ring-2 ring-white ring-offset-1 ring-offset-black scale-110' : ''}`}
+                style={{ background: g.style }}
+                title={g.label}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Font size */}
+        <div className="flex items-center gap-3">
+          <span className="text-white/50 text-xs w-16">Size</span>
+          <input
+            type="range" min={18} max={60} step={2}
+            value={fontSize}
+            onChange={e => setFontSize(Number(e.target.value))}
+            className="flex-1 accent-primary"
+          />
+          <span className="text-white/60 text-xs w-6 text-right">{fontSize}</span>
+        </div>
+
+        {/* Alignment */}
+        <div className="flex items-center gap-2">
+          <span className="text-white/50 text-xs w-16">Align</span>
+          {['left','center','right'].map(a => (
+            <button
+              key={a}
+              onClick={() => setAlign(a)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${align === a ? 'bg-primary text-white' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}>
+              {a === 'left' ? '⬅' : a === 'center' ? '↔' : '➡'}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Stories Bar ──────────────────────────────────────────────────────────────
 
 function StoriesBar({ currentUser }) {
-  const [allStories, setAllStories] = useState([])   // flat list of status rows, each with _user
-  const [viewerList,  setViewerList]  = useState(null)  // array of stories to show in viewer
-  const [viewerStart, setViewerStart] = useState(0)
-  const [uploading,  setUploading]  = useState(false)
-  const [toast,      setToast]      = useState('')
+  const [allStories, setAllStories]     = useState([])
+  const [viewerList,  setViewerList]    = useState(null)
+  const [viewerStart, setViewerStart]   = useState(0)
+  const [uploading,  setUploading]      = useState(false)
+  const [toast,      setToast]          = useState('')
+  const [showOptions,    setShowOptions]    = useState(false)
+  const [showTextCreator, setShowTextCreator] = useState(false)
   const fileRef = useRef()
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -484,7 +729,29 @@ function StoriesBar({ currentUser }) {
   // ── Open viewer helpers ────────────────────────────────────────────────────
   const openMyStories = () => {
     if (hasMyStory) { setViewerList(myStories); setViewerStart(0) }
-    else fileRef.current?.click()
+    else setShowOptions(true)
+  }
+
+  const handlePickFile = () => {
+    setShowOptions(false)
+    fileRef.current?.click()
+  }
+
+  const handleOpenTextCreator = () => {
+    setShowOptions(false)
+    setShowTextCreator(true)
+  }
+
+  const handleTextStoryDone = (data) => {
+    setShowTextCreator(false)
+    if (data) {
+      const enriched = {
+        ...data,
+        _user: { id: currentUser.id, full_name: currentUser.full_name, avatar_url: currentUser.avatar_url },
+      }
+      setAllStories(prev => [enriched, ...prev])
+      setToast('Text story posted!')
+    }
   }
 
   const openOtherGroup = (group) => {
@@ -522,9 +789,9 @@ function StoriesBar({ currentUser }) {
                 )}
               </div>
             </button>
-            {/* "+" add button — always visible so user can add another story */}
+            {/* "+" add button — always visible; shows options modal */}
             <button
-              onClick={e => { e.stopPropagation(); fileRef.current?.click() }}
+              onClick={e => { e.stopPropagation(); setShowOptions(true) }}
               className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-primary border-2 border-background flex items-center justify-center z-10 hover:bg-primary/80 transition-colors"
             >
               <Plus className="w-3 h-3 text-white" />
@@ -562,6 +829,24 @@ function StoriesBar({ currentUser }) {
           storyList={viewerList}
           startIndex={viewerStart}
           onClose={() => { setViewerList(null); setViewerStart(0) }}
+        />
+      )}
+
+      {/* ── Story options modal ── */}
+      {showOptions && (
+        <StoryOptionsModal
+          onPickFile={handlePickFile}
+          onTextStory={handleOpenTextCreator}
+          onClose={() => setShowOptions(false)}
+        />
+      )}
+
+      {/* ── Text story creator ── */}
+      {showTextCreator && (
+        <TextStoryCreator
+          currentUser={currentUser}
+          onDone={handleTextStoryDone}
+          onClose={() => setShowTextCreator(false)}
         />
       )}
     </>
