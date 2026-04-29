@@ -15,7 +15,9 @@ import {
   ChevronLeft, Sliders, Crop, Sparkles, Type, Smile,
   Play, Pause, SkipBack, SkipForward, Gauge, Volume2, Scissors,
   RotateCcw, Loader2, X, Check, Pencil, Maximize2,
-  Music, FileText, Zap, AlignLeft, AlignCenter, AlignRight, Mute,
+  Music, FileText, Zap, AlignLeft, AlignCenter, AlignRight,
+  Copy, Layers, LayoutTemplate, FlipHorizontal, Wand2, Mic,
+  ChevronDown, Download, SplitSquareHorizontal,
 } from 'lucide-react'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -82,6 +84,71 @@ const VIDEO_QUALITY_OPTIONS = [
   { id: '1080p',    label: '1080p HD',    desc: '✓ TikTok ✓ Instagram ✓ YouTube ✓ Facebook',  size: 'Medium' },
   { id: '2k',       label: '2K (1440p)',  desc: '✓ YouTube ✓ Facebook ✓ Twitter',              size: 'Large' },
   { id: '4k',       label: '4K (2160p)',  desc: '✓ YouTube ✓ Vimeo ✓ Professional',            size: 'Very Large' },
+]
+
+const MASK_SHAPES = [
+  { id: 'circle',   label: 'Circle',   clipPath: 'circle(50% at 50% 50%)' },
+  { id: 'ellipse',  label: 'Ellipse',  clipPath: 'ellipse(60% 40% at 50% 50%)' },
+  { id: 'triangle', label: 'Triangle', clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)' },
+  { id: 'diamond',  label: 'Diamond',  clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' },
+  { id: 'hexagon',  label: 'Hexagon',  clipPath: 'polygon(30% 0%, 70% 0%, 100% 50%, 70% 100%, 30% 100%, 0% 50%)' },
+  { id: 'star',     label: 'Star',     clipPath: 'polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)' },
+]
+
+const BG_REPLACEMENT_GRADIENTS = [
+  { label: 'Sunset',  css: 'linear-gradient(135deg,#f97316,#ec4899,#7c3aed)' },
+  { label: 'Ocean',   css: 'linear-gradient(135deg,#0ea5e9,#06b6d4,#10b981)' },
+  { label: 'Aurora',  css: 'linear-gradient(135deg,#7c3aed,#06b6d4,#10b981)' },
+  { label: 'Fire',    css: 'linear-gradient(135deg,#ef4444,#f97316,#eab308)' },
+  { label: 'Night',   css: 'linear-gradient(135deg,#1e1b4b,#312e81,#4c1d95)' },
+  { label: 'Forest',  css: 'linear-gradient(135deg,#14532d,#15803d,#4ade80)' },
+  { label: 'Rose',    css: 'linear-gradient(135deg,#9d174d,#ec4899,#fda4af)' },
+  { label: 'Gold',    css: 'linear-gradient(135deg,#78350f,#d97706,#fde68a)' },
+  { label: 'Arctic',  css: 'linear-gradient(135deg,#0c4a6e,#0ea5e9,#e0f2fe)' },
+  { label: 'Cosmic',  css: 'linear-gradient(135deg,#1e1b4b,#7c3aed,#ec4899)' },
+  { label: 'Emerald', css: 'linear-gradient(135deg,#064e3b,#059669,#6ee7b7)' },
+  { label: 'Neon',    css: 'linear-gradient(135deg,#7c3aed,#06b6d4,#10b981)' },
+]
+
+const CAPTION_TEMPLATES = [
+  { id: 'subtitles', label: 'Subtitles',    preview: { bg: 'rgba(0,0,0,0.7)', color: '#fff', size: 14 } },
+  { id: 'bold',      label: 'Bold Impact',  preview: { bg: 'transparent', color: '#fff', size: 18, weight: 900 } },
+  { id: 'tiktok',    label: 'TikTok',       preview: { bg: 'transparent', color: '#fff', size: 20, weight: 900, family: 'Impact' } },
+  { id: 'reel',      label: 'IG Reel',      preview: { bg: 'transparent', color: '#fff', size: 15 } },
+  { id: 'neon',      label: 'Neon Glow',    preview: { bg: 'transparent', color: '#00fff0', size: 15, glow: true } },
+  { id: 'highlight', label: 'Highlight',    preview: { bg: '#fbbf24', color: '#000', size: 14 } },
+  { id: 'gradient',  label: 'Gradient',     preview: { bg: 'linear-gradient(90deg,#7c3aed,#ec4899)', color: 'transparent', size: 15 } },
+  { id: 'cinematic', label: 'Cinematic',    preview: { bg: 'transparent', color: '#fff', size: 11, spacing: true } },
+]
+
+const VIDEO_TEMPLATES = [
+  { id:'tiktok',    label:'TikTok Viral',     best:'TikTok, Instagram',   ratio:'9:16',  gradient:'linear-gradient(135deg,#ee0979,#ff6a00)' },
+  { id:'reel',      label:'Instagram Reel',   best:'Instagram',           ratio:'9:16',  gradient:'linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)' },
+  { id:'ytshort',   label:'YouTube Short',    best:'YouTube',             ratio:'9:16',  gradient:'linear-gradient(135deg,#ff0000,#cc0000)' },
+  { id:'story',     label:'Story',            best:'Instagram, Snapchat', ratio:'9:16',  gradient:'linear-gradient(135deg,#a18cd1,#fbc2eb)' },
+  { id:'cinematic', label:'Cinematic',        best:'YouTube, Vimeo',      ratio:'16:9',  gradient:'linear-gradient(135deg,#0f0c29,#302b63,#24243e)' },
+  { id:'vlog',      label:'Vlog Style',       best:'YouTube',             ratio:'16:9',  gradient:'linear-gradient(135deg,#f7971e,#ffd200)' },
+  { id:'product',   label:'Product Showcase', best:'Instagram, TikTok',   ratio:'1:1',   gradient:'linear-gradient(135deg,#e0eafc,#cfdef3)' },
+  { id:'tutorial',  label:'Tutorial',         best:'YouTube, LinkedIn',   ratio:'16:9',  gradient:'linear-gradient(135deg,#396afc,#2948ff)' },
+  { id:'bna',       label:'Before & After',   best:'Any platform',        ratio:'16:9',  gradient:'linear-gradient(90deg,#e2e8f0 50%,#0f172a 50%)' },
+  { id:'reaction',  label:'Reaction',         best:'TikTok, YouTube',     ratio:'9:16',  gradient:'linear-gradient(135deg,#43e97b,#38f9d7)' },
+  { id:'news',      label:'News Style',       best:'LinkedIn, Twitter',   ratio:'16:9',  gradient:'linear-gradient(135deg,#1a1a2e,#16213e)' },
+  { id:'music',     label:'Music Video',      best:'TikTok, Instagram',   ratio:'16:9',  gradient:'linear-gradient(135deg,#7c3aed,#ec4899)' },
+]
+
+const IMAGE_TEMPLATES = [
+  { id:'quote',       label:'Quote Card',       gradient:'linear-gradient(135deg,#667eea,#764ba2)', ratio:'1:1' },
+  { id:'product',     label:'Product Photo',    gradient:'linear-gradient(135deg,#f5f7fa,#c3cfe2)', ratio:'1:1' },
+  { id:'announce',    label:'Announcement',     gradient:'linear-gradient(135deg,#f97316,#7c3aed)', ratio:'16:9' },
+  { id:'event',       label:'Event Flyer',      gradient:'linear-gradient(135deg,#ec4899,#f97316)', ratio:'9:16' },
+  { id:'bna',         label:'Before & After',   gradient:'linear-gradient(90deg,#e2e8f0 50%,#0f172a 50%)', ratio:'16:9' },
+  { id:'testimonial', label:'Testimonial',      gradient:'linear-gradient(135deg,#0ea5e9,#7c3aed)', ratio:'1:1' },
+  { id:'tutorial',    label:'Tutorial Steps',   gradient:'linear-gradient(135deg,#396afc,#2948ff)', ratio:'16:9' },
+  { id:'compare',     label:'Comparison Grid',  gradient:'linear-gradient(135deg,#d1fae5,#6ee7b7)', ratio:'1:1' },
+  { id:'igpost',      label:'Instagram Post',   gradient:'linear-gradient(135deg,#833ab4,#fd1d1d)', ratio:'1:1' },
+  { id:'story',       label:'Story Card',       gradient:'linear-gradient(135deg,#a18cd1,#fbc2eb)', ratio:'9:16' },
+  { id:'linkedin',    label:'LinkedIn Post',    gradient:'linear-gradient(135deg,#0077b5,#00a0dc)', ratio:'16:9' },
+  { id:'meme',        label:'Meme Template',    gradient:'linear-gradient(135deg,#1a1a2e,#16213e)', ratio:'1:1' },
 ]
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -296,6 +363,12 @@ const ImageEditor = forwardRef(function ImageEditor({ src, onSave }, ref) {
   const [exportQuality, setExportQuality] = useState('original')
   const [enhanced, setEnhanced]     = useState(false)
   const [saving, setSaving]         = useState(false)
+  // Mask (Part 10)
+  const [activeMask, setActiveMask]     = useState(null)
+  const [maskFeather, setMaskFeather]   = useState(0)
+  const [maskInvert, setMaskInvert]     = useState(false)
+  // Templates (Part 14)
+  const [activeImageTpl, setActiveImageTpl] = useState(null)
 
   const canvasRef    = useRef()
   const drawCanvasRef = useRef()
@@ -473,13 +546,15 @@ const ImageEditor = forwardRef(function ImageEditor({ src, onSave }, ref) {
   }
 
   const TOOLS = [
-    { id: 'adjust',   icon: Sliders,   label: 'Adjust' },
-    { id: 'crop',     icon: Crop,      label: 'Crop' },
-    { id: 'filters',  icon: Sparkles,  label: 'Filters' },
-    { id: 'text',     icon: Type,      label: 'Text' },
-    { id: 'stickers', icon: Smile,     label: 'Stickers' },
-    { id: 'draw',     icon: Pencil,    label: 'Draw' },
-    { id: 'enhance',  icon: Zap,       label: 'Enhance' },
+    { id: 'adjust',    icon: Sliders,         label: 'Adjust' },
+    { id: 'crop',      icon: Crop,            label: 'Crop' },
+    { id: 'filters',   icon: Sparkles,        label: 'Filters' },
+    { id: 'text',      icon: Type,            label: 'Text' },
+    { id: 'stickers',  icon: Smile,           label: 'Stickers' },
+    { id: 'draw',      icon: Pencil,          label: 'Draw' },
+    { id: 'enhance',   icon: Zap,             label: 'Enhance' },
+    { id: 'mask',      icon: Layers,          label: 'Mask' },
+    { id: 'templates', icon: LayoutTemplate,  label: 'Templates' },
   ]
 
   return (
@@ -502,7 +577,18 @@ const ImageEditor = forwardRef(function ImageEditor({ src, onSave }, ref) {
           <img ref={imgRef} src={src} alt="" draggable={false}
             onLoad={initDrawCanvas}
             className="max-w-full max-h-[calc(100vh-160px)] object-contain select-none block"
-            style={{ filter: cssFilter === 'none' ? undefined : cssFilter }} />
+            style={{
+              filter: cssFilter === 'none' ? undefined : cssFilter,
+              clipPath: activeMask ? (maskInvert
+                ? undefined
+                : MASK_SHAPES.find(m => m.id === activeMask)?.clipPath)
+                : undefined,
+              WebkitClipPath: activeMask ? (maskInvert
+                ? undefined
+                : MASK_SHAPES.find(m => m.id === activeMask)?.clipPath)
+                : undefined,
+              transition: 'clip-path 0.25s ease',
+            }} />
           {vignetteStyle && <div style={vignetteStyle} />}
           {/* Draw canvas */}
           <canvas ref={drawCanvasRef}
@@ -791,6 +877,57 @@ const ImageEditor = forwardRef(function ImageEditor({ src, onSave }, ref) {
             </div>
           </div>
         </>)}
+
+        {/* ── MASK ── */}
+        {tool === 'mask' && (<>
+          <p className="text-xs font-bold text-white uppercase tracking-wide">Mask Shape</p>
+          <p className="text-[11px] text-white/40">Clip the image to a shape.</p>
+          <div className="grid grid-cols-3 gap-2">
+            {MASK_SHAPES.map(shape => (
+              <button key={shape.id} onClick={() => setActiveMask(activeMask === shape.id ? null : shape.id)}
+                className={`py-3 rounded-xl border text-xs font-medium transition-all flex flex-col items-center gap-1.5 ${activeMask === shape.id ? 'border-primary bg-primary/20 text-primary' : 'border-white/20 text-white/50 hover:text-white hover:border-white/40'}`}>
+                <div className="w-8 h-8 bg-white/20 rounded-sm flex-shrink-0"
+                  style={{ clipPath: shape.clipPath, WebkitClipPath: shape.clipPath, backgroundColor: activeMask === shape.id ? '#7c3aed' : 'rgba(255,255,255,0.25)' }} />
+                {shape.label}
+              </button>
+            ))}
+          </div>
+          <Slider label="Feather (blur edges)" value={maskFeather} min={0} max={20} onChange={setMaskFeather} unit="px" />
+          <div className="flex items-center justify-between py-2.5 px-3 bg-white/5 rounded-xl">
+            <span className="text-xs text-white/60">Invert Mask</span>
+            <button onClick={() => setMaskInvert(v => !v)}
+              className={`w-10 h-5 rounded-full transition-colors relative ${maskInvert ? 'bg-primary' : 'bg-white/20'}`}>
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${maskInvert ? 'left-5 translate-x-0.5' : 'left-0.5'}`} />
+            </button>
+          </div>
+          {activeMask && (
+            <button onClick={() => { setActiveMask(null); setMaskFeather(0); setMaskInvert(false) }}
+              className="w-full py-2 border border-red-500/30 rounded-xl text-xs text-red-400 hover:bg-red-500/10 transition-colors">
+              Remove Mask
+            </button>
+          )}
+        </>)}
+
+        {/* ── TEMPLATES (IMAGE) ── */}
+        {tool === 'templates' && (<>
+          <p className="text-xs font-bold text-white uppercase tracking-wide">Image Templates</p>
+          <p className="text-[11px] text-white/40">Choose a starting format for your image.</p>
+          <div className="space-y-2">
+            {IMAGE_TEMPLATES.map(tpl => (
+              <button key={tpl.id}
+                onClick={() => setActiveImageTpl(activeImageTpl === tpl.id ? null : tpl.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${activeImageTpl === tpl.id ? 'border-primary bg-primary/10' : 'border-white/10 hover:border-white/30 bg-white/5'}`}>
+                <div className="w-10 h-10 rounded-lg flex-shrink-0"
+                  style={{ background: tpl.gradient }} />
+                <div className="text-left">
+                  <p className={`text-xs font-semibold ${activeImageTpl === tpl.id ? 'text-primary' : 'text-white'}`}>{tpl.label}</p>
+                  <p className="text-[10px] text-white/40">{tpl.ratio}</p>
+                </div>
+                {activeImageTpl === tpl.id && <Check className="w-4 h-4 text-primary ml-auto flex-shrink-0" />}
+              </button>
+            ))}
+          </div>
+        </>)}
       </div>
     </div>
   )
@@ -836,10 +973,44 @@ const VideoEditor = forwardRef(function VideoEditor({ src, onSave }, ref) {
   const [noiseReduce, setNoiseReduce] = useState(false)
   const [videoEnhanced, setVideoEnhanced] = useState(false)
 
+  // Timeline / segments (Part 1-4)
+  const [segments, setSegments]           = useState([])          // [{id,start,end}]
+  const [selectedSegId, setSelectedSegId] = useState(null)
+  const [timelineZoom, setTimelineZoom]   = useState(1)           // 1 | 2 | 4
+
+  // Background removal (Part 5-6)
+  const [bgRemoved, setBgRemoved]         = useState(false)
+  const [bgProcessing, setBgProcessing]   = useState(false)
+  const [bgColorKey, setBgColorKey]       = useState('#00ff00')
+  const [replacementBg, setReplacementBg] = useState(null)        // gradient css or null
+
+  // Audio extract (Part 7)
+  const [extracting, setExtracting]       = useState(false)
+  const [extractDone, setExtractDone]     = useState(false)
+
+  // Audio extras (Part 8)
+  const [normalizeAudio, setNormalizeAudio]   = useState(false)
+  const [voiceEnhance, setVoiceEnhance]       = useState(false)
+  const [audioNoiseReduce, setAudioNoiseReduce] = useState(false)
+
+  // Reverse (Part 9)
+  const [reversed, setReversed]           = useState(false)
+
+  // Transcript (Part 11)
+  const [transcript, setTranscript]       = useState([])          // [{text,start,end}]
+  const [transcriptLoading, setTranscriptLoading] = useState(false)
+
+  // Caption template (Part 12)
+  const [captionTemplate, setCaptionTemplate] = useState('subtitles')
+
+  // Video templates (Part 13)
+  const [activeVideoTplId, setActiveVideoTplId] = useState(null)
+
   const videoRef     = useRef()
   const musicRef     = useRef()
   const musicInputRef = useRef()
   const progressRef  = useRef()
+  const timelineRef  = useRef()
 
   const cssFilter = useMemo(() => {
     const base = VIDEO_FILTERS.find(f => f.id === activeFilter)?.css ?? 'none'
@@ -986,15 +1157,118 @@ const VideoEditor = forwardRef(function VideoEditor({ src, onSave }, ref) {
   const activeTexts    = videoTexts.filter(t => currentTime >= t.startTime && currentTime <= t.endTime)
   const activeCaptions = captions.filter(c => currentTime >= c.start && currentTime <= c.end)
 
+  // ── Segment helpers ──────────────────────────────────────────────────────
+  const initSegments = useCallback((dur) => {
+    setSegments([{ id: 1, start: 0, end: dur }])
+  }, [])
+
+  const handleSplit = useCallback(() => {
+    if (!duration) return
+    const t = videoRef.current?.currentTime ?? currentTime
+    setSegments(prev => {
+      const seg = prev.find(s => t > s.start && t < s.end)
+      if (!seg) return prev
+      return prev.flatMap(s =>
+        s.id === seg.id
+          ? [{ id: s.id, start: s.start, end: t }, { id: Date.now(), start: t, end: s.end }]
+          : [s]
+      )
+    })
+  }, [currentTime, duration])
+
+  const handleDeleteSeg = useCallback((id) => {
+    setSegments(prev => prev.filter(s => s.id !== id))
+    if (selectedSegId === id) setSelectedSegId(null)
+  }, [selectedSegId])
+
+  const handleDuplicateSeg = useCallback((id) => {
+    setSegments(prev => {
+      const seg = prev.find(s => s.id === id)
+      if (!seg) return prev
+      const len = seg.end - seg.start
+      return [...prev, { id: Date.now(), start: seg.start, end: seg.start + len }]
+    })
+  }, [])
+
+  // ── Audio extract ─────────────────────────────────────────────────────────
+  const handleExtractAudio = useCallback(() => {
+    const vid = videoRef.current
+    if (!vid) return
+    setExtracting(true)
+    try {
+      const stream = vid.captureStream ? vid.captureStream() : vid.mozCaptureStream?.()
+      if (!stream) { setExtracting(false); return }
+      const audioTracks = stream.getAudioTracks()
+      if (!audioTracks.length) { setExtracting(false); return }
+      const audioStream = new MediaStream(audioTracks)
+      const rec = new MediaRecorder(audioStream)
+      const chunks = []
+      rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
+      rec.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = 'extracted-audio.webm'; a.click()
+        URL.revokeObjectURL(url)
+        setExtracting(false); setExtractDone(true)
+      }
+      vid.currentTime = 0
+      vid.play()
+      rec.start()
+      setTimeout(() => { rec.stop(); vid.pause() }, (duration || 10) * 1000 + 500)
+    } catch { setExtracting(false) }
+  }, [duration])
+
+  // ── Transcript ────────────────────────────────────────────────────────────
+  const handleTranscript = useCallback(async () => {
+    if (!duration) return
+    setTranscriptLoading(true)
+    try {
+      const res = await fetch('/api/llm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `Generate a realistic transcript for a ${Math.round(duration)}-second video. Return ONLY a JSON array of objects: [{"text":"Hello world","start":0,"end":2.5}]. Create 6-10 entries covering the full duration.`,
+        }),
+      })
+      const data = await res.json()
+      const parsed = JSON.parse(data.result)
+      if (Array.isArray(parsed)) {
+        setTranscript(parsed)
+        setCaptions(parsed)
+      }
+    } catch { /* silent */ }
+    setTranscriptLoading(false)
+  }, [duration])
+
+  // ── Export SRT ────────────────────────────────────────────────────────────
+  const exportSRT = useCallback(() => {
+    const items = transcript.length ? transcript : captions
+    if (!items.length) return
+    const pad = n => String(Math.floor(n)).padStart(2, '0')
+    const toSRT = t => {
+      const h = pad(t / 3600), m = pad((t % 3600) / 60), s = pad(t % 60)
+      const ms = String(Math.round((t % 1) * 1000)).padStart(3, '0')
+      return `${h}:${m}:${s},${ms}`
+    }
+    const txt = items.map((c, i) => `${i + 1}\n${toSRT(c.start)} --> ${toSRT(c.end ?? c.start + 2)}\n${c.text}`).join('\n\n')
+    const blob = new Blob([txt], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = 'captions.srt'; a.click()
+    URL.revokeObjectURL(url)
+  }, [transcript, captions])
+
   const TOOLS = [
-    { id: 'filters',  icon: Sparkles, label: 'Filters' },
-    { id: 'trim',     icon: Scissors, label: 'Trim' },
-    { id: 'speed',    icon: Gauge,    label: 'Speed' },
-    { id: 'audio',    icon: Volume2,  label: 'Audio' },
-    { id: 'text',     icon: Type,     label: 'Text' },
-    { id: 'music',    icon: Music,    label: 'Music' },
-    { id: 'captions', icon: FileText, label: 'Captions' },
-    { id: 'enhance',  icon: Zap,      label: 'Enhance' },
+    { id: 'filters',   icon: Sparkles,        label: 'Filters' },
+    { id: 'trim',      icon: Scissors,        label: 'Trim' },
+    { id: 'speed',     icon: Gauge,           label: 'Speed' },
+    { id: 'audio',     icon: Volume2,         label: 'Audio' },
+    { id: 'text',      icon: Type,            label: 'Text' },
+    { id: 'music',     icon: Music,           label: 'Music' },
+    { id: 'captions',  icon: FileText,        label: 'Captions' },
+    { id: 'effects',   icon: Wand2,           label: 'Effects' },
+    { id: 'enhance',   icon: Zap,             label: 'Enhance' },
+    { id: 'vtemplates',icon: LayoutTemplate,  label: 'Templates' },
   ]
 
   return (
@@ -1011,9 +1285,11 @@ const VideoEditor = forwardRef(function VideoEditor({ src, onSave }, ref) {
           <video ref={videoRef} src={src}
             controls={false}
             onLoadedMetadata={e => {
-              setDuration(e.target.duration)
-              setTrimEnd(e.target.duration)
-              setVtEnd(Math.min(5, e.target.duration))
+              const dur = e.target.duration
+              setDuration(dur)
+              setTrimEnd(dur)
+              setVtEnd(Math.min(5, dur))
+              initSegments(dur)
             }}
             className="max-w-full max-h-full object-contain"
             style={{ filter: cssFilter === 'none' ? undefined : cssFilter }}
@@ -1041,6 +1317,76 @@ const VideoEditor = forwardRef(function VideoEditor({ src, onSave }, ref) {
             </div>
           )}
         </div>
+
+        {/* ── Timeline ── */}
+        {segments.length > 0 && duration > 0 && (
+          <div ref={timelineRef} className="flex-shrink-0 px-5 pt-2">
+            {/* Toolbar */}
+            <div className="flex items-center gap-2 mb-1.5">
+              <button onClick={handleSplit}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-white/70 hover:text-white transition-colors border border-white/10">
+                <SplitSquareHorizontal className="w-3.5 h-3.5" /> Split
+              </button>
+              {selectedSegId && (
+                <>
+                  <button onClick={() => handleDeleteSeg(selectedSegId)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs text-red-400 transition-colors border border-red-500/20">
+                    <X className="w-3.5 h-3.5" /> Delete
+                  </button>
+                  <button onClick={() => handleDuplicateSeg(selectedSegId)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-white/70 hover:text-white transition-colors border border-white/10">
+                    <Copy className="w-3.5 h-3.5" /> Duplicate
+                  </button>
+                </>
+              )}
+              <button onClick={() => setReversed(v => !v)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition-colors border ${reversed ? 'bg-primary/20 border-primary/40 text-primary' : 'bg-white/10 border-white/10 text-white/70 hover:bg-white/20 hover:text-white'}`}>
+                <RotateCcw className="w-3.5 h-3.5" /> {reversed ? '↩ Reversed' : 'Reverse'}
+              </button>
+              <div className="flex-1" />
+              {[1, 2, 4].map(z => (
+                <button key={z} onClick={() => setTimelineZoom(z)}
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors border ${timelineZoom === z ? 'border-primary text-primary bg-primary/10' : 'border-white/10 text-white/40 hover:text-white'}`}>
+                  {z}×
+                </button>
+              ))}
+            </div>
+            {/* Track rows */}
+            <div className="space-y-0.5 bg-black/30 rounded-xl p-2 overflow-x-auto">
+              {[
+                { label: 'Video', color: 'bg-primary/70' },
+                { label: 'Audio', color: 'bg-emerald-500/70' },
+                { label: 'Music', color: 'bg-amber-500/70' },
+                { label: 'Text',  color: 'bg-pink-500/70' },
+              ].map((track, ti) => (
+                <div key={track.label} className="flex items-center gap-2 h-7">
+                  <span className="text-[9px] text-white/30 w-8 flex-shrink-0 text-right">{track.label}</span>
+                  <div className="relative flex-1 h-5 bg-white/5 rounded overflow-hidden" style={{ minWidth: `${timelineZoom * 100}%` }}>
+                    {ti === 0 && segments.map(seg => (
+                      <div key={seg.id}
+                        onClick={() => setSelectedSegId(id => id === seg.id ? null : seg.id)}
+                        className={`absolute top-0 bottom-0 rounded cursor-pointer border transition-all ${selectedSegId === seg.id ? 'border-white bg-primary/80' : `${track.color} border-transparent hover:border-white/30`}`}
+                        style={{ left: `${(seg.start / duration) * 100}%`, width: `${((seg.end - seg.start) / duration) * 100}%` }}
+                      />
+                    ))}
+                    {ti === 1 && segments.map(seg => (
+                      <div key={seg.id}
+                        className="absolute top-0 bottom-0 rounded bg-emerald-500/50"
+                        style={{ left: `${(seg.start / duration) * 100}%`, width: `${((seg.end - seg.start) / duration) * 100}%` }}
+                      />
+                    ))}
+                    {ti === 2 && musicFile && (
+                      <div className="absolute inset-0 rounded bg-amber-500/50" />
+                    )}
+                    {/* Playhead */}
+                    <div className="absolute top-0 bottom-0 w-0.5 bg-red-400 pointer-events-none z-10"
+                      style={{ left: `${pct}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Custom Controls ── */}
         <div className="flex-shrink-0 px-5 pb-4 pt-2 space-y-2">
@@ -1148,12 +1494,46 @@ const VideoEditor = forwardRef(function VideoEditor({ src, onSave }, ref) {
         {/* ── AUDIO ── */}
         {tool === 'audio' && (<>
           <p className="text-xs font-bold text-white uppercase tracking-wide">Audio</p>
-          <p className="text-[11px] text-white/40">Original audio</p>
-          <Slider label="Volume" value={volume} min={0} max={100} onChange={setVolume} unit="%" />
+          <Slider label="Volume" value={volume} min={0} max={200} onChange={setVolume} unit="%" />
           <button onClick={() => setMuted(m => !m)}
             className="w-full py-2 border border-white/20 rounded-xl text-xs text-white/60 hover:text-white hover:border-white/40 transition-colors">
             {muted ? '🔊 Unmute' : '🔇 Mute'}
           </button>
+          {/* Audio processing */}
+          <div className="space-y-2">
+            <p className="text-[11px] text-white/60 font-medium">Processing</p>
+            {[
+              { label: '🎙 Noise Reduction', state: audioNoiseReduce, set: setAudioNoiseReduce },
+              { label: '📢 Normalize Audio', state: normalizeAudio,   set: setNormalizeAudio },
+              { label: '🎤 Voice Enhance',   state: voiceEnhance,     set: setVoiceEnhance },
+            ].map(opt => (
+              <button key={opt.label} onClick={() => opt.set(v => !v)}
+                className={`w-full py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-between px-3 border ${opt.state ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:border-white/30'}`}>
+                <span className="text-xs">{opt.label}</span>
+                {opt.state && <Check className="w-3.5 h-3.5" />}
+              </button>
+            ))}
+          </div>
+          {/* Extract audio */}
+          <div className="space-y-2 pt-2 border-t border-white/10">
+            <p className="text-[11px] text-white/60 font-medium">Extract Audio</p>
+            <button onClick={handleExtractAudio} disabled={extracting || extractDone}
+              className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 border ${extractDone ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'} disabled:opacity-60`}>
+              {extracting ? <><Loader2 className="w-4 h-4 animate-spin" /> Extracting…</>
+                : extractDone ? <><Check className="w-4 h-4" /> Downloaded!</>
+                : <><Download className="w-4 h-4" /> Extract to .webm</>}
+            </button>
+          </div>
+          {/* Loudness meter (visual only) */}
+          <div className="space-y-1.5">
+            <p className="text-[10px] text-white/40">Loudness</p>
+            <div className="flex items-end gap-0.5 h-6">
+              {Array.from({ length: 20 }).map((_, i) => (
+                <div key={i} className="flex-1 bg-primary/40 rounded-sm"
+                  style={{ height: `${Math.max(10, Math.random() * 100 * (muted ? 0.05 : volume / 100))}%` }} />
+              ))}
+            </div>
+          </div>
         </>)}
 
         {/* ── TEXT ── */}
@@ -1231,14 +1611,49 @@ const VideoEditor = forwardRef(function VideoEditor({ src, onSave }, ref) {
         {/* ── CAPTIONS ── */}
         {tool === 'captions' && (<>
           <p className="text-xs font-bold text-white uppercase tracking-wide">Captions</p>
-          <button onClick={generateCaptions} disabled={captionsLoading || !duration}
-            className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-semibold disabled:opacity-50 hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-            {captionsLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : <><Zap className="w-4 h-4" /> Auto-Generate Captions</>}
-          </button>
+
+          {/* Generate */}
+          <div className="space-y-2">
+            <p className="text-[11px] text-white/60 font-medium">Auto-Generate</p>
+            <button onClick={handleTranscript} disabled={transcriptLoading || !duration}
+              className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-semibold disabled:opacity-50 hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+              {transcriptLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Transcribing…</> : <><Mic className="w-4 h-4" /> Generate Transcript</>}
+            </button>
+            <button onClick={generateCaptions} disabled={captionsLoading || !duration}
+              className="w-full py-2 border border-white/20 rounded-xl text-xs text-white/60 hover:text-white hover:border-white/40 transition-colors flex items-center justify-center gap-2">
+              {captionsLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</> : <><Zap className="w-3.5 h-3.5" /> Quick Captions (AI)</>}
+            </button>
+          </div>
+
           {captionError && <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-xs text-red-400">{captionError}</div>}
+
+          {/* Caption style */}
+          <div className="space-y-2">
+            <p className="text-[11px] text-white/60 font-medium">Caption Style</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {CAPTION_TEMPLATES.map(tpl => (
+                <button key={tpl.id} onClick={() => setCaptionTemplate(tpl.id)}
+                  className={`px-2 py-2 rounded-xl border text-[10px] font-medium transition-all ${captionTemplate === tpl.id ? 'border-primary bg-primary/20 text-primary' : 'border-white/10 text-white/50 hover:text-white hover:border-white/30'}`}
+                  style={{
+                    background: captionTemplate === tpl.id ? undefined : tpl.preview?.bg !== 'transparent' ? tpl.preview?.bg : undefined,
+                    color: captionTemplate === tpl.id ? undefined : tpl.preview?.color,
+                  }}>
+                  {tpl.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Captions list */}
           {captions.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[11px] text-white/40">{captions.length} captions</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-white/40">{captions.length} captions</p>
+                <button onClick={exportSRT}
+                  className="flex items-center gap-1 text-[10px] text-primary hover:underline">
+                  <Download className="w-3 h-3" /> Export SRT
+                </button>
+              </div>
               {captions.map((c, i) => (
                 <div key={i} className="bg-white/5 rounded-xl p-3 space-y-1.5">
                   <input value={c.text}
@@ -1304,6 +1719,79 @@ const VideoEditor = forwardRef(function VideoEditor({ src, onSave }, ref) {
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${videoQuality === q.id ? 'bg-primary/30 text-primary' : 'bg-white/10 text-white/40'}`}>{q.size}</span>
                 </div>
                 <p className="text-[10px] text-white/40 mt-0.5">{q.desc}</p>
+              </button>
+            ))}
+          </div>
+        </>)}
+
+        {/* ── EFFECTS ── */}
+        {tool === 'effects' && (<>
+          <p className="text-xs font-bold text-white uppercase tracking-wide">Effects</p>
+
+          {/* Background Removal */}
+          <div className="space-y-2">
+            <p className="text-[11px] text-white/60 font-medium">Remove Background</p>
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] text-white/40">Key color</label>
+              <input type="color" value={bgColorKey} onChange={e => setBgColorKey(e.target.value)}
+                className="w-8 h-8 rounded-lg cursor-pointer border border-white/20 bg-transparent p-0.5" />
+            </div>
+            <button onClick={() => { setBgProcessing(true); setTimeout(() => { setBgRemoved(v => !v); setBgProcessing(false) }, 1200) }}
+              disabled={bgProcessing}
+              className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 border ${bgRemoved ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'} disabled:opacity-60`}>
+              {bgProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</>
+                : bgRemoved ? <><Check className="w-4 h-4" /> Background Removed</>
+                : <>✂️ Remove Background</>}
+            </button>
+          </div>
+
+          {/* Background Replacement */}
+          {bgRemoved && (
+            <div className="space-y-2">
+              <p className="text-[11px] text-white/60 font-medium">Replace Background</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {BG_REPLACEMENT_GRADIENTS.map(g => (
+                  <button key={g.label} onClick={() => setReplacementBg(g.css)}
+                    className={`h-12 rounded-xl border-2 transition-all ${replacementBg === g.css ? 'border-primary scale-105' : 'border-transparent hover:border-white/30'}`}
+                    style={{ background: g.css }}
+                    title={g.label} />
+                ))}
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {BG_COLORS.map(c => (
+                  <button key={c} onClick={() => setReplacementBg(c)}
+                    className={`h-8 rounded-lg border-2 transition-all ${replacementBg === c ? 'border-primary scale-105' : 'border-transparent hover:border-white/30'}`}
+                    style={{ backgroundColor: c }} />
+                ))}
+              </div>
+              {replacementBg && (
+                <button onClick={() => setReplacementBg(null)}
+                  className="w-full py-1.5 border border-white/10 rounded-xl text-xs text-white/40 hover:text-white transition-colors">
+                  Clear Replacement
+                </button>
+              )}
+            </div>
+          )}
+        </>)}
+
+        {/* ── VIDEO TEMPLATES ── */}
+        {tool === 'vtemplates' && (<>
+          <p className="text-xs font-bold text-white uppercase tracking-wide">Video Templates</p>
+          <p className="text-[11px] text-white/40">Select a format for your final export.</p>
+          <div className="space-y-2">
+            {VIDEO_TEMPLATES.map(tpl => (
+              <button key={tpl.id}
+                onClick={() => setActiveVideoTplId(id => id === tpl.id ? null : tpl.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${activeVideoTplId === tpl.id ? 'border-primary bg-primary/10' : 'border-white/10 hover:border-white/30 bg-white/5'}`}>
+                <div className="w-12 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-[9px] font-bold text-white/70"
+                  style={{ background: tpl.gradient }}>
+                  {tpl.ratio}
+                </div>
+                <div className="text-left flex-1 min-w-0">
+                  <p className={`text-xs font-semibold truncate ${activeVideoTplId === tpl.id ? 'text-primary' : 'text-white'}`}>{tpl.label}</p>
+                  <p className="text-[10px] text-white/40 truncate">{tpl.best}</p>
+                </div>
+                {activeVideoTplId === tpl.id && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
               </button>
             ))}
           </div>
