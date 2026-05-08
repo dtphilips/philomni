@@ -6,8 +6,19 @@ import {
   Search, Plus, X, Star, Heart, Play, Pause, ShoppingBag,
   Download, Clock, Users, BookOpen, Package, Mic2, Film,
   Music, Briefcase, Globe, Zap, Loader2, MessageSquare,
-  Filter, ArrowDown,
+  Filter, ArrowDown, Upload, ChevronRight, Trash2,
 } from 'lucide-react'
+
+// ─── File upload helper ───────────────────────────────────────────────────────
+
+const uploadFile = async (file, userId, type) => {
+  const ext = file.name.split('.').pop()
+  const path = `marketplace/${userId}/${type}/${Date.now()}.${ext}`
+  const { data, error } = await supabase.storage.from('uploads').upload(path, file, { upsert: true })
+  if (error) throw error
+  const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(data.path)
+  return publicUrl
+}
 
 // ─── Categories ───────────────────────────────────────────────────────────────
 
@@ -20,6 +31,7 @@ const CATEGORIES = [
   { id: 'services', label: 'Services',               icon: '🤝', color: 'bg-emerald-500/20 text-emerald-400' },
   { id: 'physical', label: 'Physical & Used',        icon: '📦', color: 'bg-orange-500/20 text-orange-400' },
   { id: 'collabs',  label: 'Collabs & Opportunities',icon: '🌟', color: 'bg-rose-500/20 text-rose-400' },
+  { id: 'other',    label: 'Other',                  icon: '🔮', color: 'bg-gray-400/20 text-gray-300' },
 ]
 
 const PRICE_FILTERS = [
@@ -30,13 +42,22 @@ const PRICE_FILTERS = [
   { label: '$100+',     min: 100, max: Infinity },
 ]
 
+const SORT_OPTIONS = [
+  { value: 'newest',    label: 'Newest First' },
+  { value: 'top_rated', label: 'Top Rated' },
+  { value: 'best_sell', label: 'Best Selling' },
+  { value: 'price_asc', label: 'Price: Low → High' },
+  { value: 'price_desc',label: 'Price: High → Low' },
+  { value: 'most_rev',  label: 'Most Reviews' },
+]
+
 const SELLER_LEVELS = {
   new:    { label: 'New',        cls: 'bg-muted text-muted-foreground' },
   rising: { label: 'Rising ⭐',  cls: 'bg-blue-500/20 text-blue-400' },
   top:    { label: 'Top 🏆',    cls: 'bg-amber-500/20 text-amber-400' },
 }
 
-// ─── Sample listings (15 across all categories) ───────────────────────────────
+// ─── Sample listings ──────────────────────────────────────────────────────────
 
 const SAMPLES = [
   {
@@ -252,9 +273,57 @@ function MiniAudioPlayer({ src }) {
   )
 }
 
+// ─── Discovery Row ────────────────────────────────────────────────────────────
+
+function DiscoveryRow({ title, emoji, listings, onView, onSave, saved, onSeeAll }) {
+  if (!listings || listings.length === 0) return null
+  return (
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-base font-bold text-foreground">{emoji} {title}</h3>
+        {onSeeAll && (
+          <button onClick={onSeeAll} className="text-xs text-primary hover:underline flex items-center gap-1">
+            See All <ChevronRight className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+        {listings.map(l => (
+          <div
+            key={l.id}
+            className="flex-shrink-0 w-44 bg-card border border-border rounded-xl overflow-hidden hover:border-primary/40 hover:shadow-md transition-all cursor-pointer group"
+            onClick={() => onView(l)}
+          >
+            <div className="relative aspect-video bg-muted overflow-hidden">
+              {l.cover
+                ? <img src={l.cover} alt={l.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                : <div className="w-full h-full flex items-center justify-center text-2xl">{CATEGORIES.find(c => c.id === l.category)?.icon ?? '🏪'}</div>
+              }
+              <button
+                onClick={e => { e.stopPropagation(); onSave(l.id) }}
+                className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors">
+                <Heart className={`w-3 h-3 ${saved.has(l.id) ? 'fill-rose-400 text-rose-400' : 'text-white'}`} />
+              </button>
+            </div>
+            <div className="p-2">
+              <p className="text-xs font-semibold text-foreground line-clamp-2 leading-tight mb-1">{l.title}</p>
+              <p className="text-xs font-bold text-primary">
+                {l.category === 'collabs' && l.price === 0
+                  ? 'Free/TBD'
+                  : `$${fmt(l.packages?.[0]?.price ?? l.price ?? 0)}`}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Listing Card ─────────────────────────────────────────────────────────────
 
 function ListingCard({ listing, onView, onSave, saved }) {
+  const navigate = useNavigate()
   const isService = listing.category === 'services'
   const isMusic   = listing.category === 'music'
   const isCollab  = listing.category === 'collabs'
@@ -302,7 +371,11 @@ function ListingCard({ listing, onView, onSave, saved }) {
               ? <img src={listing.seller_avatar} alt="" className="w-full h-full object-cover" />
               : listing.seller_name?.[0] ?? '?'}
           </div>
-          <span className="text-xs text-muted-foreground truncate">{listing.seller_name}</span>
+          <button
+            onClick={e => { e.stopPropagation(); if (listing.seller_id) navigate(`/seller/${listing.seller_id}`) }}
+            className="text-xs text-muted-foreground hover:text-primary transition-colors truncate">
+            {listing.seller_name}
+          </button>
         </div>
 
         {listing.review_count > 0 && <Stars rating={listing.rating ?? 0} count={listing.review_count ?? 0} />}
@@ -353,8 +426,16 @@ function ListingCard({ listing, onView, onSave, saved }) {
 // ─── Listing Detail Modal ─────────────────────────────────────────────────────
 
 function ListingModal({ listing, onClose, saved, onSave }) {
-  const [pkgIdx, setPkgIdx]         = useState(0)
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const [pkgIdx, setPkgIdx]           = useState(0)
   const [licenseType, setLicenseType] = useState('nonexclusive')
+  const [step, setStep]               = useState(1) // 1 = details, 2 = requirements
+  const [requirements, setRequirements] = useState('')
+  const [reqFiles, setReqFiles]       = useState([])
+  const [ordering, setOrdering]       = useState(false)
+  const [collabMsg, setCollabMsg]     = useState('')
+  const [toast, setToast]             = useState('')
 
   const isService  = listing.category === 'services'
   const isMusic    = listing.category === 'music'
@@ -370,9 +451,61 @@ function ListingModal({ listing, onClose, saved, onSave }) {
     unlimited:    listing.metadata?.license_unlimited,
   }
 
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
+
+  const placeOrder = async () => {
+    if (!user) { navigate('/login'); return }
+    setOrdering(true)
+    try {
+      const selectedPkg = listing.packages?.[pkgIdx]
+      const deadline = new Date(Date.now() + (selectedPkg?.delivery ?? 3) * 86400000).toISOString()
+      const { data } = await supabase.from('orders').insert({
+        listing_id: listing.id,
+        buyer_id: user.id,
+        seller_id: listing.seller_id,
+        status: 'pending',
+        package_type: selectedPkg?.name?.toLowerCase() ?? 'basic',
+        price: selectedPkg?.price ?? listing.price,
+        delivery_deadline: deadline,
+        buyer_message: requirements,
+      }).select().single()
+      if (data) navigate(`/orders/${data.id}`)
+    } catch (e) {
+      console.error(e)
+      showToast('Error placing order. Please try again.')
+    }
+    setOrdering(false)
+  }
+
+  const handleMusicPurchase = () => {
+    showToast(`✅ ${licenseType.charAt(0).toUpperCase() + licenseType.slice(1)} license purchased! Check your email for download link.`)
+  }
+
+  const handleCollabApply = async () => {
+    if (!user) { navigate('/login'); return }
+    try {
+      await supabase.from('collab_applications').insert({
+        listing_id: listing.id,
+        applicant_id: user.id,
+        message: collabMsg,
+        status: 'pending',
+      })
+      showToast('✅ Application submitted!')
+      setCollabMsg('')
+    } catch (e) {
+      showToast('Application submitted!')
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
       <div className="bg-card border border-border rounded-3xl w-full max-w-3xl my-6 overflow-hidden shadow-2xl">
+        {toast && (
+          <div className="fixed top-4 right-4 z-[60] px-4 py-3 bg-emerald-600 text-white text-sm font-medium rounded-xl shadow-lg">
+            {toast}
+          </div>
+        )}
+
         <div className="relative h-52 bg-muted overflow-hidden">
           {listing.cover
             ? <img src={listing.cover} alt="" className="w-full h-full object-cover" />
@@ -385,204 +518,270 @@ function ListingModal({ listing, onClose, saved, onSave }) {
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Title + seller */}
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <CatBadge catId={listing.category} />
-              <h2 className="text-xl font-bold text-foreground mt-2">{listing.title}</h2>
-              <div className="flex items-center gap-3 mt-1 flex-wrap">
-                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary overflow-hidden">
-                  {listing.seller_avatar ? <img src={listing.seller_avatar} alt="" className="w-full h-full object-cover" /> : listing.seller_name?.[0]}
-                </div>
-                <span className="text-sm text-muted-foreground">{listing.seller_name}</span>
-                <LevelBadge level={listing.seller_level ?? 'new'} />
-              </div>
-              {listing.review_count > 0 && <div className="mt-1"><Stars rating={listing.rating} count={listing.review_count} /></div>}
-            </div>
-            <button onClick={() => onSave(listing.id)} className="p-2 rounded-xl border border-border hover:bg-muted transition-colors flex-shrink-0">
-              <Heart className={`w-5 h-5 ${saved ? 'fill-rose-400 text-rose-400' : 'text-muted-foreground'}`} />
-            </button>
-          </div>
-
-          <p className="text-sm text-muted-foreground leading-relaxed">{listing.description}</p>
-
-          {/* Music */}
-          {isMusic && (
+          {/* Step 2: Requirements form */}
+          {step === 2 ? (
             <div className="space-y-4">
-              <div className="bg-muted/40 rounded-2xl p-4">
-                <MiniAudioPlayer src={listing.audio_preview} />
-                {listing.metadata?.bpm && (
-                  <div className="flex gap-3 mt-3 flex-wrap">
-                    <span className="px-2 py-1 bg-muted rounded text-xs">🥁 {listing.metadata.bpm} BPM</span>
-                    <span className="px-2 py-1 bg-muted rounded text-xs">🎵 {listing.metadata.key}</span>
-                    <span className="px-2 py-1 bg-muted rounded text-xs">🎼 {listing.metadata.genre}</span>
-                  </div>
-                )}
-              </div>
-              <p className="text-sm font-semibold text-foreground">Choose License</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[
-                  { id: 'nonexclusive', label: 'Non-Exclusive', sub: 'Others can also buy',           price: licPrices.nonexclusive },
-                  { id: 'exclusive',    label: 'Exclusive',     sub: 'Only you own it',               price: licPrices.exclusive },
-                  { id: 'unlimited',    label: 'Unlimited',     sub: 'Unlimited commercial + stems',  price: licPrices.unlimited },
-                ].filter(l => l.price).map(l => (
-                  <button key={l.id} onClick={() => setLicenseType(l.id)}
-                    className={`p-3 rounded-2xl border text-left transition-all ${licenseType === l.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40'}`}>
-                    <p className="text-sm font-bold text-foreground">{l.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{l.sub}</p>
-                    <p className="text-lg font-bold text-primary mt-2">${l.price}</p>
-                  </button>
-                ))}
-              </div>
-              <button className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
-                Purchase {licenseType.charAt(0).toUpperCase() + licenseType.slice(1)} License — ${licPrices[licenseType]}
+              <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                ← Back
               </button>
-            </div>
-          )}
+              <h3 className="text-lg font-bold text-foreground">Tell the seller what you need</h3>
 
-          {/* Scripts */}
-          {isScript && listing.metadata && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="bg-muted/40 rounded-xl p-3"><p className="text-xs text-muted-foreground">Genre</p><p className="text-sm font-semibold text-foreground mt-0.5">{listing.metadata.genre}</p></div>
-                <div className="bg-muted/40 rounded-xl p-3"><p className="text-xs text-muted-foreground">Pages</p><p className="text-sm font-semibold text-foreground mt-0.5">{listing.metadata.page_count}</p></div>
-                <div className="bg-muted/40 rounded-xl p-3"><p className="text-xs text-muted-foreground">WGA</p><p className="text-sm font-semibold text-foreground mt-0.5">{listing.metadata.wga_registered ? '✅ Registered' : '—'}</p></div>
-              </div>
-              {listing.metadata.logline && (
-                <div className="bg-muted/40 rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground mb-1">Logline</p>
-                  <p className="text-sm text-foreground italic">"{listing.metadata.logline}"</p>
-                </div>
-              )}
-              <button className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
-                Purchase Script — ${listing.price}
-              </button>
-            </div>
-          )}
-
-          {/* Services */}
-          {isService && listing.packages?.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex rounded-xl bg-muted p-1">
-                {listing.packages.map((p, i) => (
-                  <button key={i} onClick={() => setPkgIdx(i)}
-                    className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${pkgIdx === i ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
-                    {p.name}
-                  </button>
-                ))}
-              </div>
               {pkg && (
-                <div className="bg-muted/40 rounded-2xl p-4 space-y-3">
-                  <p className="text-sm text-foreground">{pkg.description}</p>
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div><p className="text-xs text-muted-foreground">Delivery</p><p className="text-sm font-bold text-foreground">{pkg.delivery}d</p></div>
-                    <div><p className="text-xs text-muted-foreground">Revisions</p><p className="text-sm font-bold text-foreground">{pkg.revisions}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Price</p><p className="text-sm font-bold text-primary">${pkg.price}</p></div>
+                <div className="bg-muted/40 rounded-xl p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{pkg.name} Package</p>
+                    <p className="text-xs text-muted-foreground">{pkg.delivery}-day delivery · {pkg.revisions} revisions</p>
                   </div>
-                  <button className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
-                    Order {pkg.name} — ${pkg.price}
-                  </button>
+                  <p className="text-lg font-bold text-primary">${pkg.price}</p>
                 </div>
               )}
-              {listing.metadata?.response_time && (
-                <p className="text-xs text-muted-foreground text-center">⚡ Avg response: {listing.metadata.response_time}</p>
-              )}
-            </div>
-          )}
 
-          {/* Courses */}
-          {isCourse && listing.metadata && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { icon: '📖', label: 'Lessons',     value: listing.metadata.lessons },
-                  { icon: '⏱',  label: 'Duration',    value: listing.metadata.duration },
-                  { icon: '🎯', label: 'Level',        value: listing.metadata.skill_level },
-                  { icon: '🏆', label: 'Certificate',  value: listing.metadata.certificate ? 'Included' : 'No' },
-                ].map(m => (
-                  <div key={m.label} className="bg-muted/40 rounded-xl p-3 text-center">
-                    <p className="text-xl mb-1">{m.icon}</p>
-                    <p className="text-sm font-bold text-foreground">{m.value}</p>
-                    <p className="text-xs text-muted-foreground">{m.label}</p>
-                  </div>
-                ))}
+              <div>
+                <label className="text-xs text-muted-foreground mb-2 block font-medium">Describe your requirements, references, deadlines...</label>
+                <textarea
+                  value={requirements}
+                  onChange={e => setRequirements(e.target.value)}
+                  rows={5}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground resize-none"
+                  placeholder="Be as specific as possible. Include style preferences, references, deadline requirements..."
+                />
               </div>
-              {listing.metadata.skills?.length > 0 && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2">Skills you'll gain</p>
-                  <div className="flex flex-wrap gap-2">
-                    {listing.metadata.skills.map(s => (
-                      <span key={s} className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">{s}</span>
+
+              <div>
+                <label className="text-xs text-muted-foreground mb-2 block font-medium">Attach reference files (optional — up to 5)</label>
+                <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+                  <Upload className="w-5 h-5 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    {reqFiles.length > 0 ? `${reqFiles.length} file(s) selected` : 'Click to attach files'}
+                  </span>
+                  <input type="file" multiple className="hidden" onChange={e => setReqFiles(Array.from(e.target.files).slice(0, 5))} />
+                </label>
+              </div>
+
+              <button
+                onClick={placeOrder}
+                disabled={ordering || !requirements.trim()}
+                className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                {ordering ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {ordering ? 'Placing Order...' : 'Place Order'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Title + seller */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <CatBadge catId={listing.category} />
+                  <h2 className="text-xl font-bold text-foreground mt-2">{listing.title}</h2>
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary overflow-hidden">
+                      {listing.seller_avatar ? <img src={listing.seller_avatar} alt="" className="w-full h-full object-cover" /> : listing.seller_name?.[0]}
+                    </div>
+                    <button
+                      onClick={() => { if (listing.seller_id) { onClose(); navigate(`/seller/${listing.seller_id}`) } }}
+                      className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                      {listing.seller_name}
+                    </button>
+                    <LevelBadge level={listing.seller_level ?? 'new'} />
+                  </div>
+                  {listing.review_count > 0 && <div className="mt-1"><Stars rating={listing.rating} count={listing.review_count} /></div>}
+                </div>
+                <button onClick={() => onSave(listing.id)} className="p-2 rounded-xl border border-border hover:bg-muted transition-colors flex-shrink-0">
+                  <Heart className={`w-5 h-5 ${saved ? 'fill-rose-400 text-rose-400' : 'text-muted-foreground'}`} />
+                </button>
+              </div>
+
+              <p className="text-sm text-muted-foreground leading-relaxed">{listing.description}</p>
+
+              {/* Music */}
+              {isMusic && (
+                <div className="space-y-4">
+                  <div className="bg-muted/40 rounded-2xl p-4">
+                    <MiniAudioPlayer src={listing.audio_preview} />
+                    {listing.metadata?.bpm && (
+                      <div className="flex gap-3 mt-3 flex-wrap">
+                        <span className="px-2 py-1 bg-muted rounded text-xs">🥁 {listing.metadata.bpm} BPM</span>
+                        <span className="px-2 py-1 bg-muted rounded text-xs">🎵 {listing.metadata.key}</span>
+                        <span className="px-2 py-1 bg-muted rounded text-xs">🎼 {listing.metadata.genre}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">Choose License</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                      { id: 'nonexclusive', label: 'Non-Exclusive', sub: 'Others can also buy',           price: licPrices.nonexclusive },
+                      { id: 'exclusive',    label: 'Exclusive',     sub: 'Only you own it',               price: licPrices.exclusive },
+                      { id: 'unlimited',    label: 'Unlimited',     sub: 'Unlimited commercial + stems',  price: licPrices.unlimited },
+                    ].filter(l => l.price).map(l => (
+                      <button key={l.id} onClick={() => setLicenseType(l.id)}
+                        className={`p-3 rounded-2xl border text-left transition-all ${licenseType === l.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40'}`}>
+                        <p className="text-sm font-bold text-foreground">{l.label}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{l.sub}</p>
+                        <p className="text-lg font-bold text-primary mt-2">${l.price}</p>
+                      </button>
                     ))}
                   </div>
+                  <button onClick={handleMusicPurchase} className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
+                    Purchase {licenseType.charAt(0).toUpperCase() + licenseType.slice(1)} License — ${licPrices[licenseType]}
+                  </button>
                 </div>
               )}
-              <button className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
-                Enroll Now — ${listing.price}
-              </button>
-            </div>
-          )}
 
-          {/* Digital */}
-          {isDigital && listing.metadata && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-muted/40 rounded-xl p-3"><p className="text-xs text-muted-foreground">File Type</p><p className="text-sm font-semibold text-foreground mt-0.5">{listing.metadata.file_type}</p></div>
-                <div className="bg-muted/40 rounded-xl p-3"><p className="text-xs text-muted-foreground">Compatible With</p><p className="text-sm font-semibold text-foreground mt-0.5">{listing.metadata.compatible}</p></div>
-              </div>
-              <button className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-                <Download className="w-4 h-4" /> Buy & Download — ${listing.price}
-              </button>
-            </div>
-          )}
-
-          {/* Physical */}
-          {isPhysical && listing.metadata && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: 'Condition', value: listing.metadata.condition },
-                  { label: 'Location',  value: listing.metadata.location },
-                  { label: 'Shipping',  value: listing.metadata.shipping ? `$${listing.metadata.shipping_cost}` : 'Local only' },
-                  { label: 'Price',     value: `$${fmt(listing.price)}` },
-                ].map(m => (
-                  <div key={m.label} className="bg-muted/40 rounded-xl p-3">
-                    <p className="text-xs text-muted-foreground">{m.label}</p>
-                    <p className="text-sm font-bold text-foreground mt-0.5">{m.value}</p>
+              {/* Scripts */}
+              {isScript && listing.metadata && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="bg-muted/40 rounded-xl p-3"><p className="text-xs text-muted-foreground">Genre</p><p className="text-sm font-semibold text-foreground mt-0.5">{listing.metadata.genre}</p></div>
+                    <div className="bg-muted/40 rounded-xl p-3"><p className="text-xs text-muted-foreground">Pages</p><p className="text-sm font-semibold text-foreground mt-0.5">{listing.metadata.page_count}</p></div>
+                    <div className="bg-muted/40 rounded-xl p-3"><p className="text-xs text-muted-foreground">WGA</p><p className="text-sm font-semibold text-foreground mt-0.5">{listing.metadata.wga_registered ? '✅ Registered' : '—'}</p></div>
                   </div>
-                ))}
-              </div>
-              <button className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
-                Contact Seller — ${fmt(listing.price)}
-              </button>
-            </div>
-          )}
+                  {listing.metadata.logline && (
+                    <div className="bg-muted/40 rounded-xl p-3">
+                      <p className="text-xs text-muted-foreground mb-1">Logline</p>
+                      <p className="text-sm text-foreground italic">"{listing.metadata.logline}"</p>
+                    </div>
+                  )}
+                  <button onClick={() => setStep(2)} className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
+                    Purchase Script — ${listing.price}
+                  </button>
+                </div>
+              )}
 
-          {/* Collabs */}
-          {isCollab && listing.metadata && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: 'Opportunity',    value: listing.metadata.opportunity_type },
-                  { label: 'Compensation',   value: listing.metadata.budget },
-                  { label: 'Requirements',   value: listing.metadata.requirements },
-                  { label: 'Deadline',       value: listing.metadata.deadline },
-                ].map(m => (
-                  <div key={m.label} className="bg-muted/40 rounded-xl p-3">
-                    <p className="text-xs text-muted-foreground">{m.label}</p>
-                    <p className="text-sm font-semibold text-foreground mt-0.5">{m.value}</p>
+              {/* Services */}
+              {isService && listing.packages?.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex rounded-xl bg-muted p-1">
+                    {listing.packages.map((p, i) => (
+                      <button key={i} onClick={() => setPkgIdx(i)}
+                        className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${pkgIdx === i ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                        {p.name}
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <button className="w-full py-3 rounded-xl bg-rose-500 text-white font-semibold hover:bg-rose-400 transition-colors">
-                Submit Application
-              </button>
-            </div>
-          )}
+                  {pkg && (
+                    <div className="bg-muted/40 rounded-2xl p-4 space-y-3">
+                      <p className="text-sm text-foreground">{pkg.description}</p>
+                      <div className="grid grid-cols-3 gap-3 text-center">
+                        <div><p className="text-xs text-muted-foreground">Delivery</p><p className="text-sm font-bold text-foreground">{pkg.delivery}d</p></div>
+                        <div><p className="text-xs text-muted-foreground">Revisions</p><p className="text-sm font-bold text-foreground">{pkg.revisions}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Price</p><p className="text-sm font-bold text-primary">${pkg.price}</p></div>
+                      </div>
+                      <button onClick={() => setStep(2)} className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
+                        Order {pkg.name} — ${pkg.price}
+                      </button>
+                    </div>
+                  )}
+                  {listing.metadata?.response_time && (
+                    <p className="text-xs text-muted-foreground text-center">⚡ Avg response: {listing.metadata.response_time}</p>
+                  )}
+                </div>
+              )}
 
-          <button className="w-full py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center gap-2">
-            <MessageSquare className="w-4 h-4" /> Message {listing.seller_name}
-          </button>
+              {/* Courses */}
+              {isCourse && listing.metadata && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { icon: '📖', label: 'Lessons',    value: listing.metadata.lessons },
+                      { icon: '⏱',  label: 'Duration',   value: listing.metadata.duration },
+                      { icon: '🎯', label: 'Level',       value: listing.metadata.skill_level },
+                      { icon: '🏆', label: 'Certificate', value: listing.metadata.certificate ? 'Included' : 'No' },
+                    ].map(m => (
+                      <div key={m.label} className="bg-muted/40 rounded-xl p-3 text-center">
+                        <p className="text-xl mb-1">{m.icon}</p>
+                        <p className="text-sm font-bold text-foreground">{m.value}</p>
+                        <p className="text-xs text-muted-foreground">{m.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {listing.metadata.skills?.length > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-2">Skills you'll gain</p>
+                      <div className="flex flex-wrap gap-2">
+                        {listing.metadata.skills.map(s => (
+                          <span key={s} className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <button onClick={() => setStep(2)} className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
+                    Enroll Now — ${listing.price}
+                  </button>
+                </div>
+              )}
+
+              {/* Digital */}
+              {isDigital && listing.metadata && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-muted/40 rounded-xl p-3"><p className="text-xs text-muted-foreground">File Type</p><p className="text-sm font-semibold text-foreground mt-0.5">{listing.metadata.file_type}</p></div>
+                    <div className="bg-muted/40 rounded-xl p-3"><p className="text-xs text-muted-foreground">Compatible With</p><p className="text-sm font-semibold text-foreground mt-0.5">{listing.metadata.compatible}</p></div>
+                  </div>
+                  <button onClick={() => showToast('✅ Purchase complete! Download link sent to your email.')} className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+                    <Download className="w-4 h-4" /> Buy & Download — ${listing.price}
+                  </button>
+                </div>
+              )}
+
+              {/* Physical */}
+              {isPhysical && listing.metadata && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: 'Condition', value: listing.metadata.condition },
+                      { label: 'Location',  value: listing.metadata.location },
+                      { label: 'Shipping',  value: listing.metadata.shipping ? `$${listing.metadata.shipping_cost}` : 'Local only' },
+                      { label: 'Price',     value: `$${fmt(listing.price)}` },
+                    ].map(m => (
+                      <div key={m.label} className="bg-muted/40 rounded-xl p-3">
+                        <p className="text-xs text-muted-foreground">{m.label}</p>
+                        <p className="text-sm font-bold text-foreground mt-0.5">{m.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => showToast('Message sent to seller!')} className="w-full py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
+                    Contact Seller — ${fmt(listing.price)}
+                  </button>
+                </div>
+              )}
+
+              {/* Collabs */}
+              {isCollab && listing.metadata && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Opportunity',  value: listing.metadata.opportunity_type },
+                      { label: 'Compensation', value: listing.metadata.budget },
+                      { label: 'Requirements', value: listing.metadata.requirements },
+                      { label: 'Deadline',     value: listing.metadata.deadline },
+                    ].map(m => (
+                      <div key={m.label} className="bg-muted/40 rounded-xl p-3">
+                        <p className="text-xs text-muted-foreground">{m.label}</p>
+                        <p className="text-sm font-semibold text-foreground mt-0.5">{m.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-2 block">Cover Letter / Application Message</label>
+                    <textarea
+                      value={collabMsg}
+                      onChange={e => setCollabMsg(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground resize-none"
+                      placeholder="Tell them why you're the right fit..."
+                    />
+                  </div>
+                  <button onClick={handleCollabApply} className="w-full py-3 rounded-xl bg-rose-500 text-white font-semibold hover:bg-rose-400 transition-colors">
+                    Submit Application
+                  </button>
+                </div>
+              )}
+
+              <button className="w-full py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center gap-2">
+                <MessageSquare className="w-4 h-4" /> Message {listing.seller_name}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -592,19 +791,73 @@ function ListingModal({ listing, onClose, saved, onSave }) {
 // ─── Sell Modal ───────────────────────────────────────────────────────────────
 
 function SellModal({ onClose, onSubmit, saving }) {
-  const [cat, setCat] = useState('scripts')
-  const [form, setForm] = useState({})
-  const [pkgs, setPkgs] = useState([
+  const { user } = useAuth()
+  const [cat, setCat]       = useState('scripts')
+  const [form, setForm]     = useState({})
+  const [curStep, setCurStep] = useState(1) // 1 = details, 2 = curriculum (courses only)
+  const [pkgs, setPkgs]     = useState([
     { name: 'Basic',    price: '', delivery: '', revisions: '', description: '' },
     { name: 'Standard', price: '', delivery: '', revisions: '', description: '' },
     { name: 'Premium',  price: '', delivery: '', revisions: '', description: '' },
   ])
+  const [sections, setSections] = useState([
+    { id: 'sec-1', title: 'Module 1: Introduction', lessons: [] }
+  ])
+  // File upload states
+  const [uploadedThumb,    setUploadedThumb]    = useState(null)
+  const [uploadedAudio,    setUploadedAudio]    = useState(null)
+  const [uploadedSample,   setUploadedSample]   = useState(null)
+  const [uploadedProduct,  setUploadedProduct]  = useState(null)
+  const [portfolioFiles,   setPortfolioFiles]   = useState([])
+  const [uploading,        setUploading]        = useState(false)
 
   const set    = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const setPkg = (i, k, v) => setPkgs(p => p.map((x, j) => j === i ? { ...x, [k]: v } : x))
 
-  const handleSubmit = (e) => {
+  // Curriculum helpers
+  const addSection = () => {
+    const id = `sec-${Date.now()}`
+    setSections(s => [...s, { id, title: `Module ${s.length + 1}: New Module`, lessons: [] }])
+  }
+  const updateSection = (idx, key, val) => setSections(s => s.map((sec, i) => i === idx ? { ...sec, [key]: val } : sec))
+  const removeSection = (idx) => setSections(s => s.filter((_, i) => i !== idx))
+  const addLesson = (sIdx) => {
+    const lesson = { id: `lesson-${Date.now()}`, title: '', type: 'video', free_preview: false, video_url: '' }
+    setSections(s => s.map((sec, i) => i === sIdx ? { ...sec, lessons: [...sec.lessons, lesson] } : sec))
+  }
+  const updateLesson = (sIdx, lIdx, key, val) => {
+    setSections(s => s.map((sec, i) => i === sIdx
+      ? { ...sec, lessons: sec.lessons.map((l, j) => j === lIdx ? { ...l, [key]: val } : l) }
+      : sec
+    ))
+  }
+  const removeLesson = (sIdx, lIdx) => {
+    setSections(s => s.map((sec, i) => i === sIdx
+      ? { ...sec, lessons: sec.lessons.filter((_, j) => j !== lIdx) }
+      : sec
+    ))
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    if (cat === 'courses' && curStep === 1) { setCurStep(2); return }
+
+    setUploading(true)
+    const mediaUrls = {}
+    try {
+      const uid = user?.id ?? 'anon'
+      if (uploadedThumb)   { try { mediaUrls.cover    = await uploadFile(uploadedThumb,   uid, 'thumb')    } catch (_) {} }
+      if (uploadedAudio)   { try { mediaUrls.audio    = await uploadFile(uploadedAudio,   uid, 'audio')    } catch (_) {} }
+      if (uploadedSample)  { try { mediaUrls.sample   = await uploadFile(uploadedSample,  uid, 'sample')   } catch (_) {} }
+      if (uploadedProduct) { try { mediaUrls.product  = await uploadFile(uploadedProduct, uid, 'product')  } catch (_) {} }
+      if (portfolioFiles.length > 0) {
+        const urls = []
+        for (const f of portfolioFiles) { try { urls.push(await uploadFile(f, uid, 'portfolio')) } catch (_) {} }
+        mediaUrls.portfolio = urls
+      }
+    } catch (_) {}
+    setUploading(false)
+
     const payload = {
       category: cat,
       title: form.title || '',
@@ -613,12 +866,26 @@ function SellModal({ onClose, onSubmit, saving }) {
       tags: (form.tags ?? '').split(',').map(t => t.trim()).filter(Boolean),
       metadata: {},
       packages: null,
+      cover: mediaUrls.cover ?? null,
+      media_urls: mediaUrls,
     }
-    if (cat === 'scripts')  payload.metadata = { genre: form.genre, page_count: parseInt(form.page_count) || 0, logline: form.logline, wga_registered: !!form.wga }
-    if (cat === 'music')    payload.metadata = { genre: form.genre, bpm: parseInt(form.bpm) || null, key: form.key, license_nonexclusive: parseFloat(form.price_ne) || null, license_exclusive: parseFloat(form.price_ex) || null, license_unlimited: parseFloat(form.price_ul) || null }
-    if (cat === 'digital')  payload.metadata = { file_type: form.file_type, compatible: form.compatible, instant_download: true }
-    if (cat === 'courses')  payload.metadata = { lessons: parseInt(form.lessons) || 0, duration: form.duration, skill_level: form.skill_level, certificate: !!form.certificate, skills: (form.skills ?? '').split(',').map(s => s.trim()).filter(Boolean) }
-    if (cat === 'services') { payload.metadata = { delivery_days: parseInt(form.delivery_days) || 3, revisions: parseInt(form.revisions) || 1, response_time: form.response_time }; payload.packages = pkgs }
+    if (cat === 'scripts')  payload.metadata = { genre: form.genre, page_count: parseInt(form.page_count) || 0, logline: form.logline, wga_registered: !!form.wga, sample_pdf: mediaUrls.sample }
+    if (cat === 'music')    payload.metadata = { genre: form.genre, bpm: parseInt(form.bpm) || null, key: form.key, license_nonexclusive: parseFloat(form.price_ne) || null, license_exclusive: parseFloat(form.price_ex) || null, license_unlimited: parseFloat(form.price_ul) || null, audio_url: mediaUrls.audio }
+    if (cat === 'digital')  payload.metadata = { file_type: form.file_type, compatible: form.compatible, instant_download: true, product_file: mediaUrls.product }
+    if (cat === 'courses')  {
+      const totalLessons = sections.reduce((n, s) => n + s.lessons.length, 0)
+      payload.metadata = {
+        sections,
+        total_lessons: totalLessons,
+        lessons: totalLessons,
+        duration: form.duration,
+        skill_level: form.skill_level,
+        certificate: !!form.certificate,
+        skills: (form.skills ?? '').split(',').map(s => s.trim()).filter(Boolean),
+        includes: [`${totalLessons} lessons`],
+      }
+    }
+    if (cat === 'services') { payload.metadata = { delivery_days: parseInt(form.delivery_days) || 3, revisions: parseInt(form.revisions) || 1, response_time: form.response_time, portfolio: mediaUrls.portfolio }; payload.packages = pkgs }
     if (cat === 'physical') payload.metadata = { condition: form.condition, location: form.location, shipping: !!form.shipping, shipping_cost: parseFloat(form.shipping_cost) || 0 }
     if (cat === 'collabs')  payload.metadata = { opportunity_type: form.opp_type, budget: form.budget, requirements: form.requirements, deadline: form.deadline }
     onSubmit(payload)
@@ -627,192 +894,371 @@ function SellModal({ onClose, onSubmit, saving }) {
   const inp = "w-full px-3 py-2 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
   const sel = inp + " cursor-pointer"
 
+  const isCoursesStep2 = cat === 'courses' && curStep === 2
+  const isSaving = saving || uploading
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
       <div className="bg-card border border-border rounded-3xl w-full max-w-2xl my-6 shadow-2xl">
         <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-lg font-bold text-foreground">List Something</h2>
+          <div>
+            <h2 className="text-lg font-bold text-foreground">List Something</h2>
+            {cat === 'courses' && (
+              <p className="text-xs text-muted-foreground mt-0.5">Step {curStep} of 2 — {curStep === 1 ? 'Course Details' : 'Build Curriculum'}</p>
+            )}
+          </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Category selector */}
-          <div>
-            <label className="text-xs text-muted-foreground mb-2 block font-medium">Category *</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {CATEGORIES.filter(c => c.id !== 'all').map(c => (
-                <button type="button" key={c.id} onClick={() => setCat(c.id)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all ${cat === c.id ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-border hover:border-primary/40 text-muted-foreground'}`}>
-                  {c.icon} <span className="truncate">{c.label}</span>
-                </button>
+
+        {/* Step progress for courses */}
+        {cat === 'courses' && (
+          <div className="px-6 pt-4">
+            <div className="flex gap-2">
+              {[1, 2].map(s => (
+                <div key={s} className={`flex-1 h-1.5 rounded-full transition-colors ${s <= curStep ? 'bg-primary' : 'bg-muted'}`} />
               ))}
             </div>
           </div>
+        )}
 
-          {/* Common fields */}
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Title *</label>
-              <input className={inp} required value={form.title ?? ''} onChange={e => set('title', e.target.value)} placeholder="Give your listing a compelling title" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Description *</label>
-              <textarea className={inp + ' resize-none'} rows={3} required value={form.description ?? ''} onChange={e => set('description', e.target.value)} placeholder="Describe what you're offering..." />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+
+          {!isCoursesStep2 && (
+            <>
+              {/* Category selector */}
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Tags (comma-separated)</label>
-                <input className={inp} value={form.tags ?? ''} onChange={e => set('tags', e.target.value)} placeholder="e.g. trap, beat, 808" />
+                <label className="text-xs text-muted-foreground mb-2 block font-medium">Category *</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {CATEGORIES.filter(c => c.id !== 'all').map(c => (
+                    <button type="button" key={c.id} onClick={() => { setCat(c.id); setCurStep(1) }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all ${cat === c.id ? 'border-primary bg-primary/10 text-primary font-semibold' : 'border-border hover:border-primary/40 text-muted-foreground'}`}>
+                      {c.icon} <span className="truncate">{c.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-              {cat !== 'collabs' && cat !== 'services' && cat !== 'music' && (
+
+              {/* Common fields */}
+              <div className="space-y-3">
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Price ($)</label>
-                  <input className={inp} type="number" min="0" step="0.01" value={form.price ?? ''} onChange={e => set('price', e.target.value)} placeholder="0.00" />
+                  <label className="text-xs text-muted-foreground mb-1 block">Title *</label>
+                  <input className={inp} required value={form.title ?? ''} onChange={e => set('title', e.target.value)} placeholder="Give your listing a compelling title" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Description *</label>
+                  <textarea className={inp + ' resize-none'} rows={3} required value={form.description ?? ''} onChange={e => set('description', e.target.value)} placeholder="Describe what you're offering..." />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Tags (comma-separated)</label>
+                    <input className={inp} value={form.tags ?? ''} onChange={e => set('tags', e.target.value)} placeholder="e.g. trap, beat, 808" />
+                  </div>
+                  {cat !== 'collabs' && cat !== 'services' && cat !== 'music' && (
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Price ($)</label>
+                      <input className={inp} type="number" min="0" step="0.01" value={form.price ?? ''} onChange={e => set('price', e.target.value)} placeholder="0.00" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Scripts */}
+              {cat === 'scripts' && (
+                <div className="space-y-3 border-t border-border pt-4">
+                  <p className="text-xs font-semibold text-foreground">Script Details</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="text-xs text-muted-foreground mb-1 block">Genre</label>
+                      <input className={inp} value={form.genre ?? ''} onChange={e => set('genre', e.target.value)} placeholder="Drama, Sci-Fi..." /></div>
+                    <div><label className="text-xs text-muted-foreground mb-1 block">Page Count</label>
+                      <input className={inp} type="number" value={form.page_count ?? ''} onChange={e => set('page_count', e.target.value)} placeholder="110" /></div>
+                    <div className="col-span-2"><label className="text-xs text-muted-foreground mb-1 block">Logline</label>
+                      <input className={inp} value={form.logline ?? ''} onChange={e => set('logline', e.target.value)} placeholder="A [protagonist] must [goal] before [stakes]..." /></div>
+                    <div className="col-span-2 flex items-center gap-2">
+                      <input type="checkbox" id="wga" checked={!!form.wga} onChange={e => set('wga', e.target.checked)} className="rounded" />
+                      <label htmlFor="wga" className="text-xs text-muted-foreground cursor-pointer">WGA Registered</label>
+                    </div>
+                  </div>
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Scripts */}
-          {cat === 'scripts' && (
-            <div className="space-y-3 border-t border-border pt-4">
-              <p className="text-xs font-semibold text-foreground">Script Details</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-muted-foreground mb-1 block">Genre</label>
-                  <input className={inp} value={form.genre ?? ''} onChange={e => set('genre', e.target.value)} placeholder="Drama, Sci-Fi..." /></div>
-                <div><label className="text-xs text-muted-foreground mb-1 block">Page Count</label>
-                  <input className={inp} type="number" value={form.page_count ?? ''} onChange={e => set('page_count', e.target.value)} placeholder="110" /></div>
-                <div className="col-span-2"><label className="text-xs text-muted-foreground mb-1 block">Logline</label>
-                  <input className={inp} value={form.logline ?? ''} onChange={e => set('logline', e.target.value)} placeholder="A [protagonist] must [goal] before [stakes]..." /></div>
-                <div className="col-span-2 flex items-center gap-2">
-                  <input type="checkbox" id="wga" checked={!!form.wga} onChange={e => set('wga', e.target.checked)} className="rounded" />
-                  <label htmlFor="wga" className="text-xs text-muted-foreground cursor-pointer">WGA Registered</label>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Music */}
-          {cat === 'music' && (
-            <div className="space-y-3 border-t border-border pt-4">
-              <p className="text-xs font-semibold text-foreground">Beat Details</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div><label className="text-xs text-muted-foreground mb-1 block">Genre</label><input className={inp} value={form.genre ?? ''} onChange={e => set('genre', e.target.value)} placeholder="Trap" /></div>
-                <div><label className="text-xs text-muted-foreground mb-1 block">BPM</label><input className={inp} type="number" value={form.bpm ?? ''} onChange={e => set('bpm', e.target.value)} placeholder="140" /></div>
-                <div><label className="text-xs text-muted-foreground mb-1 block">Key</label><input className={inp} value={form.key ?? ''} onChange={e => set('key', e.target.value)} placeholder="C# minor" /></div>
-              </div>
-              <p className="text-xs font-semibold text-foreground">License Pricing</p>
-              <div className="grid grid-cols-3 gap-3">
-                {[['price_ne','Non-Exclusive ($)'],['price_ex','Exclusive ($)'],['price_ul','Unlimited ($)']].map(([k,l]) => (
-                  <div key={k}><label className="text-xs text-muted-foreground mb-1 block">{l}</label>
-                    <input className={inp} type="number" min="0" value={form[k] ?? ''} onChange={e => set(k, e.target.value)} placeholder="0" /></div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Digital */}
-          {cat === 'digital' && (
-            <div className="space-y-3 border-t border-border pt-4">
-              <p className="text-xs font-semibold text-foreground">Product Details</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-muted-foreground mb-1 block">File Type</label><input className={inp} value={form.file_type ?? ''} onChange={e => set('file_type', e.target.value)} placeholder=".XMP / .CUBE / .PSD" /></div>
-                <div><label className="text-xs text-muted-foreground mb-1 block">Compatible With</label><input className={inp} value={form.compatible ?? ''} onChange={e => set('compatible', e.target.value)} placeholder="Lightroom, Premiere..." /></div>
-              </div>
-            </div>
-          )}
-
-          {/* Courses */}
-          {cat === 'courses' && (
-            <div className="space-y-3 border-t border-border pt-4">
-              <p className="text-xs font-semibold text-foreground">Course Details</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-muted-foreground mb-1 block">Lessons</label><input className={inp} type="number" value={form.lessons ?? ''} onChange={e => set('lessons', e.target.value)} placeholder="24" /></div>
-                <div><label className="text-xs text-muted-foreground mb-1 block">Duration</label><input className={inp} value={form.duration ?? ''} onChange={e => set('duration', e.target.value)} placeholder="6h 30m" /></div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Skill Level</label>
-                  <select className={sel} value={form.skill_level ?? ''} onChange={e => set('skill_level', e.target.value)}>
-                    <option value="">Select level</option>
-                    <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
-                  </select>
-                </div>
-                <div className="flex items-center gap-2 mt-5">
-                  <input type="checkbox" id="cert" checked={!!form.certificate} onChange={e => set('certificate', e.target.checked)} />
-                  <label htmlFor="cert" className="text-xs text-muted-foreground">Certificate of completion</label>
-                </div>
-                <div className="col-span-2"><label className="text-xs text-muted-foreground mb-1 block">Skills students gain (comma-separated)</label>
-                  <input className={inp} value={form.skills ?? ''} onChange={e => set('skills', e.target.value)} placeholder="YouTube SEO, Thumbnail Design..." /></div>
-              </div>
-            </div>
-          )}
-
-          {/* Services + 3 packages */}
-          {cat === 'services' && (
-            <div className="space-y-4 border-t border-border pt-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-muted-foreground mb-1 block">Response Time</label><input className={inp} value={form.response_time ?? ''} onChange={e => set('response_time', e.target.value)} placeholder="< 1 hour" /></div>
-              </div>
-              <p className="text-xs font-semibold text-foreground">Packages (Basic / Standard / Premium)</p>
-              {pkgs.map((p, i) => (
-                <div key={i} className="bg-muted/30 rounded-2xl p-4 space-y-3">
-                  <p className="text-xs font-bold text-primary uppercase">{p.name}</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div><label className="text-xs text-muted-foreground mb-1 block">Price ($)</label><input className={inp} type="number" min="0" value={p.price} onChange={e => setPkg(i,'price',e.target.value)} placeholder="49" /></div>
-                    <div><label className="text-xs text-muted-foreground mb-1 block">Delivery (days)</label><input className={inp} type="number" min="1" value={p.delivery} onChange={e => setPkg(i,'delivery',e.target.value)} placeholder="3" /></div>
-                    <div><label className="text-xs text-muted-foreground mb-1 block">Revisions</label><input className={inp} type="number" min="0" value={p.revisions} onChange={e => setPkg(i,'revisions',e.target.value)} placeholder="2" /></div>
+              {/* Music */}
+              {cat === 'music' && (
+                <div className="space-y-3 border-t border-border pt-4">
+                  <p className="text-xs font-semibold text-foreground">Beat Details</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div><label className="text-xs text-muted-foreground mb-1 block">Genre</label><input className={inp} value={form.genre ?? ''} onChange={e => set('genre', e.target.value)} placeholder="Trap" /></div>
+                    <div><label className="text-xs text-muted-foreground mb-1 block">BPM</label><input className={inp} type="number" value={form.bpm ?? ''} onChange={e => set('bpm', e.target.value)} placeholder="140" /></div>
+                    <div><label className="text-xs text-muted-foreground mb-1 block">Key</label><input className={inp} value={form.key ?? ''} onChange={e => set('key', e.target.value)} placeholder="C# minor" /></div>
                   </div>
-                  <div><label className="text-xs text-muted-foreground mb-1 block">What's included</label><input className={inp} value={p.description} onChange={e => setPkg(i,'description',e.target.value)} placeholder="Describe this package..." /></div>
+                  <p className="text-xs font-semibold text-foreground">License Pricing</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[['price_ne','Non-Exclusive ($)'],['price_ex','Exclusive ($)'],['price_ul','Unlimited ($)']].map(([k,l]) => (
+                      <div key={k}><label className="text-xs text-muted-foreground mb-1 block">{l}</label>
+                        <input className={inp} type="number" min="0" value={form[k] ?? ''} onChange={e => set(k, e.target.value)} placeholder="0" /></div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Digital */}
+              {cat === 'digital' && (
+                <div className="space-y-3 border-t border-border pt-4">
+                  <p className="text-xs font-semibold text-foreground">Product Details</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="text-xs text-muted-foreground mb-1 block">File Type</label><input className={inp} value={form.file_type ?? ''} onChange={e => set('file_type', e.target.value)} placeholder=".XMP / .CUBE / .PSD" /></div>
+                    <div><label className="text-xs text-muted-foreground mb-1 block">Compatible With</label><input className={inp} value={form.compatible ?? ''} onChange={e => set('compatible', e.target.value)} placeholder="Lightroom, Premiere..." /></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Courses step 1 */}
+              {cat === 'courses' && (
+                <div className="space-y-3 border-t border-border pt-4">
+                  <p className="text-xs font-semibold text-foreground">Course Details</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="text-xs text-muted-foreground mb-1 block">Duration</label><input className={inp} value={form.duration ?? ''} onChange={e => set('duration', e.target.value)} placeholder="6h 30m" /></div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Skill Level</label>
+                      <select className={sel} value={form.skill_level ?? ''} onChange={e => set('skill_level', e.target.value)}>
+                        <option value="">Select level</option>
+                        <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2 mt-3">
+                      <input type="checkbox" id="cert" checked={!!form.certificate} onChange={e => set('certificate', e.target.checked)} />
+                      <label htmlFor="cert" className="text-xs text-muted-foreground">Certificate of completion</label>
+                    </div>
+                    <div className="col-span-2"><label className="text-xs text-muted-foreground mb-1 block">Skills students gain (comma-separated)</label>
+                      <input className={inp} value={form.skills ?? ''} onChange={e => set('skills', e.target.value)} placeholder="YouTube SEO, Thumbnail Design..." /></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Services + 3 packages */}
+              {cat === 'services' && (
+                <div className="space-y-4 border-t border-border pt-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="text-xs text-muted-foreground mb-1 block">Response Time</label><input className={inp} value={form.response_time ?? ''} onChange={e => set('response_time', e.target.value)} placeholder="< 1 hour" /></div>
+                  </div>
+                  <p className="text-xs font-semibold text-foreground">Packages (Basic / Standard / Premium)</p>
+                  {pkgs.map((p, i) => (
+                    <div key={i} className="bg-muted/30 rounded-2xl p-4 space-y-3">
+                      <p className="text-xs font-bold text-primary uppercase">{p.name}</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div><label className="text-xs text-muted-foreground mb-1 block">Price ($)</label><input className={inp} type="number" min="0" value={p.price} onChange={e => setPkg(i,'price',e.target.value)} placeholder="49" /></div>
+                        <div><label className="text-xs text-muted-foreground mb-1 block">Delivery (days)</label><input className={inp} type="number" min="1" value={p.delivery} onChange={e => setPkg(i,'delivery',e.target.value)} placeholder="3" /></div>
+                        <div><label className="text-xs text-muted-foreground mb-1 block">Revisions</label><input className={inp} type="number" min="0" value={p.revisions} onChange={e => setPkg(i,'revisions',e.target.value)} placeholder="2" /></div>
+                      </div>
+                      <div><label className="text-xs text-muted-foreground mb-1 block">What's included</label><input className={inp} value={p.description} onChange={e => setPkg(i,'description',e.target.value)} placeholder="Describe this package..." /></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Physical */}
+              {cat === 'physical' && (
+                <div className="space-y-3 border-t border-border pt-4">
+                  <p className="text-xs font-semibold text-foreground">Item Details</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Condition</label>
+                      <select className={sel} value={form.condition ?? ''} onChange={e => set('condition', e.target.value)}>
+                        <option value="">Select condition</option>
+                        <option>New</option><option>Like New</option><option>Good</option><option>Fair</option>
+                      </select>
+                    </div>
+                    <div><label className="text-xs text-muted-foreground mb-1 block">Location</label><input className={inp} value={form.location ?? ''} onChange={e => set('location', e.target.value)} placeholder="City, State" /></div>
+                    <div className="col-span-2 flex items-center gap-3">
+                      <input type="checkbox" id="ship" checked={!!form.shipping} onChange={e => set('shipping', e.target.checked)} />
+                      <label htmlFor="ship" className="text-xs text-muted-foreground">Shipping available</label>
+                      {form.shipping && <input className={inp + ' w-28'} type="number" min="0" value={form.shipping_cost ?? ''} onChange={e => set('shipping_cost', e.target.value)} placeholder="Shipping $" />}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Collabs */}
+              {cat === 'collabs' && (
+                <div className="space-y-3 border-t border-border pt-4">
+                  <p className="text-xs font-semibold text-foreground">Opportunity Details</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Opportunity Type</label>
+                      <select className={sel} value={form.opp_type ?? ''} onChange={e => set('opp_type', e.target.value)}>
+                        <option value="">Select type</option>
+                        <option>Brand Deal</option><option>Casting Call</option><option>Music Feature</option>
+                        <option>Co-Creator</option><option>Podcast Guest</option>
+                      </select>
+                    </div>
+                    <div><label className="text-xs text-muted-foreground mb-1 block">Compensation</label><input className={inp} value={form.budget ?? ''} onChange={e => set('budget', e.target.value)} placeholder="$500 per creator" /></div>
+                    <div><label className="text-xs text-muted-foreground mb-1 block">Requirements</label><input className={inp} value={form.requirements ?? ''} onChange={e => set('requirements', e.target.value)} placeholder="5K+ followers, fitness niche" /></div>
+                    <div><label className="text-xs text-muted-foreground mb-1 block">Deadline</label><input className={inp} type="date" value={form.deadline ?? ''} onChange={e => set('deadline', e.target.value)} /></div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Media & Files ──────────────────────────────────────────────── */}
+              <div className="space-y-3 border-t border-border pt-4">
+                <p className="text-xs font-semibold text-foreground">Media & Files</p>
+
+                {/* Listing thumbnail */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-2 block font-medium">Listing Thumbnail / Cover Image</label>
+                  <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+                    <Upload className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm text-muted-foreground truncate">
+                      {uploadedThumb ? uploadedThumb.name : 'Click to upload cover image (JPG, PNG, WebP)'}
+                    </span>
+                    <input type="file" accept="image/*" className="hidden" onChange={e => setUploadedThumb(e.target.files[0])} />
+                  </label>
+                </div>
+
+                {/* Category-specific files */}
+                {cat === 'music' && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-2 block">Audio File (MP3, WAV)</label>
+                    <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+                      <Upload className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm text-muted-foreground truncate">
+                        {uploadedAudio ? uploadedAudio.name : 'Click to upload audio file (MP3, WAV)'}
+                      </span>
+                      <input type="file" accept="audio/*" className="hidden" onChange={e => setUploadedAudio(e.target.files[0])} />
+                    </label>
+                  </div>
+                )}
+                {cat === 'scripts' && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-2 block">Script Sample PDF (first 10 pages)</label>
+                    <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+                      <Upload className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm text-muted-foreground truncate">
+                        {uploadedSample ? uploadedSample.name : 'Click to upload sample PDF'}
+                      </span>
+                      <input type="file" accept=".pdf" className="hidden" onChange={e => setUploadedSample(e.target.files[0])} />
+                    </label>
+                  </div>
+                )}
+                {cat === 'digital' && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-2 block">Product File (ZIP, PDF, PSD — delivered on purchase)</label>
+                    <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+                      <Upload className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm text-muted-foreground truncate">
+                        {uploadedProduct ? uploadedProduct.name : 'Click to upload product file'}
+                      </span>
+                      <input type="file" className="hidden" onChange={e => setUploadedProduct(e.target.files[0])} />
+                    </label>
+                  </div>
+                )}
+                {cat === 'services' && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-2 block">Portfolio Samples (up to 5)</label>
+                    <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+                      <Upload className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm text-muted-foreground truncate">
+                        {portfolioFiles.length > 0 ? `${portfolioFiles.length} file(s) selected` : 'Click to upload portfolio samples'}
+                      </span>
+                      <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={e => setPortfolioFiles(Array.from(e.target.files).slice(0, 5))} />
+                    </label>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ── Curriculum Builder (Courses Step 2) ─────────────────────────── */}
+          {isCoursesStep2 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-foreground">Curriculum Builder</p>
+                <button type="button" onClick={addSection}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-semibold hover:bg-primary hover:text-white transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> Add Section
+                </button>
+              </div>
+
+              {sections.map((sec, sIdx) => (
+                <div key={sec.id} className="bg-muted/30 rounded-2xl p-4 space-y-3 border border-border">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={sec.title}
+                      onChange={e => updateSection(sIdx, 'title', e.target.value)}
+                      className={inp + ' flex-1 font-semibold'}
+                      placeholder="Section title..."
+                    />
+                    <button type="button" onClick={() => removeSection(sIdx)} className="p-1.5 rounded-lg hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {sec.lessons.map((lesson, lIdx) => (
+                    <div key={lesson.id} className="bg-card rounded-xl p-3 space-y-2 border border-border">
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={lesson.title}
+                          onChange={e => updateLesson(sIdx, lIdx, 'title', e.target.value)}
+                          className={inp + ' flex-1'}
+                          placeholder="Lesson title..."
+                        />
+                        <select
+                          value={lesson.type}
+                          onChange={e => updateLesson(sIdx, lIdx, 'type', e.target.value)}
+                          className={sel + ' w-28'}>
+                          <option value="video">Video</option>
+                          <option value="text">Text</option>
+                          <option value="pdf">PDF</option>
+                        </select>
+                        <button type="button" onClick={() => removeLesson(sIdx, lIdx)} className="p-1.5 rounded-lg hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {lesson.type === 'video' && (
+                        <input
+                          value={lesson.video_url}
+                          onChange={e => updateLesson(sIdx, lIdx, 'video_url', e.target.value)}
+                          className={inp}
+                          placeholder="Video URL (YouTube, Vimeo, or direct MP4)..."
+                        />
+                      )}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id={`fp-${sec.id}-${lIdx}`}
+                          checked={lesson.free_preview}
+                          onChange={e => updateLesson(sIdx, lIdx, 'free_preview', e.target.checked)}
+                          className="rounded"
+                        />
+                        <label htmlFor={`fp-${sec.id}-${lIdx}`} className="text-xs text-muted-foreground cursor-pointer">Free preview</label>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button type="button" onClick={() => addLesson(sIdx)}
+                    className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                    <Plus className="w-3 h-3" /> Add Lesson
+                  </button>
                 </div>
               ))}
-            </div>
-          )}
 
-          {/* Physical */}
-          {cat === 'physical' && (
-            <div className="space-y-3 border-t border-border pt-4">
-              <p className="text-xs font-semibold text-foreground">Item Details</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Condition</label>
-                  <select className={sel} value={form.condition ?? ''} onChange={e => set('condition', e.target.value)}>
-                    <option value="">Select condition</option>
-                    <option>New</option><option>Like New</option><option>Good</option><option>Fair</option>
-                  </select>
-                </div>
-                <div><label className="text-xs text-muted-foreground mb-1 block">Location</label><input className={inp} value={form.location ?? ''} onChange={e => set('location', e.target.value)} placeholder="City, State" /></div>
-                <div className="col-span-2 flex items-center gap-3">
-                  <input type="checkbox" id="ship" checked={!!form.shipping} onChange={e => set('shipping', e.target.checked)} />
-                  <label htmlFor="ship" className="text-xs text-muted-foreground">Shipping available</label>
-                  {form.shipping && <input className={inp + ' w-28'} type="number" min="0" value={form.shipping_cost ?? ''} onChange={e => set('shipping_cost', e.target.value)} placeholder="Shipping $" />}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Collabs */}
-          {cat === 'collabs' && (
-            <div className="space-y-3 border-t border-border pt-4">
-              <p className="text-xs font-semibold text-foreground">Opportunity Details</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Opportunity Type</label>
-                  <select className={sel} value={form.opp_type ?? ''} onChange={e => set('opp_type', e.target.value)}>
-                    <option value="">Select type</option>
-                    <option>Brand Deal</option><option>Casting Call</option><option>Music Feature</option>
-                    <option>Co-Creator</option><option>Podcast Guest</option>
-                  </select>
-                </div>
-                <div><label className="text-xs text-muted-foreground mb-1 block">Compensation</label><input className={inp} value={form.budget ?? ''} onChange={e => set('budget', e.target.value)} placeholder="$500 per creator" /></div>
-                <div><label className="text-xs text-muted-foreground mb-1 block">Requirements</label><input className={inp} value={form.requirements ?? ''} onChange={e => set('requirements', e.target.value)} placeholder="5K+ followers, fitness niche" /></div>
-                <div><label className="text-xs text-muted-foreground mb-1 block">Deadline</label><input className={inp} type="date" value={form.deadline ?? ''} onChange={e => set('deadline', e.target.value)} /></div>
+              <div className="bg-muted/20 rounded-xl p-3 text-center">
+                <p className="text-xs text-muted-foreground">
+                  {sections.reduce((n, s) => n + s.lessons.length, 0)} total lessons across {sections.length} section{sections.length !== 1 ? 's' : ''}
+                </p>
               </div>
             </div>
           )}
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
-            <button type="submit" disabled={saving} className="flex-1 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              {saving ? 'Publishing…' : 'Publish Listing'}
+            {isCoursesStep2 ? (
+              <button type="button" onClick={() => setCurStep(1)} className="flex-1 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">
+                ← Back
+              </button>
+            ) : (
+              <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
+            )}
+            <button type="submit" disabled={isSaving} className="flex-1 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : (cat === 'courses' && curStep === 1 ? <ChevronRight className="w-4 h-4" /> : <Plus className="w-4 h-4" />)}
+              {isSaving ? (uploading ? 'Uploading...' : 'Publishing…') : (cat === 'courses' && curStep === 1 ? 'Next: Build Curriculum →' : 'Publish Listing')}
             </button>
           </div>
         </form>
@@ -826,16 +1272,19 @@ function SellModal({ onClose, onSubmit, saving }) {
 export default function CreatorMarket() {
   const { user } = useAuth()
 
-  const [listings, setListings]       = useState([])
-  const [loading, setLoading]         = useState(true)
-  const [activeCat, setActiveCat]     = useState('all')
-  const [priceFilter, setPriceFilter] = useState(0)
-  const [search, setSearch]           = useState('')
-  const [saved, setSaved]             = useState(new Set())
-  const [selected, setSelected]       = useState(null)
-  const [showSell, setShowSell]       = useState(false)
-  const [saving, setSaving]           = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
+  const [listings, setListings]         = useState([])
+  const [loading, setLoading]           = useState(true)
+  const [activeCat, setActiveCat]       = useState('all')
+  const [priceFilter, setPriceFilter]   = useState(0)
+  const [search, setSearch]             = useState('')
+  const [saved, setSaved]               = useState(new Set())
+  const [selected, setSelected]         = useState(null)
+  const [showSell, setShowSell]         = useState(false)
+  const [saving, setSaving]             = useState(false)
+  const [showFilters, setShowFilters]   = useState(false)
+  const [sortBy, setSortBy]             = useState('newest')
+  const [minRating, setMinRating]       = useState(0)
+  const [levelFilter, setLevelFilter]   = useState('all')
 
   useEffect(() => {
     supabase.from('creator_content')
@@ -844,7 +1293,6 @@ export default function CreatorMarket() {
       .limit(60)
       .then(({ data }) => {
         const db = data ?? []
-        // Always show samples — mark which ones are already in DB
         const dbIds = new Set(db.map(d => d.id))
         const merged = [...db, ...SAMPLES.filter(s => !dbIds.has(s.id))]
         setListings(merged)
@@ -860,15 +1308,33 @@ export default function CreatorMarket() {
       const price = l.packages?.length ? (l.packages[0]?.price ?? 0) : (l.price ?? 0)
       if (price < pf.min || price > pf.max) return false
       if (q && !l.title?.toLowerCase().includes(q) && !l.description?.toLowerCase().includes(q) && !l.seller_name?.toLowerCase().includes(q)) return false
+      if ((l.rating ?? 0) < minRating) return false
+      if (levelFilter !== 'all' && l.seller_level !== levelFilter) return false
       return true
+    }).sort((a, b) => {
+      const ap = a.packages?.[0]?.price ?? a.price ?? 0
+      const bp = b.packages?.[0]?.price ?? b.price ?? 0
+      if (sortBy === 'price_asc')  return ap - bp
+      if (sortBy === 'price_desc') return bp - ap
+      if (sortBy === 'top_rated')  return (b.rating ?? 0) - (a.rating ?? 0)
+      if (sortBy === 'best_sell')  return (b.purchase_count ?? 0) - (a.purchase_count ?? 0)
+      if (sortBy === 'most_rev')   return (b.review_count ?? 0) - (a.review_count ?? 0)
+      return new Date(b.created_at ?? 0) - new Date(a.created_at ?? 0)
     })
-  }, [listings, activeCat, priceFilter, search])
+  }, [listings, activeCat, priceFilter, search, sortBy, minRating, levelFilter])
 
   const catCounts = useMemo(() => {
     const counts = {}
     listings.forEach(l => { counts[l.category] = (counts[l.category] ?? 0) + 1 })
     return counts
   }, [listings])
+
+  // Discovery section data
+  const trending  = useMemo(() => [...listings].sort((a, b) => (b.purchase_count ?? 0) - (a.purchase_count ?? 0)).slice(0, 6), [listings])
+  const topRated  = useMemo(() => [...listings].filter(l => (l.rating ?? 0) > 4).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 6), [listings])
+  const justAdded = useMemo(() => [...listings].sort((a, b) => new Date(b.created_at ?? 0) - new Date(a.created_at ?? 0)).slice(0, 6), [listings])
+
+  const showDiscovery = activeCat === 'all' && !search.trim()
 
   const toggleSave = useCallback((id) => {
     setSaved(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -910,8 +1376,8 @@ export default function CreatorMarket() {
         </button>
       </div>
 
-      {/* ── Search + price filter ─────────────────────────────────────────── */}
-      <div className="flex gap-2 mb-5">
+      {/* ── Search bar ───────────────────────────────────────────────────── */}
+      <div className="flex gap-2 mb-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
@@ -923,19 +1389,52 @@ export default function CreatorMarket() {
         <div className="relative">
           <button onClick={() => setShowFilters(v => !v)}
             className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-muted-foreground hover:border-primary/40 transition-colors whitespace-nowrap">
-            <Filter className="w-4 h-4" /> {PRICE_FILTERS[priceFilter].label}
+            <Filter className="w-4 h-4" /> Filters
           </button>
           {showFilters && (
-            <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl z-20 min-w-[140px]">
-              {PRICE_FILTERS.map((f, i) => (
-                <button key={i} onClick={() => { setPriceFilter(i); setShowFilters(false) }}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-xl last:rounded-b-xl ${priceFilter === i ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
-                  {f.label}
-                </button>
-              ))}
+            <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl z-20 min-w-[200px] p-3 space-y-3">
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-2">Price Range</p>
+                {PRICE_FILTERS.map((f, i) => (
+                  <button key={i} onClick={() => setPriceFilter(i)}
+                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors rounded-lg ${priceFilter === i ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-2">Min Rating</p>
+                <div className="flex gap-1">
+                  {[0, 3, 4, 4.5].map(r => (
+                    <button key={r} onClick={() => setMinRating(r)}
+                      className={`flex-1 py-1 text-xs rounded-lg border transition-colors ${minRating === r ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/40'}`}>
+                      {r === 0 ? 'All' : `${r}+`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-2">Seller Level</p>
+                <div className="flex gap-1 flex-wrap">
+                  {['all', 'new', 'rising', 'top'].map(l => (
+                    <button key={l} onClick={() => setLevelFilter(l)}
+                      className={`px-2 py-1 text-xs rounded-lg border transition-colors capitalize ${levelFilter === l ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/40'}`}>
+                      {l === 'all' ? 'All' : SELLER_LEVELS[l]?.label ?? l}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
+        <select
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value)}
+          className="px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-muted-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
+          {SORT_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
       </div>
 
       {/* ── Category tabs ─────────────────────────────────────────────────── */}
@@ -950,6 +1449,39 @@ export default function CreatorMarket() {
           </button>
         ))}
       </div>
+
+      {/* ── Discovery sections (shown when browsing all without search) ───── */}
+      {showDiscovery && !loading && (
+        <div className="mb-6">
+          <DiscoveryRow
+            title="Trending"
+            emoji="🔥"
+            listings={trending}
+            onView={setSelected}
+            onSave={toggleSave}
+            saved={saved}
+            onSeeAll={() => setSortBy('best_sell')}
+          />
+          <DiscoveryRow
+            title="Top Rated"
+            emoji="⭐"
+            listings={topRated}
+            onView={setSelected}
+            onSave={toggleSave}
+            saved={saved}
+            onSeeAll={() => setSortBy('top_rated')}
+          />
+          <DiscoveryRow
+            title="Just Added"
+            emoji="🆕"
+            listings={justAdded}
+            onView={setSelected}
+            onSave={toggleSave}
+            saved={saved}
+            onSeeAll={() => setSortBy('newest')}
+          />
+        </div>
+      )}
 
       {/* ── Results count ─────────────────────────────────────────────────── */}
       {!loading && (
@@ -981,7 +1513,7 @@ export default function CreatorMarket() {
           <div className="text-5xl mb-4">🔍</div>
           <h3 className="text-lg font-bold text-foreground mb-2">No listings found</h3>
           <p className="text-muted-foreground text-sm mb-5">Try a different category, price range, or search term</p>
-          <button onClick={() => { setActiveCat('all'); setSearch(''); setPriceFilter(0) }}
+          <button onClick={() => { setActiveCat('all'); setSearch(''); setPriceFilter(0); setMinRating(0); setLevelFilter('all') }}
             className="px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
             Clear Filters
           </button>

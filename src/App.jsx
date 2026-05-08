@@ -62,6 +62,10 @@ import AITools from './pages/AITools'
 import WorkflowAutomation from './pages/WorkflowAutomation'
 
 // Marketplace & Commerce
+import MyOrders from './pages/MyOrders'
+import OrderPage from './pages/OrderPage'
+import CourseViewer from './pages/CourseViewer'
+import SellerStorefront from './pages/SellerStorefront'
 import CreatorMarket from './pages/CreatorMarket'
 import CreatorMarketplace from './pages/CreatorMarketplace'
 import Marketplace from './pages/Marketplace'
@@ -167,6 +171,10 @@ export default function App() {
             <Route path="/workflows" element={<P page={WorkflowAutomation} />} />
 
             {/* Marketplace */}
+            <Route path="/my-orders" element={<P page={MyOrders} />} />
+            <Route path="/orders/:id" element={<P page={OrderPage} />} />
+            <Route path="/course/:id" element={<P page={CourseViewer} />} />
+            <Route path="/seller/:sellerId" element={<P page={SellerStorefront} />} />
             <Route path="/marketplace" element={<P page={CreatorMarket} />} />
             <Route path="/creator-marketplace" element={<P page={CreatorMarketplace} />} />
             <Route path="/shop" element={<P page={Marketplace} />} />

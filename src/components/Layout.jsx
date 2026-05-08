@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   Home, Users, Radio, Mic2, Wand2, BarChart2, MessageSquare,
   Music, Palette, Library, Briefcase, Globe, Zap, ShoppingBag,
-  Video, LogOut, Menu, X, ChevronRight, Bell,
+  Video, LogOut, Menu, X, ChevronRight, Bell, Package,
 } from 'lucide-react'
 
 const NAV = [
@@ -23,6 +23,7 @@ const NAV = [
   { to: '/directory',      icon: Globe,        label: 'Directory' },
   { to: '/skills',         icon: Zap,          label: 'Skill Exchange' },
   { to: '/marketplace',    icon: ShoppingBag,  label: 'Marketplace' },
+  { to: '/my-orders',      icon: Package,      label: 'My Orders' },
 ]
 
 function NavItem({ to, icon: Icon, label, onClick }) {
