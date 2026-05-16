@@ -1,9 +1,12 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import {
   Search, Star, Clock, BookOpen, Users, ChevronDown, ChevronRight,
   Play, Lock, CheckCircle, X, Plus, Trash2, Upload, Award,
-  TrendingUp, Zap, GraduationCap, BarChart2, ChevronLeft, Globe
+  TrendingUp, Zap, GraduationCap, BarChart2, ChevronLeft, Globe,
+  ThumbsUp, ThumbsDown, MessageCircle, StickyNote, HelpCircle,
+  FileText, Mic, Video, File, Download, Send, Filter,
 } from 'lucide-react'
 
 // ─── Static Data ────────────────────────────────────────────────────────────
@@ -157,6 +160,16 @@ const SAMPLE_COURSES = [
   },
 ]
 
+const SAMPLE_DISCUSSIONS = [
+  { id:'d1', lesson_id:'l1', user_name:'Jordan T.', user_avatar:'JT', is_instructor:false, content:'This lesson completely changed how I approach content creation. The algorithm breakdown is spot on!', type:'discussion', upvotes:24, user_upvoted:false, reactions:{'💡':8,'🔥':5}, created_at:'2 days ago', replies:[
+    { id:'d1r1', user_name:'Sarah Kim', user_avatar:'SK', is_instructor:true, content:'So glad this resonated with you! The algorithm piece is where most people get stuck.', upvotes:6, created_at:'1 day ago' }
+  ]},
+  { id:'d2', lesson_id:'l1', user_name:'Aisha M.', user_avatar:'AM', is_instructor:false, content:'Does this strategy work for LinkedIn as well, or is it only for TikTok/Instagram?', type:'question', is_resolved:true, upvotes:31, user_upvoted:false, reactions:{}, created_at:'3 days ago', replies:[
+    { id:'d2r1', user_name:'Sarah Kim', user_avatar:'SK', is_instructor:true, content:'Great question! Yes, the core principle applies to LinkedIn, though the content format is different. LinkedIn favors text-heavy posts with personal stories.', upvotes:18, created_at:'3 days ago' }
+  ]},
+  { id:'d3', lesson_id:'l1', user_name:'Carlos R.', user_avatar:'CR', is_instructor:false, content:"Is there a recommended posting frequency? I've been posting 3x per day and seeing good results.", type:'question', is_resolved:false, upvotes:15, user_upvoted:false, reactions:{}, created_at:'5 days ago', replies:[] },
+]
+
 const SAMPLE_REVIEWS = [
   { name: 'Jordan T.', avatar: 'JT', rating: 5, date: '2 weeks ago', text: 'Absolutely game-changing. I went from 500 to 12K followers in 60 days following this exact framework.' },
   { name: 'Aisha M.', avatar: 'AM', rating: 5, date: '1 month ago', text: 'The curriculum is dense in the best way. Every lesson has actionable takeaways I could implement immediately.' },
@@ -201,6 +214,290 @@ function formatPrice(price) {
 function discountPct(original, current) {
   if (!original || original === current) return null
   return Math.round((1 - current / original) * 100)
+}
+
+// ─── LessonFeedback ──────────────────────────────────────────────────────────
+
+function LessonFeedback({ course, lesson, user }) {
+  const [feedback, setFeedback] = useState(null)
+  const helpfulCount = 42
+
+  async function vote(type) {
+    setFeedback(type)
+    await supabase.from('lesson_feedback').upsert({
+      course_id: course.id, lesson_id: lesson?.id,
+      user_id: user?.id, helpful: type === 'helpful',
+    }).catch(() => {})
+  }
+
+  const pct = Math.round(helpfulCount / (helpfulCount + 4) * 100)
+  return (
+    <div className="flex items-center gap-4 py-4 border-t border-border mt-4">
+      <span className="text-sm text-muted-foreground">Was this lesson helpful?</span>
+      <button onClick={() => vote('helpful')}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm transition-colors ${feedback === 'helpful' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-muted text-muted-foreground hover:text-foreground border border-border'}`}>
+        <ThumbsUp size={14} /> Yes
+      </button>
+      <button onClick={() => vote('not_helpful')}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm transition-colors ${feedback === 'not_helpful' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-muted text-muted-foreground hover:text-foreground border border-border'}`}>
+        <ThumbsDown size={14} /> No
+      </button>
+      {feedback && <span className="text-xs text-muted-foreground">{pct}% found this helpful</span>}
+    </div>
+  )
+}
+
+// ─── LessonDiscussion ─────────────────────────────────────────────────────────
+
+function LessonDiscussion({ course, lesson, user }) {
+  const [activeTab, setActiveTab] = useState('discussion')
+  const [discussions, setDiscussions] = useState(
+    SAMPLE_DISCUSSIONS.filter(d => d.lesson_id === lesson?.id)
+  )
+  const [newContent, setNewContent] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [sortBy, setSortBy] = useState('top')
+  const [filterType, setFilterType] = useState('all')
+  const [notes, setNotes] = useState(() => {
+    try { return localStorage.getItem(`notes_${course.id}_${lesson?.id}`) || '' } catch { return '' }
+  })
+  const [notesSaved, setNotesSaved] = useState(false)
+  const REACTIONS = ['👍','💡','🔥','❓','💯']
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (lesson?.id) {
+        localStorage.setItem(`notes_${course.id}_${lesson.id}`, notes)
+        setNotesSaved(true)
+        setTimeout(() => setNotesSaved(false), 2000)
+      }
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [notes, course.id, lesson?.id])
+
+  async function submitPost() {
+    if (!newContent.trim()) return
+    setSubmitting(true)
+    const post = {
+      id: `d${Date.now()}`,
+      lesson_id: lesson?.id,
+      user_name: user?.user_metadata?.full_name || 'You',
+      user_avatar: user?.user_metadata?.full_name?.[0] || 'Y',
+      is_instructor: false,
+      content: newContent.trim(),
+      type: activeTab === 'questions' ? 'question' : 'discussion',
+      is_resolved: false,
+      upvotes: 0, user_upvoted: false, reactions: {},
+      created_at: 'Just now', replies: [],
+    }
+    await supabase.from('lesson_discussions').insert({
+      course_id: course.id, lesson_id: lesson?.id,
+      user_id: user?.id, user_name: post.user_name,
+      content: post.content, type: post.type,
+    }).catch(() => {})
+    setDiscussions(prev => [post, ...prev])
+    setNewContent('')
+    setSubmitting(false)
+  }
+
+  function toggleUpvote(id) {
+    setDiscussions(prev => prev.map(d => d.id === id
+      ? { ...d, upvotes: d.user_upvoted ? d.upvotes - 1 : d.upvotes + 1, user_upvoted: !d.user_upvoted }
+      : d))
+  }
+
+  function addReaction(dId, emoji) {
+    setDiscussions(prev => prev.map(d => d.id === dId
+      ? { ...d, reactions: { ...d.reactions, [emoji]: (d.reactions[emoji] || 0) + 1 } }
+      : d))
+  }
+
+  const filteredDiscussions = useMemo(() => {
+    let list = discussions.filter(d => activeTab === 'questions' ? d.type === 'question' : d.type === 'discussion')
+    if (filterType === 'unanswered') list = list.filter(d => !d.is_resolved && d.replies.length === 0)
+    if (filterType === 'answered') list = list.filter(d => d.is_resolved || d.replies.length > 0)
+    if (sortBy === 'top') list = [...list].sort((a, b) => b.upvotes - a.upvotes)
+    return list
+  }, [discussions, activeTab, filterType, sortBy])
+
+  return (
+    <div className="border-t border-border mt-6 pt-6 space-y-4">
+      <div className="flex items-center gap-1 border-b border-border">
+        {[{id:'discussion',label:'Discussion',icon:<MessageCircle size={13}/>},{id:'questions',label:'Questions',icon:<HelpCircle size={13}/>},{id:'notes',label:'My Notes',icon:<StickyNote size={13}/>}].map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+            {tab.icon} {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'notes' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Personal notes — only visible to you, auto-saved</p>
+            {notesSaved && <span className="text-xs text-green-400 flex items-center gap-1"><CheckCircle size={12}/> Saved</span>}
+          </div>
+          <textarea rows={8} value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="Type your notes here... They auto-save as you type."
+            className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary resize-none"/>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{notes.length} characters</span>
+            <button onClick={() => {
+              const blob = new Blob([notes], {type:'text/plain'})
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a'); a.href = url
+              a.download = `notes-${lesson?.title || 'lesson'}.txt`; a.click()
+            }} className="flex items-center gap-1 text-primary hover:opacity-80">
+              <Download size={12}/> Download
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab !== 'notes' && (
+        <>
+          <div className="space-y-2">
+            <textarea rows={2} value={newContent} onChange={e => setNewContent(e.target.value)}
+              placeholder={activeTab === 'questions' ? 'Ask the instructor or other students...' : 'Share your thoughts on this lesson...'}
+              className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary resize-none"/>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                {activeTab === 'questions'
+                  ? ['all','unanswered','answered'].map(f => (
+                    <button key={f} onClick={() => setFilterType(f)}
+                      className={`text-xs px-2.5 py-1 rounded-full capitalize ${filterType === f ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>{f}</button>
+                  ))
+                  : ['top','new'].map(s => (
+                    <button key={s} onClick={() => setSortBy(s)}
+                      className={`text-xs px-2.5 py-1 rounded-full capitalize ${sortBy === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>{s}</button>
+                  ))
+                }
+              </div>
+              <button onClick={submitPost} disabled={submitting || !newContent.trim()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50 hover:opacity-90">
+                <Send size={12}/> Post
+              </button>
+            </div>
+          </div>
+          <div className="space-y-5">
+            {filteredDiscussions.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                {activeTab === 'questions' ? 'No questions yet. Ask the first one!' : 'No comments yet. Start the discussion!'}
+              </div>
+            )}
+            {filteredDiscussions.map(d => (
+              <div key={d.id} className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${d.is_instructor ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{d.user_avatar}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-sm font-medium text-foreground">{d.user_name}</span>
+                      {d.is_instructor && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-semibold">Instructor</span>}
+                      {d.is_resolved && <span className="text-[10px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-semibold">Resolved ✓</span>}
+                      <span className="text-xs text-muted-foreground ml-auto">{d.created_at}</span>
+                    </div>
+                    <p className="text-sm text-foreground leading-relaxed">{d.content}</p>
+                    <div className="flex items-center gap-3 mt-2 flex-wrap">
+                      <button onClick={() => toggleUpvote(d.id)}
+                        className={`flex items-center gap-1 text-xs transition-colors ${d.user_upvoted ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+                        <ThumbsUp size={12}/> {d.upvotes}
+                      </button>
+                      {REACTIONS.map(emoji => (
+                        <button key={emoji} onClick={() => addReaction(d.id, emoji)}
+                          className="text-xs hover:opacity-80 transition-opacity">
+                          {emoji}{d.reactions[emoji] ? ` ${d.reactions[emoji]}` : ''}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {d.replies && d.replies.length > 0 && (
+                  <div className="ml-11 space-y-3 pl-4 border-l-2 border-border">
+                    {d.replies.map(r => (
+                      <div key={r.id} className="flex items-start gap-2">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${r.is_instructor ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{r.user_avatar}</div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-sm font-medium text-foreground">{r.user_name}</span>
+                            {r.is_instructor && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-semibold">Instructor</span>}
+                            <span className="text-xs text-muted-foreground">{r.created_at}</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{r.content}</p>
+                          <button className="flex items-center gap-1 text-xs mt-1 text-muted-foreground hover:text-foreground">
+                            <ThumbsUp size={10}/> {r.upvotes}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── RateCourseModal ──────────────────────────────────────────────────────────
+
+function RateCourseModal({ course, onClose, onRate }) {
+  const { user } = useAuth()
+  const [rating, setRating] = useState(0)
+  const [hovered, setHovered] = useState(0)
+  const [review, setReview] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [done, setDone] = useState(false)
+
+  async function submitRating() {
+    setSubmitting(true)
+    await supabase.from('course_reviews').upsert({
+      course_id: course.id, user_id: user?.id,
+      rating, review, created_at: new Date().toISOString(),
+    }).catch(() => {})
+    onRate(rating)
+    setDone(true)
+    setSubmitting(false)
+  }
+
+  if (done) return (
+    <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl p-8 max-w-sm w-full text-center shadow-xl">
+        <div className="text-4xl mb-3">⭐</div>
+        <h3 className="text-xl font-bold text-foreground mb-2">Thanks for your review!</h3>
+        <p className="text-muted-foreground text-sm mb-5">Your feedback helps other creators find great courses.</p>
+        <button onClick={onClose} className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90">Done</button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-foreground text-lg">Rate this course</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"><X size={16}/></button>
+        </div>
+        <p className="text-sm text-muted-foreground">{course.title}</p>
+        <div className="flex items-center gap-3">
+          {[1,2,3,4,5].map(i => (
+            <button key={i} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(0)} onClick={() => setRating(i)} className="transition-transform hover:scale-110">
+              <Star size={32} className={i <= (hovered || rating) ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'}/>
+            </button>
+          ))}
+        </div>
+        {rating > 0 && <p className="text-sm font-medium text-foreground">{['','Poor','Fair','Good','Very Good','Excellent!'][rating]}</p>}
+        <textarea rows={3} value={review} onChange={e => setReview(e.target.value)}
+          placeholder="Share what you learned or what could be improved (optional)"
+          className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary resize-none"/>
+        <button onClick={submitRating} disabled={!rating || submitting}
+          className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 disabled:opacity-50">
+          {submitting ? 'Submitting...' : 'Submit Review'}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // ─── CategoryCard ────────────────────────────────────────────────────────────
@@ -332,9 +629,14 @@ function CourseCard({ course, enrolled, onOpen, compact = false }) {
 // ─── CourseDetailModal ───────────────────────────────────────────────────────
 
 function CourseDetailModal({ course, enrolled, onClose, onEnroll }) {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
   const [expandedSections, setExpandedSections] = useState({ 0: true })
   const [enrolling, setEnrolling] = useState(false)
+  const [enrollSuccess, setEnrollSuccess] = useState(false)
+  const [selectedLesson, setSelectedLesson] = useState(null)
+  const [showRating, setShowRating] = useState(false)
+  const [userRating, setUserRating] = useState(0)
 
   function toggleSection(idx) {
     setExpandedSections(prev => ({ ...prev, [idx]: !prev[idx] }))
@@ -343,16 +645,17 @@ function CourseDetailModal({ course, enrolled, onClose, onEnroll }) {
   async function handleEnroll() {
     setEnrolling(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
+      const { data: { user: u } } = await supabase.auth.getUser()
+      if (u) {
         await supabase.from('enrollments').insert({
           course_id: course.id,
-          user_id: user.id,
+          user_id: u.id,
           progress_percent: 0,
           enrolled_at: new Date().toISOString(),
         })
       }
       onEnroll(course.id)
+      setEnrollSuccess(true)
     } catch (err) {
       console.error('Enroll error', err)
     } finally {
@@ -465,21 +768,54 @@ function CourseDetailModal({ course, enrolled, onClose, onEnroll }) {
                     {expandedSections[idx] && (
                       <div className="divide-y divide-border">
                         {sec.lessons.map((lesson, li) => (
-                          <div key={li} className="flex items-center gap-3 px-4 py-2.5">
+                          <button
+                            key={li}
+                            onClick={() => (enrolled || lesson.free) && setSelectedLesson(selectedLesson?.id === lesson.id ? null : lesson)}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${(enrolled || lesson.free) ? 'hover:bg-muted/50 cursor-pointer' : 'cursor-default'} ${selectedLesson?.id === lesson.id ? 'bg-primary/5' : ''}`}
+                          >
                             {lesson.free ? (
                               <Play size={13} className="text-primary flex-shrink-0" />
+                            ) : enrolled ? (
+                              <CheckCircle size={13} className="text-green-400 flex-shrink-0" />
                             ) : (
                               <Lock size={13} className="text-muted-foreground flex-shrink-0" />
                             )}
                             <span className="text-sm text-foreground flex-1">{lesson.title}</span>
                             {lesson.free && <span className="text-[10px] text-primary border border-primary/30 px-1.5 py-0.5 rounded">Preview</span>}
                             <span className="text-xs text-muted-foreground">{lesson.duration}</span>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     )}
                   </div>
                 ))}
+                {/* Lesson player + discussion */}
+                {selectedLesson && (
+                  <div className="border border-primary/30 rounded-xl overflow-hidden bg-card">
+                    <div className="flex items-center justify-between px-4 py-3 bg-primary/5 border-b border-border">
+                      <h4 className="font-semibold text-sm text-foreground">{selectedLesson.title}</h4>
+                      <button onClick={() => setSelectedLesson(null)} className="text-xs text-muted-foreground hover:text-foreground">✕ Close</button>
+                    </div>
+                    <div className="p-4">
+                      {selectedLesson.type === 'video' && (
+                        <div className="aspect-video bg-muted rounded-xl flex items-center justify-center mb-4">
+                          <div className="text-center text-muted-foreground">
+                            <Play size={40} className="mx-auto mb-2 text-primary opacity-60"/>
+                            <p className="text-sm">Video — {selectedLesson.duration}</p>
+                            <p className="text-xs mt-1 opacity-50">Upload video in course builder to play here</p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedLesson.type === 'text' && (
+                        <div className="bg-muted rounded-xl p-4 mb-4">
+                          <p className="text-sm text-foreground">Article: {selectedLesson.title}</p>
+                        </div>
+                      )}
+                      <LessonFeedback course={course} lesson={selectedLesson} user={user} />
+                      <LessonDiscussion course={course} lesson={selectedLesson} user={user} />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -570,18 +906,35 @@ function CourseDetailModal({ course, enrolled, onClose, onEnroll }) {
                 </div>
               </div>
 
-              {enrolled ? (
-                <button className="w-full bg-green-500 text-white font-semibold py-2.5 rounded-xl hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
-                  <CheckCircle size={16} /> Continue Learning
-                </button>
+              {enrollSuccess && (
+                <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-xl">
+                  <CheckCircle size={15} className="text-green-400 flex-shrink-0"/>
+                  <span className="text-xs text-green-400 font-medium">Enrolled! Click any lesson to start.</span>
+                </div>
+              )}
+              {(enrolled || enrollSuccess) ? (
+                <div className="space-y-2">
+                  <button onClick={() => setActiveTab('curriculum')} className="w-full bg-green-500 text-white font-semibold py-2.5 rounded-xl hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
+                    <Play size={16} /> Continue Learning
+                  </button>
+                  <button onClick={() => setShowRating(true)}
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-sm">
+                    <Star size={14}/> {userRating ? `Your rating: ${userRating}★` : 'Rate this course'}
+                  </button>
+                </div>
               ) : (
-                <button
-                  onClick={handleEnroll}
-                  disabled={enrolling}
-                  className="w-full bg-primary text-white font-semibold py-2.5 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-60"
-                >
-                  {enrolling ? 'Enrolling...' : course.price === 0 ? 'Enroll Free' : 'Enroll Now'}
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={handleEnroll}
+                    disabled={enrolling}
+                    className="w-full bg-primary text-white font-semibold py-2.5 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-60"
+                  >
+                    {enrolling ? 'Enrolling...' : course.price === 0 ? 'Enroll Free' : `Enroll Now — $${course.price}`}
+                  </button>
+                  {course.price > 0 && (
+                    <p className="text-[10px] text-center text-muted-foreground">30-day money-back guarantee</p>
+                  )}
+                </div>
               )}
 
               <div className="space-y-2">
@@ -608,6 +961,13 @@ function CourseDetailModal({ course, enrolled, onClose, onEnroll }) {
           </div>
         </div>
       </div>
+      {showRating && (
+        <RateCourseModal
+          course={course}
+          onClose={() => setShowRating(false)}
+          onRate={(r) => setUserRating(r)}
+        />
+      )}
     </div>
   )
 }
@@ -615,8 +975,11 @@ function CourseDetailModal({ course, enrolled, onClose, onEnroll }) {
 // ─── CourseBuilderModal ──────────────────────────────────────────────────────
 
 function CourseBuilderModal({ onClose }) {
+  const { user } = useAuth()
   const [step, setStep] = useState(1)
   const [publishing, setPublishing] = useState(false)
+  const [lessonUploads, setLessonUploads] = useState({})
+  const [expandedLessons, setExpandedLessons] = useState({})
   const [form, setForm] = useState({
     title: '', subtitle: '', description: '', category: 'social', level: 'Beginner',
     price_type: 'free', price: 0, certificate: true, refund_policy: '30-day',
@@ -670,6 +1033,29 @@ function CourseBuilderModal({ onClose }) {
     const c = [...form.curriculum]
     c[sIdx].lessons = c[sIdx].lessons.filter((_, i) => i !== lIdx)
     setField('curriculum', c)
+  }
+
+  function toggleLessonExpand(key) {
+    setExpandedLessons(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  async function handleLessonUpload(sIdx, lIdx, file) {
+    const key = `${sIdx}_${lIdx}`
+    setLessonUploads(prev => ({ ...prev, [key]: { uploading: true, progress: 0, url: '', filename: file.name } }))
+    const interval = setInterval(() => {
+      setLessonUploads(prev => ({ ...prev, [key]: { ...prev[key], progress: Math.min((prev[key]?.progress || 0) + 15, 90) } }))
+    }, 300)
+    const path = `courses/lessons/${Date.now()}-${file.name}`
+    const { data, error } = await supabase.storage.from('uploads').upload(path, file)
+    clearInterval(interval)
+    if (error) {
+      setLessonUploads(prev => ({ ...prev, [key]: { uploading: false, progress: 0, url: '', filename: '' } }))
+      alert('Upload failed: ' + error.message)
+      return
+    }
+    const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(data.path)
+    setLessonUploads(prev => ({ ...prev, [key]: { uploading: false, progress: 100, url: publicUrl, filename: file.name } }))
+    updateLesson(sIdx, lIdx, 'content_url', publicUrl)
   }
 
   async function handlePublish() {
@@ -825,33 +1211,152 @@ function CourseBuilderModal({ onClose }) {
                     <button onClick={() => removeSection(sIdx)} className="text-muted-foreground hover:text-red-400 transition-colors"><Trash2 size={14} /></button>
                   </div>
                   <div className="divide-y divide-border">
-                    {sec.lessons.map((lesson, lIdx) => (
-                      <div key={lIdx} className="flex items-center gap-2 px-3 py-2.5">
-                        <select
-                          value={lesson.type}
-                          onChange={e => updateLesson(sIdx, lIdx, 'type', e.target.value)}
-                          className="bg-muted border border-border rounded-lg text-xs text-foreground px-2 py-1 focus:outline-none"
-                        >
-                          {['Video', 'Text', 'PDF', 'Audio', 'Quiz'].map(t => <option key={t} value={t.toLowerCase()}>{t}</option>)}
-                        </select>
-                        <input
-                          value={lesson.title}
-                          onChange={e => updateLesson(sIdx, lIdx, 'title', e.target.value)}
-                          placeholder="Lesson title"
-                          className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                        />
-                        <label className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={lesson.free}
-                            onChange={e => updateLesson(sIdx, lIdx, 'free', e.target.checked)}
-                            className="accent-primary"
-                          />
-                          Free preview
-                        </label>
-                        <button onClick={() => removeLesson(sIdx, lIdx)} className="text-muted-foreground hover:text-red-400 transition-colors"><X size={13} /></button>
-                      </div>
-                    ))}
+                    {sec.lessons.map((lesson, lIdx) => {
+                      const key = `${sIdx}_${lIdx}`
+                      const upload = lessonUploads[key]
+                      const expanded = expandedLessons[key]
+                      return (
+                        <div key={lIdx}>
+                          <div className="flex items-center gap-2 px-3 py-2.5">
+                            <select value={lesson.type} onChange={e => updateLesson(sIdx, lIdx, 'type', e.target.value)}
+                              className="bg-muted border border-border rounded-lg text-xs text-foreground px-2 py-1 focus:outline-none">
+                              {['video','text','pdf','audio','quiz'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+                            </select>
+                            <input value={lesson.title} onChange={e => updateLesson(sIdx, lIdx, 'title', e.target.value)}
+                              placeholder="Lesson title"
+                              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"/>
+                            <label className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer">
+                              <input type="checkbox" checked={lesson.free} onChange={e => updateLesson(sIdx, lIdx, 'free', e.target.checked)} className="accent-primary"/>
+                              Free
+                            </label>
+                            <button onClick={() => toggleLessonExpand(key)} className="text-muted-foreground hover:text-foreground">
+                              {expanded ? <ChevronDown size={13}/> : <ChevronRight size={13}/>}
+                            </button>
+                            <button onClick={() => removeLesson(sIdx, lIdx)} className="text-muted-foreground hover:text-red-400"><X size={13}/></button>
+                          </div>
+                          {expanded && (
+                            <div className="px-3 pb-3 space-y-3 bg-muted/20 border-t border-border">
+                              {/* Video upload */}
+                              {lesson.type === 'video' && (
+                                <div className="pt-2">
+                                  <label className="text-xs text-muted-foreground block mb-1">📹 Video File</label>
+                                  {upload?.url ? (
+                                    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                                      <Video size={13} className="text-primary"/><span className="text-xs flex-1 truncate">{upload.filename}</span>
+                                      <span className="text-xs text-green-400">✓ Uploaded</span>
+                                    </div>
+                                  ) : upload?.uploading ? (
+                                    <div className="space-y-1">
+                                      <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                                        <div className="h-full bg-primary rounded-full transition-all" style={{width:`${upload.progress}%`}}/>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">{upload.progress}% uploading...</p>
+                                    </div>
+                                  ) : (
+                                    <label className="flex items-center gap-2 p-3 border border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+                                      <input type="file" accept="video/*" className="hidden" onChange={e => e.target.files[0] && handleLessonUpload(sIdx, lIdx, e.target.files[0])}/>
+                                      <Upload size={13} className="text-muted-foreground"/>
+                                      <span className="text-xs text-muted-foreground">Upload MP4, MOV</span>
+                                    </label>
+                                  )}
+                                </div>
+                              )}
+                              {/* PDF upload */}
+                              {lesson.type === 'pdf' && (
+                                <div className="pt-2">
+                                  <label className="text-xs text-muted-foreground block mb-1">📄 PDF File</label>
+                                  {upload?.url ? (
+                                    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                                      <FileText size={13} className="text-red-400"/><span className="text-xs flex-1 truncate">{upload.filename}</span>
+                                      <span className="text-xs text-green-400">✓ Uploaded</span>
+                                    </div>
+                                  ) : (
+                                    <label className="flex items-center gap-2 p-3 border border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+                                      <input type="file" accept=".pdf" className="hidden" onChange={e => e.target.files[0] && handleLessonUpload(sIdx, lIdx, e.target.files[0])}/>
+                                      <Upload size={13} className="text-muted-foreground"/>
+                                      <span className="text-xs text-muted-foreground">Upload PDF (max 100MB)</span>
+                                    </label>
+                                  )}
+                                </div>
+                              )}
+                              {/* Audio upload */}
+                              {lesson.type === 'audio' && (
+                                <div className="pt-2">
+                                  <label className="text-xs text-muted-foreground block mb-1">🎵 Audio File</label>
+                                  {upload?.url ? (
+                                    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                                      <Mic size={13} className="text-blue-400"/><span className="text-xs flex-1 truncate">{upload.filename}</span>
+                                      <span className="text-xs text-green-400">✓ Uploaded</span>
+                                    </div>
+                                  ) : (
+                                    <label className="flex items-center gap-2 p-3 border border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+                                      <input type="file" accept=".mp3,.wav,.m4a" className="hidden" onChange={e => e.target.files[0] && handleLessonUpload(sIdx, lIdx, e.target.files[0])}/>
+                                      <Upload size={13} className="text-muted-foreground"/>
+                                      <span className="text-xs text-muted-foreground">Upload MP3, WAV, M4A</span>
+                                    </label>
+                                  )}
+                                </div>
+                              )}
+                              {/* Text article */}
+                              {lesson.type === 'text' && (
+                                <div className="pt-2">
+                                  <label className="text-xs text-muted-foreground block mb-1">✍️ Article Content</label>
+                                  <textarea rows={4} value={lesson.content || ''} onChange={e => updateLesson(sIdx, lIdx, 'content', e.target.value)}
+                                    placeholder="Write the lesson article content..."
+                                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary resize-none"/>
+                                  <p className="text-xs text-muted-foreground mt-1">{(lesson.content || '').split(' ').filter(Boolean).length} words</p>
+                                </div>
+                              )}
+                              {/* Quiz builder */}
+                              {lesson.type === 'quiz' && (
+                                <div className="space-y-3 pt-2">
+                                  <div className="flex items-center justify-between">
+                                    <label className="text-xs text-muted-foreground">Quiz Questions</label>
+                                    <button onClick={() => updateLesson(sIdx, lIdx, 'questions', [...(lesson.questions || []), {q:'',options:['','','',''],correct:0}])}
+                                      className="text-xs text-primary flex items-center gap-1 hover:opacity-80"><Plus size={11}/> Add Question</button>
+                                  </div>
+                                  {(lesson.questions || []).map((qs, qi) => (
+                                    <div key={qi} className="space-y-2 p-3 bg-card rounded-xl border border-border">
+                                      <input value={qs.q} onChange={e => { const q=[...(lesson.questions||[])]; q[qi]={...q[qi],q:e.target.value}; updateLesson(sIdx,lIdx,'questions',q) }}
+                                        placeholder={`Question ${qi+1}`}
+                                        className="w-full bg-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none"/>
+                                      {qs.options.map((opt, oi) => (
+                                        <div key={oi} className="flex items-center gap-2">
+                                          <input type="radio" name={`correct_${key}_${qi}`} checked={qs.correct===oi}
+                                            onChange={() => { const q=[...(lesson.questions||[])]; q[qi]={...q[qi],correct:oi}; updateLesson(sIdx,lIdx,'questions',q) }}
+                                            className="accent-primary"/>
+                                          <input value={opt} onChange={e => { const q=[...(lesson.questions||[])]; const opts=[...q[qi].options]; opts[oi]=e.target.value; q[qi]={...q[qi],options:opts}; updateLesson(sIdx,lIdx,'questions',q) }}
+                                            placeholder={`Option ${String.fromCharCode(65+oi)}`}
+                                            className="flex-1 bg-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none"/>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {/* Resources for any type */}
+                              <div>
+                                <label className="text-xs text-muted-foreground block mb-1">📎 Downloadable Resources</label>
+                                <label className="flex items-center gap-2 p-2 border border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
+                                  <input type="file" multiple className="hidden" onChange={e => {
+                                    const files = Array.from(e.target.files)
+                                    const existing = lesson.resources || []
+                                    updateLesson(sIdx, lIdx, 'resources', [...existing, ...files.map(f => ({ name: f.name, size: (f.size/1024).toFixed(0)+'KB', url:'#' }))])
+                                  }}/>
+                                  <File size={12} className="text-muted-foreground"/>
+                                  <span className="text-xs text-muted-foreground">Add resource files</span>
+                                </label>
+                                {(lesson.resources || []).map((r, ri) => (
+                                  <div key={ri} className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                    <File size={10}/><span className="flex-1">{r.name}</span><span>{r.size}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                   <div className="px-3 py-2 border-t border-border">
                     <button
@@ -1004,6 +1509,94 @@ function CourseBuilderModal({ onClose }) {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── MyLearningTab ───────────────────────────────────────────────────────────
+
+function MyLearningTab({ enrolledCourses, enrollments, onOpen, onBrowse }) {
+  const [subTab, setSubTab] = useState('in-progress')
+
+  const inProgress = enrolledCourses.filter(c => {
+    const e = enrollments.find(en => en.course_id === c.id)
+    return !e || (e.progress_percent || 0) < 100
+  })
+  const completed = enrolledCourses.filter(c => {
+    const e = enrollments.find(en => en.course_id === c.id)
+    return e && (e.progress_percent || 0) >= 100
+  })
+
+  const list = subTab === 'in-progress' ? inProgress : completed
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">My Learning</h1>
+        <span className="text-sm text-muted-foreground">{enrolledCourses.length} enrolled</span>
+      </div>
+      {/* Sub-tabs */}
+      <div className="flex gap-1 bg-muted p-1 rounded-xl w-fit">
+        {[{id:'in-progress',label:'In Progress'},{id:'completed',label:'Completed'}].map(t => (
+          <button key={t.id} onClick={() => setSubTab(t.id)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${subTab === t.id ? 'bg-card text-foreground shadow-sm border border-border' : 'text-muted-foreground hover:text-foreground'}`}>
+            {t.label} {t.id === 'in-progress' ? `(${inProgress.length})` : `(${completed.length})`}
+          </button>
+        ))}
+      </div>
+
+      {list.length === 0 ? (
+        <div className="text-center py-20 space-y-4">
+          <div className="text-6xl">{subTab === 'completed' ? '🎓' : '📚'}</div>
+          <h2 className="text-xl font-bold text-foreground">{subTab === 'completed' ? 'No completed courses yet' : 'No courses in progress'}</h2>
+          <p className="text-muted-foreground">{subTab === 'completed' ? 'Finish a course to earn your certificate' : 'Enroll in a course to start your journey'}</p>
+          {subTab !== 'completed' && (
+            <button onClick={onBrowse} className="bg-primary text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-primary/90 transition-colors">
+              Browse Courses
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {list.map(course => {
+            const enr = enrollments.find(e => e.course_id === course.id)
+            const pct = enr?.progress_percent || 0
+            const lessonsCompleted = Math.round(pct / 100 * course.total_lessons)
+            return (
+              <div key={course.id} className="bg-card border border-border rounded-xl p-4 flex items-center gap-4 hover:border-primary/40 transition-colors">
+                <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center text-3xl flex-shrink-0 cursor-pointer" onClick={() => onOpen(course)}>
+                  {course.thumbnail}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-foreground truncate cursor-pointer hover:text-primary" onClick={() => onOpen(course)}>{course.title}</h3>
+                  <p className="text-xs text-muted-foreground mb-2">{course.instructor}</p>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{pct}% complete · {lessonsCompleted}/{course.total_lessons} lessons</span>
+                      <span>{Math.round(pct / 100 * course.total_duration_hours * 60)} min spent</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 flex-shrink-0">
+                  <button onClick={() => onOpen(course)}
+                    className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90">
+                    {subTab === 'completed' ? 'Review' : 'Continue'}
+                  </button>
+                  {subTab === 'completed' && (
+                    <button onClick={() => window.print()}
+                      className="px-4 py-2 rounded-xl border border-border text-xs text-foreground hover:bg-muted flex items-center gap-1 justify-center">
+                      <Award size={12}/> Certificate
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -1252,37 +1845,12 @@ export default function Learning() {
 
         {/* ── MY LEARNING TAB ── */}
         {activeTab === 'my-learning' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold text-foreground">My Learning</h1>
-              <span className="text-sm text-muted-foreground">{enrolledCourses.length} course{enrolledCourses.length !== 1 ? 's' : ''} enrolled</span>
-            </div>
-
-            {enrolledCourses.length === 0 ? (
-              <div className="text-center py-20 space-y-4">
-                <div className="text-6xl">📚</div>
-                <h2 className="text-xl font-bold text-foreground">No courses yet</h2>
-                <p className="text-muted-foreground">Enroll in a course to start your learning journey</p>
-                <button
-                  onClick={() => setActiveTab('home')}
-                  className="bg-primary text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-primary/90 transition-colors"
-                >
-                  Browse Courses
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {enrolledCourses.map(course => (
-                  <CourseCard
-                    key={course.id}
-                    course={course}
-                    enrolled={enrollments.find(e => e.course_id === course.id)}
-                    onOpen={setSelectedCourse}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          <MyLearningTab
+            enrolledCourses={enrolledCourses}
+            enrollments={enrollments}
+            onOpen={setSelectedCourse}
+            onBrowse={() => setActiveTab('home')}
+          />
         )}
 
         {/* ── TEACH TAB ── */}

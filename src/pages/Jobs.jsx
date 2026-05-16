@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import {
   Search, MapPin, DollarSign, Bookmark, BookmarkCheck,
   X, ChevronRight, ChevronLeft, Briefcase, Clock,
   Users, Building2, Star, Upload, Plus, Trash2,
   CheckCircle2, Circle, FileText, Globe, Filter,
-  ArrowRight, Eye, Send
+  ArrowRight, Eye, Send, Heart, HeartHandshake, Phone,
+  Linkedin, MessageCircle, ThumbsUp, AlertCircle
 } from 'lucide-react'
 
 const SAMPLE_JOBS = [
@@ -97,7 +99,6 @@ function JobCard({ job, onOpen, saved, onSave }) {
       className="bg-card border border-border rounded-xl p-5 shadow-sm hover:border-primary/40 transition-all cursor-pointer group"
       onClick={() => onOpen(job)}
     >
-      {/* Top row */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-muted flex items-center justify-center text-2xl flex-shrink-0">
@@ -113,12 +114,10 @@ function JobCard({ job, onOpen, saved, onSave }) {
         </span>
       </div>
 
-      {/* Title */}
       <h3 className="text-lg font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
         {job.title}
       </h3>
 
-      {/* Badges */}
       <div className="flex flex-wrap gap-2 mb-3">
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <MapPin className="w-3 h-3" />
@@ -132,7 +131,6 @@ function JobCard({ job, onOpen, saved, onSave }) {
         </span>
       </div>
 
-      {/* Salary */}
       {(job.salary_min || job.salary_max) && (
         <div className="flex items-center gap-1 text-sm text-foreground mb-3">
           <DollarSign className="w-4 h-4 text-muted-foreground" />
@@ -140,7 +138,6 @@ function JobCard({ job, onOpen, saved, onSave }) {
         </div>
       )}
 
-      {/* Tags */}
       <div className="flex flex-wrap gap-1.5 mb-4">
         {job.tags.slice(0, 3).map(tag => (
           <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
@@ -154,7 +151,6 @@ function JobCard({ job, onOpen, saved, onSave }) {
         )}
       </div>
 
-      {/* Footer */}
       <div className="flex items-center justify-between pt-3 border-t border-border">
         <span className="text-xs text-muted-foreground flex items-center gap-1">
           <Users className="w-3 h-3" />
@@ -179,12 +175,119 @@ function JobCard({ job, onOpen, saved, onSave }) {
   )
 }
 
+// ─── JobQnA ───────────────────────────────────────────────────────────────────
+
+function JobQnA({ job }) {
+  const { user } = useAuth()
+  const [questions, setQuestions] = useState([
+    { id:'q1', user_name:'Maya Chen', user_avatar:'MC', question:'Is there any flexibility on the compensation range for candidates with more than 5 years experience?', answer:'Absolutely — our ranges are guidelines. Exceptional candidates with relevant experience can negotiate above the listed maximum.', answered_by_name:'Hiring Manager', upvotes:12, user_upvoted: false },
+    { id:'q2', user_name:'Jordan Lee', user_avatar:'JL', question:'What does the interview process look like and how many rounds are there?', answer:null, answered_by_name:null, upvotes:8, user_upvoted: false },
+    { id:'q3', user_name:'Alex Kim', user_avatar:'AK', question:'Is relocation assistance available for candidates who would need to move for this role?', answer:'We offer a $5,000 relocation package for candidates relocating more than 50 miles.', answered_by_name:'HR Team', upvotes:6, user_upvoted: false },
+  ])
+  const [newQ, setNewQ] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function submitQuestion() {
+    if (!newQ.trim()) return
+    setSubmitting(true)
+    const q = {
+      id: `q${Date.now()}`,
+      user_name: user?.user_metadata?.full_name || 'You',
+      user_avatar: (user?.user_metadata?.full_name?.[0] || 'Y'),
+      question: newQ.trim(),
+      answer: null,
+      answered_by_name: null,
+      upvotes: 0,
+      user_upvoted: false,
+    }
+    await supabase.from('job_questions').insert({
+      job_id: job.id,
+      user_id: user?.id,
+      user_name: q.user_name,
+      question: q.question,
+    }).catch(() => {})
+    setQuestions(prev => [q, ...prev])
+    setNewQ('')
+    setSubmitting(false)
+  }
+
+  function toggleUpvote(qId) {
+    setQuestions(prev => prev.map(q => q.id === qId
+      ? { ...q, upvotes: q.user_upvoted ? q.upvotes - 1 : q.upvotes + 1, user_upvoted: !q.user_upvoted }
+      : q
+    ))
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="space-y-2">
+        <textarea
+          rows={2}
+          value={newQ}
+          onChange={e => setNewQ(e.target.value)}
+          placeholder="Ask a question about this role..."
+          className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary resize-none"
+        />
+        <button
+          onClick={submitQuestion}
+          disabled={submitting || !newQ.trim()}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+        >
+          <Send className="w-4 h-4" />
+          {submitting ? 'Posting...' : 'Ask Question'}
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {questions.map(q => (
+          <div key={q.id} className="border border-border rounded-xl overflow-hidden">
+            <div className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0">
+                  {q.user_avatar}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-medium text-foreground">{q.user_name}</span>
+                    <span className="text-xs text-muted-foreground">asked a question</span>
+                  </div>
+                  <p className="text-sm text-foreground">{q.question}</p>
+                </div>
+                <button
+                  onClick={() => toggleUpvote(q.id)}
+                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors ${q.user_upvoted ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+                >
+                  <ThumbsUp className="w-3.5 h-3.5" /> {q.upvotes}
+                </button>
+              </div>
+            </div>
+            {q.answer && (
+              <div className="px-4 py-3 bg-green-500/5 border-t border-border">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-green-500/20 text-green-400 text-xs font-bold flex items-center justify-center flex-shrink-0">✓</div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold text-green-400">Official Answer</span>
+                      <span className="text-xs text-muted-foreground">from {q.answered_by_name}</span>
+                    </div>
+                    <p className="text-sm text-foreground">{q.answer}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── JobModal ─────────────────────────────────────────────────────────────────
 
 function JobModal({ job, onClose, onApply }) {
   const [tab, setTab] = useState('overview')
 
-  const tabs = ['Overview', 'Company', 'Similar Jobs']
+  const tabs = ['Overview', 'Company', 'Similar Jobs', 'Q&A']
 
   const similarJobs = SAMPLE_JOBS.filter(j => j.id !== job.id && j.tags.some(t => job.tags.includes(t))).slice(0, 3)
 
@@ -216,12 +319,12 @@ function JobModal({ job, onClose, onApply }) {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 px-6 pt-4 border-b border-border">
+        <div className="flex gap-1 px-6 pt-4 border-b border-border overflow-x-auto">
           {tabs.map(t => (
             <button
               key={t}
               onClick={() => setTab(t.toLowerCase().replace(' ', '-'))}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${tab === t.toLowerCase().replace(' ', '-') ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${tab === t.toLowerCase().replace(' ', '-') ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}
             >
               {t}
             </button>
@@ -333,6 +436,8 @@ function JobModal({ job, onClose, onApply }) {
               ))}
             </div>
           )}
+
+          {tab === 'q-a' && <JobQnA job={job} />}
         </div>
 
         {/* Sticky footer */}
@@ -355,10 +460,20 @@ function JobModal({ job, onClose, onApply }) {
 // ─── ApplyModal ───────────────────────────────────────────────────────────────
 
 function ApplyModal({ job, onClose }) {
+  const { user } = useAuth()
   const [step, setStep] = useState(1)
-  const [form, setForm] = useState({ coverLetter: '', portfolio: '', q1: '', q2: '' })
+  const [resumeFile, setResumeFile] = useState(null)
+  const [resumeUrl, setResumeUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [alreadyApplied, setAlreadyApplied] = useState(false)
+  const [checkingDuplicate, setCheckingDuplicate] = useState(true)
+  const [form, setForm] = useState({
+    coverLetter: '', portfolio: '', phone: '', linkedin: '', q1: '', q2: ''
+  })
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const fileRef = useRef()
 
   const TOTAL_STEPS = 3
   const QUESTIONS = [
@@ -366,22 +481,101 @@ function ApplyModal({ job, onClose }) {
     'Describe a recent project or campaign you are proud of.',
   ]
 
+  useEffect(() => {
+    async function checkDuplicate() {
+      if (!user) { setCheckingDuplicate(false); return }
+      const { data } = await supabase.from('applications')
+        .select('id').eq('job_id', job.id).eq('user_id', user.id).maybeSingle()
+      if (data) setAlreadyApplied(true)
+      setCheckingDuplicate(false)
+    }
+    checkDuplicate()
+  }, [job.id, user])
+
+  async function handleResumeSelect(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setResumeFile(file)
+    setUploading(true)
+    setUploadProgress(0)
+
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) { clearInterval(progressInterval); return prev }
+        return prev + 10
+      })
+    }, 200)
+
+    const path = `resumes/${user?.id ?? 'anon'}/${Date.now()}-${file.name}`
+    const { data, error } = await supabase.storage.from('uploads').upload(path, file)
+    clearInterval(progressInterval)
+
+    if (error) {
+      setUploading(false)
+      setUploadProgress(0)
+      alert('Upload failed: ' + error.message)
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(data.path)
+    setResumeUrl(publicUrl)
+    setUploadProgress(100)
+    setUploading(false)
+  }
+
   async function handleSubmit() {
     setLoading(true)
     try {
       await supabase.from('applications').insert({
         job_id: job.id,
+        user_id: user?.id,
         job_title: job.title,
         company: job.company,
         cover_letter: form.coverLetter,
         portfolio_url: form.portfolio,
+        phone: form.phone,
+        linkedin_url: form.linkedin,
+        resume_url: resumeUrl,
         screening_answers: { q1: form.q1, q2: form.q2 },
+        stage: 'applied',
         status: 'Under Review',
         applied_at: new Date().toISOString(),
       })
-    } catch (_) {}
+      setSubmitted(true)
+    } catch (err) {
+      alert('Submission failed. Please try again.')
+    }
     setLoading(false)
-    setSubmitted(true)
+  }
+
+  if (checkingDuplicate) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-2xl p-10 max-w-md w-full text-center shadow-xl">
+          <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground text-sm">Checking application status...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (alreadyApplied) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-2xl p-10 max-w-md w-full text-center shadow-xl">
+          <div className="w-16 h-16 rounded-full bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center mx-auto mb-5">
+            <AlertCircle className="w-8 h-8 text-yellow-400" />
+          </div>
+          <h3 className="text-xl font-bold text-foreground mb-2">Already Applied</h3>
+          <p className="text-muted-foreground mb-6">
+            You have already applied to <strong className="text-foreground">{job.title}</strong> at <strong className="text-foreground">{job.company}</strong>. Check My Applications to track your status.
+          </p>
+          <button onClick={onClose} className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity">
+            Close
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (submitted) {
@@ -429,15 +623,33 @@ function ApplyModal({ job, onClose }) {
         </div>
 
         {/* Step Content */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 max-h-[50vh] overflow-y-auto">
           {step === 1 && (
             <>
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">Resume (PDF)</label>
-                <label className="flex items-center justify-center gap-3 border-2 border-dashed border-border rounded-xl p-6 cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors">
-                  <Upload className="w-5 h-5 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Click to upload PDF resume</span>
-                  <input type="file" accept=".pdf" className="hidden" />
+                <label className="text-sm font-medium text-foreground mb-2 block">Resume (PDF, DOC, DOCX)</label>
+                <label className="block border-2 border-dashed border-border rounded-xl p-6 cursor-pointer hover:border-primary/50 transition-colors">
+                  <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleResumeSelect} />
+                  {!resumeFile ? (
+                    <div className="text-center">
+                      <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Click to upload PDF, DOC, DOCX (max 10MB)</p>
+                    </div>
+                  ) : uploading ? (
+                    <div className="space-y-2">
+                      <p className="text-sm text-foreground">{resumeFile.name}</p>
+                      <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{uploadProgress}% uploaded...</p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-green-400" />
+                      <span className="text-sm text-foreground font-medium">{resumeFile.name}</span>
+                      <span className="text-xs text-green-400 ml-auto">Uploaded ✓</span>
+                    </div>
+                  )}
                 </label>
               </div>
               <div>
@@ -447,8 +659,24 @@ function ApplyModal({ job, onClose }) {
                   value={form.coverLetter}
                   onChange={e => setForm(f => ({ ...f, coverLetter: e.target.value }))}
                   placeholder="Tell them why you are a great fit..."
-                  className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary resize-none"
+                  className={`w-full bg-muted border rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary resize-none ${form.coverLetter.length > 0 && form.coverLetter.length < 100 ? 'border-red-500/50' : 'border-border'}`}
                 />
+                <p className={`text-xs mt-1 ${form.coverLetter.length < 100 ? 'text-red-400' : 'text-muted-foreground'}`}>
+                  {form.coverLetter.length}/100 min
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">Phone Number</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="tel"
+                    value={form.phone}
+                    onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                    placeholder="+1 (555) 000-0000"
+                    className="w-full bg-muted border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground mb-2 block">Portfolio URL</label>
@@ -459,6 +687,19 @@ function ApplyModal({ job, onClose }) {
                     value={form.portfolio}
                     onChange={e => setForm(f => ({ ...f, portfolio: e.target.value }))}
                     placeholder="https://yourportfolio.com"
+                    className="w-full bg-muted border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">LinkedIn URL</label>
+                <div className="relative">
+                  <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="url"
+                    value={form.linkedin}
+                    onChange={e => setForm(f => ({ ...f, linkedin: e.target.value }))}
+                    placeholder="https://linkedin.com/in/yourprofile"
                     className="w-full bg-muted border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
                   />
                 </div>
@@ -497,12 +738,24 @@ function ApplyModal({ job, onClose }) {
                   <span className="text-foreground font-medium">{job.company}</span>
                 </div>
                 <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Resume</span>
+                  <span className="text-foreground">{resumeUrl ? '✓ Uploaded' : 'Not uploaded'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Cover Letter</span>
                   <span className="text-foreground">{form.coverLetter ? '✓ Added' : 'Not added'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Phone</span>
+                  <span className="text-foreground">{form.phone || 'Not provided'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Portfolio</span>
                   <span className="text-foreground">{form.portfolio || 'Not provided'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">LinkedIn</span>
+                  <span className="text-foreground">{form.linkedin ? '✓ Added' : 'Not provided'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Screening Answers</span>
@@ -639,8 +892,21 @@ function PostJobModal({ onClose }) {
                   <input value={form.company} onChange={e => updateForm('company', e.target.value)} placeholder="Company name" className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Logo Emoji</label>
-                  <input value={form.logo} onChange={e => updateForm('logo', e.target.value)} placeholder="🎬" className={inputCls} />
+                  <label className="text-xs text-muted-foreground mb-1 block">Company Logo</label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-2xl flex-shrink-0">
+                      {form.logo || '🏢'}
+                    </div>
+                    <div className="flex flex-col gap-1 flex-1">
+                      <input
+                        value={form.logo}
+                        onChange={e => updateForm('logo', e.target.value)}
+                        placeholder="Paste emoji (e.g. 🎬)"
+                        className={inputCls + ' text-sm'}
+                      />
+                      <span className="text-xs text-muted-foreground">Use an emoji as company logo</span>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Job Type</label>
@@ -756,6 +1022,8 @@ function PostJobModal({ onClose }) {
 
 function HiringPipeline() {
   const [selectedApplicant, setSelectedApplicant] = useState(null)
+  const [stageData, setStageData] = useState(PIPELINE_DATA)
+  const [showSchedule, setShowSchedule] = useState(false)
 
   return (
     <div className="space-y-4">
@@ -766,7 +1034,7 @@ function HiringPipeline() {
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Users className="w-4 h-4" />
-          {Object.values(PIPELINE_DATA).flat().length} applicants total
+          {Object.values(stageData).flat().length} applicants total
         </div>
       </div>
 
@@ -778,16 +1046,16 @@ function HiringPipeline() {
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{stage}</h4>
                 <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
-                  {PIPELINE_DATA[stage].length}
+                  {stageData[stage].length}
                 </span>
               </div>
               <div className="space-y-2">
-                {PIPELINE_DATA[stage].length === 0 && (
+                {stageData[stage].length === 0 && (
                   <div className="bg-muted/50 border border-dashed border-border rounded-xl p-4 text-center">
                     <p className="text-xs text-muted-foreground">No applicants</p>
                   </div>
                 )}
-                {PIPELINE_DATA[stage].map(applicant => (
+                {stageData[stage].map(applicant => (
                   <div key={applicant.id} className="bg-card border border-border rounded-xl p-3 shadow-sm">
                     <div className="flex items-center gap-2 mb-2">
                       <div className="w-8 h-8 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0">
@@ -803,7 +1071,7 @@ function HiringPipeline() {
                         {applicant.match}%
                       </span>
                       <button
-                        onClick={() => setSelectedApplicant(applicant)}
+                        onClick={() => { setSelectedApplicant({ ...applicant, currentStage: stage }); setShowSchedule(false) }}
                         className="text-xs px-2 py-1 rounded-lg bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors flex items-center gap-1"
                       >
                         <Eye className="w-3 h-3" /> View
@@ -820,7 +1088,7 @@ function HiringPipeline() {
       {/* Applicant Detail Sheet */}
       {selectedApplicant && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl p-6">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-bold text-foreground">Applicant Detail</h3>
               <button onClick={() => setSelectedApplicant(null)} className="p-2 rounded-lg hover:bg-muted text-muted-foreground"><X className="w-4 h-4" /></button>
@@ -837,6 +1105,7 @@ function HiringPipeline() {
                 </span>
               </div>
             </div>
+
             <div className="space-y-3 mb-5">
               <div className="bg-muted rounded-xl p-3">
                 <p className="text-xs text-muted-foreground mb-1">Cover Letter</p>
@@ -847,9 +1116,98 @@ function HiringPipeline() {
                 <p className="text-sm text-primary">https://portfolio.example.com</p>
               </div>
             </div>
+
+            {/* Stage Move */}
+            <div className="space-y-2 mb-4">
+              <label className="text-xs text-muted-foreground block">Move to Stage</label>
+              <select
+                value={selectedApplicant.currentStage || 'Applied'}
+                onChange={async (e) => {
+                  const newStage = e.target.value
+                  await supabase.from('applications')
+                    .update({ stage: newStage.toLowerCase() })
+                    .eq('id', selectedApplicant.id)
+                    .catch(() => {})
+                  setStageData(prev => {
+                    const next = {}
+                    STAGES.forEach(s => {
+                      next[s] = prev[s].filter(a => a.id !== selectedApplicant.id)
+                    })
+                    next[newStage] = [...prev[newStage], { ...selectedApplicant, currentStage: newStage }]
+                    return next
+                  })
+                  setSelectedApplicant(prev => ({ ...prev, currentStage: newStage }))
+                }}
+                className="w-full bg-muted border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none"
+              >
+                {STAGES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+
+            {/* Schedule Interview */}
+            <div className="mb-4">
+              <button
+                onClick={() => setShowSchedule(s => !s)}
+                className="w-full py-2 rounded-xl border border-primary/40 text-primary hover:bg-primary/10 text-sm font-medium transition-colors"
+              >
+                {showSchedule ? 'Hide Scheduler' : 'Schedule Interview'}
+              </button>
+              {showSchedule && (
+                <div className="space-y-3 p-3 bg-muted rounded-xl mt-2">
+                  <p className="text-xs font-semibold text-foreground">Schedule Interview</p>
+                  <select className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none">
+                    <option>Video Call (Philomni Room)</option>
+                    <option>Phone Call</option>
+                    <option>In-Person</option>
+                  </select>
+                  <input type="datetime-local" className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none" />
+                  <select className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none">
+                    <option>30 minutes</option>
+                    <option>45 minutes</option>
+                    <option>1 hour</option>
+                    <option>1.5 hours</option>
+                  </select>
+                  <button
+                    className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90"
+                    onClick={async () => {
+                      await supabase.from('bookings').insert({
+                        title: `Interview: ${selectedApplicant.name}`,
+                        type: 'interview',
+                        applicant_name: selectedApplicant.name,
+                      }).catch(() => {})
+                      setShowSchedule(false)
+                      alert('Interview scheduled! Candidate notification sent.')
+                    }}
+                  >
+                    Send Interview Invite
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
             <div className="flex gap-3">
-              <button className="flex-1 py-2 rounded-xl border border-border text-foreground hover:bg-muted text-sm transition-colors">Move Stage</button>
-              <button className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity">Schedule Interview</button>
+              <button
+                onClick={async () => {
+                  await supabase.from('applications').update({ stage: 'rejected' }).eq('id', selectedApplicant.id).catch(() => {})
+                  setStageData(prev => {
+                    const next = { ...prev }
+                    STAGES.forEach(s => { next[s] = prev[s].filter(a => a.id !== selectedApplicant.id) })
+                    next['Rejected'] = [...next['Rejected'], selectedApplicant]
+                    return next
+                  })
+                  setSelectedApplicant(null)
+                }}
+                className="flex-1 py-2 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors"
+              >
+                Reject
+              </button>
+              <button
+                onClick={() => setSelectedApplicant(null)}
+                className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
+              >
+                Save & Close
+              </button>
             </div>
           </div>
         </div>
@@ -861,6 +1219,7 @@ function HiringPipeline() {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Jobs() {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('browse')
   const [searchQuery, setSearchQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
@@ -871,6 +1230,15 @@ export default function Jobs() {
   const [showPostJob, setShowPostJob] = useState(false)
 
   const JOB_TYPES = ['All', 'Full-time', 'Part-time', 'Contract', 'Freelance']
+
+  useEffect(() => {
+    async function loadSaved() {
+      if (!user) return
+      const { data } = await supabase.from('saved_jobs').select('job_id').eq('user_id', user.id)
+      if (data) setSavedJobs(new Set(data.map(r => r.job_id)))
+    }
+    loadSaved()
+  }, [user])
 
   const filteredJobs = useMemo(() => {
     return SAMPLE_JOBS.filter(job => {
@@ -884,13 +1252,17 @@ export default function Jobs() {
 
   const savedJobsList = useMemo(() => SAMPLE_JOBS.filter(j => savedJobs.has(j.id)), [savedJobs])
 
-  function toggleSave(jobId) {
-    setSavedJobs(prev => {
-      const next = new Set(prev)
-      if (next.has(jobId)) next.delete(jobId)
-      else next.add(jobId)
-      return next
-    })
+  async function toggleSave(jobId) {
+    const next = new Set(savedJobs)
+    if (next.has(jobId)) {
+      next.delete(jobId)
+      await supabase.from('saved_jobs').delete()
+        .eq('job_id', jobId).eq('user_id', user?.id)
+    } else {
+      next.add(jobId)
+      await supabase.from('saved_jobs').insert({ job_id: jobId, user_id: user?.id })
+    }
+    setSavedJobs(next)
   }
 
   function openJob(job) {
