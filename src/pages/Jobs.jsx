@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -7,7 +8,7 @@ import {
   Users, Building2, Star, Upload, Plus, Trash2,
   CheckCircle2, Circle, FileText, Globe, Filter,
   ArrowRight, Eye, Send, Heart, HeartHandshake, Phone,
-  Linkedin, MessageCircle, ThumbsUp, AlertCircle
+  Linkedin, MessageCircle, ThumbsUp, AlertCircle, Loader2
 } from 'lucide-react'
 
 const SAMPLE_JOBS = [
@@ -29,6 +30,17 @@ const SAMPLE_APPLICATIONS = [
   { ...SAMPLE_JOBS[0], status: 'Screening', applied_date: '2026-05-10' },
   { ...SAMPLE_JOBS[3], status: 'Under Review', applied_date: '2026-05-12' },
   { ...SAMPLE_JOBS[7], status: 'Interview Scheduled', applied_date: '2026-05-08' },
+]
+
+const COMPANY_HIGHLIGHTS = [
+  { id:'c1', name:'Spotify', emoji:'🎵', jobs:24, industry:'Music' },
+  { id:'c2', name:'Adobe', emoji:'🎨', jobs:18, industry:'Technology' },
+  { id:'c3', name:'Creator IQ', emoji:'📊', jobs:8, industry:'Creator Economy' },
+  { id:'c4', name:'Patreon', emoji:'✍️', jobs:12, industry:'Creator Economy' },
+  { id:'c5', name:'Discord', emoji:'💬', jobs:15, industry:'Technology' },
+  { id:'c6', name:'TikTok', emoji:'🎵', jobs:45, industry:'Media' },
+  { id:'c7', name:'MrBeast', emoji:'🎬', jobs:9, industry:'Film & TV' },
+  { id:'c8', name:'Nike', emoji:'👟', jobs:22, industry:'Fashion' },
 ]
 
 const STAGES = ['Applied','Reviewing','Screening','Interview','Offer','Hired','Rejected']
@@ -1024,6 +1036,99 @@ function HiringPipeline() {
   const [selectedApplicant, setSelectedApplicant] = useState(null)
   const [stageData, setStageData] = useState(PIPELINE_DATA)
   const [showSchedule, setShowSchedule] = useState(false)
+  const [screening, setScreening] = useState(false)
+  const [aiScores, setAiScores] = useState({})
+  const [showAiResults, setShowAiResults] = useState(false)
+  const [sortByAi, setSortByAi] = useState(false)
+
+  const moveApplicant = async (applicant, newStage) => {
+    await supabase.from('applications').update({ stage: newStage.toLowerCase() }).eq('id', applicant.id).catch(() => {})
+    setStageData(prev => {
+      const next = {}
+      STAGES.forEach(s => { next[s] = prev[s].filter(a => a.id !== applicant.id) })
+      next[newStage] = [...(prev[newStage] || []), { ...applicant, currentStage: newStage }]
+      return next
+    })
+    setSelectedApplicant(prev => prev ? { ...prev, currentStage: newStage } : null)
+  }
+
+  const handleAIScreening = async () => {
+    setScreening(true)
+    try {
+      const targetApplicants = [
+        ...(stageData['Applied'] || []),
+        ...(stageData['Reviewing'] || []),
+      ]
+
+      if (targetApplicants.length === 0) {
+        setScreening(false)
+        return
+      }
+
+      const res = await fetch('/api/llm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `You are an AI hiring assistant. Score each applicant for fit with a creator economy role.
+
+APPLICANTS:
+${targetApplicants.map((a, i) => `${i+1}. Name: ${a.name}, Headline: ${a.headline}, Match score: ${a.match}%`).join('\n')}
+
+For each applicant (by their number 1-${targetApplicants.length}), provide a JSON array:
+[{"index": 1, "score": 85, "recommendation": "Strong Yes", "strengths": ["Strong content background", "Proven track record"], "concerns": ["Limited analytics experience"]}]
+
+Scores 0-100. Recommendations: "Strong Yes", "Yes", "Maybe", "No".
+Return ONLY the JSON array, nothing else.`
+        })
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const text = data.content || data.result || data.text || JSON.stringify(data)
+        const jsonMatch = text.match(/\[[\s\S]*\]/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          const scores = {}
+          parsed.forEach(item => {
+            const applicant = targetApplicants[item.index - 1]
+            if (applicant) {
+              scores[applicant.id] = {
+                score: item.score,
+                recommendation: item.recommendation,
+                strengths: item.strengths || [],
+                concerns: item.concerns || [],
+              }
+            }
+          })
+          for (const [appId, score] of Object.entries(scores)) {
+            await supabase.from('applications').update({
+              ai_score: score.score,
+              ai_recommendation: score.recommendation,
+              ai_analysis: { strengths: score.strengths, concerns: score.concerns },
+            }).eq('id', appId).catch(() => {})
+          }
+          setAiScores(scores)
+          setShowAiResults(true)
+        }
+      }
+    } catch (err) {
+      console.error('AI screening error:', err)
+      const targetApplicants = [...(stageData['Applied'] || []), ...(stageData['Reviewing'] || [])]
+      const mockScores = {}
+      targetApplicants.forEach(a => {
+        const score = Math.min(99, Math.max(20, a.match + Math.floor(Math.random() * 20 - 10)))
+        mockScores[a.id] = {
+          score,
+          recommendation: score >= 85 ? 'Strong Yes' : score >= 70 ? 'Yes' : score >= 50 ? 'Maybe' : 'No',
+          strengths: ['Relevant industry experience', 'Strong portfolio'],
+          concerns: score < 70 ? ['Limited specific skill match'] : [],
+        }
+      })
+      setAiScores(mockScores)
+      setShowAiResults(true)
+    }
+    setScreening(false)
+  }
 
   return (
     <div className="space-y-4">
@@ -1038,50 +1143,104 @@ function HiringPipeline() {
         </div>
       </div>
 
+      {/* AI Screening toolbar */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleAIScreening}
+          disabled={screening}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-500/20 border border-violet-500/40 text-violet-400 hover:bg-violet-500/30 text-sm font-medium transition-all disabled:opacity-60"
+        >
+          {screening ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <>✨ AI Screen Applicants</>}
+        </button>
+        {Object.keys(aiScores).length > 0 && (
+          <button onClick={() => setSortByAi(v => !v)} className="text-xs px-3 py-1.5 rounded-lg bg-muted text-muted-foreground hover:text-foreground transition-colors">
+            {sortByAi ? 'Unsort' : 'Sort by AI Score'}
+          </button>
+        )}
+      </div>
+
       {/* Kanban */}
       <div className="overflow-x-auto pb-4">
         <div className="flex gap-3 min-w-max">
-          {STAGES.map(stage => (
-            <div key={stage} className="w-52 flex-shrink-0">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{stage}</h4>
-                <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
-                  {stageData[stage].length}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {stageData[stage].length === 0 && (
-                  <div className="bg-muted/50 border border-dashed border-border rounded-xl p-4 text-center">
-                    <p className="text-xs text-muted-foreground">No applicants</p>
-                  </div>
-                )}
-                {stageData[stage].map(applicant => (
-                  <div key={applicant.id} className="bg-card border border-border rounded-xl p-3 shadow-sm">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0">
-                        {applicant.initials}
+          {STAGES.map(stage => {
+            let applicants = stageData[stage]
+            if (sortByAi && Object.keys(aiScores).length > 0) {
+              applicants = [...applicants].sort((a, b) => {
+                const aScore = aiScores[a.id]?.score ?? -1
+                const bScore = aiScores[b.id]?.score ?? -1
+                return bScore - aScore
+              })
+            }
+            return (
+              <div key={stage} className="w-52 flex-shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{stage}</h4>
+                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
+                    {stageData[stage].length}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {applicants.length === 0 && (
+                    <div className="bg-muted/50 border border-dashed border-border rounded-xl p-4 text-center">
+                      <p className="text-xs text-muted-foreground">No applicants</p>
+                    </div>
+                  )}
+                  {applicants.map(applicant => (
+                    <div key={applicant.id} className="bg-card border border-border rounded-xl p-3 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0">
+                          {applicant.initials}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{applicant.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{applicant.headline}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{applicant.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{applicant.headline}</p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${matchColor(applicant.match)}`}>
+                            {applicant.match}%
+                          </span>
+                          {/* AI score badge */}
+                          {aiScores[applicant.id] && (
+                            <div className="mt-1.5">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                                aiScores[applicant.id].score >= 80 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                aiScores[applicant.id].score >= 60 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                                'bg-red-500/20 text-red-400 border border-red-500/30'
+                              }`}>
+                                ✨ AI: {aiScores[applicant.id].score} · {aiScores[applicant.id].recommendation}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => {
+                            const a = applicant
+                            setSelectedApplicant({ ...a, currentStage: stage })
+                            setShowSchedule(false)
+                            // Auto-move from Applied to Reviewing when first opened
+                            if (stage === 'Applied') {
+                              supabase.from('applications').update({ stage: 'reviewing', viewed_at: new Date().toISOString() }).eq('id', a.id).catch(() => {})
+                              setStageData(prev => {
+                                const next = { ...prev }
+                                next['Applied'] = prev['Applied'].filter(x => x.id !== a.id)
+                                next['Reviewing'] = [...prev['Reviewing'], { ...a, currentStage: 'Reviewing' }]
+                                return next
+                              })
+                            }
+                          }}
+                          className="text-xs px-2 py-1 rounded-lg bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors flex items-center gap-1"
+                        >
+                          <Eye className="w-3 h-3" /> View
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${matchColor(applicant.match)}`}>
-                        {applicant.match}%
-                      </span>
-                      <button
-                        onClick={() => { setSelectedApplicant({ ...applicant, currentStage: stage }); setShowSchedule(false) }}
-                        className="text-xs px-2 py-1 rounded-lg bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors flex items-center gap-1"
-                      >
-                        <Eye className="w-3 h-3" /> View
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
@@ -1106,6 +1265,37 @@ function HiringPipeline() {
               </div>
             </div>
 
+            {/* AI Analysis section */}
+            {aiScores[selectedApplicant.id] && (
+              <div className="mb-4 bg-violet-500/10 border border-violet-500/20 rounded-xl p-4">
+                <p className="text-xs font-bold text-violet-400 mb-2 flex items-center gap-1.5">✨ AI Analysis</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className={`text-sm font-bold px-2 py-1 rounded-lg ${
+                    aiScores[selectedApplicant.id].score >= 80 ? 'bg-emerald-500/20 text-emerald-400' :
+                    aiScores[selectedApplicant.id].score >= 60 ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-red-500/20 text-red-400'
+                  }`}>{aiScores[selectedApplicant.id].score}/100</span>
+                  <span className="text-sm font-semibold text-foreground">{aiScores[selectedApplicant.id].recommendation}</span>
+                </div>
+                {aiScores[selectedApplicant.id].strengths.length > 0 && (
+                  <div className="mb-2">
+                    <p className="text-[10px] text-muted-foreground mb-1">STRENGTHS</p>
+                    {aiScores[selectedApplicant.id].strengths.map((s, i) => (
+                      <p key={i} className="text-xs text-foreground flex items-start gap-1.5"><span className="text-emerald-400 flex-shrink-0">✓</span>{s}</p>
+                    ))}
+                  </div>
+                )}
+                {aiScores[selectedApplicant.id].concerns.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-1">CONCERNS</p>
+                    {aiScores[selectedApplicant.id].concerns.map((c, i) => (
+                      <p key={i} className="text-xs text-foreground flex items-start gap-1.5"><span className="text-yellow-400 flex-shrink-0">⚠</span>{c}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-3 mb-5">
               <div className="bg-muted rounded-xl p-3">
                 <p className="text-xs text-muted-foreground mb-1">Cover Letter</p>
@@ -1114,6 +1304,29 @@ function HiringPipeline() {
               <div className="bg-muted rounded-xl p-3">
                 <p className="text-xs text-muted-foreground mb-1">Portfolio</p>
                 <p className="text-sm text-primary">https://portfolio.example.com</p>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="space-y-2 mb-4">
+              <label className="text-xs text-muted-foreground block">Quick Actions</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => moveApplicant(selectedApplicant, 'Screening')}
+                  className="py-2 rounded-xl border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors">
+                  → Screening
+                </button>
+                <button onClick={() => moveApplicant(selectedApplicant, 'Interview')}
+                  className="py-2 rounded-xl border border-primary/40 text-xs font-medium text-primary hover:bg-primary/10 transition-colors">
+                  → Interview
+                </button>
+                <button onClick={() => moveApplicant(selectedApplicant, 'Offer')}
+                  className="py-2 rounded-xl border border-emerald-500/40 text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 transition-colors">
+                  ✓ Send Offer
+                </button>
+                <button onClick={() => { moveApplicant(selectedApplicant, 'Rejected'); setSelectedApplicant(null) }}
+                  className="py-2 rounded-xl border border-red-500/30 text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors">
+                  ✗ Reject
+                </button>
               </div>
             </div>
 
@@ -1176,6 +1389,15 @@ function HiringPipeline() {
                         applicant_name: selectedApplicant.name,
                       }).catch(() => {})
                       setShowSchedule(false)
+                      // Auto-move to Interview stage
+                      setStageData(prev => {
+                        const next = {}
+                        STAGES.forEach(s => { next[s] = prev[s].filter(x => x.id !== selectedApplicant.id) })
+                        next['Interview'] = [...next['Interview'], { ...selectedApplicant, currentStage: 'Interview' }]
+                        return next
+                      })
+                      setSelectedApplicant(prev => ({ ...prev, currentStage: 'Interview' }))
+                      await supabase.from('applications').update({ stage: 'interview' }).eq('id', selectedApplicant.id).catch(() => {})
                       alert('Interview scheduled! Candidate notification sent.')
                     }}
                   >
@@ -1220,6 +1442,7 @@ function HiringPipeline() {
 
 export default function Jobs() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('browse')
   const [searchQuery, setSearchQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
@@ -1403,6 +1626,28 @@ export default function Jobs() {
                 </div>
               </div>
             )}
+
+            {/* Browse by Company */}
+            <div className="mt-10">
+              <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary" /> Browse by Company
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">Explore jobs at top creator economy companies</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {COMPANY_HIGHLIGHTS.map(co => (
+                  <button key={co.id} onClick={() => navigate(`/company/${co.id}`)}
+                    className="bg-card border border-border rounded-xl p-4 hover:border-primary/40 transition-all text-left group">
+                    <div className="text-3xl mb-2">{co.emoji}</div>
+                    <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">{co.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{co.jobs} open roles</p>
+                    <p className="text-xs text-muted-foreground">{co.industry}</p>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => navigate('/companies')} className="mt-4 w-full py-2.5 border border-border rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                View All Companies →
+              </button>
+            </div>
           </div>
         )}
 

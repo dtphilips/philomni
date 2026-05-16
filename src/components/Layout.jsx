@@ -5,7 +5,7 @@ import {
   Home, Users, Radio, Mic2, Wand2, BarChart2, MessageSquare,
   Music, Palette, Library, Briefcase, Globe, Zap, ShoppingBag,
   Video, LogOut, Menu, X, ChevronRight, Bell, Package,
-  GraduationCap, Store, Film, BookOpen, Rss,
+  GraduationCap, Store, Film, BookOpen, Rss, Building2,
 } from 'lucide-react'
 
 const NAV_SECTIONS = [
@@ -46,10 +46,12 @@ const NAV_SECTIONS = [
   {
     label: 'Work',
     items: [
-      { to: '/jobs',        icon: Briefcase,  label: 'Jobs' },
-      { to: '/skills',      icon: Zap,        label: 'Skill Exchange' },
-      { to: '/marketplace', icon: ShoppingBag,label: 'Marketplace' },
-      { to: '/my-orders',   icon: Package,    label: 'My Orders' },
+      { to: '/jobs',             icon: Briefcase,  label: 'Jobs' },
+      { to: '/companies',        icon: Building2,  label: 'Companies' },
+      { to: '/company/dashboard',icon: Building2,  label: 'My Company' },
+      { to: '/skills',           icon: Zap,        label: 'Skill Exchange' },
+      { to: '/marketplace',      icon: ShoppingBag,label: 'Marketplace' },
+      { to: '/my-orders',        icon: Package,    label: 'My Orders' },
     ],
   },
   {

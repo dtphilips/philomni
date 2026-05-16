@@ -66,6 +66,12 @@ import Jobs from './pages/Jobs'
 import Learning from './pages/Learning'
 import CreatorStore from './pages/CreatorStore'
 
+// Professional Network
+import Companies from './pages/Companies'
+import CompanyProfile from './pages/CompanyProfile'
+import CreateCompany from './pages/CreateCompany'
+import CompanyDashboard from './pages/CompanyDashboard'
+
 // Marketplace & Commerce
 import MyOrders from './pages/MyOrders'
 import OrderPage from './pages/OrderPage'
@@ -179,6 +185,12 @@ export default function App() {
             <Route path="/jobs" element={<P page={Jobs} />} />
             <Route path="/learning" element={<P page={Learning} />} />
             <Route path="/store" element={<P page={CreatorStore} />} />
+
+            {/* Professional Network */}
+            <Route path="/companies" element={<P page={Companies} />} />
+            <Route path="/company/create" element={<P page={CreateCompany} />} />
+            <Route path="/company/dashboard" element={<P page={CompanyDashboard} />} />
+            <Route path="/company/:id" element={<P page={CompanyProfile} />} />
             <Route path="/stores" element={<P page={CreatorStore} />} />
             <Route path="/store/dashboard" element={<P page={CreatorStore} />} />
             <Route path="/store/:username" element={<P page={CreatorStore} />} />
