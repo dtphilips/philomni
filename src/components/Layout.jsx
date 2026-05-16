@@ -168,16 +168,22 @@ export default function Layout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [transition, setTransition] = useState(null) // { to: 'pro'|'creator', phase: 'in'|'out' }
 
-  // FIX 1: When mode changes, redirect to the correct feed
+  // FIX 9: Mode switch with full-screen transition overlay
   const handleModeSwitch = (newMode) => {
     if (newMode === mode) return
-    switchTo(newMode)
-    if (newMode === 'creator') {
-      navigate('/')
-    } else {
-      navigate('/pro-feed')
-    }
+    // Phase 1 — fade in overlay
+    setTransition({ to: newMode, phase: 'in' })
+    setTimeout(() => {
+      // Phase 2 — perform the switch while overlay is visible
+      switchTo(newMode)
+      if (newMode === 'creator') navigate('/')
+      else navigate('/pro-feed')
+      // Phase 3 — fade out
+      setTransition({ to: newMode, phase: 'out' })
+      setTimeout(() => setTransition(null), 350)
+    }, 500)
   }
 
   // FIX 1: On initial load, enforce correct feed for stored mode
@@ -303,6 +309,31 @@ export default function Layout({ children }) {
           )}
         </main>
       </div>
+
+      {/* FIX 9: Mode transition overlay */}
+      {transition && (
+        <div
+          className="fixed inset-0 z-[500] flex flex-col items-center justify-center transition-opacity duration-350"
+          style={{
+            background: transition.to === 'pro'
+              ? 'linear-gradient(135deg, #1e3a5f 0%, #0f2340 100%)'
+              : 'linear-gradient(135deg, #4c1d95 0%, #2e1065 100%)',
+            opacity: transition.phase === 'in' ? 1 : 0,
+          }}
+        >
+          <div className="text-center space-y-3">
+            <div className="text-5xl mb-2 animate-bounce">
+              {transition.to === 'pro' ? '💼' : '🎨'}
+            </div>
+            <p className="text-white text-2xl font-bold tracking-tight">
+              {transition.to === 'pro' ? 'Pro Mode' : 'Creator Mode'}
+            </p>
+            <p className="text-white/60 text-sm">
+              {transition.to === 'pro' ? 'Switching to professional experience…' : 'Switching to creative experience…'}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

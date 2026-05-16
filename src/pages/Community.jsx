@@ -31,6 +31,19 @@ const SAMPLE_POSTS = [
   { id: 'p15', board: 'help', title: 'Newbie here — what\'s the single best investment to make as a new creator with $500?', author_name: 'Carlos R.', author_avatar: null, score: 176, comment_count: 134, view_count: 4700, created_at: new Date(Date.now()-1123200000).toISOString(), is_pinned: false, tags: ['newbie', 'gear', 'advice'], content: 'I have $500 to spend on my creator journey. Should it go to gear? Software? A course? Please help.' },
 ]
 
+const PRO_SAMPLE_POSTS = [
+  { id: 'pp1', board: 'bizdev', title: 'How I closed a $500K B2B deal in 3 months — full breakdown', author_name: 'Marcus D.', author_avatar: null, score: 612, comment_count: 87, view_count: 9400, created_at: new Date(Date.now()-3600000).toISOString(), is_pinned: true, tags: ['b2b', 'sales', 'deals'], content: 'Step 1: Identify pain, not features. Step 2: Multi-thread the account. Step 3: Build a business case with their numbers. Full breakdown below...' },
+  { id: 'pp2', board: 'career', title: 'The hiring mistake every startup makes (and how to avoid it)', author_name: 'Aisha P.', author_avatar: null, score: 445, comment_count: 62, view_count: 7800, created_at: new Date(Date.now()-7200000).toISOString(), is_pinned: false, tags: ['hiring', 'startup', 'hr'], content: 'Hiring for skills instead of systems. Here is what I mean...' },
+  { id: 'pp3', board: 'insights', title: 'AI is changing our industry faster than we think — here\'s what I\'m doing', author_name: 'Dr. Sarah C.', author_avatar: null, score: 789, comment_count: 134, view_count: 14200, created_at: new Date(Date.now()-14400000).toISOString(), is_pinned: false, tags: ['ai', 'future', 'strategy'], content: 'Three structural changes I am making to my business in 2026 because of AI...' },
+  { id: 'pp4', board: 'career', title: 'My CISSP journey: 6 months of study, worth every hour', author_name: 'Tariq R.', author_avatar: null, score: 534, comment_count: 98, view_count: 8100, created_at: new Date(Date.now()-86400000).toISOString(), is_pinned: false, tags: ['cissp', 'cybersecurity', 'certification'], content: 'Study plan, resources, what actually showed up on the exam, and my single biggest tip...' },
+  { id: 'pp5', board: 'career', title: 'How to negotiate your salary in 2026 — data from 500 responses', author_name: 'Priya N.', author_avatar: null, score: 892, comment_count: 203, view_count: 18700, created_at: new Date(Date.now()-172800000).toISOString(), is_pinned: false, tags: ['salary', 'negotiation', 'career'], content: 'Survey results plus the script that added $24k to my last offer...' },
+  { id: 'pp6', board: 'strategy', title: 'We raised our Series A — here\'s what investors actually wanted to see', author_name: 'Simone O.', author_avatar: null, score: 1240, comment_count: 267, view_count: 22000, created_at: new Date(Date.now()-259200000).toISOString(), is_pinned: false, tags: ['fundraising', 'seriesa', 'startup'], content: 'The 3 things that mattered: defensible distribution, clear unit economics, and a founder story...' },
+  { id: 'pp7', board: 'finance', title: 'The real cost of raising venture capital that no one talks about', author_name: 'James L.', author_avatar: null, score: 678, comment_count: 112, view_count: 11400, created_at: new Date(Date.now()-345600000).toISOString(), is_pinned: false, tags: ['vc', 'finance', 'dilution'], content: 'Dilution, board dynamics, and the pressure to grow at all costs. Is it always the right path?' },
+  { id: 'pp8', board: 'opps', title: '🔥 RFP: Enterprise cybersecurity audit — $200K budget, Q3 start', author_name: 'Tech Corp Procurement', author_avatar: null, score: 234, comment_count: 45, view_count: 5600, created_at: new Date(Date.now()-432000000).toISOString(), is_pinned: false, tags: ['rfp', 'cybersecurity', 'contract'], content: 'Looking for a firm to conduct a full enterprise security audit. ISO 27001 experience required. Respond with credentials and rate card.' },
+  { id: 'pp9', board: 'insights', title: 'Product-led growth is not a strategy — it is an outcome', author_name: 'Kwame A.', author_avatar: null, score: 445, comment_count: 78, view_count: 8900, created_at: new Date(Date.now()-518400000).toISOString(), is_pinned: false, tags: ['plg', 'product', 'growth'], content: 'Everyone says they want PLG. Very few understand what it actually requires at the org level...' },
+  { id: 'pp10', board: 'bizdev', title: 'Cold outreach that actually works in 2026 — tested on 10,000 sends', author_name: 'Emma L.', author_avatar: null, score: 567, comment_count: 89, view_count: 10200, created_at: new Date(Date.now()-604800000).toISOString(), is_pinned: false, tags: ['outreach', 'sales', 'email'], content: 'Open rate 34%, reply rate 12%. Here is the exact framework...' },
+]
+
 const SAMPLE_GROUPS = [
   { id: 'g1', name: 'Video Creators Network', category: 'video', emoji: '🎬', member_count: 12430, description: 'Connect with video creators worldwide. Share work, get feedback, find collabs and job opportunities.', is_featured: true, joined_this_week: 340, cover_color: 'from-violet-600 to-blue-600' },
   { id: 'g2', name: 'African Creators Hub', category: 'regional', emoji: '🌍', member_count: 8720, description: 'The premier community for African and diaspora creators — celebrating African creativity and building together.', is_featured: true, joined_this_week: 215, cover_color: 'from-emerald-600 to-teal-600' },
@@ -77,12 +90,32 @@ const SAMPLE_LEADERBOARD = [
   { rank: 10, name: 'Carlos R.', avatar: null, role: 'Voice Artist',      points: 1940, change: 11,  badge: '',   badges: [] },
 ]
 
+const PRO_SAMPLE_LEADERBOARD = [
+  { rank: 1,  name: 'Adaeze N.',    avatar: null, role: 'Cybersecurity Expert',    points: 5120, change: 18,  badge: '🥇', badges: ['🔒','💡','🏆'] },
+  { rank: 2,  name: 'Marcus D.',    avatar: null, role: 'B2B Sales Leader',        points: 4780, change: 9,   badge: '🥈', badges: ['🤝','⭐'] },
+  { rank: 3,  name: 'Simone O.',    avatar: null, role: 'Founder & CEO',           points: 4340, change: -3,  badge: '🥉', badges: ['🚀','💡'] },
+  { rank: 4,  name: 'Priya N.',     avatar: null, role: 'Talent Acquisition Lead', points: 3910, change: 12,  badge: '',   badges: ['🤝'] },
+  { rank: 5,  name: 'James L.',     avatar: null, role: 'Investment Analyst',      points: 3640, change: 4,   badge: '',   badges: ['💰','📊'] },
+  { rank: 6,  name: 'Dr. Sarah C.', avatar: null, role: 'Cloud Architect',         points: 3290, change: -2,  badge: '',   badges: ['🔒'] },
+  { rank: 7,  name: 'Kwame A.',     avatar: null, role: 'Product Manager',         points: 3010, change: 27,  badge: '',   badges: ['📋','⭐'] },
+  { rank: 8,  name: 'Tariq R.',     avatar: null, role: 'CISO',                    points: 2780, change: 6,   badge: '',   badges: ['🔒','🏆'] },
+  { rank: 9,  name: 'Emma L.',      avatar: null, role: 'Growth Marketing Lead',   points: 2540, change: -1,  badge: '',   badges: ['📊'] },
+  { rank: 10, name: 'Yemi A.',      avatar: null, role: 'Product Manager',         points: 2280, change: 14,  badge: '',   badges: [] },
+]
+
 const SAMPLE_ANNOUNCEMENTS = [
   { id: 'a1', title: 'Welcome to the Philomni Community! 🎉', content: 'We\'ve officially launched the Philomni Community Hub — your home base for connecting with thousands of creators worldwide. This is your space to learn, collaborate, share your work, and grow together. Introduce yourself below! Tell us who you are, what you create, and what you\'re working on right now.', created_at: new Date(Date.now()-2592000000).toISOString(), reactions: { '❤️': 892, '👏': 654, '🔥': 441, '🤩': 328 } },
   { id: 'a2', title: 'New Feature: Creator Studio is Now Live ✨', content: 'We\'re thrilled to announce Creator Studio — your professional media editing suite built directly into Philomni. Edit photos with 16 professional filters, cut and color-grade videos, add text overlays, use our AI Enhance tool, and export in up to 4K quality. Access it from the sidebar → Creator Studio. We\'d love to see what you make!', created_at: new Date(Date.now()-1728000000).toISOString(), reactions: { '❤️': 534, '👏': 445, '🔥': 812, '🤩': 623 } },
   { id: 'a3', title: 'Philomni Marketplace is Open for Business 🛍️', content: 'The Philomni Marketplace is live! Buy and sell scripts, beats, digital products, courses, services, physical gear, and collab opportunities — all in one place built specifically for creators. We\'ve pre-loaded 15 sample listings to get you started. Sellers: click "Sell Something" to list your first offer. Buyers: explore and find what you need.', created_at: new Date(Date.now()-864000000).toISOString(), reactions: { '❤️': 412, '👏': 389, '🔥': 567, '🤩': 298 } },
   { id: 'a4', title: 'Community Challenge: Win Featured Placement on Philomni Homepage 🏆', content: 'Our first official community challenge is LIVE: The 30-Second Origin Story Challenge. Tell your creator story in 30 seconds or less. The top 3 entries (as voted by the community) win featured placement on the Philomni homepage for a full week, plus our exclusive Challenge Champion badge. Head to the Challenges tab to enter!', created_at: new Date(Date.now()-432000000).toISOString(), reactions: { '❤️': 678, '👏': 521, '🔥': 834, '🤩': 445 } },
   { id: 'a5', title: 'Introducing Skill Exchange — Trade Skills, Not Money 🔄', content: 'Skill Exchange is Philomni\'s barter economy. Trade your skills directly with other creators — no money needed. A video editor trades with a graphic designer. A photographer trades with a web developer. It\'s the creative economy working the way it should. Browse 12 sample offers already posted, or add your own skill offer today. Head to Skill Exchange in the sidebar.', created_at: new Date(Date.now()-86400000).toISOString(), reactions: { '❤️': 789, '👏': 612, '🔥': 445, '🤩': 334 } },
+]
+
+const PRO_SAMPLE_ANNOUNCEMENTS = [
+  { id: 'pa1', title: 'Welcome to the Philomni Professional Network! 💼', content: 'The Professional Community is now live — your home for networking with executives, founders, engineers, and industry experts. Join groups, ask career questions, share insights, and connect with 20,000+ professionals. Introduce yourself in the General Discussion board!', created_at: new Date(Date.now()-2592000000).toISOString(), reactions: { '❤️': 678, '👏': 534, '🔥': 312, '🤩': 245 } },
+  { id: 'pa2', title: 'New: Company Pages Are Live ✨', content: 'Companies can now claim their Philomni Company Page to post jobs, share updates, showcase their culture, and connect with talent. Over 500 companies have already joined. If you represent a company, head to Companies → Create Company Page to get started.', created_at: new Date(Date.now()-1728000000).toISOString(), reactions: { '❤️': 445, '👏': 378, '🔥': 623, '🤩': 512 } },
+  { id: 'pa3', title: 'Learning Hub Pro: 200+ Professional Courses Added 🎓', content: 'The Philomni Learning Hub now includes 200+ professional development courses — covering Cybersecurity (CISSP, CEH), Data Science, Product Management, Leadership, Finance, and more. Several courses are free. Check the Learning Hub under Pro mode.', created_at: new Date(Date.now()-864000000).toISOString(), reactions: { '❤️': 534, '👏': 412, '🔥': 289, '🤩': 198 } },
+  { id: 'pa4', title: 'Consulting Exchange: Trade Expertise Directly 🔄', content: 'The Consulting Exchange is Philomni\'s peer expertise network. Trade professional skills directly — a CFO helps a startup with financial modeling; in exchange, the startup\'s CTO reviews their security posture. No hourly rates, no invoices. Pure value exchange. Explore it in the sidebar.', created_at: new Date(Date.now()-432000000).toISOString(), reactions: { '❤️': 678, '👏': 512, '🔥': 334, '🤩': 267 } },
 ]
 
 const BOARDS = [
@@ -96,6 +129,20 @@ const BOARDS = [
   { id: 'help',     label: '❓ Questions & Help',     count: 56 },
   { id: 'general',  label: '🗣 General Chat',         count: 73 },
   { id: 'opps',     label: '📢 Opportunities',        count: 18 },
+]
+
+const PRO_BOARDS = [
+  { id: 'all',      label: '🔥 Hot Today',            count: 94  },
+  { id: 'pinned',   label: '📌 Pinned',                count: 2   },
+  { id: 'insights', label: '💡 Industry Insights',     count: 38  },
+  { id: 'bizdev',   label: '🤝 Business Development',  count: 29  },
+  { id: 'tools',    label: '🛠 Tools & Productivity',  count: 24  },
+  { id: 'finance',  label: '💰 Finance & Investment',  count: 31  },
+  { id: 'strategy', label: '🎯 Strategy & Growth',     count: 22  },
+  { id: 'career',   label: '❓ Career Advice',         count: 47  },
+  { id: 'exec',     label: '🗣 Executive Lounge',      count: 18  },
+  { id: 'opps',     label: '📢 Opportunities & RFPs',  count: 14  },
+  { id: 'africa',   label: '🌍 African Business',      count: 21  },
 ]
 
 const POINTS_INFO = [
@@ -284,8 +331,9 @@ function PostModal({ post, onClose }) {
 
 // ─── New Post Modal ────────────────────────────────────────────────────────────
 
-function NewPostModal({ onClose, onSubmit, saving }) {
-  const [form, setForm] = useState({ title: '', content: '', board: 'general', tags: '' })
+function NewPostModal({ onClose, onSubmit, saving, boards }) {
+  const boardList = boards || BOARDS
+  const [form, setForm] = useState({ title: '', content: '', board: boardList.find(b => b.id !== 'all' && b.id !== 'pinned')?.id ?? 'general', tags: '' })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
 
@@ -300,7 +348,7 @@ function NewPostModal({ onClose, onSubmit, saving }) {
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Board</label>
             <select className={inp + ' cursor-pointer'} value={form.board} onChange={e => set('board', e.target.value)}>
-              {BOARDS.filter(b => b.id !== 'all' && b.id !== 'pinned').map(b => (
+              {boardList.filter(b => b.id !== 'all' && b.id !== 'pinned').map(b => (
                 <option key={b.id} value={b.id}>{b.label}</option>
               ))}
             </select>
@@ -333,9 +381,13 @@ function NewPostModal({ onClose, onSubmit, saving }) {
 
 // ─── Right Sidebar ────────────────────────────────────────────────────────────
 
-function RightSidebar({ events, challenges }) {
-  const onlineMembers = ['Sarah K.','Alex T.','Jordan B.','Priya S.','Tyler O.']
-  const trending = ['#CreatorEconomy','#AfroBeats','#VideoEditing','#BrandDeals','#Thumbnails','#AITools']
+function RightSidebar({ events, challenges, communityMode }) {
+  const trending = communityMode === 'pro'
+    ? ['#BusinessStrategy','#Leadership','#Cybersecurity','#AfricanBusiness','#StartupLife','#FinTech','#CareerGrowth','#B2BSales']
+    : ['#CreatorEconomy','#AfroBeats','#VideoEditing','#BrandDeals','#Thumbnails','#AITools']
+  const onlineMembers = communityMode === 'pro'
+    ? ['Adaeze N.','Marcus D.','Simone O.','Priya N.','James L.']
+    : ['Sarah K.','Alex T.','Jordan B.','Priya S.','Tyler O.']
   return (
     <div className="hidden xl:flex flex-col gap-4 w-64 flex-shrink-0">
       {/* Who's Online */}
@@ -447,14 +499,19 @@ export default function Community() {
       .select('*').order('created_at', { ascending: false }).limit(60)
       .then(({ data }) => {
         const db = data ?? []
-        const dbIds = new Set(db.map(p => p.id))
-        setPosts([...db, ...SAMPLE_POSTS.filter(p => !dbIds.has(p.id))])
+        setPosts(db)
         setLoading(false)
       })
   }, [])
 
+  const displayPosts = useMemo(() => {
+    const sampleSet = communityMode === 'pro' ? PRO_SAMPLE_POSTS : SAMPLE_POSTS
+    const dbIds = new Set(posts.map(p => p.id))
+    return [...posts, ...sampleSet.filter(p => !dbIds.has(p.id))]
+  }, [posts, communityMode])
+
   const filteredPosts = useMemo(() => {
-    let list = [...posts]
+    let list = [...displayPosts]
     if (boardFilter === 'pinned') list = list.filter(p => p.is_pinned)
     else if (boardFilter !== 'all') list = list.filter(p => p.board === boardFilter)
     if (sortBy === 'hot')  list.sort((a, b) => (b.score + b.comment_count * 0.5) - (a.score + a.comment_count * 0.5))
@@ -462,7 +519,7 @@ export default function Community() {
     if (sortBy === 'top')  list.sort((a, b) => b.score - a.score)
     // Pinned always first
     return [...list.filter(p => p.is_pinned), ...list.filter(p => !p.is_pinned)]
-  }, [posts, boardFilter, sortBy])
+  }, [displayPosts, boardFilter, sortBy])
 
   const handleVote = useCallback((id, dir) => {
     setVotes(v => ({ ...v, [id]: v[id] === dir ? 0 : dir }))
@@ -546,7 +603,7 @@ export default function Community() {
               className="flex items-center justify-center gap-2 w-full py-2.5 mb-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
               <Plus className="w-4 h-4" /> New Post
             </button>
-            {BOARDS.map(b => (
+            {(communityMode === 'pro' ? PRO_BOARDS : BOARDS).map(b => (
               <button key={b.id} onClick={() => setBoardFilter(b.id)}
                 className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm transition-all ${boardFilter === b.id ? 'bg-primary/15 text-primary font-semibold' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                 <span className="truncate">{b.label}</span>
@@ -582,7 +639,7 @@ export default function Community() {
             )}
           </div>
 
-          <RightSidebar events={SAMPLE_EVENTS} challenges={SAMPLE_CHALLENGES} />
+          <RightSidebar events={communityMode === 'pro' ? PRO_EVENTS : SAMPLE_EVENTS} challenges={communityMode === 'pro' ? PRO_CHALLENGES : SAMPLE_CHALLENGES} communityMode={communityMode} />
         </div>
       )}
 
@@ -784,7 +841,7 @@ export default function Community() {
             </div>
 
             <div className="bg-card border border-border rounded-2xl overflow-hidden">
-              {SAMPLE_LEADERBOARD.map((creator, i) => (
+              {(communityMode === 'pro' ? PRO_SAMPLE_LEADERBOARD : SAMPLE_LEADERBOARD).map((creator, i) => (
                 <div key={i} className={`flex items-center gap-3 px-4 py-3 border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors ${i < 3 ? 'bg-primary/5' : ''}`}>
                   <div className="w-7 text-center flex-shrink-0">
                     {creator.badge
@@ -850,7 +907,7 @@ export default function Community() {
       {/* ══ ANNOUNCEMENTS ═══════════════════════════════════════════════════ */}
       {tab === 'announcements' && (
         <div className="space-y-4 max-w-2xl">
-          {SAMPLE_ANNOUNCEMENTS.map(a => (
+          {(communityMode === 'pro' ? PRO_SAMPLE_ANNOUNCEMENTS : SAMPLE_ANNOUNCEMENTS).map(a => (
             <div key={a.id} className="bg-card border border-border rounded-2xl p-5 space-y-3">
               {/* Header */}
               <div className="flex items-center gap-3">
@@ -893,7 +950,7 @@ export default function Community() {
 
       {/* ── Modals ────────────────────────────────────────────────────────── */}
       {activePost && <PostModal post={activePost} onClose={() => setActivePost(null)} />}
-      {showNewPost && <NewPostModal onClose={() => setShowNewPost(false)} onSubmit={handleNewPost} saving={savingPost} />}
+      {showNewPost && <NewPostModal onClose={() => setShowNewPost(false)} onSubmit={handleNewPost} saving={savingPost} boards={communityMode === 'pro' ? PRO_BOARDS : BOARDS} />}
     </div>
   )
 }

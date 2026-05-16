@@ -554,7 +554,7 @@ function ProPostComposer({ onPost }) {
             onClick={() => setOpen(true)}
             className="flex-1 text-left px-4 py-2.5 rounded-full border border-border bg-muted text-muted-foreground text-sm hover:bg-muted/80 transition-colors cursor-pointer"
           >
-            Share an insight, milestone, or article...
+            Share an industry insight, career milestone, or business update...
           </button>
         ) : (
           <div className="flex-1">
@@ -564,7 +564,7 @@ function ProPostComposer({ onPost }) {
                 onChange={e => setContent(e.target.value)}
                 rows={4}
                 maxLength={3000}
-                placeholder="Share an insight, milestone, or article..."
+                placeholder="Share an industry insight, career milestone, or business update..."
                 className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none resize-none"
                 autoFocus
               />

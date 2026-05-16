@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useMode } from '../context/ModeContext'
 import {
   Search, MapPin, DollarSign, Bookmark, BookmarkCheck,
   X, ChevronRight, ChevronLeft, Briefcase, Clock,
@@ -1442,6 +1443,7 @@ Return ONLY the JSON array, nothing else.`
 
 export default function Jobs() {
   const { user } = useAuth()
+  const { mode } = useMode()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('browse')
   const [searchQuery, setSearchQuery] = useState('')
@@ -1510,8 +1512,14 @@ export default function Jobs() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Jobs & Careers</h1>
-            <p className="text-muted-foreground mt-1">Discover creator economy opportunities curated for you</p>
+            <h1 className="text-3xl font-bold text-foreground">
+              {mode === 'creator' ? '🎨 Creator Opportunities' : '💼 Jobs & Careers'}
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              {mode === 'creator'
+                ? 'Brand deals, UGC briefs, creator roles, and creative economy jobs'
+                : 'Professional roles, leadership positions, and career opportunities'}
+            </p>
           </div>
           <button
             onClick={() => setShowPostJob(true)}
@@ -1528,7 +1536,7 @@ export default function Jobs() {
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search jobs, companies, skills..."
+            placeholder={mode === 'creator' ? 'Search creator opportunities, brand deals, UGC briefs...' : 'Search jobs, roles, companies...'}
             className="w-full bg-card border border-border rounded-xl pl-12 pr-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary shadow-sm"
           />
         </div>
@@ -1627,12 +1635,53 @@ export default function Jobs() {
               </div>
             )}
 
+            {/* Creator: Brand Partnership & UGC Opportunities spotlight */}
+            {mode === 'creator' && (
+              <div className="mt-8 bg-gradient-to-br from-violet-500/10 to-primary/5 border border-primary/20 rounded-2xl p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">🤝</span>
+                  <h2 className="text-base font-bold text-foreground">Brand Partnership Opportunities</h2>
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full font-semibold">New</span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">Brands looking for creators right now — no middleman, no agency fees.</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { brand: 'Glossier', emoji: '💄', type: 'UGC Campaign Brief', budget: '$300/video', niche: 'Beauty & Wellness', slots: 10 },
+                    { brand: 'GoPro', emoji: '📸', type: 'Brand Ambassador', budget: '$1,500–$3,000/mo', niche: 'Adventure & Sports', slots: 5 },
+                    { brand: 'Notion', emoji: '📋', type: 'Sponsored Content', budget: '$800/post', niche: 'Productivity & Tech', slots: 3 },
+                    { brand: 'Spotify', emoji: '🎵', type: 'Podcast Integration', budget: 'Custom CPM', niche: 'Music & Culture', slots: 8 },
+                  ].map(opp => (
+                    <div key={opp.brand} className="bg-card border border-border rounded-xl p-4 hover:border-primary/30 transition-all">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-2xl">{opp.emoji}</span>
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{opp.brand}</p>
+                          <p className="text-xs text-muted-foreground">{opp.type}</p>
+                        </div>
+                        <span className="ml-auto text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-full font-medium">{opp.slots} slots</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                        <span>💰 {opp.budget}</span>
+                        <span>🎯 {opp.niche}</span>
+                      </div>
+                      <button className="w-full mt-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-semibold hover:bg-primary hover:text-white transition-colors">
+                        Apply Now →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-3 text-center">More brand opportunities coming soon. <span className="text-primary cursor-pointer hover:underline">Submit your media kit →</span></p>
+              </div>
+            )}
+
             {/* Browse by Company */}
             <div className="mt-10">
               <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-primary" /> Browse by Company
               </h2>
-              <p className="text-sm text-muted-foreground mb-4">Explore jobs at top creator economy companies</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                {mode === 'creator' ? 'Explore jobs at top creator economy companies' : 'Explore roles at leading companies'}
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {COMPANY_HIGHLIGHTS.map(co => (
                   <button key={co.id} onClick={() => navigate(`/company/${co.id}`)}

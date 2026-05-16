@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Globe, Search, Loader2, UserPlus, UserCheck, MessageSquare, User } from 'lucide-react'
+import { useMode } from '../context/ModeContext'
+import { Globe, Search, Loader2, UserPlus, UserCheck, MessageSquare, User, Filter } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+
+const CREATOR_ROLES = ['creator', 'influencer', 'musician', 'photographer', 'videographer', 'content creator']
+const PRO_ROLES     = ['professional', 'executive', 'consultant', 'founder', 'manager', 'engineer', 'analyst']
 
 export default function Directory() {
   const { user } = useAuth()
+  const { mode } = useMode()
   const navigate = useNavigate()
   const [creators, setCreators] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all')
   const [following, setFollowing] = useState(new Set()) // set of user ids we follow
   const [actionLoading, setActionLoading] = useState({}) // {userId: 'follow'|'message'}
 
@@ -64,21 +70,48 @@ export default function Directory() {
     setActionLoading(prev => { const s = { ...prev }; delete s[creator.id + '_msg']; return s })
   }
 
-  const filtered = creators.filter(c =>
-    !search || c.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.headline?.toLowerCase().includes(search.toLowerCase()) ||
-    c.role?.toLowerCase().includes(search.toLowerCase())
-  )
+  const isPro = mode === 'pro'
+  const roleKeywords = isPro ? PRO_ROLES : CREATOR_ROLES
+
+  const filtered = creators.filter(c => {
+    const q = search.toLowerCase()
+    const matchesSearch = !search || c.full_name?.toLowerCase().includes(q) ||
+      c.headline?.toLowerCase().includes(q) || c.role?.toLowerCase().includes(q)
+    const roleLC = c.role?.toLowerCase() ?? ''
+    const matchesRole = roleFilter === 'all' || roleKeywords.some(r => roleLC.includes(r))
+    return matchesSearch && matchesRole
+  })
+
+  const filterChips = isPro
+    ? ['all', 'executive', 'founder', 'consultant', 'engineer', 'manager']
+    : ['all', 'creator', 'influencer', 'musician', 'photographer', 'videographer']
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-foreground mb-2">Creator Directory</h1>
-      <p className="text-muted-foreground text-sm mb-6">Discover and connect with creators on Philomni</p>
+      <h1 className="text-2xl font-bold text-foreground mb-1">
+        {isPro ? '💼 Professional Directory' : '🎨 Creator Directory'}
+      </h1>
+      <p className="text-muted-foreground text-sm mb-4">
+        {isPro
+          ? 'Connect with executives, founders, consultants, and industry experts'
+          : 'Discover and connect with creators on Philomni'}
+      </p>
 
-      <div className="relative mb-6">
+      <div className="relative mb-3">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search creators…"
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder={isPro ? 'Search professionals, titles, companies…' : 'Search creators, niches, platforms…'}
           className="w-full bg-muted rounded-xl pl-10 pr-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
+      </div>
+
+      {/* Role filter chips */}
+      <div className="flex gap-1.5 flex-wrap mb-5">
+        {filterChips.map(chip => (
+          <button key={chip} onClick={() => setRoleFilter(chip)}
+            className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-all ${roleFilter === chip ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
+            {chip === 'all' ? 'All' : chip}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -105,8 +138,12 @@ export default function Directory() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-foreground truncate">{c.full_name}</p>
                     {c.headline && <p className="text-xs text-muted-foreground truncate mt-0.5">{c.headline}</p>}
+                    {isPro && c.company && <p className="text-xs text-muted-foreground mt-0.5">🏢 {c.company}</p>}
                     {c.location && <p className="text-xs text-muted-foreground mt-0.5">📍 {c.location}</p>}
                     {c.role && <span className="inline-block mt-1 text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-full">{c.role}</span>}
+                    {isPro && c.mutual_connections > 0 && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">👥 {c.mutual_connections} connections in common</p>
+                    )}
                   </div>
                 </div>
 

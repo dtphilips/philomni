@@ -244,6 +244,80 @@ export default function Podcasts() {
         </form>
       )}
 
+      {/* Mode label + Categories */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs font-bold text-primary px-2.5 py-1 rounded-full bg-primary/10">
+            {mode === 'pro' ? '💼 Professional Podcasts' : '🎨 Creator Podcasts'}
+          </span>
+        </div>
+
+        {/* Category chips */}
+        <div className="flex gap-2 flex-wrap">
+          {(mode === 'pro'
+            ? [
+                { emoji: '💼', label: 'Business' },
+                { emoji: '💻', label: 'Technology' },
+                { emoji: '💰', label: 'Finance' },
+                { emoji: '🏆', label: 'Leadership' },
+                { emoji: '🚀', label: 'Entrepreneurship' },
+                { emoji: '📊', label: 'Marketing' },
+                { emoji: '🔒', label: 'Cybersecurity' },
+                { emoji: '📈', label: 'Self Improvement' },
+                { emoji: '📰', label: 'Industry News' },
+              ]
+            : [
+                { emoji: '😂', label: 'Comedy' },
+                { emoji: '🔍', label: 'True Crime' },
+                { emoji: '⚽', label: 'Sports' },
+                { emoji: '🎵', label: 'Music' },
+                { emoji: '🎬', label: 'Pop Culture' },
+                { emoji: '📱', label: 'Creator Stories' },
+                { emoji: '💪', label: 'Motivation' },
+              ]
+          ).map(cat => (
+            <button key={cat.label}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium hover:bg-primary/10 hover:text-primary transition-colors">
+              {cat.emoji} {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Featured shows row */}
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          {(mode === 'pro'
+            ? [
+                { emoji: '💼', title: 'The Tim Ferriss Show', desc: 'World-class performers & their tactics', tag: 'Business' },
+                { emoji: '🚀', title: 'How I Built This', desc: 'Stories behind iconic companies', tag: 'Entrepreneurship' },
+                { emoji: '💰', title: 'Planet Money', desc: 'Economic stories explained simply', tag: 'Finance' },
+                { emoji: '🔒', title: 'Risky Business', desc: 'Security news and interviews', tag: 'Cybersecurity' },
+              ]
+            : [
+                { emoji: '📱', title: 'Creator Lab', desc: 'Tactics from 7-figure creators', tag: 'Creator Economy' },
+                { emoji: '🎵', title: 'Trap Lore Ross', desc: 'Hip-hop history deep dives', tag: 'Music' },
+                { emoji: '😂', title: 'SmartLess', desc: 'Comedy with Hollywood stars', tag: 'Comedy' },
+                { emoji: '💡', title: 'The Daily', desc: 'Top news stories explained', tag: 'News' },
+              ]
+          ).map(show => (
+            <div key={show.title} className="bg-card border border-border rounded-xl p-3 flex items-center gap-3 hover:border-primary/30 transition-all cursor-pointer group">
+              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-2xl flex-shrink-0">{show.emoji}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{show.title}</p>
+                <p className="text-xs text-muted-foreground truncate">{show.desc}</p>
+                <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded-full mt-1 inline-block">{show.tag}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex-1 h-px bg-border" />
+        <p className="text-xs text-muted-foreground font-medium">Community Episodes</p>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
       {/* Episode list */}
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>

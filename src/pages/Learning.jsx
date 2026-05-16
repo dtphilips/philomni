@@ -1788,7 +1788,7 @@ export default function Learning() {
                   <span className="text-sm font-semibold text-primary">{learningMode === 'pro' ? 'Pro Academy' : 'Creator Academy'}</span>
                 </div>
                 <h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">
-                  {learningMode === 'pro' ? 'Advance Your Professional Career' : 'Level Up Your Creator Skills'}
+                  {learningMode === 'pro' ? 'Advance Your Career. Lead Your Industry.' : 'Master Your Craft. Grow Your Audience.'}
                 </h1>
                 <p className="text-muted-foreground">
                   {learningMode === 'pro'
@@ -1800,7 +1800,7 @@ export default function Learning() {
                   <input
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Search courses, instructors, skills..."
+                    placeholder={learningMode === 'pro' ? 'Search business, tech, leadership courses...' : 'Search video, music, social media courses...'}
                     className="w-full pl-10 pr-4 py-3 bg-card border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary shadow-sm"
                   />
                 </div>
@@ -1933,7 +1933,9 @@ export default function Learning() {
             {/* Hero */}
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/20 via-primary/10 to-transparent border border-primary/20 p-8 md:p-12">
               <div className="max-w-xl space-y-4 relative z-10">
-                <span className="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">Become an Instructor</span>
+                <span className="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">
+                  {learningMode === 'pro' ? 'Become an Instructor →' : 'Share Your Creator Knowledge →'}
+                </span>
                 <h1 className="text-3xl font-bold text-foreground leading-tight">Share Your Knowledge. Earn Revenue.</h1>
                 <p className="text-muted-foreground">Create and sell courses to millions of creators worldwide. Keep 80% of every sale.</p>
                 <div className="flex flex-wrap gap-4">
