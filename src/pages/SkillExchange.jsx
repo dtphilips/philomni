@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useMode } from '../context/ModeContext'
 import {
   Zap, Plus, X, Star, Search, MapPin, Clock, RefreshCw,
   Users, CheckCircle, ArrowRight, ChevronRight, Loader2,
@@ -11,7 +12,7 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SKILL_CATEGORIES = [
+const CREATOR_SKILL_CATEGORIES = [
   { id: 'all',         label: 'All',           icon: '✨' },
   { id: 'video',       label: 'Video',         icon: '🎬' },
   { id: 'design',      label: 'Design',        icon: '🎨' },
@@ -26,6 +27,25 @@ const SKILL_CATEGORIES = [
   { id: 'acting',      label: 'Acting',        icon: '🎭' },
   { id: 'other',       label: 'Other',         icon: '🔮' },
 ]
+
+const PRO_SKILL_CATEGORIES = [
+  { id: 'all',      label: 'All',                   icon: '✨' },
+  { id: 'legal',    label: 'Legal Consulting',       icon: '⚖️' },
+  { id: 'finance',  label: 'Financial Advisory',     icon: '💰' },
+  { id: 'strategy', label: 'Strategy & Business',    icon: '🎯' },
+  { id: 'tech',     label: 'Technical Architecture', icon: '🏗' },
+  { id: 'pm',       label: 'Product Management',     icon: '📋' },
+  { id: 'mktg',     label: 'Marketing Strategy',     icon: '📊' },
+  { id: 'exec',     label: 'Executive Coaching',     icon: '🏆' },
+  { id: 'invest',   label: 'Investment Advice',      icon: '📈' },
+  { id: 'medical',  label: 'Medical Advisory',       icon: '🏥' },
+  { id: 'realestate',label: 'Real Estate',           icon: '🏠' },
+  { id: 'hr',       label: 'HR & Recruiting',        icon: '👥' },
+  { id: 'ops',      label: 'Operations',             icon: '⚙️' },
+]
+
+// Keep backward-compatible alias (used in filter logic)
+const SKILL_CATEGORIES = CREATOR_SKILL_CATEGORIES
 
 const DELIVERY_OPTIONS = [
   { value: 1,  label: '1 day' },
@@ -629,7 +649,10 @@ function WantedForm({ onSubmit, saving }) {
 
 export default function SkillExchange() {
   const { user } = useAuth()
+  const { mode } = useMode()
   const navigate = useNavigate()
+  const isPro = mode === 'pro'
+  const activeCategories = isPro ? PRO_SKILL_CATEGORIES : CREATOR_SKILL_CATEGORIES
 
   const [tab, setTab]             = useState('browse')
   const [offers, setOffers]       = useState([])
@@ -762,9 +785,16 @@ export default function SkillExchange() {
         <div className="relative">
           <div className="flex items-center gap-2 mb-2">
             <Zap className="w-6 h-6 text-primary" />
-            <h1 className="text-2xl font-bold text-foreground">Skill Exchange</h1>
+            <h1 className="text-2xl font-bold text-foreground">
+              {isPro ? 'Consulting Exchange' : 'Skill Exchange'}
+            </h1>
           </div>
-          <p className="text-muted-foreground text-sm mb-5 max-w-md">Trade your skills. Get what you need. <strong className="text-foreground">No money required.</strong> Connect with creators worldwide and build each other up.</p>
+          <p className="text-muted-foreground text-sm mb-5 max-w-md">
+            {isPro
+              ? <>Trade professional expertise. No invoices. No fees. <strong className="text-foreground">Just value for value.</strong></>
+              : <>Trade your skills. Get what you need. <strong className="text-foreground">No money required.</strong> Connect with creators worldwide and build each other up.</>
+            }
+          </p>
 
           {/* Stats */}
           <div className="flex items-center gap-5 mb-5 flex-wrap">
@@ -829,7 +859,7 @@ export default function SkillExchange() {
 
           {/* Category filter pills */}
           <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-            {SKILL_CATEGORIES.map(cat => (
+            {activeCategories.map(cat => (
               <button key={cat.id} onClick={() => setCatFilter(cat.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 border ${catFilter === cat.id ? 'bg-primary text-white border-primary' : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'}`}>
                 {cat.icon} {cat.label}

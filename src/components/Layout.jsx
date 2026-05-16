@@ -62,6 +62,7 @@ const PRO_NAV = [
     label: 'Network',
     items: [
       { to: '/pro-feed',  icon: Newspaper, label: 'Professional Feed' },
+      { to: '/community', icon: Users,     label: 'Community' },
       { to: '/companies', icon: Building2, label: 'Companies' },
       { to: '/directory', icon: Globe,     label: 'Directory' },
     ],
@@ -69,9 +70,10 @@ const PRO_NAV = [
   {
     label: 'Career',
     items: [
-      { to: '/jobs',             icon: Briefcase,   label: 'Jobs' },
+      { to: '/jobs',             icon: Briefcase,    label: 'Jobs' },
       { to: '/my-orders',        icon: ClipboardList,label: 'My Applications' },
-      { to: '/company/dashboard',icon: Building2,   label: 'My Company' },
+      { to: '/company/dashboard',icon: Building2,    label: 'My Company' },
+      { to: '/skills',           icon: Zap,          label: 'Consulting Exchange' },
     ],
   },
   {
@@ -86,6 +88,7 @@ const PRO_NAV = [
     items: [
       { to: '/rooms',      icon: Radio,    label: 'Rooms' },
       { to: '/meetings',   icon: Video,    label: 'Meetings' },
+      { to: '/podcasts',   icon: Mic2,     label: 'Podcasts' },
       { to: '/pitch-vault',icon: Target,   label: 'Pitch Vault' },
     ],
   },

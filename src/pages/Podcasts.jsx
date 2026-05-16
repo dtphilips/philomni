@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useMode } from '../context/ModeContext'
 import { Mic2, Play, Pause, Plus, Loader2, Upload, X, Bell, BellOff, Volume2, VolumeX, SkipBack, SkipForward } from 'lucide-react'
 
 function formatTime(secs) {
@@ -12,6 +13,7 @@ function formatTime(secs) {
 
 export default function Podcasts() {
   const { user } = useAuth()
+  const { mode } = useMode()
   const [episodes, setEpisodes] = useState([])
   const [loading, setLoading] = useState(true)
   const [playing, setPlaying] = useState(null)       // episode id
@@ -157,7 +159,11 @@ export default function Podcasts() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Podcasts</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Discover and share episodes</p>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            {mode === 'pro'
+              ? 'Business, industry, and professional development podcasts'
+              : 'Discover and share episodes'}
+          </p>
         </div>
         <button onClick={() => setShowForm(v => !v)}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90">
