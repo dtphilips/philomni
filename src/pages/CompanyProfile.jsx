@@ -7,7 +7,7 @@ import {
   Edit, LayoutDashboard, Heart, Share2, MessageSquare,
   TrendingUp, DollarSign, Clock, Award, AlertCircle
 } from 'lucide-react'
-import supabase from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 // ─── Sample Data ─────────────────────────────────────────────────────────────
