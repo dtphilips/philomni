@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useMode } from '../context/ModeContext'
 import { formatDistanceToNow } from 'date-fns'
 import {
   Heart, MessageCircle, Share2, Image as ImageIcon, Video as VideoIcon,
@@ -1369,6 +1370,7 @@ const AUDIENCE_OPTIONS = [
 ]
 
 function PostComposer({ user, onCreated }) {
+  const { mode } = useMode()
   const editorRef = useRef()
   const imgInputRef = useRef()
   const vidInputRef = useRef()
@@ -1380,8 +1382,20 @@ function PostComposer({ user, onCreated }) {
   const [showEmoji, setShowEmoji] = useState(false)
   const [showAudience, setShowAudience] = useState(false)
   const [audience, setAudience] = useState('public')
+  const [feedType, setFeedType] = useState(mode === 'pro' ? 'pro' : 'creator')
+  const [showFeedPicker, setShowFeedPicker] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const audienceRef = useRef()
+  const feedPickerRef = useRef()
+
+  // Keep feedType in sync if mode changes externally
+  useEffect(() => { setFeedType(mode === 'pro' ? 'pro' : 'creator') }, [mode])
+
+  useEffect(() => {
+    const fn = e => { if (feedPickerRef.current && !feedPickerRef.current.contains(e.target)) setShowFeedPicker(false) }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [])
 
   useEffect(() => {
     const fn = e => { if (audienceRef.current && !audienceRef.current.contains(e.target)) setShowAudience(false) }
@@ -1465,6 +1479,7 @@ function PostComposer({ user, onCreated }) {
         media_type: mediaFiles[0]?.type ?? 'none',
         like_count: 0, comment_count: 0, repost_count: 0,
         visibility: audience,
+        feed_type: feedType,
         created_at: new Date().toISOString(),
       }).select().single()
       if (err) { setError(err.message); return }
@@ -1501,6 +1516,31 @@ function PostComposer({ user, onCreated }) {
                     <Smile className="w-3.5 h-3.5" />
                   </button>
                   {showEmoji && <EmojiPicker onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
+                </div>
+                {/* Feed type selector */}
+                <div className="relative" ref={feedPickerRef}>
+                  <button
+                    onClick={() => setShowFeedPicker(v => !v)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-xs font-medium text-foreground transition-colors"
+                  >
+                    {feedType === 'creator' ? '🎨' : feedType === 'pro' ? '💼' : '🌐'}
+                    {feedType === 'creator' ? 'Creator' : feedType === 'pro' ? 'Pro' : 'Both'}
+                  </button>
+                  {showFeedPicker && (
+                    <div className="absolute left-0 top-8 bg-popover border border-border rounded-2xl shadow-xl py-1.5 z-30 min-w-[160px]">
+                      {[
+                        { value: 'creator', emoji: '🎨', label: 'Creator Feed' },
+                        { value: 'pro',     emoji: '💼', label: 'Professional Feed' },
+                        { value: 'both',    emoji: '🌐', label: 'Both Feeds' },
+                      ].map(opt => (
+                        <button key={opt.value} onClick={() => { setFeedType(opt.value); setShowFeedPicker(false) }}
+                          className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-muted transition-colors ${feedType === opt.value ? 'text-primary font-medium' : 'text-foreground'}`}>
+                          <span>{opt.emoji}</span>
+                          <span>{opt.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {/* Audience selector */}
                 <div className="relative ml-auto" ref={audienceRef}>
@@ -1719,6 +1759,7 @@ function RightSidebar() {
 
 export default function Feed() {
   const { user } = useAuth()
+  const { mode } = useMode()
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -1729,7 +1770,9 @@ export default function Feed() {
   const loadPosts = useCallback(async (pageNum) => {
     if (pageNum > 0) setLoadingMore(true)
     const from = pageNum * PAGE_SIZE
+    // FIX 6: Only show creator or both-feed posts (backward-compat: null = creator)
     const { data } = await supabase.from('posts').select('*')
+      .or('feed_type.eq.creator,feed_type.eq.both,feed_type.is.null')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
     if (data) {

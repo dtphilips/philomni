@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import {
@@ -7,9 +7,10 @@ import {
   Music, Palette, Library, Briefcase, Globe, Zap, ShoppingBag,
   Video, LogOut, Menu, X, ChevronRight, Bell, Package,
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
-  Newspaper, FolderOpen, Award, Target, ClipboardList,
+  Newspaper, Award, Target, ClipboardList, Hash,
 } from 'lucide-react'
 
+// ─── Creator Mode Navigation ──────────────────────────────────────────────────
 const CREATOR_NAV = [
   {
     label: 'Create',
@@ -22,25 +23,27 @@ const CREATOR_NAV = [
   {
     label: 'Connect',
     items: [
-      { to: '/community', icon: Users,         label: 'Community' },
-      { to: '/messages',  icon: MessageSquare, label: 'Messages' },
-      { to: '/notifications', icon: Bell,      label: 'Notifications' },
+      { to: '/community',    icon: Users,         label: 'Community' },
+      { to: '/messages',     icon: MessageSquare, label: 'Messages' },
+      { to: '/rooms',        icon: Radio,         label: 'Rooms' },
+      { to: '/meetings',     icon: Video,         label: 'Meetings' },
+      { to: '/notifications',icon: Bell,          label: 'Notifications' },
     ],
   },
   {
     label: 'Studio',
     items: [
-      { to: '/creator-studio',  icon: Wand2,   label: 'Creator Studio' },
-      { to: '/audio-studio',    icon: Music,   label: 'Audio Studio' },
-      { to: '/content',         icon: Rss,     label: 'Content Suite' },
+      { to: '/creator-studio', icon: Wand2,   label: 'Creator Studio' },
+      { to: '/audio-studio',   icon: Music,   label: 'Audio Studio' },
+      { to: '/content',        icon: Rss,     label: 'Content Suite' },
     ],
   },
   {
     label: 'Grow',
     items: [
-      { to: '/analytics', icon: BarChart2,     label: 'Analytics' },
-      { to: '/podcasts',  icon: Mic2,          label: 'Podcasts' },
-      { to: '/store',     icon: Store,         label: 'My Store' },
+      { to: '/analytics', icon: BarChart2, label: 'Analytics' },
+      { to: '/podcasts',  icon: Mic2,      label: 'Podcasts' },
+      { to: '/store',     icon: Store,     label: 'My Store' },
     ],
   },
   {
@@ -53,13 +56,14 @@ const CREATOR_NAV = [
   },
 ]
 
+// ─── Pro Mode Navigation ──────────────────────────────────────────────────────
 const PRO_NAV = [
   {
     label: 'Network',
     items: [
-      { to: '/pro-feed',  icon: Newspaper,  label: 'Professional Feed' },
-      { to: '/companies', icon: Building2,  label: 'Companies' },
-      { to: '/directory', icon: Globe,      label: 'Directory' },
+      { to: '/pro-feed',  icon: Newspaper, label: 'Professional Feed' },
+      { to: '/companies', icon: Building2, label: 'Companies' },
+      { to: '/directory', icon: Globe,     label: 'Directory' },
     ],
   },
   {
@@ -73,23 +77,22 @@ const PRO_NAV = [
   {
     label: 'Learn',
     items: [
-      { to: '/learning',  icon: GraduationCap, label: 'Learning Hub' },
-      { to: '/my-orders', icon: FolderOpen,    label: 'My Courses' },
-      { to: '/analytics', icon: Award,         label: 'Certificates' },
+      { to: '/learning',             icon: GraduationCap, label: 'Learning Hub' },
+      { to: '/learning/certificates',icon: Award,         label: 'Certificates' },
     ],
   },
   {
     label: 'Build',
     items: [
-      { to: '/pitch-vault', icon: Target,        label: 'Pitch Vault' },
-      { to: '/meetings',    icon: Video,         label: 'Meetings' },
-      { to: '/rooms',       icon: Radio,         label: 'Rooms' },
+      { to: '/rooms',      icon: Radio,    label: 'Rooms' },
+      { to: '/meetings',   icon: Video,    label: 'Meetings' },
+      { to: '/pitch-vault',icon: Target,   label: 'Pitch Vault' },
     ],
   },
   {
     label: 'Tools',
     items: [
-      { to: '/analytics',    icon: BarChart2,     label: 'Analytics (Pro)' },
+      { to: '/analytics',    icon: BarChart2,     label: 'Analytics' },
       { to: '/messages',     icon: MessageSquare, label: 'Messages' },
       { to: '/notifications',icon: Bell,          label: 'Notifications' },
     ],
@@ -124,13 +127,13 @@ function SectionHeader({ label }) {
   )
 }
 
-function ModeSwitcher({ mode, onToggle }) {
+function ModeSwitcher({ mode, onSwitch }) {
   const isCreator = mode === 'creator'
   return (
     <div className="px-3 py-3 border-b border-border">
       <div className="flex items-center bg-muted rounded-full p-1 gap-1">
         <button
-          onClick={() => !isCreator && onToggle()}
+          onClick={() => onSwitch('creator')}
           className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
             isCreator
               ? 'bg-primary text-primary-foreground shadow-sm'
@@ -141,7 +144,7 @@ function ModeSwitcher({ mode, onToggle }) {
           <span>Creator</span>
         </button>
         <button
-          onClick={() => isCreator && onToggle()}
+          onClick={() => onSwitch('pro')}
           className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
             !isCreator
               ? 'bg-primary text-primary-foreground shadow-sm'
@@ -158,9 +161,33 @@ function ModeSwitcher({ mode, onToggle }) {
 
 export default function Layout({ children }) {
   const { user, signOut } = useAuth()
-  const { mode, toggleMode, toast } = useMode()
+  const { mode, switchTo, toast } = useMode()
   const navigate = useNavigate()
+  const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  // FIX 1: When mode changes, redirect to the correct feed
+  const handleModeSwitch = (newMode) => {
+    if (newMode === mode) return
+    switchTo(newMode)
+    if (newMode === 'creator') {
+      navigate('/')
+    } else {
+      navigate('/pro-feed')
+    }
+  }
+
+  // FIX 1: On initial load, enforce correct feed for stored mode
+  useEffect(() => {
+    const isRootOrFeed = location.pathname === '/' || location.pathname === '/feed'
+    const isProFeed = location.pathname === '/pro-feed'
+    if (isRootOrFeed && mode === 'pro') {
+      navigate('/pro-feed', { replace: true })
+    } else if (isProFeed && mode === 'creator') {
+      navigate('/', { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
 
   const handleSignOut = async () => {
     await signOut()
@@ -178,7 +205,7 @@ export default function Layout({ children }) {
       </div>
 
       {/* Mode switcher */}
-      <ModeSwitcher mode={mode} onToggle={toggleMode} />
+      <ModeSwitcher mode={mode} onSwitch={handleModeSwitch} />
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0">
@@ -266,7 +293,7 @@ export default function Layout({ children }) {
           {/* Mode-switch toast */}
           {toast && (
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-              <div className="bg-foreground text-background text-sm font-medium px-4 py-2.5 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="bg-foreground text-background text-sm font-medium px-4 py-2.5 rounded-full shadow-lg">
                 {toast}
               </div>
             </div>

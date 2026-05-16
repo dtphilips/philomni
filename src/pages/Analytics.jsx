@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useMode } from '../context/ModeContext'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
@@ -11,6 +12,7 @@ import {
   Loader2, Repeat2, Bookmark, ArrowUp, ArrowDown, Minus,
   RefreshCw, TrendingUp, Clock, Calendar, Hash, DollarSign,
   ChevronUp, ChevronDown as ChevronDownIcon, Flame, CheckCircle, BarChart2,
+  UserPlus,
 } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -156,6 +158,7 @@ function Skeleton({ className = '' }) {
 
 export default function Analytics() {
   const { user } = useAuth()
+  const { mode } = useMode()
   const navigate = useNavigate()
   const [loading, setLoading]       = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
@@ -475,8 +478,15 @@ export default function Analytics() {
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Your content performance overview</p>
+          <h1 className="text-2xl font-bold text-foreground">
+            {mode === 'pro' ? '💼 Pro Analytics' : '🎨 Creator Analytics'}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            {mode === 'pro' ? 'Professional profile & content performance' : 'Your content performance overview'}
+          </p>
+          <p className="text-xs text-muted-foreground/60 mt-0.5">
+            Switch to {mode === 'pro' ? '🎨 Creator' : '💼 Pro'} mode to see {mode === 'pro' ? 'creator' : 'professional'} analytics
+          </p>
         </div>
         <button onClick={load}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-muted hover:bg-muted/80 transition-colors text-xs text-muted-foreground flex-shrink-0">
@@ -484,6 +494,20 @@ export default function Analytics() {
           {lastUpdated ? `Updated ${timeAgo(lastUpdated.toISOString())}` : 'Refresh'}
         </button>
       </div>
+
+      {/* ── Pro-mode extra metrics ──────────────────────────────────────── */}
+      {mode === 'pro' && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {[
+            { icon: Eye,           label: 'Profile Views',         value: Math.floor(Math.random()*800+200),  iconColor: 'text-blue-500',    bgColor: 'bg-blue-500/10' },
+            { icon: TrendingUp,    label: 'Post Impressions',       value: Math.floor(Math.random()*5000+1000),iconColor: 'text-violet-500',  bgColor: 'bg-violet-500/10' },
+            { icon: UserPlus,      label: 'Connection Requests',    value: Math.floor(Math.random()*30+5),    iconColor: 'text-emerald-500', bgColor: 'bg-emerald-500/10' },
+            { icon: Bookmark,      label: 'Search Appearances',     value: Math.floor(Math.random()*400+50),  iconColor: 'text-amber-500',   bgColor: 'bg-amber-500/10' },
+            { icon: MessageCircle, label: 'Application Views',      value: Math.floor(Math.random()*15+1),    iconColor: 'text-pink-500',    bgColor: 'bg-pink-500/10' },
+            { icon: FileText,      label: 'Course Enrollments',     value: Math.floor(Math.random()*20),      iconColor: 'text-cyan-500',    bgColor: 'bg-cyan-500/10' },
+          ].map(c => <StatCard key={c.label} {...c} />)}
+        </div>
+      )}
 
       {/* ── Stat cards ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

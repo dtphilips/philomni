@@ -66,6 +66,7 @@ import WorkflowAutomation from './pages/WorkflowAutomation'
 // New major sections
 import Jobs from './pages/Jobs'
 import Learning from './pages/Learning'
+import Certificates from './pages/Certificates'
 import CreatorStore from './pages/CreatorStore'
 
 // Professional Network
@@ -188,6 +189,7 @@ export default function App() {
             {/* Jobs, Learning, Store */}
             <Route path="/jobs" element={<P page={Jobs} />} />
             <Route path="/learning" element={<P page={Learning} />} />
+            <Route path="/learning/certificates" element={<P page={Certificates} />} />
             <Route path="/store" element={<P page={CreatorStore} />} />
 
             {/* Professional Network */}

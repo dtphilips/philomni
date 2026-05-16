@@ -18,31 +18,41 @@ const CREATOR_CATEGORIES = [
   { id: 'social',   icon: '📱', label: 'Social Media Growth',   count: 203 },
   { id: 'money',    icon: '💰', label: 'Creator Monetization',  count: 67  },
   { id: 'design',   icon: '🎨', label: 'Design & Branding',     count: 145 },
-  { id: 'business', icon: '📊', label: 'Business & Marketing',  count: 98  },
-  { id: 'tech',     icon: '💻', label: 'Tech & AI Tools',       count: 76  },
   { id: 'photo',    icon: '📸', label: 'Photography',           count: 112 },
   { id: 'writing',  icon: '✍️', label: 'Writing & Storytelling',count: 88  },
   { id: 'speaking', icon: '🎤', label: 'Public Speaking',       count: 54  },
-  { id: 'security', icon: '🔒', label: 'Cybersecurity',         count: 32  },
-  { id: 'wellness', icon: '🏥', label: 'Health & Wellness',     count: 41  },
+  { id: 'gaming',   icon: '🎮', label: 'Gaming & Streaming',    count: 78  },
+  { id: 'ugc',      icon: '🤳', label: 'UGC Creation',          count: 43  },
+  { id: 'podcast',  icon: '🎙', label: 'Podcasting',            count: 61  },
+  { id: 'live',     icon: '🖥', label: 'Live Streaming',        count: 39  },
 ]
 
 const PRO_CATEGORIES = [
-  { id: 'security',    icon: '🔒', label: 'Cybersecurity',           count: 87,  featured: true },
-  { id: 'business',    icon: '🏢', label: 'Business & Entrepreneurship', count: 142 },
-  { id: 'marketing',   icon: '📣', label: 'Marketing & Sales',        count: 118 },
-  { id: 'dev',         icon: '💻', label: 'Tech & Programming',       count: 203 },
-  { id: 'finance',     icon: '💰', label: 'Finance & Investing',      count: 76  },
-  { id: 'leadership',  icon: '🏆', label: 'Leadership & Management',  count: 94  },
-  { id: 'data',        icon: '📊', label: 'Data & Analytics',         count: 112 },
-  { id: 'pm',          icon: '📋', label: 'Project Management',       count: 68  },
-  { id: 'design',      icon: '🎨', label: 'UX & Product Design',      count: 89  },
-  { id: 'hr',          icon: '🤝', label: 'HR & People Ops',          count: 45  },
-  { id: 'law',         icon: '⚖️', label: 'Legal & Compliance',       count: 34  },
-  { id: 'writing',     icon: '✍️', label: 'Business Writing',         count: 57  },
+  { id: 'security',   icon: '🔒', label: 'Cybersecurity',              count: 87  },
+  { id: 'business',   icon: '💼', label: 'Business & Entrepreneurship', count: 142 },
+  { id: 'marketing',  icon: '📊', label: 'Marketing & Sales',           count: 118 },
+  { id: 'dev',        icon: '💻', label: 'Tech & Programming',          count: 203 },
+  { id: 'finance',    icon: '💰', label: 'Finance & Investing',         count: 76  },
+  { id: 'leadership', icon: '🏆', label: 'Leadership & Management',     count: 94  },
+  { id: 'data',       icon: '📈', label: 'Data & Analytics',            count: 112 },
+  { id: 'pm',         icon: '📋', label: 'Project Management',          count: 68  },
+  { id: 'legal',      icon: '⚖️', label: 'Legal & Compliance',          count: 34  },
+  { id: 'ux',         icon: '🎨', label: 'UX & Product Design',         count: 89  },
+  { id: 'hr',         icon: '👥', label: 'HR & People Ops',             count: 45  },
+  { id: 'writing',    icon: '✍️', label: 'Business Writing',            count: 57  },
 ]
 
-// Merge both for filtering; courses filtered by mode
+// Pro trending courses sample (shown when in pro mode)
+const PRO_TRENDING_COURSES = [
+  { id: 'pt1', title: 'CISSP Certification Prep 2025', subtitle: 'Pass the CISSP on your first attempt', category: 'security', level: 'Advanced', instructor: 'Dr. James Carter', thumbnail: '🔒', price: 129, original_price: 249, rating: 4.9, review_count: 3241, enrollment_count: 28400, total_lessons: 48, total_duration_hours: 24, skills: ['Cryptography','Network Security','Risk Management','CISSP'], status: 'published' },
+  { id: 'pt2', title: 'Digital Marketing Strategy', subtitle: 'Drive real business results with modern marketing', category: 'marketing', level: 'Intermediate', instructor: 'Maya Patel', thumbnail: '📊', price: 79, original_price: 149, rating: 4.7, review_count: 1892, enrollment_count: 15600, total_lessons: 28, total_duration_hours: 10, skills: ['SEO','Paid Ads','Email Marketing','Analytics'], status: 'published' },
+  { id: 'pt3', title: 'Financial Modeling & Valuation', subtitle: 'Build models used at top investment banks', category: 'finance', level: 'Intermediate', instructor: 'David Chen', thumbnail: '💰', price: 149, original_price: 299, rating: 4.8, review_count: 2105, enrollment_count: 12300, total_lessons: 36, total_duration_hours: 16, skills: ['DCF','LBO','Excel','Valuation'], status: 'published' },
+  { id: 'pt4', title: 'Product Management Fundamentals', subtitle: 'Launch products users love', category: 'pm', level: 'Beginner', instructor: 'Sarah Brooks', thumbnail: '📋', price: 0, original_price: 0, rating: 4.6, review_count: 4231, enrollment_count: 41000, total_lessons: 22, total_duration_hours: 7, skills: ['Product Roadmap','User Research','Agile','Stakeholder Mgmt'], status: 'published' },
+  { id: 'pt5', title: 'Python for Data Science', subtitle: 'From beginner to job-ready in 12 weeks', category: 'dev', level: 'Beginner', instructor: 'Kwame Asante', thumbnail: '💻', price: 89, original_price: 179, rating: 4.8, review_count: 5620, enrollment_count: 52000, total_lessons: 40, total_duration_hours: 18, skills: ['Python','Pandas','ML','Data Visualization'], status: 'published' },
+  { id: 'pt6', title: 'Leadership & Executive Presence', subtitle: 'Lead with confidence and clarity', category: 'leadership', level: 'Intermediate', instructor: 'Dr. Angela Rivers', thumbnail: '🏆', price: 99, original_price: 199, rating: 4.7, review_count: 1340, enrollment_count: 8900, total_lessons: 20, total_duration_hours: 8, skills: ['Communication','Influence','Decision Making','Team Leadership'], status: 'published' },
+]
+
+// Fallback alias for backward-compatibility
 const CATEGORIES = CREATOR_CATEGORIES
 
 const SAMPLE_COURSES = [
@@ -1697,7 +1707,10 @@ export default function Learning() {
   )
 
   const freeCourses = courses.filter(c => c.price === 0)
-  const trendingCourses = [...courses].sort((a, b) => b.enrollment_count - a.enrollment_count).slice(0, 6)
+  // FIX 4: Trending courses filtered by mode
+  const trendingCourses = learningMode === 'pro'
+    ? PRO_TRENDING_COURSES
+    : [...courses].sort((a, b) => b.enrollment_count - a.enrollment_count).slice(0, 6)
   const newCourses = courses.slice(-4)
 
   function handleEnroll(courseId) {
