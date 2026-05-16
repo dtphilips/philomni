@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Camera, Edit2, Save, X, Loader2 } from 'lucide-react'
+import { Camera, Edit2, Save, X, Loader2, Upload, ImagePlus } from 'lucide-react'
 
 export default function Profile() {
   const { user, refreshProfile } = useAuth()
@@ -9,6 +9,13 @@ export default function Profile() {
   const [saving, setSaving] = useState(false)
   const [posts, setPosts] = useState([])
   const [form, setForm] = useState({ full_name: '', bio: '', headline: '', location: '' })
+  // Avatar / banner upload
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [bannerUploading, setBannerUploading] = useState(false)
+  const [avatarPreview, setAvatarPreview] = useState(null)
+  const [bannerPreview, setBannerPreview] = useState(null)
+  const avatarInputRef = useRef()
+  const bannerInputRef = useRef()
 
   useEffect(() => {
     if (user) {
@@ -27,6 +34,47 @@ export default function Profile() {
       .then(({ data }) => setPosts(data ?? []))
   }, [user?.id])
 
+  const handleAvatarUpload = async (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    setAvatarUploading(true)
+    // Show preview immediately
+    const previewUrl = URL.createObjectURL(file)
+    setAvatarPreview(previewUrl)
+    try {
+      const path = `avatars/${user.id}/${Date.now()}-${file.name}`
+      const { data, error } = await supabase.storage.from('uploads').upload(path, file, { upsert: true })
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(data.path)
+      await supabase.from('users').update({ avatar_url: publicUrl }).eq('id', user.id)
+      await refreshProfile()
+    } catch (err) {
+      console.error('Avatar upload failed:', err)
+      setAvatarPreview(null)
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
+  const handleBannerUpload = async (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    setBannerUploading(true)
+    const previewUrl = URL.createObjectURL(file)
+    setBannerPreview(previewUrl)
+    try {
+      const path = `banners/${user.id}/${Date.now()}-${file.name}`
+      const { data, error } = await supabase.storage.from('uploads').upload(path, file, { upsert: true })
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(data.path)
+      await supabase.from('users').update({ banner_url: publicUrl }).eq('id', user.id)
+      await refreshProfile()
+    } catch (err) {
+      console.error('Banner upload failed:', err)
+      setBannerPreview(null)
+    } finally {
+      setBannerUploading(false)
+    }
+  }
+
   const handleSave = async () => {
     setSaving(true)
     await supabase.from('users').update(form).eq('id', user.id)
@@ -37,18 +85,53 @@ export default function Profile() {
 
   if (!user) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
 
+  const bannerSrc = bannerPreview || user.banner_url
+  const avatarSrc = avatarPreview || user.avatar_url
+
   return (
     <div className="max-w-2xl mx-auto">
       {/* Banner */}
-      <div className="h-40 bg-gradient-to-br from-primary/30 to-purple-900/40 rounded-2xl mb-0 relative" />
+      <div className="relative h-40 rounded-2xl overflow-hidden group">
+        <div
+          className="w-full h-full bg-gradient-to-br from-primary/30 to-purple-900/40"
+          style={bannerSrc ? { background: `url(${bannerSrc}) center/cover no-repeat` } : {}}
+        />
+        {/* Banner upload button */}
+        <button
+          onClick={() => bannerInputRef.current?.click()}
+          disabled={bannerUploading}
+          className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all opacity-0 group-hover:opacity-100">
+          {bannerUploading
+            ? <Loader2 className="w-6 h-6 text-white animate-spin" />
+            : <div className="flex items-center gap-2 bg-black/70 text-white px-3 py-1.5 rounded-xl text-xs font-medium">
+                <ImagePlus className="w-4 h-4" /> Change Banner
+              </div>}
+        </button>
+        <input ref={bannerInputRef} type="file" accept="image/*" className="hidden"
+          onChange={e => handleBannerUpload(e.target.files[0])} />
+      </div>
 
       {/* Avatar + actions */}
       <div className="flex items-end justify-between px-4 -mt-10 mb-4">
-        <div className="w-20 h-20 rounded-2xl bg-card border-4 border-background overflow-hidden flex items-center justify-center text-2xl font-bold text-primary bg-primary/10">
-          {user.avatar_url
-            ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
-            : (user.full_name?.[0] ?? '?')}
+        {/* Avatar with upload overlay */}
+        <div className="relative group">
+          <div className="w-20 h-20 rounded-2xl bg-card border-4 border-background overflow-hidden flex items-center justify-center text-2xl font-bold text-primary bg-primary/10">
+            {avatarSrc
+              ? <img src={avatarSrc} alt="" className="w-full h-full object-cover" />
+              : (user.full_name?.[0] ?? '?')}
+          </div>
+          <button
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={avatarUploading}
+            className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/50 rounded-2xl transition-all opacity-0 group-hover:opacity-100">
+            {avatarUploading
+              ? <Loader2 className="w-4 h-4 text-white animate-spin" />
+              : <Camera className="w-5 h-5 text-white" />}
+          </button>
+          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden"
+            onChange={e => handleAvatarUpload(e.target.files[0])} />
         </div>
+
         <button
           onClick={() => editing ? handleSave() : setEditing(true)}
           disabled={saving}
@@ -58,6 +141,11 @@ export default function Profile() {
           {editing ? 'Save' : 'Edit Profile'}
         </button>
       </div>
+
+      {/* Upload hints */}
+      {!editing && (
+        <p className="text-xs text-muted-foreground text-center mb-2 opacity-60">Hover over avatar or banner to change photos</p>
+      )}
 
       {/* Info */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-4">

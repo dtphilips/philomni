@@ -67,7 +67,12 @@ const STICKER_CATEGORIES = [
   { id: 'achieve', label: 'Achievement',  emoji: '🏆', stickers: ['🏆','🥇','🎖️','🏅','👑','💎','🎯','🎓','📈','🚀','💪','🙌'] },
 ]
 
-const BG_COLORS = ['#000000','#ffffff','#1a1a2e','#16213e','#e63946','#457b9d','#2d6a4f','#f4a261']
+const BG_COLORS = [
+  '#000000','#ffffff','#1a1a2e','#16213e','#e63946','#457b9d','#2d6a4f','#f4a261',
+  '#6d6875','#b5838d','#e07a5f','#3d405b','#81b29a','#f2cc8f','#264653','#2a9d8f',
+  '#e9c46a','#f4a261','#e76f51','#023e8a','#0077b6','#0096c7','#00b4d8','#48cae4',
+  '#90e0ef','#ade8f4','#caf0f8','#d62828','#f77f00','#fcbf49','#eae2b7','#003049',
+]
 const BG_GRADIENTS = [
   { label: 'Sunset',  css: 'linear-gradient(135deg, #f6d365, #fda085)' },
   { label: 'Purple',  css: 'linear-gradient(135deg, #667eea, #764ba2)' },
@@ -75,6 +80,29 @@ const BG_GRADIENTS = [
   { label: 'Forest',  css: 'linear-gradient(135deg, #11998e, #38ef7d)' },
   { label: 'Fire',    css: 'linear-gradient(135deg, #ff416c, #ff4b2b)' },
   { label: 'Night',   css: 'linear-gradient(135deg, #0f0c29, #302b63)' },
+]
+
+const NATURE_BACKGROUNDS = [
+  { label: 'Mountains', url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80' },
+  { label: 'Beach',     url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80' },
+  { label: 'Forest',    url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&q=80' },
+  { label: 'Desert',    url: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=800&q=80' },
+  { label: 'Waterfall', url: 'https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=800&q=80' },
+  { label: 'Snowy Peak',url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&q=80' },
+  { label: 'Lake',      url: 'https://images.unsplash.com/photo-1439066615861-d1af74d74000?w=800&q=80' },
+  { label: 'Sunset Sky',url: 'https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=800&q=80' },
+  { label: 'Aurora',    url: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=800&q=80' },
+  { label: 'Jungle',    url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=80' },
+  { label: 'Meadow',    url: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=800&q=80' },
+  { label: 'Cosmos',    url: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=800&q=80' },
+  { label: 'Ocean Waves',url: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=800&q=80' },
+  { label: 'Canyon',    url: 'https://images.unsplash.com/photo-1474044159687-1ee9f3a51722?w=800&q=80' },
+  { label: 'Tulip Field',url: 'https://images.unsplash.com/photo-1490750967868-88df5691cc71?w=800&q=80' },
+  { label: 'Rain',      url: 'https://images.unsplash.com/photo-1428592953211-077101b2021b?w=800&q=80' },
+  { label: 'Volcano',   url: 'https://images.unsplash.com/photo-1565732498548-6d5d2a3ea3d6?w=800&q=80' },
+  { label: 'Glacier',   url: 'https://images.unsplash.com/photo-1517783999520-f068d7431a60?w=800&q=80' },
+  { label: 'Savanna',   url: 'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=800&q=80' },
+  { label: 'Night Sky', url: 'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=800&q=80' },
 ]
 
 const SPEED_OPTIONS = [0.3, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
@@ -96,18 +124,36 @@ const MASK_SHAPES = [
 ]
 
 const BG_REPLACEMENT_GRADIENTS = [
-  { label: 'Sunset',  css: 'linear-gradient(135deg,#f97316,#ec4899,#7c3aed)' },
-  { label: 'Ocean',   css: 'linear-gradient(135deg,#0ea5e9,#06b6d4,#10b981)' },
-  { label: 'Aurora',  css: 'linear-gradient(135deg,#7c3aed,#06b6d4,#10b981)' },
-  { label: 'Fire',    css: 'linear-gradient(135deg,#ef4444,#f97316,#eab308)' },
-  { label: 'Night',   css: 'linear-gradient(135deg,#1e1b4b,#312e81,#4c1d95)' },
-  { label: 'Forest',  css: 'linear-gradient(135deg,#14532d,#15803d,#4ade80)' },
-  { label: 'Rose',    css: 'linear-gradient(135deg,#9d174d,#ec4899,#fda4af)' },
-  { label: 'Gold',    css: 'linear-gradient(135deg,#78350f,#d97706,#fde68a)' },
-  { label: 'Arctic',  css: 'linear-gradient(135deg,#0c4a6e,#0ea5e9,#e0f2fe)' },
-  { label: 'Cosmic',  css: 'linear-gradient(135deg,#1e1b4b,#7c3aed,#ec4899)' },
-  { label: 'Emerald', css: 'linear-gradient(135deg,#064e3b,#059669,#6ee7b7)' },
-  { label: 'Neon',    css: 'linear-gradient(135deg,#7c3aed,#06b6d4,#10b981)' },
+  { label: 'Sunset',   css: 'linear-gradient(135deg,#f97316,#ec4899,#7c3aed)' },
+  { label: 'Ocean',    css: 'linear-gradient(135deg,#0ea5e9,#06b6d4,#10b981)' },
+  { label: 'Aurora',   css: 'linear-gradient(135deg,#7c3aed,#06b6d4,#10b981)' },
+  { label: 'Fire',     css: 'linear-gradient(135deg,#ef4444,#f97316,#eab308)' },
+  { label: 'Night',    css: 'linear-gradient(135deg,#1e1b4b,#312e81,#4c1d95)' },
+  { label: 'Forest',   css: 'linear-gradient(135deg,#14532d,#15803d,#4ade80)' },
+  { label: 'Rose',     css: 'linear-gradient(135deg,#9d174d,#ec4899,#fda4af)' },
+  { label: 'Gold',     css: 'linear-gradient(135deg,#78350f,#d97706,#fde68a)' },
+  { label: 'Arctic',   css: 'linear-gradient(135deg,#0c4a6e,#0ea5e9,#e0f2fe)' },
+  { label: 'Cosmic',   css: 'linear-gradient(135deg,#1e1b4b,#7c3aed,#ec4899)' },
+  { label: 'Emerald',  css: 'linear-gradient(135deg,#064e3b,#059669,#6ee7b7)' },
+  { label: 'Neon',     css: 'linear-gradient(135deg,#7c3aed,#06b6d4,#10b981)' },
+  { label: 'Peach',    css: 'linear-gradient(135deg,#f9a8d4,#fb923c,#fbbf24)' },
+  { label: 'Mint',     css: 'linear-gradient(135deg,#d1fae5,#6ee7b7,#34d399)' },
+  { label: 'Lavender', css: 'linear-gradient(135deg,#ede9fe,#c4b5fd,#8b5cf6)' },
+  { label: 'Candy',    css: 'linear-gradient(135deg,#fce7f3,#f9a8d4,#ec4899)' },
+  { label: 'Sky',      css: 'linear-gradient(135deg,#e0f2fe,#7dd3fc,#0ea5e9)' },
+  { label: 'Dusk',     css: 'linear-gradient(135deg,#1f2937,#374151,#6b7280)' },
+  { label: 'Rainbow',  css: 'linear-gradient(135deg,#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6)' },
+  { label: 'Blush',    css: 'linear-gradient(135deg,#fff1f2,#ffe4e6,#fda4af)' },
+  { label: 'Steel',    css: 'linear-gradient(135deg,#0f172a,#1e293b,#334155)' },
+  { label: 'Lemon',    css: 'linear-gradient(135deg,#fefce8,#fef08a,#eab308)' },
+  { label: 'Coral',    css: 'linear-gradient(135deg,#ff6b6b,#ffa07a,#ff8c69)' },
+  { label: 'Jungle',   css: 'linear-gradient(135deg,#134e4a,#065f46,#047857)' },
+  { label: 'Berry',    css: 'linear-gradient(135deg,#4c1d95,#7c3aed,#db2777)' },
+  { label: 'Ice',      css: 'linear-gradient(135deg,#f0f9ff,#bae6fd,#38bdf8)' },
+  { label: 'Bronze',   css: 'linear-gradient(135deg,#431407,#7c2d12,#c2410c)' },
+  { label: 'Galaxy',   css: 'linear-gradient(135deg,#020617,#0f172a,#1e1b4b,#4c1d95)' },
+  { label: 'Morning',  css: 'linear-gradient(135deg,#fff7ed,#fed7aa,#fb923c)' },
+  { label: 'Electric', css: 'linear-gradient(135deg,#0a0a0a,#1d4ed8,#7c3aed,#06b6d4)' },
 ]
 
 const CAPTION_TEMPLATES = [
@@ -982,7 +1028,10 @@ const VideoEditor = forwardRef(function VideoEditor({ src, onSave }, ref) {
   const [bgRemoved, setBgRemoved]         = useState(false)
   const [bgProcessing, setBgProcessing]   = useState(false)
   const [bgColorKey, setBgColorKey]       = useState('#00ff00')
-  const [replacementBg, setReplacementBg] = useState(null)        // gradient css or null
+  const [replacementBg, setReplacementBg] = useState(null)        // gradient css, color, or image url
+  const [bgReplaceBgType, setBgReplaceBgType] = useState('gradient') // 'gradient' | 'color' | 'nature'
+  const [bgError, setBgError]             = useState('')
+  const bgCanvasRef                       = useRef()
 
   // Audio extract (Part 7)
   const [extracting, setExtracting]       = useState(false)
@@ -1731,39 +1780,113 @@ const VideoEditor = forwardRef(function VideoEditor({ src, onSave }, ref) {
           {/* Background Removal */}
           <div className="space-y-2">
             <p className="text-[11px] text-white/60 font-medium">Remove Background</p>
-            <div className="flex items-center gap-2">
-              <label className="text-[10px] text-white/40">Key color</label>
-              <input type="color" value={bgColorKey} onChange={e => setBgColorKey(e.target.value)}
-                className="w-8 h-8 rounded-lg cursor-pointer border border-white/20 bg-transparent p-0.5" />
-            </div>
-            <button onClick={() => { setBgProcessing(true); setTimeout(() => { setBgRemoved(v => !v); setBgProcessing(false) }, 1200) }}
+            <p className="text-[10px] text-white/30">Uses AI to remove background from current frame</p>
+            {bgError && <p className="text-[10px] text-red-400 bg-red-500/10 rounded-lg px-2 py-1.5">{bgError}</p>}
+            <button
+              onClick={async () => {
+                setBgError('')
+                setBgProcessing(true)
+                try {
+                  // Extract current video frame to canvas
+                  const vid = videoRef.current
+                  if (!vid) throw new Error('No video loaded')
+                  const tmpCanvas = document.createElement('canvas')
+                  tmpCanvas.width  = vid.videoWidth  || 640
+                  tmpCanvas.height = vid.videoHeight || 360
+                  const ctx = tmpCanvas.getContext('2d')
+                  ctx.drawImage(vid, 0, 0, tmpCanvas.width, tmpCanvas.height)
+                  // Convert to blob
+                  const blob = await new Promise(resolve => tmpCanvas.toBlob(resolve, 'image/jpeg', 0.92))
+                  // Build multipart form
+                  const fd = new FormData()
+                  fd.append('image_file', blob, 'frame.jpg')
+                  fd.append('size', 'auto')
+                  // Call serverless function
+                  const res = await fetch('/api/remove-bg', { method: 'POST', body: fd })
+                  if (!res.ok) {
+                    const txt = await res.text()
+                    throw new Error(txt || `HTTP ${res.status}`)
+                  }
+                  const pngBlob = await res.blob()
+                  const pngUrl  = URL.createObjectURL(pngBlob)
+                  // Store the removed-bg frame URL (draw on preview canvas)
+                  const bc = bgCanvasRef.current
+                  if (bc) {
+                    bc.width = tmpCanvas.width; bc.height = tmpCanvas.height
+                    const bctx = bc.getContext('2d')
+                    const img  = new Image()
+                    img.onload = () => { bctx.clearRect(0,0,bc.width,bc.height); bctx.drawImage(img, 0, 0) }
+                    img.src = pngUrl
+                  }
+                  setBgRemoved(true)
+                } catch (e) {
+                  setBgError(e.message || 'Background removal failed')
+                } finally {
+                  setBgProcessing(false)
+                }
+              }}
               disabled={bgProcessing}
               className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 border ${bgRemoved ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'} disabled:opacity-60`}>
               {bgProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</>
                 : bgRemoved ? <><Check className="w-4 h-4" /> Background Removed</>
                 : <>✂️ Remove Background</>}
             </button>
+            {bgRemoved && (
+              <button onClick={() => { setBgRemoved(false); setBgError(''); setReplacementBg(null) }}
+                className="w-full py-1.5 border border-white/10 rounded-xl text-xs text-white/40 hover:text-white transition-colors">
+                Reset
+              </button>
+            )}
           </div>
 
           {/* Background Replacement */}
           {bgRemoved && (
             <div className="space-y-2">
               <p className="text-[11px] text-white/60 font-medium">Replace Background</p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {BG_REPLACEMENT_GRADIENTS.map(g => (
-                  <button key={g.label} onClick={() => setReplacementBg(g.css)}
-                    className={`h-12 rounded-xl border-2 transition-all ${replacementBg === g.css ? 'border-primary scale-105' : 'border-transparent hover:border-white/30'}`}
-                    style={{ background: g.css }}
-                    title={g.label} />
+              {/* Tab switcher */}
+              <div className="flex gap-1 bg-white/5 rounded-lg p-0.5">
+                {[['gradient','Gradients'],['color','Colors'],['nature','Nature']].map(([type, label]) => (
+                  <button key={type} onClick={() => setBgReplaceBgType(type)}
+                    className={`flex-1 py-1 text-[10px] font-medium rounded-md transition-all ${bgReplaceBgType === type ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white'}`}>
+                    {label}
+                  </button>
                 ))}
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {BG_COLORS.map(c => (
-                  <button key={c} onClick={() => setReplacementBg(c)}
-                    className={`h-8 rounded-lg border-2 transition-all ${replacementBg === c ? 'border-primary scale-105' : 'border-transparent hover:border-white/30'}`}
-                    style={{ backgroundColor: c }} />
-                ))}
-              </div>
+
+              {bgReplaceBgType === 'gradient' && (
+                <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-y-auto">
+                  {BG_REPLACEMENT_GRADIENTS.map(g => (
+                    <button key={g.label} onClick={() => setReplacementBg(g.css)}
+                      className={`h-12 rounded-xl border-2 transition-all ${replacementBg === g.css ? 'border-primary scale-105' : 'border-transparent hover:border-white/30'}`}
+                      style={{ background: g.css }}
+                      title={g.label} />
+                  ))}
+                </div>
+              )}
+
+              {bgReplaceBgType === 'color' && (
+                <div className="grid grid-cols-5 gap-1.5 max-h-48 overflow-y-auto">
+                  {BG_COLORS.map(c => (
+                    <button key={c} onClick={() => setReplacementBg(c)}
+                      className={`h-9 rounded-lg border-2 transition-all ${replacementBg === c ? 'border-primary scale-105' : 'border-transparent hover:border-white/30'}`}
+                      style={{ backgroundColor: c }} />
+                  ))}
+                </div>
+              )}
+
+              {bgReplaceBgType === 'nature' && (
+                <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                  {NATURE_BACKGROUNDS.map(n => (
+                    <button key={n.label} onClick={() => setReplacementBg(`url(${n.url})`)}
+                      className={`h-14 rounded-xl border-2 transition-all overflow-hidden relative ${replacementBg === `url(${n.url})` ? 'border-primary scale-105' : 'border-transparent hover:border-white/30'}`}
+                      title={n.label}>
+                      <img src={n.url} alt={n.label} className="w-full h-full object-cover" />
+                      <span className="absolute bottom-0 inset-x-0 text-[9px] text-white bg-black/50 text-center py-0.5">{n.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {replacementBg && (
                 <button onClick={() => setReplacementBg(null)}
                   className="w-full py-1.5 border border-white/10 rounded-xl text-xs text-white/40 hover:text-white transition-colors">
