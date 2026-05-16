@@ -61,6 +61,11 @@ import CreatorAnalytics from './pages/CreatorAnalytics'
 import AITools from './pages/AITools'
 import WorkflowAutomation from './pages/WorkflowAutomation'
 
+// New major sections
+import Jobs from './pages/Jobs'
+import Learning from './pages/Learning'
+import CreatorStore from './pages/CreatorStore'
+
 // Marketplace & Commerce
 import MyOrders from './pages/MyOrders'
 import OrderPage from './pages/OrderPage'
@@ -169,6 +174,14 @@ export default function App() {
             <Route path="/creator-analytics" element={<P page={CreatorAnalytics} />} />
             <Route path="/ai-tools" element={<P page={AITools} />} />
             <Route path="/workflows" element={<P page={WorkflowAutomation} />} />
+
+            {/* Jobs, Learning, Store */}
+            <Route path="/jobs" element={<P page={Jobs} />} />
+            <Route path="/learning" element={<P page={Learning} />} />
+            <Route path="/store" element={<P page={CreatorStore} />} />
+            <Route path="/stores" element={<P page={CreatorStore} />} />
+            <Route path="/store/dashboard" element={<P page={CreatorStore} />} />
+            <Route path="/store/:username" element={<P page={CreatorStore} />} />
 
             {/* Marketplace */}
             <Route path="/my-orders" element={<P page={MyOrders} />} />
