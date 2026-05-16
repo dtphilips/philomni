@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { ModeProvider } from './context/ModeContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
@@ -11,6 +12,7 @@ import Signup from './pages/Signup'
 
 // Core pages
 import Feed from './pages/Feed'
+import ProFeed from './pages/ProFeed'
 import Profile from './pages/Profile'
 import EditProfile from './pages/EditProfile'
 import Settings from './pages/Settings'
@@ -122,6 +124,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+      <ModeProvider>
         <BrowserRouter>
           <Routes>
             {/* Public */}
@@ -132,6 +135,7 @@ export default function App() {
 
             {/* Core */}
             <Route path="/" element={<P page={Feed} />} />
+            <Route path="/pro-feed" element={<P page={ProFeed} />} />
             <Route path="/profile" element={<P page={Profile} />} />
             <Route path="/edit-profile" element={<P page={EditProfile} />} />
             <Route path="/settings" element={<P page={Settings} />} />
@@ -228,6 +232,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
+      </ModeProvider>
       </AuthProvider>
     </QueryClientProvider>
   )

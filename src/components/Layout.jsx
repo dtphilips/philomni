@@ -1,20 +1,22 @@
 import React, { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useMode } from '../context/ModeContext'
 import {
   Home, Users, Radio, Mic2, Wand2, BarChart2, MessageSquare,
   Music, Palette, Library, Briefcase, Globe, Zap, ShoppingBag,
   Video, LogOut, Menu, X, ChevronRight, Bell, Package,
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
+  Newspaper, FolderOpen, Award, Target, ClipboardList,
 } from 'lucide-react'
 
-const NAV_SECTIONS = [
+const CREATOR_NAV = [
   {
-    label: 'Creator',
+    label: 'Create',
     items: [
-      { to: '/',         icon: Home,           label: 'Feed' },
-      { to: '/reels',    icon: Film,           label: 'Reels' },
-      { to: '/stories',  icon: BookOpen,       label: 'Stories' },
+      { to: '/',         icon: Home,       label: 'Feed' },
+      { to: '/reels',    icon: Film,       label: 'Reels' },
+      { to: '/stories',  icon: BookOpen,   label: 'Stories' },
     ],
   },
   {
@@ -30,7 +32,6 @@ const NAV_SECTIONS = [
     items: [
       { to: '/creator-studio',  icon: Wand2,   label: 'Creator Studio' },
       { to: '/audio-studio',    icon: Music,   label: 'Audio Studio' },
-      { to: '/creative-studio', icon: Palette, label: 'Creative Studio' },
       { to: '/content',         icon: Rss,     label: 'Content Suite' },
     ],
   },
@@ -40,34 +41,57 @@ const NAV_SECTIONS = [
       { to: '/analytics', icon: BarChart2,     label: 'Analytics' },
       { to: '/podcasts',  icon: Mic2,          label: 'Podcasts' },
       { to: '/store',     icon: Store,         label: 'My Store' },
-      { to: '/learning',  icon: GraduationCap, label: 'Learning' },
-    ],
-  },
-  {
-    label: 'Work',
-    items: [
-      { to: '/jobs',             icon: Briefcase,  label: 'Jobs' },
-      { to: '/companies',        icon: Building2,  label: 'Companies' },
-      { to: '/company/dashboard',icon: Building2,  label: 'My Company' },
-      { to: '/skills',           icon: Zap,        label: 'Skill Exchange' },
-      { to: '/marketplace',      icon: ShoppingBag,label: 'Marketplace' },
-      { to: '/my-orders',        icon: Package,    label: 'My Orders' },
-    ],
-  },
-  {
-    label: 'Network',
-    items: [
-      { to: '/rooms',      icon: Radio,    label: 'Rooms' },
-      { to: '/meetings',   icon: Video,    label: 'Meetings' },
-      { to: '/pitch-vault',icon: Briefcase,label: 'Pitch Vault' },
-      { to: '/directory',  icon: Globe,    label: 'Directory' },
     ],
   },
   {
     label: 'Discover',
     items: [
-      { to: '/music-library', icon: Library, label: 'Music Library' },
-      { to: '/stores',        icon: Store,   label: 'Stores' },
+      { to: '/music-library', icon: Library,    label: 'Music Library' },
+      { to: '/marketplace',   icon: ShoppingBag,label: 'Marketplace' },
+      { to: '/skills',        icon: Zap,        label: 'Skill Exchange' },
+    ],
+  },
+]
+
+const PRO_NAV = [
+  {
+    label: 'Network',
+    items: [
+      { to: '/pro-feed',  icon: Newspaper,  label: 'Professional Feed' },
+      { to: '/companies', icon: Building2,  label: 'Companies' },
+      { to: '/directory', icon: Globe,      label: 'Directory' },
+    ],
+  },
+  {
+    label: 'Career',
+    items: [
+      { to: '/jobs',             icon: Briefcase,   label: 'Jobs' },
+      { to: '/my-orders',        icon: ClipboardList,label: 'My Applications' },
+      { to: '/company/dashboard',icon: Building2,   label: 'My Company' },
+    ],
+  },
+  {
+    label: 'Learn',
+    items: [
+      { to: '/learning',  icon: GraduationCap, label: 'Learning Hub' },
+      { to: '/my-orders', icon: FolderOpen,    label: 'My Courses' },
+      { to: '/analytics', icon: Award,         label: 'Certificates' },
+    ],
+  },
+  {
+    label: 'Build',
+    items: [
+      { to: '/pitch-vault', icon: Target,        label: 'Pitch Vault' },
+      { to: '/meetings',    icon: Video,         label: 'Meetings' },
+      { to: '/rooms',       icon: Radio,         label: 'Rooms' },
+    ],
+  },
+  {
+    label: 'Tools',
+    items: [
+      { to: '/analytics',    icon: BarChart2,     label: 'Analytics (Pro)' },
+      { to: '/messages',     icon: MessageSquare, label: 'Messages' },
+      { to: '/notifications',icon: Bell,          label: 'Notifications' },
     ],
   },
 ]
@@ -100,8 +124,41 @@ function SectionHeader({ label }) {
   )
 }
 
+function ModeSwitcher({ mode, onToggle }) {
+  const isCreator = mode === 'creator'
+  return (
+    <div className="px-3 py-3 border-b border-border">
+      <div className="flex items-center bg-muted rounded-full p-1 gap-1">
+        <button
+          onClick={() => !isCreator && onToggle()}
+          className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+            isCreator
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <span>🎨</span>
+          <span>Creator</span>
+        </button>
+        <button
+          onClick={() => isCreator && onToggle()}
+          className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+            !isCreator
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <span>💼</span>
+          <span>Pro</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Layout({ children }) {
   const { user, signOut } = useAuth()
+  const { mode, toggleMode, toast } = useMode()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -109,6 +166,8 @@ export default function Layout({ children }) {
     await signOut()
     navigate('/login')
   }
+
+  const navSections = mode === 'creator' ? CREATOR_NAV : PRO_NAV
 
   const Sidebar = ({ onNav }) => (
     <div className="flex flex-col h-full">
@@ -118,14 +177,17 @@ export default function Layout({ children }) {
         <span className="font-bold text-foreground text-lg">Philomni</span>
       </div>
 
+      {/* Mode switcher */}
+      <ModeSwitcher mode={mode} onToggle={toggleMode} />
+
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0">
-        {NAV_SECTIONS.map((section) => (
+        {navSections.map((section) => (
           <div key={section.label}>
             <SectionHeader label={section.label} />
             <div className="space-y-0.5">
               {section.items.map((item) => (
-                <NavItem key={item.to} {...item} onClick={onNav} />
+                <NavItem key={item.to + item.label} {...item} onClick={onNav} />
               ))}
             </div>
           </div>
@@ -196,10 +258,19 @@ export default function Layout({ children }) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto relative">
           <div className="max-w-4xl mx-auto px-4 py-6">
             {children}
           </div>
+
+          {/* Mode-switch toast */}
+          {toast && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+              <div className="bg-foreground text-background text-sm font-medium px-4 py-2.5 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200">
+                {toast}
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>

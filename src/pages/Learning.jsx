@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useMode } from '../context/ModeContext'
 import {
   Search, Star, Clock, BookOpen, Users, ChevronDown, ChevronRight,
   Play, Lock, CheckCircle, X, Plus, Trash2, Upload, Award,
@@ -11,7 +12,7 @@ import {
 
 // ─── Static Data ────────────────────────────────────────────────────────────
 
-const CATEGORIES = [
+const CREATOR_CATEGORIES = [
   { id: 'video',    icon: '🎬', label: 'Video Production',      count: 124 },
   { id: 'music',    icon: '🎵', label: 'Music & Audio',         count: 89  },
   { id: 'social',   icon: '📱', label: 'Social Media Growth',   count: 203 },
@@ -25,6 +26,24 @@ const CATEGORIES = [
   { id: 'security', icon: '🔒', label: 'Cybersecurity',         count: 32  },
   { id: 'wellness', icon: '🏥', label: 'Health & Wellness',     count: 41  },
 ]
+
+const PRO_CATEGORIES = [
+  { id: 'security',    icon: '🔒', label: 'Cybersecurity',           count: 87,  featured: true },
+  { id: 'business',    icon: '🏢', label: 'Business & Entrepreneurship', count: 142 },
+  { id: 'marketing',   icon: '📣', label: 'Marketing & Sales',        count: 118 },
+  { id: 'dev',         icon: '💻', label: 'Tech & Programming',       count: 203 },
+  { id: 'finance',     icon: '💰', label: 'Finance & Investing',      count: 76  },
+  { id: 'leadership',  icon: '🏆', label: 'Leadership & Management',  count: 94  },
+  { id: 'data',        icon: '📊', label: 'Data & Analytics',         count: 112 },
+  { id: 'pm',          icon: '📋', label: 'Project Management',       count: 68  },
+  { id: 'design',      icon: '🎨', label: 'UX & Product Design',      count: 89  },
+  { id: 'hr',          icon: '🤝', label: 'HR & People Ops',          count: 45  },
+  { id: 'law',         icon: '⚖️', label: 'Legal & Compliance',       count: 34  },
+  { id: 'writing',     icon: '✍️', label: 'Business Writing',         count: 57  },
+]
+
+// Merge both for filtering; courses filtered by mode
+const CATEGORIES = CREATOR_CATEGORIES
 
 const SAMPLE_COURSES = [
   {
@@ -1626,6 +1645,8 @@ function HorizontalRow({ title, courses, enrollments, onOpen }) {
 // ─── Main Learning Component ─────────────────────────────────────────────────
 
 export default function Learning() {
+  const { mode } = useMode()
+  const [learningMode, setLearningMode] = useState(mode === 'pro' ? 'pro' : 'creator')
   const [activeTab, setActiveTab] = useState('home')
   const [courses, setCourses] = useState(SAMPLE_COURSES)
   const [enrollments, setEnrollments] = useState([])
@@ -1633,6 +1654,7 @@ export default function Learning() {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [showBuilder, setShowBuilder] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const activeCategories = learningMode === 'pro' ? PRO_CATEGORIES : CREATOR_CATEGORIES
 
   useEffect(() => {
     async function load() {
@@ -1682,7 +1704,7 @@ export default function Learning() {
     setEnrollments(prev => [...prev, { course_id: courseId, progress_percent: 0 }])
   }
 
-  const activeCategoryLabel = CATEGORIES.find(c => c.id === selectedCategory)?.label
+  const activeCategoryLabel = activeCategories.find(c => c.id === selectedCategory)?.label
 
   const tabs = [
     { id: 'home', label: 'Discover', icon: <GraduationCap size={16} /> },
@@ -1704,6 +1726,21 @@ export default function Learning() {
               {tab.icon} {tab.label}
             </button>
           ))}
+          {/* Mode toggle */}
+          <div className="ml-auto flex items-center bg-muted rounded-full p-0.5 gap-0.5 my-2">
+            <button
+              onClick={() => { setLearningMode('creator'); setSelectedCategory(null) }}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${learningMode === 'creator' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              🎨 Creator
+            </button>
+            <button
+              onClick={() => { setLearningMode('pro'); setSelectedCategory(null) }}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${learningMode === 'pro' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              💼 Pro
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1717,10 +1754,16 @@ export default function Learning() {
               <div className="relative z-10 max-w-2xl space-y-4">
                 <div className="flex items-center gap-2">
                   <Zap size={18} className="text-primary" />
-                  <span className="text-sm font-semibold text-primary">Creator Academy</span>
+                  <span className="text-sm font-semibold text-primary">{learningMode === 'pro' ? 'Pro Academy' : 'Creator Academy'}</span>
                 </div>
-                <h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">Level Up Your Creator Skills</h1>
-                <p className="text-muted-foreground">Learn from the best creators in the game. Practical, no-fluff courses that actually move the needle.</p>
+                <h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">
+                  {learningMode === 'pro' ? 'Advance Your Professional Career' : 'Level Up Your Creator Skills'}
+                </h1>
+                <p className="text-muted-foreground">
+                  {learningMode === 'pro'
+                    ? 'Industry-recognized certifications, business skills, and professional development. Built for serious career growth.'
+                    : 'Learn from the best creators in the game. Practical, no-fluff courses that actually move the needle.'}
+                </p>
                 <div className="relative max-w-md">
                   <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input
@@ -1750,7 +1793,7 @@ export default function Learning() {
                 )}
               </div>
               <div className="grid grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-3">
-                {CATEGORIES.map(cat => (
+                {activeCategories.map(cat => (
                   <div key={cat.id} className={selectedCategory === cat.id ? 'ring-2 ring-primary rounded-xl' : ''}>
                     <CategoryCard cat={cat} onSelect={setSelectedCategory} />
                   </div>

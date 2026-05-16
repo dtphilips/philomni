@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useMode } from '../context/ModeContext'
 import {
   MessageSquare, Users, Target, Calendar, Trophy, Megaphone,
   Plus, X, Search, ChevronUp, ChevronDown, ArrowUp, ArrowDown,
@@ -398,9 +399,34 @@ function RightSidebar({ events, challenges }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+const PRO_COMMUNITY_GROUPS = [
+  { id: 'pg1', name: 'Marketers & Growth Hackers', emoji: '📈', member_count: 9800, cover_color: 'from-blue-600 to-indigo-700', description: 'Data-driven marketing, growth experiments, and GTM strategies.' },
+  { id: 'pg2', name: 'Developers & Engineers', emoji: '💻', member_count: 14200, cover_color: 'from-teal-600 to-emerald-700', description: 'Software engineering, open source, career advice, and code reviews.' },
+  { id: 'pg3', name: 'Designers & UX Leaders', emoji: '🎨', member_count: 7600, cover_color: 'from-violet-600 to-purple-700', description: 'UI/UX design, product design, brand strategy, and design systems.' },
+  { id: 'pg4', name: 'Cybersecurity Professionals', emoji: '🔒', member_count: 5100, cover_color: 'from-gray-700 to-slate-900', description: 'InfoSec, pen testing, CISSP/CISM prep, and security strategy.' },
+  { id: 'pg5', name: 'Entrepreneurs & Founders', emoji: '🚀', member_count: 12300, cover_color: 'from-orange-600 to-amber-700', description: 'Startup journeys, fundraising, product-market fit, and founder support.' },
+  { id: 'pg6', name: 'Finance & Investing', emoji: '💰', member_count: 6700, cover_color: 'from-green-600 to-emerald-700', description: 'Personal finance, investing, fintech, and financial independence.' },
+  { id: 'pg7', name: 'HR & People Ops', emoji: '🤝', member_count: 4200, cover_color: 'from-pink-600 to-rose-700', description: 'Talent acquisition, culture building, and people operations.' },
+  { id: 'pg8', name: 'Data & Analytics', emoji: '📊', member_count: 8900, cover_color: 'from-cyan-600 to-blue-700', description: 'Data science, analytics, BI, and AI/ML in business contexts.' },
+]
+
+const PRO_CHALLENGES = [
+  { id: 'pc1', title: '30-Day Networking Challenge', description: 'Connect with 1 new professional every day for 30 days. Share what you learned.', type: 'networking', prize: '🏅 Top Connector badge + Featured profile', hashtag: '#30DayNetworking', ends_at: new Date(Date.now()+2592000000).toISOString(), entry_count: 412, status: 'active', cover_color: 'from-blue-600 to-indigo-700', emoji: '🤝' },
+  { id: 'pc2', title: 'Launch Your Portfolio Challenge', description: 'Build and launch a professional portfolio site in 2 weeks. Share your link.', type: 'portfolio', prize: '🌟 Portfolio Spotlight + 3-month Pro free', hashtag: '#LaunchYourPortfolio', ends_at: new Date(Date.now()+1209600000).toISOString(), entry_count: 189, status: 'active', cover_color: 'from-violet-600 to-purple-700', emoji: '🚀' },
+  { id: 'pc3', title: 'Thought Leadership Article', description: 'Write a 500-word article about a trend in your industry. Most upvoted wins.', type: 'writing', prize: '📝 Featured Article + LinkedIn boost tips', hashtag: '#ThoughtLeaderPhilomni', ends_at: new Date(Date.now()+864000000).toISOString(), entry_count: 94, status: 'active', cover_color: 'from-emerald-600 to-teal-700', emoji: '💡' },
+]
+
+const PRO_EVENTS = [
+  { id: 'pe1', title: 'Cybersecurity Career Summit 2026', type: 'conference', host_name: 'Philomni Pro', date: new Date(Date.now()+1296000000).toISOString(), duration: '6 hours', location: 'Virtual — Multi-Room', attendee_count: 2800, is_free: false, price: 49, description: 'Deep dives into CISSP, ethical hacking, cloud security, and zero-trust architecture. 12 expert speakers.', emoji: '🔒', cover_color: 'from-gray-700 to-slate-900', speakers: ['Dr. Sarah Chen', 'Marcus Reid', 'Aisha Patel'] },
+  { id: 'pe2', title: 'Founder Office Hours with 3 VCs', type: 'networking', host_name: 'Startup Hub', date: new Date(Date.now()+604800000).toISOString(), duration: '2 hours', location: 'Virtual — Philomni Room', attendee_count: 340, is_free: true, description: 'Open Q&A with 3 active VCs on fundraising, pitch decks, and what they look for in founders in 2026.', emoji: '💼', cover_color: 'from-orange-600 to-amber-700', speakers: ['Jessica Lam', 'David Osei', 'Priya Nair'] },
+  { id: 'pe3', title: 'Product Design Workshop: Design Systems at Scale', type: 'workshop', host_name: 'Design Leaders', date: new Date(Date.now()+1728000000).toISOString(), duration: '3 hours', location: 'Virtual — Figma Live', attendee_count: 560, is_free: false, price: 29, description: 'Build a production-ready design system from scratch using Figma. Hands-on with tokens, components, and documentation.', emoji: '🎨', cover_color: 'from-violet-600 to-purple-700', speakers: ['Tyler Marsh'] },
+]
+
 export default function Community() {
   const { user } = useAuth()
   const navigate  = useNavigate()
+  const { mode }  = useMode()
+  const [communityMode, setCommunityMode] = useState(mode === 'pro' ? 'pro' : 'creator')
 
   const [tab, setTab]         = useState('discussions')
   const [posts, setPosts]     = useState([])
@@ -474,11 +500,31 @@ export default function Community() {
     <div className="max-w-6xl mx-auto">
 
       {/* ── Page header ──────────────────────────────────────────────────── */}
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <Users className="w-6 h-6 text-primary" /> Community
-        </h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Connect · Collaborate · Learn · Grow</p>
+      <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Users className="w-6 h-6 text-primary" />
+            {communityMode === 'creator' ? 'Creator Community' : 'Professional Community'}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            {communityMode === 'creator' ? 'Connect · Collaborate · Create · Grow' : 'Network · Discuss · Mentor · Lead'}
+          </p>
+        </div>
+        {/* Mode toggle */}
+        <div className="flex items-center bg-muted rounded-full p-1 gap-1 flex-shrink-0">
+          <button
+            onClick={() => setCommunityMode('creator')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${communityMode === 'creator' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            🎨 Creator
+          </button>
+          <button
+            onClick={() => setCommunityMode('pro')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${communityMode === 'pro' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            💼 Professional
+          </button>
+        </div>
       </div>
 
       {/* ── Tabs ─────────────────────────────────────────────────────────── */}
@@ -555,9 +601,11 @@ export default function Community() {
 
           {/* Featured */}
           <div>
-            <h2 className="text-sm font-bold text-foreground mb-3">⭐ Featured Groups</h2>
+            <h2 className="text-sm font-bold text-foreground mb-3">
+              {communityMode === 'pro' ? '🏆 Professional Groups' : '⭐ Featured Groups'}
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {SAMPLE_GROUPS.filter(g => g.is_featured).map(g => (
+              {(communityMode === 'pro' ? PRO_COMMUNITY_GROUPS : SAMPLE_GROUPS.filter(g => g.is_featured)).map(g => (
                 <div key={g.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group">
                   <div className={`h-24 bg-gradient-to-br ${g.cover_color} flex items-center justify-center text-4xl`}>{g.emoji}</div>
                   <div className="p-3">
@@ -576,7 +624,7 @@ export default function Community() {
           </div>
 
           {/* All groups */}
-          <div>
+          {communityMode === 'creator' && <div>
             <h2 className="text-sm font-bold text-foreground mb-3">All Groups</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {SAMPLE_GROUPS.map(g => (
@@ -593,7 +641,7 @@ export default function Community() {
                 </div>
               ))}
             </div>
-          </div>
+          </div>}
         </div>
       )}
 
@@ -602,9 +650,11 @@ export default function Community() {
         <div className="space-y-6">
           {/* Active */}
           <div>
-            <h2 className="text-sm font-bold text-foreground mb-4">🔥 Active Challenges</h2>
+            <h2 className="text-sm font-bold text-foreground mb-4">
+              {communityMode === 'pro' ? '🏆 Professional Challenges' : '🔥 Active Challenges'}
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {SAMPLE_CHALLENGES.filter(c => c.status === 'active').map(c => (
+              {(communityMode === 'pro' ? PRO_CHALLENGES : SAMPLE_CHALLENGES.filter(c => c.status === 'active')).map(c => (
                 <div key={c.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group">
                   <div className={`h-28 bg-gradient-to-br ${c.cover_color} flex items-center justify-center text-5xl relative`}>
                     {c.emoji}
@@ -665,7 +715,7 @@ export default function Community() {
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {SAMPLE_EVENTS.map(e => {
+            {(communityMode === 'pro' ? PRO_EVENTS : SAMPLE_EVENTS).map(e => {
               const isRsvpd = rsvpd.has(e.id)
               return (
                 <div key={e.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group">
