@@ -130,6 +130,63 @@ function SectionHeader({ label }) {
   )
 }
 
+// ─── Sidebar (defined outside Layout to prevent re-creation on every render) ─
+function Sidebar({ user, mode, navSections, onModeSwitch, onSignOut, onNav }) {
+  return (
+    <div className="flex flex-col h-full">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border flex-shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-sm">P</div>
+        <span className="font-bold text-foreground text-lg">Philomni</span>
+      </div>
+
+      {/* Mode switcher */}
+      <ModeSwitcher mode={mode} onSwitch={onModeSwitch} />
+
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0">
+        {navSections.map((section) => (
+          <div key={section.label}>
+            <SectionHeader label={section.label} />
+            <div className="space-y-0.5">
+              {section.items.map((item) => (
+                <NavItem key={item.to + item.label} {...item} onClick={onNav} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      {/* User footer */}
+      <div className="p-3 border-t border-border flex-shrink-0">
+        <NavLink
+          to="/profile"
+          onClick={onNav}
+          className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted transition-colors mb-1"
+        >
+          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0 overflow-hidden">
+            {user?.avatar_url
+              ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+              : (user?.full_name?.[0] ?? '?')}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">{user?.full_name ?? 'Creator'}</p>
+            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+          </div>
+          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+        </NavLink>
+        <button
+          onClick={onSignOut}
+          className="w-full flex items-center gap-3 px-2 py-2 rounded-xl text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign out
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ModeSwitcher({ mode, onSwitch }) {
   const isCreator = mode === 'creator'
   return (
@@ -205,65 +262,17 @@ export default function Layout({ children }) {
 
   const navSections = mode === 'creator' ? CREATOR_NAV : PRO_NAV
 
-  const Sidebar = ({ onNav }) => (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border flex-shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-sm">P</div>
-        <span className="font-bold text-foreground text-lg">Philomni</span>
-      </div>
-
-      {/* Mode switcher */}
-      <ModeSwitcher mode={mode} onSwitch={handleModeSwitch} />
-
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0">
-        {navSections.map((section) => (
-          <div key={section.label}>
-            <SectionHeader label={section.label} />
-            <div className="space-y-0.5">
-              {section.items.map((item) => (
-                <NavItem key={item.to + item.label} {...item} onClick={onNav} />
-              ))}
-            </div>
-          </div>
-        ))}
-      </nav>
-
-      {/* User footer */}
-      <div className="p-3 border-t border-border flex-shrink-0">
-        <NavLink
-          to="/profile"
-          onClick={onNav}
-          className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted transition-colors mb-1"
-        >
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0 overflow-hidden">
-            {user?.avatar_url
-              ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
-              : (user?.full_name?.[0] ?? '?')}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{user?.full_name ?? 'Creator'}</p>
-            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-          </div>
-          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-        </NavLink>
-        <button
-          onClick={handleSignOut}
-          className="w-full flex items-center gap-3 px-2 py-2 rounded-xl text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          Sign out
-        </button>
-      </div>
-    </div>
-  )
-
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-60 border-r border-border bg-card flex-shrink-0">
-        <Sidebar />
+        <Sidebar
+          user={user}
+          mode={mode}
+          navSections={navSections}
+          onModeSwitch={handleModeSwitch}
+          onSignOut={handleSignOut}
+        />
       </aside>
 
       {/* Mobile sidebar overlay */}
@@ -277,7 +286,14 @@ export default function Layout({ children }) {
             >
               <X className="w-5 h-5" />
             </button>
-            <Sidebar onNav={() => setMobileOpen(false)} />
+            <Sidebar
+              user={user}
+              mode={mode}
+              navSections={navSections}
+              onModeSwitch={handleModeSwitch}
+              onSignOut={handleSignOut}
+              onNav={() => setMobileOpen(false)}
+            />
           </aside>
         </div>
       )}

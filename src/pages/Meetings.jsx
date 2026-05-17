@@ -1662,7 +1662,7 @@ export default function Meetings() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] -mx-4 -mt-6 overflow-hidden bg-background">
+    <div className="absolute inset-0 flex overflow-hidden bg-background">
       <LeftPanel
         meetings={meetings}
         pastMeetings={pastMeetings}
