@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import { useNavigate } from 'react-router-dom'
-import { formatDistanceToNow, format, isToday, isTomorrow, addMinutes, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from 'date-fns'
+import { formatDistanceToNow, format, isToday, isTomorrow, addMinutes, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, startOfMonth, endOfMonth, addDays, getDay, addMonths, subMonths } from 'date-fns'
 import {
   Video, Mic, MicOff, VideoOff, Monitor, BookOpen, Headphones, Briefcase,
   Phone, Plus, PhoneOff, Copy, Check, Clock, Users, Calendar, Search,
@@ -13,7 +13,8 @@ import {
   Circle, Square, Play, Pause, StopCircle, Mic2, Camera, CameraOff,
   Star, Shield, Crown, UserPlus, Trash2, Edit2, RefreshCw, ArrowLeft,
   AlertTriangle, CheckCircle, LayoutGrid, Maximize2, PanelRightOpen,
-  PanelRightClose, PenLine, ClipboardList, StickyNote, Folder
+  PanelRightClose, PenLine, ClipboardList, StickyNote, Folder,
+  Mail, Link, CalendarCheck, DollarSign, BookmarkCheck
 } from 'lucide-react'
 
 // ─── SAMPLE DATA ────────────────────────────────────────────────────────────
@@ -251,18 +252,20 @@ function ScheduleModal({ onClose, onSave }) {
   const [generatedCode] = useState(genCode)
   const meetingLink = `https://philomni.app/meet/${generatedCode}`
 
-  const allContacts = useMemo(() => {
-    const seen = new Set()
-    const list = []
-    DIRECT_CONTACTS.forEach(c => { if (!seen.has(c.name)) { seen.add(c.name); list.push({ name: c.name, initials: c.initials, color: c.color }) } })
-    SAMPLE_SPACES.forEach(s => s.members.forEach(m => { if (!seen.has(m.name) && m.name !== 'You') { seen.add(m.name); list.push({ name: m.name, initials: m.initials, color: m.color }) } }))
-    return list
-  }, [])
+  const [searchResults, setSearchResults] = useState([])
+  const [emailInvite, setEmailInvite] = useState('')
+  const [externalEmails, setExternalEmails] = useState([])
 
-  const filteredContacts = allContacts.filter(c =>
-    participantSearch && c.name.toLowerCase().includes(participantSearch.toLowerCase()) &&
-    !participants.find(p => p.name === c.name)
-  )
+  useEffect(() => {
+    if (!participantSearch.trim()) { setSearchResults([]); return }
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await supabase.from('users').select('id,full_name,email').ilike('full_name', `%${participantSearch}%`).limit(6)
+        setSearchResults((data || []).filter(u => !participants.find(p => p.id === u.id)))
+      } catch { setSearchResults([]) }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [participantSearch, participants])
 
   const times = []
   for (let h = 0; h < 24; h++) for (let m = 0; m < 60; m += 15) {
@@ -307,6 +310,14 @@ function ScheduleModal({ onClose, onSave }) {
         waiting_room: waitingRoom, mute_on_entry: muteOnEntry,
         allow_chat: allowChat,
       })
+      const when = `${fmtDate(date + 'T' + startTime)} at ${fmtTime(date + 'T' + startTime + ':00')}`
+      for (const p of participants) {
+        if (p.id) {
+          try {
+            await supabase.from('notifications').insert({ user_id: p.id, type: 'meeting_invite', message: `You're invited to: ${title} on ${when}`, link: meetingLink })
+          } catch {}
+        }
+      }
     } catch (e) { /* ignore */ }
     setLoading(false)
     onSave(meetingData)
@@ -409,46 +420,58 @@ function ScheduleModal({ onClose, onSave }) {
           {step === 3 && (
             <>
               <div className="relative">
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Add Participants</label>
-                <input value={participantSearch} onChange={e => setParticipantSearch(e.target.value)} placeholder="Search contacts..." className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary" />
-                {filteredContacts.length > 0 && (
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Search people on Philomni</label>
+                <input value={participantSearch} onChange={e => setParticipantSearch(e.target.value)} placeholder="Search by name..." className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary" />
+                {searchResults.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-xl shadow-lg overflow-hidden">
-                    {filteredContacts.map(c => (
-                      <button key={c.name} onClick={() => addParticipant(c)} className="w-full flex items-center gap-3 p-3 hover:bg-muted text-left">
-                        <Avatar initials={c.initials} color={c.color} size={8} />
-                        <span className="text-sm text-foreground">{c.name}</span>
+                    {searchResults.map(u => (
+                      <button key={u.id} onClick={() => {
+                        setParticipants(prev => [...prev, { id: u.id, name: u.full_name, email: u.email, initials: (u.full_name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(), color: 'bg-violet-500', role: 'attendee' }])
+                        setParticipantSearch('')
+                      }} className="w-full flex items-center gap-3 p-3 hover:bg-muted text-left">
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold">{u.full_name?.[0]||'?'}</div>
+                        <div>
+                          <p className="text-sm text-foreground">{u.full_name}</p>
+                          <p className="text-xs text-muted-foreground">{u.email}</p>
+                        </div>
                       </button>
                     ))}
                   </div>
                 )}
               </div>
               {participants.length > 0 && (
-                <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
                   {participants.map((p, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2 bg-muted rounded-xl">
-                      <Avatar initials={p.initials} color={p.color} size={8} />
-                      <span className="text-sm text-foreground flex-1">{p.name}</span>
-                      <select value={p.role} onChange={e => setParticipants(prev => prev.map((x, xi) => xi === i ? { ...x, role: e.target.value } : x))}
-                        className="bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground">
-                        <option value="attendee">Attendee</option>
-                        <option value="host">Host</option>
-                        <option value="co-host">Co-host</option>
-                        <option value="presenter">Presenter</option>
-                      </select>
-                      <button onClick={() => setParticipants(prev => prev.filter((_, xi) => xi !== i))} className="text-muted-foreground hover:text-destructive"><X size={14} /></button>
+                    <div key={i} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-primary/10 border border-primary/20 rounded-full">
+                      <span className="text-xs font-medium text-primary">{p.name}</span>
+                      <button onClick={() => setParticipants(prev => prev.filter((_, xi) => xi !== i))} className="text-primary/60 hover:text-primary"><X size={12} /></button>
                     </div>
                   ))}
                 </div>
               )}
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">Add by email (external)</label>
+                <div className="flex gap-2">
+                  <input value={emailInvite} onChange={e => setEmailInvite(e.target.value)} placeholder="email@example.com" type="email"
+                    className="flex-1 bg-muted border border-border rounded-xl px-3 py-2 text-foreground text-sm focus:outline-none focus:border-primary" />
+                  <button onClick={() => { if (emailInvite.trim()) { setExternalEmails(prev => [...prev, emailInvite]); setEmailInvite('') } }}
+                    className="px-3 py-2 bg-muted border border-border rounded-xl text-sm text-muted-foreground hover:text-foreground">Add</button>
+                </div>
+                {externalEmails.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {externalEmails.map((e, i) => (
+                      <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 bg-muted rounded-full text-xs text-muted-foreground">
+                        {e} <button onClick={() => setExternalEmails(prev => prev.filter((_, xi) => xi !== i))}><X size={10} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div className="flex items-center justify-between p-3 bg-muted rounded-xl">
                 <span className="text-sm text-foreground">Anyone with link can join</span>
                 <button onClick={() => setOpenInvite(!openInvite)} className={`w-10 h-5 rounded-full transition-colors ${openInvite ? 'bg-primary' : 'bg-border'} relative`}>
                   <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${openInvite ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">Max Participants (optional)</label>
-                <input type="number" value={maxParticipants} onChange={e => setMaxParticipants(e.target.value)} placeholder="No limit" className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary" />
               </div>
             </>
           )}
@@ -613,76 +636,249 @@ function CreateSpaceModal({ onClose, onSave }) {
 // ─── INSTANT MEETING MODAL ────────────────────────────────────────────────────
 
 function InstantMeetingModal({ onClose, onJoin }) {
+  const [step, setStep] = useState(1)
   const [copied, setCopied] = useState(false)
+  const [instantSearch, setInstantSearch] = useState('')
+  const [instantResults, setInstantResults] = useState([])
   const code = useMemo(() => 'INSTANT-' + Math.random().toString(36).slice(2, 6).toUpperCase(), [])
   const link = `https://philomni.app/meet/${code}`
   const meeting = {
     id: 'instant-' + Date.now(), title: 'Instant Meeting', meeting_type: 'video',
     host_name: 'You', meeting_code: code, scheduled_at: new Date().toISOString(),
-    duration_minutes: 60, status: 'live', allow_recording: true,
+    duration_minutes: 60, status: 'live', allow_recording: false,
     participants: [{ name: 'You', role: 'host', initials: 'Y', color: 'bg-primary' }],
   }
 
-  function copyLink() {
-    navigator.clipboard.writeText(link).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
-  }
+  useEffect(() => {
+    if (!instantSearch.trim()) { setInstantResults([]); return }
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await supabase.from('users').select('id,full_name,email').ilike('full_name', `%${instantSearch}%`).limit(5)
+        setInstantResults(data || [])
+      } catch { setInstantResults([]) }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [instantSearch])
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-foreground">Start Instant Meeting</h2>
+          <h2 className="font-semibold text-foreground">{step === 1 ? 'Start Instant Meeting' : 'Invite People'}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"><X size={18} /></button>
         </div>
-        <div className="bg-muted rounded-xl p-4 text-center">
-          <div className="w-14 h-14 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
-            <Zap size={24} className="text-green-500" />
-          </div>
-          <p className="text-xs text-muted-foreground mb-1">Your meeting link</p>
-          <p className="text-sm text-primary font-mono break-all">{link}</p>
-        </div>
-        <button onClick={copyLink} className="w-full flex items-center justify-center gap-2 p-2.5 bg-muted rounded-xl text-sm text-foreground hover:bg-muted/80">
-          {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />} Copy Link
-        </button>
-        <button onClick={() => onJoin(meeting)} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium text-sm">
-          Start Now
-        </button>
+
+        {step === 1 && (
+          <>
+            <div className="bg-muted rounded-xl p-4 text-center">
+              <div className="w-14 h-14 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Zap size={24} className="text-green-500" />
+              </div>
+              <p className="text-xs text-muted-foreground mb-1">Your meeting link</p>
+              <p className="text-sm text-primary font-mono break-all">{link}</p>
+            </div>
+            <button onClick={() => { navigator.clipboard.writeText(link).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) }) }}
+              className="w-full flex items-center justify-center gap-2 p-2.5 bg-muted rounded-xl text-sm text-foreground hover:bg-muted/80">
+              {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />} Copy Link
+            </button>
+            <button onClick={() => setStep(2)} className="w-full py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-medium text-sm">
+              Continue →
+            </button>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <p className="text-xs text-muted-foreground">Optional — start with 0 invites anytime</p>
+            <input value={instantSearch} onChange={e => setInstantSearch(e.target.value)} placeholder="Search Philomni users..."
+              className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary" />
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {instantResults.map(u => (
+                <div key={u.id} className="flex items-center gap-3 p-2 bg-muted rounded-xl">
+                  <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold">{u.full_name?.[0]||'?'}</div>
+                  <span className="flex-1 text-sm text-foreground">{u.full_name}</span>
+                  <button onClick={async () => {
+                    try { await supabase.from('notifications').insert({ user_id: u.id, type: 'meeting_invite', message: `Join my instant meeting`, link }) } catch {}
+                  }} className="px-2 py-1 bg-primary text-primary-foreground rounded-lg text-xs">Invite</button>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => onJoin(meeting)} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium text-sm">
+              Start Meeting
+            </button>
+            <button onClick={() => onJoin(meeting)} className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1">
+              Skip for now
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
 }
 
-// ─── MINI CALENDAR ────────────────────────────────────────────────────────────
+// ─── FULL CALENDAR ────────────────────────────────────────────────────────────
 
-function MiniCalendar({ meetings }) {
-  const today = new Date()
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 })
-  const weekEnd = endOfWeek(today, { weekStartsOn: 1 })
-  const days = eachDayOfInterval({ start: weekStart, end: weekEnd })
+const CAL_TYPE_COLOR = {
+  video: 'bg-blue-500', audio: 'bg-violet-500', presentation: 'bg-teal-500',
+  workshop: 'bg-amber-500', podcast: 'bg-pink-500', interview: 'bg-slate-500',
+}
+const HOURS = Array.from({ length: 15 }, (_, i) => i + 7) // 7am – 9pm
+
+function FullCalendar({ meetings, onSchedule, onSelectMeeting }) {
+  const [viewDate, setViewDate] = useState(new Date())
+  const [calView, setCalView] = useState('month')
+
+  function nav(dir) {
+    if (calView === 'month') setViewDate(d => addMonths(d, dir))
+    else if (calView === 'week') setViewDate(d => addDays(d, dir * 7))
+    else setViewDate(d => addDays(d, dir))
+  }
+
+  function msForDay(day) {
+    return meetings.filter(m => isSameDay(new Date(m.scheduled_at), day))
+  }
+
+  const monthStart = startOfMonth(viewDate)
+  const calStart = addDays(monthStart, -getDay(monthStart))
+  const calDays = Array.from({ length: 42 }, (_, i) => addDays(calStart, i))
+
+  const weekStart = startOfWeek(viewDate, { weekStartsOn: 0 })
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+
+  const headerTitle = calView === 'month'
+    ? format(viewDate, 'MMMM yyyy')
+    : calView === 'week'
+    ? `${format(weekDays[0], 'MMM d')} – ${format(weekDays[6], 'MMM d, yyyy')}`
+    : format(viewDate, 'EEEE, MMMM d, yyyy')
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-foreground">{format(weekStart, 'MMM d')} – {format(weekEnd, 'MMM d, yyyy')}</h3>
-        <span className="text-xs text-muted-foreground">This Week</span>
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-border flex-wrap gap-2">
+        <div className="flex items-center gap-1">
+          <button onClick={() => nav(-1)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"><ChevronLeft size={16} /></button>
+          <span className="font-semibold text-foreground text-sm min-w-[180px] text-center">{headerTitle}</span>
+          <button onClick={() => nav(1)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"><ChevronRight size={16} /></button>
+          <button onClick={() => setViewDate(new Date())} className="px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded-lg text-muted-foreground ml-1">Today</button>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-muted rounded-lg p-0.5">
+            {['Day','Week','Month'].map(v => (
+              <button key={v} onClick={() => setCalView(v.toLowerCase())}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium capitalize transition-colors ${calView === v.toLowerCase() ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{v}</button>
+            ))}
+          </div>
+          <button onClick={onSchedule} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-xl text-xs font-medium hover:bg-primary/90">
+            <Plus size={13} /> Schedule
+          </button>
+        </div>
       </div>
-      <div className="grid grid-cols-7 gap-1">
-        {days.map(day => {
-          const dayMeetings = meetings.filter(m => isSameDay(new Date(m.scheduled_at), day))
-          const isCurrentDay = isToday(day)
-          return (
-            <div key={day.toISOString()} className={`flex flex-col items-center p-1.5 rounded-xl ${isCurrentDay ? 'bg-primary/10' : ''}`}>
-              <span className="text-xs text-muted-foreground mb-1">{format(day, 'EEE')}</span>
-              <span className={`text-sm font-medium ${isCurrentDay ? 'text-primary' : 'text-foreground'}`}>{format(day, 'd')}</span>
-              <div className="flex flex-wrap gap-0.5 mt-1 justify-center">
-                {dayMeetings.slice(0, 3).map((m, i) => (
-                  <div key={i} className={`w-1.5 h-1.5 rounded-full bg-gradient-to-br ${meetingTypeColor(m.meeting_type)}`} />
-                ))}
-              </div>
+
+      {/* Month View */}
+      {calView === 'month' && (
+        <>
+          <div className="grid grid-cols-7 border-b border-border bg-muted/30">
+            {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+              <div key={d} className="py-2 text-center text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {calDays.map((day, idx) => {
+              const dayMs = msForDay(day)
+              const isCurrentMonth = day.getMonth() === viewDate.getMonth()
+              const isCurrentDay = isToday(day)
+              return (
+                <div key={idx} onClick={() => { setViewDate(day); setCalView('day') }}
+                  className={`min-h-[76px] p-1 border-b border-r border-border cursor-pointer hover:bg-muted/40 transition-colors ${!isCurrentMonth ? 'opacity-35' : ''} ${isCurrentDay ? 'bg-primary/5' : ''}`}>
+                  <span className={`inline-flex w-6 h-6 items-center justify-center rounded-full text-xs font-medium mb-0.5 ${isCurrentDay ? 'bg-primary text-primary-foreground' : 'text-foreground'}`}>
+                    {format(day, 'd')}
+                  </span>
+                  <div className="space-y-0.5">
+                    {dayMs.slice(0, 2).map((m, i) => (
+                      <button key={i} onClick={e => { e.stopPropagation(); onSelectMeeting(m) }}
+                        className={`w-full text-left text-[10px] px-1 py-0.5 rounded text-white truncate ${CAL_TYPE_COLOR[m.meeting_type] || 'bg-primary'}`}>
+                        {format(new Date(m.scheduled_at), 'h:mma')} {m.title}
+                      </button>
+                    ))}
+                    {dayMs.length > 2 && <p className="text-[9px] text-muted-foreground px-1">+{dayMs.length - 2} more</p>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Week View */}
+      {calView === 'week' && (
+        <div className="overflow-x-auto">
+          <div className="min-w-[520px]">
+            <div className="grid border-b border-border" style={{ gridTemplateColumns: '44px repeat(7, 1fr)' }}>
+              <div className="border-r border-border" />
+              {weekDays.map(day => (
+                <div key={day.toISOString()} onClick={() => { setViewDate(day); setCalView('day') }}
+                  className={`py-2 text-center cursor-pointer hover:bg-muted/50 border-r border-border last:border-r-0 ${isToday(day) ? 'bg-primary/5' : ''}`}>
+                  <p className="text-[10px] text-muted-foreground">{format(day, 'EEE')}</p>
+                  <p className={`text-sm font-semibold ${isToday(day) ? 'text-primary' : 'text-foreground'}`}>{format(day, 'd')}</p>
+                </div>
+              ))}
             </div>
-          )
-        })}
-      </div>
+            <div className="max-h-72 overflow-y-auto">
+              {HOURS.map(h => (
+                <div key={h} className="grid border-b border-border/40" style={{ gridTemplateColumns: '44px repeat(7, 1fr)' }}>
+                  <div className="border-r border-border flex items-start justify-end pr-1.5 pt-1">
+                    <span className="text-[9px] text-muted-foreground">{h < 12 ? `${h}am` : h === 12 ? '12p' : `${h-12}pm`}</span>
+                  </div>
+                  {weekDays.map(day => {
+                    const slotMs = meetings.filter(m => { const d = new Date(m.scheduled_at); return isSameDay(d, day) && d.getHours() === h })
+                    return (
+                      <div key={day.toISOString()} className={`border-r border-border/20 last:border-r-0 h-10 p-0.5 ${isToday(day) ? 'bg-primary/3' : 'hover:bg-muted/30'}`}>
+                        {slotMs.map((m, i) => (
+                          <button key={i} onClick={() => onSelectMeeting(m)}
+                            className={`w-full text-[9px] text-white px-1 py-0.5 rounded truncate text-left ${CAL_TYPE_COLOR[m.meeting_type] || 'bg-primary'}`}>
+                            {m.title}
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Day View */}
+      {calView === 'day' && (
+        <div className="max-h-72 overflow-y-auto">
+          {HOURS.map(h => {
+            const hourMs = msForDay(viewDate).filter(m => new Date(m.scheduled_at).getHours() === h)
+            return (
+              <div key={h} className="flex gap-3 px-4 py-2 border-b border-border/40 hover:bg-muted/20">
+                <div className="w-10 flex-shrink-0 text-right pt-0.5">
+                  <span className="text-[10px] text-muted-foreground">{h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h-12}pm`}</span>
+                </div>
+                <div className="flex-1 min-h-[2rem] space-y-1">
+                  {hourMs.map((m, i) => (
+                    <button key={i} onClick={() => onSelectMeeting(m)}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs text-white ${CAL_TYPE_COLOR[m.meeting_type] || 'bg-primary'}`}>
+                      <p className="font-medium">{m.title}</p>
+                      <p className="opacity-80">{format(new Date(m.scheduled_at), 'h:mm a')} · {durationLabel(m.duration_minutes)} · {m.participants?.length || 1} people</p>
+                    </button>
+                  ))}
+                  {hourMs.length === 0 && (
+                    <button onClick={onSchedule}
+                      className="w-full py-1 border border-dashed border-border rounded-lg text-[10px] text-muted-foreground hover:border-primary/50 hover:text-primary opacity-0 hover:opacity-100 transition-opacity">
+                      + Add meeting at {h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h-12}pm`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -1009,12 +1205,17 @@ function SpaceView({ space, onBack }) {
 
 // ─── ACTIVE MEETING VIEW ──────────────────────────────────────────────────────
 
-function ActiveMeetingView({ meeting, onLeave }) {
+function ActiveMeetingView({ meeting, onEnd }) {
   const [elapsed, setElapsed] = useState(0)
   const [speakingIdx, setSpeakingIdx] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
   const [isVideoOff, setIsVideoOff] = useState(false)
-  const [isRecording, setIsRecording] = useState(meeting.allow_recording || false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [showRecordConfirm, setShowRecordConfirm] = useState(false)
+  const [recordingUrl, setRecordingUrl] = useState(null)
+  const mediaRecorderRef = useRef(null)
+  const recordingChunksRef = useRef([])
+  const startedAtRef = useRef(new Date())
   const [isSharing, setIsSharing] = useState(false)
   const [sidebarTab, setSidebarTab] = useState('chat')
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -1030,8 +1231,17 @@ function ActiveMeetingView({ meeting, onLeave }) {
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
   const messagesEndRef = useRef(null)
+  const [showInvitePanel, setShowInvitePanel] = useState(false)
+  const [inviteTab, setInviteTab] = useState('search')
+  const [inviteSearch, setInviteSearch] = useState('')
+  const [inviteResults, setInviteResults] = useState([])
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [emailSent, setEmailSent] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const [inviteCopied, setInviteCopied] = useState(false)
 
   const participants = meeting.participants || [{ name: 'You', role: 'host', initials: 'Y', color: 'bg-primary' }]
+  const meetingLink = `https://philomni.app/meet/${meeting.meeting_code || 'meet'}`
 
   useEffect(() => {
     const t = setInterval(() => setElapsed(e => e + 1), 1000)
@@ -1044,6 +1254,46 @@ function ActiveMeetingView({ meeting, onLeave }) {
   }, [participants.length])
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMessages])
+
+  useEffect(() => {
+    if (!inviteSearch.trim()) { setInviteResults([]); return }
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await supabase.from('users').select('id,full_name,email').ilike('full_name', `%${inviteSearch}%`).limit(5)
+        setInviteResults(data || [])
+      } catch { setInviteResults([]) }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [inviteSearch])
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+      const recorder = new MediaRecorder(stream)
+      recordingChunksRef.current = []
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data) }
+      recorder.onstop = async () => {
+        const blob = new Blob(recordingChunksRef.current, { type: 'video/webm' })
+        const path = `recordings/${meeting.id}/${Date.now()}.webm`
+        try {
+          const { data } = await supabase.storage.from('uploads').upload(path, blob)
+          const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(data.path)
+          setRecordingUrl(publicUrl)
+          await supabase.from('meetings').update({ recording_url: publicUrl }).eq('id', meeting.id)
+        } catch {}
+        stream.getTracks().forEach(t => t.stop())
+      }
+      mediaRecorderRef.current = recorder
+      recorder.start()
+      setIsRecording(true)
+      setShowRecordConfirm(false)
+    } catch { setShowRecordConfirm(false) }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop()
+    setIsRecording(false)
+  }
 
   function fmtElapsed(s) {
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
@@ -1180,6 +1430,66 @@ function ActiveMeetingView({ meeting, onLeave }) {
               )}
               {sidebarTab === 'people' && (
                 <div className="p-3 space-y-2">
+                  <button onClick={() => setShowInvitePanel(!showInvitePanel)}
+                    className="w-full flex items-center justify-center gap-2 py-2 bg-primary text-primary-foreground rounded-xl text-xs font-medium hover:bg-primary/90">
+                    <UserPlus size={13} /> Invite People
+                  </button>
+                  {showInvitePanel && (
+                    <div className="bg-gray-800 rounded-xl overflow-hidden border border-white/10">
+                      <div className="flex border-b border-white/10">
+                        {[['search','Search'],['email','Email'],['link','Link']].map(([id,label]) => (
+                          <button key={id} onClick={() => setInviteTab(id)}
+                            className={`flex-1 py-2 text-[10px] transition-colors ${inviteTab === id ? 'text-white border-b border-primary' : 'text-white/40 hover:text-white/60'}`}>{label}</button>
+                        ))}
+                      </div>
+                      <div className="p-2">
+                        {inviteTab === 'search' && (
+                          <div className="space-y-1.5">
+                            <input value={inviteSearch} onChange={e => setInviteSearch(e.target.value)} placeholder="Search Philomni users..."
+                              className="w-full bg-white/10 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-white/30 focus:outline-none" />
+                            {inviteResults.map(u => (
+                              <div key={u.id} className="flex items-center gap-2 p-1.5 bg-white/5 rounded-lg">
+                                <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">{u.full_name?.[0]||'?'}</div>
+                                <p className="flex-1 text-[11px] text-white truncate">{u.full_name}</p>
+                                <button onClick={async () => {
+                                  try { await supabase.from('notifications').insert({ user_id: u.id, type: 'meeting_invite', message: `You've been invited to join: ${meeting.title}`, link: meetingLink }) } catch {}
+                                  setInviteSearch('')
+                                }} className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded text-[10px]">Invite</button>
+                              </div>
+                            ))}
+                            {inviteSearch && inviteResults.length === 0 && <p className="text-[10px] text-white/30 text-center py-1">No users found</p>}
+                          </div>
+                        )}
+                        {inviteTab === 'email' && (
+                          <div className="space-y-1.5">
+                            <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="email@example.com" type="email"
+                              className="w-full bg-white/10 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-white/30 focus:outline-none" />
+                            <button onClick={() => { console.log('Email invite:', inviteEmail, meetingLink); setEmailSent(true); setTimeout(() => { setEmailSent(false); setInviteEmail('') }, 2000) }}
+                              disabled={!inviteEmail.trim() || emailSent}
+                              className="w-full py-1.5 bg-primary text-primary-foreground rounded-lg text-xs disabled:opacity-50 flex items-center justify-center gap-1">
+                              {emailSent ? <><Check size={10} /> Sent!</> : <><Mail size={10} /> Send Invite</>}
+                            </button>
+                          </div>
+                        )}
+                        {inviteTab === 'link' && (
+                          <div className="space-y-1.5">
+                            <p className="text-[10px] text-primary font-mono break-all px-1">{meetingLink}</p>
+                            <button onClick={() => { navigator.clipboard.writeText(meetingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
+                              className="w-full py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs flex items-center justify-center gap-1">
+                              {linkCopied ? <><Check size={10} className="text-green-400" /> Copied!</> : <><Copy size={10} /> Copy Link</>}
+                            </button>
+                            <button onClick={() => {
+                              const txt = `Join my Philomni meeting:\nTopic: ${meeting.title}\nLink: ${meetingLink}\nMeeting ID: ${meeting.meeting_code}${meeting.password ? `\nPassword: ${meeting.password}` : ''}`
+                              navigator.clipboard.writeText(txt); setInviteCopied(true); setTimeout(() => setInviteCopied(false), 2000)
+                            }} className="w-full py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs flex items-center justify-center gap-1">
+                              {inviteCopied ? <><Check size={10} className="text-green-400" /> Copied!</> : <><FileText size={10} /> Copy Full Invite</>}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-white/40 px-1 pt-1">In this meeting</p>
                   {participants.map((p, i) => (
                     <div key={i} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5">
                       <Avatar initials={p.initials} color={p.color} size={9} />
@@ -1251,8 +1561,8 @@ function ActiveMeetingView({ meeting, onLeave }) {
         <button onClick={() => setIsSharing(!isSharing)} className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs transition-colors ${isSharing ? 'bg-primary/20 text-primary' : 'text-white/70 hover:bg-white/10'}`}>
           <Monitor size={18} /> Share
         </button>
-        <button onClick={() => setIsRecording(!isRecording)} className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs transition-colors ${isRecording ? 'bg-red-500/20 text-red-400' : 'text-white/70 hover:bg-white/10'}`}>
-          <Circle size={18} className={isRecording ? 'fill-red-400' : ''} /> {isRecording ? 'Recording...' : 'Record'}
+        <button onClick={() => isRecording ? stopRecording() : setShowRecordConfirm(true)} className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs transition-colors ${isRecording ? 'bg-red-500/20 text-red-400' : 'text-white/70 hover:bg-white/10'}`}>
+          <Circle size={18} className={isRecording ? 'fill-red-400 animate-pulse' : ''} /> {isRecording ? 'Stop Rec' : 'Record'}
         </button>
         <button className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs text-white/70 hover:bg-white/10">
           <Hand size={18} /> React
@@ -1275,6 +1585,25 @@ function ActiveMeetingView({ meeting, onLeave }) {
         </button>
       </div>
 
+      {/* RECORD CONFIRM MODAL */}
+      {showRecordConfirm && (
+        <div className="absolute inset-0 bg-black/70 z-20 flex items-center justify-center">
+          <div className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-80 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                <Circle size={20} className="text-red-400" />
+              </div>
+              <h3 className="text-white font-semibold">Start Recording?</h3>
+            </div>
+            <p className="text-white/60 text-sm">All participants will be notified that this meeting is being recorded.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowRecordConfirm(false)} className="flex-1 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm">Cancel</button>
+              <button onClick={startRecording} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium">Start Recording</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* LEAVE CONFIRM */}
       {leaveConfirm && (
         <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center">
@@ -1282,8 +1611,8 @@ function ActiveMeetingView({ meeting, onLeave }) {
             <h3 className="text-white font-semibold">Leave Meeting?</h3>
             <p className="text-white/60 text-sm">Choose how you want to leave.</p>
             <div className="space-y-2">
-              <button onClick={onLeave} className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium">Leave and end for all</button>
-              <button onClick={onLeave} className="w-full py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm">Just leave</button>
+              <button onClick={() => { if (isRecording) stopRecording(); onEnd(notes, actions, recordingUrl) }} className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium">Leave and end for all</button>
+              <button onClick={() => { if (isRecording) stopRecording(); onEnd(notes, actions, recordingUrl) }} className="w-full py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm">Just leave</button>
               <button onClick={() => setLeaveConfirm(false)} className="w-full py-2 text-white/40 hover:text-white/70 text-sm">Cancel</button>
             </div>
           </div>
@@ -1482,88 +1811,398 @@ function MeetingDetailView({ meeting, onBack, onJoin }) {
   )
 }
 
+// ─── BOOKING SETUP ────────────────────────────────────────────────────────────
+
+function BookingSetup({ user, onDone }) {
+  const [step, setStep] = useState(1)
+  const [availability, setAvailability] = useState({
+    Mon: { active: true, start: '09:00', end: '17:00' },
+    Tue: { active: true, start: '09:00', end: '17:00' },
+    Wed: { active: true, start: '09:00', end: '17:00' },
+    Thu: { active: true, start: '09:00', end: '17:00' },
+    Fri: { active: true, start: '09:00', end: '17:00' },
+    Sat: { active: false, start: '10:00', end: '14:00' },
+    Sun: { active: false, start: '10:00', end: '14:00' },
+  })
+  const [timezone, setTimezone] = useState('UTC')
+  const [meetingTypes, setMeetingTypes] = useState([
+    { id: 1, name: '15-min Quick Chat', duration: 15, price: 0, description: 'A quick intro or catch-up', emoji: '☕' },
+    { id: 2, name: '30-min Consultation', duration: 30, price: 0, description: 'Discuss a specific topic in depth', emoji: '💬' },
+    { id: 3, name: '60-min Deep Dive', duration: 60, price: 0, description: 'Full strategy or detailed review', emoji: '🚀' },
+  ])
+  const [bufferMins, setBufferMins] = useState(0)
+  const [maxPerDay, setMaxPerDay] = useState(0)
+  const [minNoticeHours, setMinNoticeHours] = useState(2)
+  const [windowDays, setWindowDays] = useState(30)
+  const [confirmMsg, setConfirmMsg] = useState('Thanks for booking! You will receive a meeting link shortly.')
+  const [sendEmail, setSendEmail] = useState(true)
+  const [allowReschedule, setAllowReschedule] = useState(true)
+  const [allowCancel, setAllowCancel] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    try {
+      await supabase.from('booking_availability').upsert({
+        user_id: user?.id,
+        available_days: availability,
+        timezone,
+        buffer_minutes: bufferMins,
+        max_per_day: maxPerDay || null,
+        min_notice_hours: minNoticeHours,
+        booking_window_days: windowDays,
+        meeting_types: meetingTypes,
+        is_active: true,
+        confirmation_message: confirmMsg,
+      })
+    } catch {}
+    setSaving(false)
+    onDone()
+  }
+
+  return (
+    <div className="p-6 space-y-6 max-w-lg">
+      <div className="flex items-center gap-3">
+        <button onClick={onDone} className="p-2 rounded-xl hover:bg-muted text-muted-foreground"><ArrowLeft size={18} /></button>
+        <div>
+          <h2 className="text-xl font-bold text-foreground">Set Up Your Booking Page</h2>
+          <p className="text-muted-foreground text-sm">Let people book time with you</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        {[1,2,3,4].map(s => (
+          <React.Fragment key={s}>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${step >= s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{s}</div>
+            {s < 4 && <div className={`flex-1 h-0.5 transition-colors ${step > s ? 'bg-primary' : 'bg-border'}`} />}
+          </React.Fragment>
+        ))}
+      </div>
+
+      {step === 1 && (
+        <div className="space-y-4">
+          <h3 className="font-semibold text-foreground">Your Available Hours</h3>
+          {Object.entries(availability).map(([day, cfg]) => (
+            <div key={day} className="flex items-center gap-3 p-3 bg-muted rounded-xl">
+              <button onClick={() => setAvailability(prev => ({ ...prev, [day]: { ...cfg, active: !cfg.active } }))}
+                className={`w-8 h-4 rounded-full transition-colors relative flex-shrink-0 ${cfg.active ? 'bg-primary' : 'bg-border'}`}>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${cfg.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
+              <span className={`w-8 text-sm font-medium flex-shrink-0 ${cfg.active ? 'text-foreground' : 'text-muted-foreground'}`}>{day}</span>
+              {cfg.active ? (
+                <div className="flex items-center gap-2 flex-1">
+                  <input type="time" value={cfg.start} onChange={e => setAvailability(prev => ({ ...prev, [day]: { ...cfg, start: e.target.value } }))}
+                    className="bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground" />
+                  <span className="text-muted-foreground text-xs">–</span>
+                  <input type="time" value={cfg.end} onChange={e => setAvailability(prev => ({ ...prev, [day]: { ...cfg, end: e.target.value } }))}
+                    className="bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground" />
+                </div>
+              ) : <span className="text-xs text-muted-foreground">Unavailable</span>}
+            </div>
+          ))}
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Timezone</label>
+            <input value={timezone} onChange={e => setTimezone(e.target.value)}
+              className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary" />
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="space-y-4">
+          <h3 className="font-semibold text-foreground">Meeting Types You Offer</h3>
+          {meetingTypes.map((mt, i) => (
+            <div key={mt.id} className="p-4 bg-muted rounded-2xl space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{mt.emoji}</span>
+                <input value={mt.name} onChange={e => setMeetingTypes(prev => prev.map((x,xi) => xi===i ? {...x,name:e.target.value} : x))}
+                  className="flex-1 bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
+                <button onClick={() => setMeetingTypes(prev => prev.filter((_,xi) => xi!==i))}
+                  className="text-muted-foreground hover:text-destructive"><Trash2 size={14} /></button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Duration</label>
+                  <select value={mt.duration} onChange={e => setMeetingTypes(prev => prev.map((x,xi) => xi===i ? {...x,duration:Number(e.target.value)} : x))}
+                    className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground">
+                    {[15,30,45,60,90,120].map(d => <option key={d} value={d}>{d} min</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Price</label>
+                  <div className="flex items-center gap-1 bg-card border border-border rounded-lg px-2 py-1.5">
+                    <span className="text-xs text-muted-foreground">$</span>
+                    <input type="number" min="0" value={mt.price} onChange={e => setMeetingTypes(prev => prev.map((x,xi) => xi===i ? {...x,price:Number(e.target.value)} : x))}
+                      className="flex-1 bg-transparent text-xs text-foreground focus:outline-none" placeholder="0 = Free" />
+                  </div>
+                </div>
+              </div>
+              <input value={mt.description} onChange={e => setMeetingTypes(prev => prev.map((x,xi) => xi===i ? {...x,description:e.target.value} : x))}
+                placeholder="Brief description..." className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary" />
+            </div>
+          ))}
+          <button onClick={() => setMeetingTypes(prev => [...prev, { id: Date.now(), name: 'Custom Session', duration: 60, price: 0, description: '', emoji: '⭐' }])}
+            className="w-full py-2.5 border border-dashed border-border rounded-2xl text-sm text-muted-foreground hover:border-primary/50 hover:text-primary flex items-center justify-center gap-2">
+            <Plus size={14} /> Add Meeting Type
+          </button>
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="space-y-5">
+          <h3 className="font-semibold text-foreground">Buffer & Limits</h3>
+          {[
+            { label: 'Buffer between meetings', value: bufferMins, set: setBufferMins, opts: [[0,'None'],[5,'5 min'],[10,'10 min'],[15,'15 min'],[30,'30 min']] },
+            { label: 'Max bookings per day', value: maxPerDay, set: setMaxPerDay, opts: [[0,'Unlimited'],[3,'3'],[5,'5'],[8,'8'],[10,'10']] },
+            { label: 'Minimum notice (hours)', value: minNoticeHours, set: setMinNoticeHours, opts: [[1,'1 hr'],[2,'2 hrs'],[4,'4 hrs'],[24,'24 hrs'],[48,'48 hrs']] },
+            { label: 'Booking window (days)', value: windowDays, set: setWindowDays, opts: [[14,'14 days'],[30,'30 days'],[60,'60 days'],[90,'90 days']] },
+          ].map(item => (
+            <div key={item.label}>
+              <label className="text-sm font-medium text-foreground mb-2 block">{item.label}</label>
+              <div className="flex flex-wrap gap-2">
+                {item.opts.map(([val,lbl]) => (
+                  <button key={val} onClick={() => item.set(val)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${item.value === val ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>{lbl}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {step === 4 && (
+        <div className="space-y-4">
+          <h3 className="font-semibold text-foreground">Confirmation Settings</h3>
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Message to booker</label>
+            <textarea value={confirmMsg} onChange={e => setConfirmMsg(e.target.value)} rows={3}
+              className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary resize-none" />
+          </div>
+          {[
+            { label: 'Send email confirmation', value: sendEmail, set: setSendEmail },
+            { label: 'Allow rescheduling', value: allowReschedule, set: setAllowReschedule },
+            { label: 'Allow cancellation', value: allowCancel, set: setAllowCancel },
+          ].map(item => (
+            <div key={item.label} className="flex items-center justify-between p-3 bg-muted rounded-xl">
+              <span className="text-sm text-foreground">{item.label}</span>
+              <button onClick={() => item.set(!item.value)} className={`w-10 h-5 rounded-full transition-colors relative ${item.value ? 'bg-primary' : 'bg-border'}`}>
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${item.value ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between pt-2">
+        <button onClick={() => step > 1 ? setStep(s => s-1) : onDone()} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">{step === 1 ? 'Cancel' : 'Back'}</button>
+        {step < 4
+          ? <button onClick={() => setStep(s => s+1)} className="px-5 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90">Continue</button>
+          : <button onClick={save} disabled={saving} className="px-5 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 flex items-center gap-2">{saving && <Loader2 size={14} className="animate-spin" />} Save & Go Live</button>
+        }
+      </div>
+    </div>
+  )
+}
+
+// ─── MY BOOKINGS ──────────────────────────────────────────────────────────────
+
+function MyBookings({ user, onSetup, onManage }) {
+  const [bookings, setBookings] = useState([])
+  const [hasPage, setHasPage] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const bookingLink = `https://philomni.app/book/${user?.username || user?.id || 'me'}`
+
+  useEffect(() => {
+    if (!user?.id) return
+    supabase.from('booking_availability').select('is_active').eq('user_id', user.id).single()
+      .then(({ data }) => { if (data?.is_active) setHasPage(true) }).catch(() => {})
+    supabase.from('session_bookings').select('*').eq('host_id', user.id).order('scheduled_at', { ascending: true })
+      .then(({ data }) => { if (data?.length) setBookings(data) }).catch(() => {})
+  }, [user?.id])
+
+  const upcoming = bookings.filter(b => new Date(b.scheduled_at) > new Date())
+  const past = bookings.filter(b => new Date(b.scheduled_at) <= new Date())
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-foreground">My Booking Page</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{hasPage ? 'Your page is live' : 'Not set up yet'}</p>
+        </div>
+        <div className="flex gap-2">
+          {hasPage && (
+            <button onClick={() => { navigator.clipboard.writeText(bookingLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-xl text-xs text-foreground hover:bg-muted/80">
+              {linkCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />} Share Link
+            </button>
+          )}
+          <button onClick={hasPage ? onManage : onSetup}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-xl text-xs font-medium hover:bg-primary/90">
+            <Settings size={12} /> {hasPage ? 'Manage' : 'Set Up'}
+          </button>
+        </div>
+      </div>
+
+      {!hasPage && (
+        <div className="bg-gradient-to-br from-primary/10 to-violet-500/10 border border-primary/20 rounded-2xl p-6 text-center">
+          <CalendarCheck size={32} className="text-primary mx-auto mb-3" />
+          <p className="font-semibold text-foreground">Let people book time with you</p>
+          <p className="text-sm text-muted-foreground mt-1">Share your link and let clients book sessions directly</p>
+          <button onClick={onSetup} className="mt-4 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90">
+            Set Up Booking Page
+          </button>
+        </div>
+      )}
+
+      {upcoming.length > 0 && (
+        <div>
+          <h4 className="text-sm font-semibold text-foreground mb-3">Upcoming Sessions ({upcoming.length})</h4>
+          <div className="space-y-2">
+            {upcoming.map((b, i) => (
+              <div key={b.id||i} className="p-4 bg-card border border-border rounded-2xl">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-medium text-foreground text-sm">{b.meeting_type_name || 'Session'}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">with {b.booker_name || 'Client'} · {b.booker_email}</p>
+                    <p className="text-xs text-primary mt-1">{fmtDate(b.scheduled_at)} at {fmtTime(b.scheduled_at)}</p>
+                    {b.topic && <p className="text-xs text-muted-foreground mt-1 italic">"{b.topic}"</p>}
+                  </div>
+                  <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-500 rounded-full flex-shrink-0">{b.status}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {past.length > 0 && (
+        <div>
+          <h4 className="text-sm font-semibold text-foreground mb-3">Past Sessions</h4>
+          <div className="space-y-2">
+            {past.slice(0,3).map((b, i) => (
+              <div key={b.id||i} className="p-3 bg-muted rounded-xl flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-foreground">{b.meeting_type_name || 'Session'} with {b.booker_name || 'Client'}</p>
+                  <p className="text-xs text-muted-foreground">{fmtDate(b.scheduled_at)}</p>
+                </div>
+                <span className="text-xs text-muted-foreground">{durationLabel(b.duration_minutes)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── CENTER DASHBOARD ─────────────────────────────────────────────────────────
 
-function CenterDashboard({ meetings, pastMeetings, onSchedule, onJoinCode, onInstant, onSelectMeeting, onSelectPast, onJoin }) {
+function CenterDashboard({ meetings, pastMeetings, onSchedule, onJoinCode, onInstant, onSelectMeeting, onSelectPast, onJoin, user }) {
+  const [tab, setTab] = useState('overview')
+  const [showBookingSetup, setShowBookingSetup] = useState(false)
+
+  if (showBookingSetup) {
+    return <BookingSetup user={user} onDone={() => setShowBookingSetup(false)} />
+  }
+
   const now = new Date()
   const weekStart = startOfWeek(now, { weekStartsOn: 1 })
   const weekEnd = endOfWeek(now, { weekStartsOn: 1 })
-  const meetingsThisWeek = meetings.filter(m => {
-    const d = new Date(m.scheduled_at)
-    return d >= weekStart && d <= weekEnd
-  })
+  const meetingsThisWeek = meetings.filter(m => { const d = new Date(m.scheduled_at); return d >= weekStart && d <= weekEnd })
   const hoursInMeetings = meetings.reduce((acc, m) => acc + (m.duration_minutes || 0), 0) / 60
   const todayMeetings = meetings.filter(m => isToday(new Date(m.scheduled_at)))
   const isLive = (m) => Math.abs(new Date(m.scheduled_at).getTime() - Date.now()) < 5 * 60000
   const displayMeetings = todayMeetings.length > 0 ? todayMeetings : meetings
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-foreground">Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'} 👋</h2>
-        <p className="text-muted-foreground text-sm mt-0.5">{format(now, 'EEEE, MMMM d, yyyy')}</p>
-      </div>
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'This Week', value: meetingsThisWeek.length, sub: 'meetings scheduled', icon: <Calendar size={18} className="text-primary" /> },
-          { label: 'Time in Meetings', value: `${hoursInMeetings.toFixed(1)}h`, sub: 'total duration', icon: <Clock size={18} className="text-violet-500" /> },
-          { label: 'Today', value: todayMeetings.length, sub: 'meeting' + (todayMeetings.length !== 1 ? 's' : '') + ' scheduled', icon: <Zap size={18} className="text-amber-500" /> },
-        ].map(stat => (
-          <div key={stat.label} className="bg-card border border-border rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-2">{stat.icon}<span className="text-xs text-muted-foreground">{stat.label}</span></div>
-            <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{stat.sub}</p>
-          </div>
+    <div className="flex flex-col h-full">
+      {/* Tab bar */}
+      <div className="flex border-b border-border px-4 pt-4 flex-shrink-0">
+        {[['overview','Overview'],['calendar','Calendar'],['booking','Booking']].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === id ? 'text-primary border-primary' : 'text-muted-foreground border-transparent hover:text-foreground'}`}>
+            {label}
+          </button>
         ))}
       </div>
-      {/* Mini Calendar */}
-      <MiniCalendar meetings={meetings} />
-      {/* Quick Actions */}
-      <div className="grid grid-cols-3 gap-3">
-        <button onClick={onInstant} className="flex flex-col items-center gap-2 p-4 bg-green-600/10 border border-green-600/20 rounded-2xl hover:bg-green-600/20 transition-colors">
-          <Zap size={22} className="text-green-500" />
-          <span className="text-sm font-medium text-foreground">Start Instant</span>
-          <span className="text-xs text-muted-foreground">No setup needed</span>
-        </button>
-        <button onClick={onSchedule} className="flex flex-col items-center gap-2 p-4 bg-primary/10 border border-primary/20 rounded-2xl hover:bg-primary/20 transition-colors">
-          <Calendar size={22} className="text-primary" />
-          <span className="text-sm font-medium text-foreground">Schedule</span>
-          <span className="text-xs text-muted-foreground">Plan ahead</span>
-        </button>
-        <button onClick={onJoinCode} className="flex flex-col items-center gap-2 p-4 bg-violet-500/10 border border-violet-500/20 rounded-2xl hover:bg-violet-500/20 transition-colors">
-          <Hash size={22} className="text-violet-500" />
-          <span className="text-sm font-medium text-foreground">Join with Code</span>
-          <span className="text-xs text-muted-foreground">Enter meeting ID</span>
-        </button>
-      </div>
-      {/* Meetings list */}
-      <div>
-        <h3 className="font-semibold text-foreground mb-3">{todayMeetings.length > 0 ? "Today's Meetings" : "Upcoming Meetings"}</h3>
-        <div className="space-y-3">
-          {displayMeetings.map(m => (
-            <MeetingCard key={m.id} meeting={m} onJoin={onJoin} onDetails={onSelectMeeting} isLive={isLive(m)} />
-          ))}
-          {displayMeetings.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <Calendar size={32} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No upcoming meetings</p>
-              <button onClick={onSchedule} className="mt-3 text-primary text-sm hover:underline">Schedule one now</button>
+
+      <div className="flex-1 overflow-y-auto">
+        {tab === 'overview' && (
+          <div className="p-6 space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-foreground">Good {now.getHours() < 12 ? 'morning' : now.getHours() < 18 ? 'afternoon' : 'evening'} 👋</h2>
+              <p className="text-muted-foreground text-sm mt-0.5">{format(now, 'EEEE, MMMM d, yyyy')}</p>
             </div>
-          )}
-        </div>
-      </div>
-      {/* Recent Past */}
-      {pastMeetings.length > 0 && (
-        <div>
-          <h3 className="font-semibold text-foreground mb-3">Recent Meetings</h3>
-          <div className="space-y-3">
-            {pastMeetings.slice(0, 2).map(m => (
-              <PastMeetingCard key={m.id} meeting={m} onView={onSelectPast} />
-            ))}
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { label: 'This Week', value: meetingsThisWeek.length, sub: 'meetings', icon: <Calendar size={18} className="text-primary" /> },
+                { label: 'Total Hours', value: `${hoursInMeetings.toFixed(1)}h`, sub: 'in meetings', icon: <Clock size={18} className="text-violet-500" /> },
+                { label: 'Today', value: todayMeetings.length, sub: todayMeetings.length !== 1 ? 'meetings' : 'meeting', icon: <Zap size={18} className="text-amber-500" /> },
+              ].map(stat => (
+                <div key={stat.label} className="bg-card border border-border rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-2">{stat.icon}<span className="text-xs text-muted-foreground">{stat.label}</span></div>
+                  <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{stat.sub}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <button onClick={onInstant} className="flex flex-col items-center gap-2 p-4 bg-green-600/10 border border-green-600/20 rounded-2xl hover:bg-green-600/20 transition-colors">
+                <Zap size={22} className="text-green-500" />
+                <span className="text-sm font-medium text-foreground">Start Instant</span>
+                <span className="text-xs text-muted-foreground">No setup needed</span>
+              </button>
+              <button onClick={onSchedule} className="flex flex-col items-center gap-2 p-4 bg-primary/10 border border-primary/20 rounded-2xl hover:bg-primary/20 transition-colors">
+                <Calendar size={22} className="text-primary" />
+                <span className="text-sm font-medium text-foreground">Schedule</span>
+                <span className="text-xs text-muted-foreground">Plan ahead</span>
+              </button>
+              <button onClick={onJoinCode} className="flex flex-col items-center gap-2 p-4 bg-violet-500/10 border border-violet-500/20 rounded-2xl hover:bg-violet-500/20 transition-colors">
+                <Hash size={22} className="text-violet-500" />
+                <span className="text-sm font-medium text-foreground">Join with Code</span>
+                <span className="text-xs text-muted-foreground">Enter meeting ID</span>
+              </button>
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground mb-3">{todayMeetings.length > 0 ? "Today's Meetings" : "Upcoming Meetings"}</h3>
+              <div className="space-y-3">
+                {displayMeetings.map(m => (
+                  <MeetingCard key={m.id} meeting={m} onJoin={onJoin} onDetails={onSelectMeeting} isLive={isLive(m)} />
+                ))}
+                {displayMeetings.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar size={32} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No upcoming meetings</p>
+                    <button onClick={onSchedule} className="mt-3 text-primary text-sm hover:underline">Schedule one now</button>
+                  </div>
+                )}
+              </div>
+            </div>
+            {pastMeetings.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-foreground mb-3">Recent Past Meetings</h3>
+                <div className="space-y-3">
+                  {pastMeetings.slice(0, 3).map(m => (
+                    <PastMeetingCard key={m.id} meeting={m} onView={onSelectPast} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+
+        {tab === 'calendar' && (
+          <div className="p-6">
+            <FullCalendar meetings={meetings} onSchedule={onSchedule} onSelectMeeting={onSelectMeeting} />
+          </div>
+        )}
+
+        {tab === 'booking' && (
+          <div className="p-6">
+            <MyBookings user={user} onSetup={() => setShowBookingSetup(true)} onManage={() => setShowBookingSetup(true)} />
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -1584,6 +2223,7 @@ export default function Meetings() {
   const [selectedPast, setSelectedPast] = useState(null)
   const [selectedSpace, setSelectedSpace] = useState(null)
   const [activeMeeting, setActiveMeeting] = useState(null)
+  const activeMeetingStartRef = useRef(null)
 
   const [showSchedule, setShowSchedule] = useState(false)
   const [showJoinCode, setShowJoinCode] = useState(false)
@@ -1635,8 +2275,40 @@ export default function Meetings() {
     setShowCreateSpace(false)
   }
 
+  async function handleMeetingEnd(meeting, notes, actions, recUrl) {
+    const endedAt = new Date()
+    const startedAt = activeMeetingStartRef.current || new Date(meeting.scheduled_at)
+    const duration = Math.max(1, Math.round((endedAt - startedAt) / 60000))
+    const endedMeeting = {
+      ...meeting,
+      status: 'ended',
+      started_at: startedAt.toISOString(),
+      ended_at: endedAt.toISOString(),
+      duration_minutes: duration,
+      notes: notes || '',
+      action_items: actions || [],
+      recording_url: recUrl || meeting.recording_url || null,
+      chat: [],
+    }
+    setPastMeetings(prev => [endedMeeting, ...prev])
+    setMeetings(prev => prev.filter(m => m.id !== meeting.id))
+    setActiveMeeting(null)
+    setLeftCollapsed(prev => ({ ...prev, past: false }))
+    try {
+      await supabase.from('meetings').update({
+        status: 'ended',
+        ended_at: endedAt.toISOString(),
+        duration_minutes: duration,
+        recording_url: recUrl || null,
+      }).eq('id', meeting.id)
+    } catch {}
+  }
+
   if (activeMeeting) {
-    return <ActiveMeetingView meeting={activeMeeting} onLeave={() => setActiveMeeting(null)} />
+    return <ActiveMeetingView
+      meeting={activeMeeting}
+      onEnd={(notes, actions, recUrl) => handleMeetingEnd(activeMeeting, notes, actions, recUrl)}
+    />
   }
 
   let centerContent
@@ -1645,7 +2317,7 @@ export default function Meetings() {
   } else if (selectedPast) {
     centerContent = <PastMeetingDetail meeting={selectedPast} onBack={() => setSelectedPast(null)} onScheduleFollowup={() => setShowSchedule(true)} />
   } else if (selectedMeeting) {
-    centerContent = <MeetingDetailView meeting={selectedMeeting} onBack={() => setSelectedMeeting(null)} onJoin={() => setActiveMeeting(selectedMeeting)} />
+    centerContent = <MeetingDetailView meeting={selectedMeeting} onBack={() => setSelectedMeeting(null)} onJoin={() => { activeMeetingStartRef.current = new Date(); setActiveMeeting(selectedMeeting) }} />
   } else {
     centerContent = (
       <CenterDashboard
@@ -1656,7 +2328,8 @@ export default function Meetings() {
         onInstant={() => setShowInstant(true)}
         onSelectMeeting={setSelectedMeeting}
         onSelectPast={setSelectedPast}
-        onJoin={setActiveMeeting}
+        onJoin={(m) => { activeMeetingStartRef.current = new Date(); setActiveMeeting(m) }}
+        user={user}
       />
     )
   }
@@ -1673,7 +2346,7 @@ export default function Meetings() {
         onSelectMeeting={setSelectedMeeting}
         onSelectPast={setSelectedPast}
         onSelectSpace={setSelectedSpace}
-        onJoin={setActiveMeeting}
+        onJoin={(m) => { activeMeetingStartRef.current = new Date(); setActiveMeeting(m) }}
         onNewMeeting={() => setShowSchedule(true)}
         onNewSpace={() => setShowCreateSpace(true)}
         selectedId={selectedMeeting?.id || selectedPast?.id || selectedSpace?.id}
