@@ -3,10 +3,20 @@ import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
+const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true'
+const DEV_USER = DEV_MODE ? {
+  id: 'dev-user-id',
+  email: 'dev@philomni.app',
+  full_name: 'Dami Dev',
+  avatar_url: null,
+  role: 'creator',
+  plan: 'pro',
+} : null
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(DEV_USER)
+  const [profile, setProfile] = useState(DEV_USER)
+  const [loading, setLoading] = useState(DEV_MODE ? false : true)
 
   const loadProfile = async (authUser) => {
     if (!authUser) { setProfile(null); return }
@@ -37,6 +47,8 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     // Apply dark mode
     document.documentElement.classList.add('dark')
+
+    if (DEV_MODE) return // skip real auth in dev mode
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
