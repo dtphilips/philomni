@@ -87,6 +87,7 @@ import VideoMarketplace from './pages/VideoMarketplace'
 import TemplateMarketplace from './pages/TemplateMarketplace'
 import SkillExchange from './pages/SkillExchange'
 import MonetizationHub from './pages/MonetizationHub'
+import Monetization from './pages/Monetization'
 import Upgrade from './pages/Upgrade'
 import Billing from './pages/Billing'
 
@@ -216,7 +217,7 @@ export default function App() {
             <Route path="/video-marketplace" element={<P page={VideoMarketplace} />} />
             <Route path="/templates" element={<P page={TemplateMarketplace} />} />
             <Route path="/skills" element={<P page={SkillExchange} />} />
-            <Route path="/monetize" element={<P page={MonetizationHub} />} />
+            <Route path="/monetize" element={<P page={Monetization} />} />
             <Route path="/upgrade" element={<P page={Upgrade} />} />
             <Route path="/billing" element={<P page={Billing} />} />
 

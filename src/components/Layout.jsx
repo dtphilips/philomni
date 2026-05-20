@@ -7,7 +7,7 @@ import {
   Music, Palette, Library, Briefcase, Globe, Zap, ShoppingBag,
   Video, LogOut, Menu, X, ChevronRight, Bell, Package,
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
-  Newspaper, Award, Target, ClipboardList, Hash, Sparkles,
+  Newspaper, Award, Target, ClipboardList, Hash, Sparkles, DollarSign,
 } from 'lucide-react'
 
 // ─── Creator Mode Navigation ──────────────────────────────────────────────────
@@ -42,9 +42,10 @@ const CREATOR_NAV = [
   {
     label: 'Grow',
     items: [
-      { to: '/analytics', icon: BarChart2, label: 'Analytics' },
-      { to: '/podcasts',  icon: Mic2,      label: 'Podcasts' },
-      { to: '/store',     icon: Store,     label: 'My Store' },
+      { to: '/analytics', icon: BarChart2,   label: 'Analytics' },
+      { to: '/monetize',  icon: DollarSign,  label: 'Monetize', badge: '💰' },
+      { to: '/podcasts',  icon: Mic2,        label: 'Podcasts' },
+      { to: '/store',     icon: Store,       label: 'My Store' },
     ],
   },
   {
@@ -98,6 +99,7 @@ const PRO_NAV = [
     label: 'Tools',
     items: [
       { to: '/analytics',    icon: BarChart2,     label: 'Analytics' },
+      { to: '/monetize',     icon: DollarSign,    label: 'Monetize', badge: '💰' },
       { to: '/messages',     icon: MessageSquare, label: 'Messages' },
       { to: '/notifications',icon: Bell,          label: 'Notifications' },
     ],
