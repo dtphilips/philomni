@@ -1,191 +1,982 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Camera, Edit2, Save, X, Loader2, Upload, ImagePlus } from 'lucide-react'
+import { useMode } from '../context/ModeContext'
+import { useNavigate, useParams } from 'react-router-dom'
+import {
+  Camera, Edit2, Loader2, MapPin, Globe, Share2, Settings,
+  MessageSquare, UserPlus, UserMinus, MoreHorizontal, Grid, List,
+  Briefcase, GraduationCap, Heart, MessageCircle, Eye, Play,
+  Plus, X, Check,
+} from 'lucide-react'
+import { format, formatDistanceToNow } from 'date-fns'
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+const CONTENT_CATEGORIES = [
+  'Lifestyle', 'Fashion', 'Beauty', 'Tech', 'Finance', 'Food',
+  'Travel', 'Fitness', 'Music', 'Gaming', 'Education', 'Business',
+  'Comedy', 'Motivational', 'Parenting', 'Nigerian Content',
+]
+const CREATOR_TYPES = [
+  'UGC Creator', 'Educator', 'Entertainer', 'Influencer',
+  'Artist', 'Podcaster', 'Photographer', 'Other',
+]
+const INDUSTRIES = [
+  'Technology', 'Finance', 'Healthcare', 'Education', 'Media & Entertainment',
+  'Real Estate', 'Marketing', 'Consulting', 'Law', 'Engineering',
+  'Government', 'Non-profit', 'Other',
+]
+const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Freelance', 'Internship', 'Volunteer']
+const DEGREE_TYPES = ["Bachelor's", "Master's", 'PhD', 'MBA', 'Diploma', 'Certificate', 'Associate', 'Other']
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function sanitizeHTML(html) {
+  if (!html) return ''
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/on\w+="[^"]*"/g, '')
+    .replace(/on\w+='[^']*'/g, '')
+    .replace(/javascript:/gi, '')
+}
+
+function isEmptyHTML(html) {
+  if (!html) return true
+  const stripped = html.replace(/<[^>]+>/g, '').replace(/\s/g, '')
+  return stripped.length === 0
+}
+
+function formatCount(n) {
+  if (!n) return '0'
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
+  return n.toString()
+}
+
+// ─── PostCard ─────────────────────────────────────────────────────────────────
+function PostCard({ post, viewMode = 'list' }) {
+  const hasContent = !isEmptyHTML(post.content)
+  const mediaUrls = post.media_urls || (post.image_url ? [post.image_url] : [])
+  const isVideo = post.post_type === 'video' || mediaUrls.some(u => /\.(mp4|mov|webm)/i.test(u))
+  const isEmpty = !hasContent && mediaUrls.length === 0
+
+  if (viewMode === 'grid') {
+    if (mediaUrls.length > 0) {
+      return (
+        <div className="aspect-square rounded-xl overflow-hidden relative group cursor-pointer">
+          <img src={mediaUrls[0]} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+            <div className="flex items-center gap-3 text-white text-sm font-semibold">
+              <span>❤️ {post.like_count ?? 0}</span>
+              <span>💬 {post.comment_count ?? 0}</span>
+            </div>
+          </div>
+          {isVideo && <div className="absolute top-2 right-2"><Play className="w-5 h-5 text-white fill-white drop-shadow" /></div>}
+        </div>
+      )
+    }
+    return (
+      <div className="aspect-square rounded-xl overflow-hidden relative cursor-pointer bg-gradient-to-br from-primary/20 to-purple-900/30 p-3 flex items-center justify-center group">
+        <p className="text-xs text-foreground/70 text-center line-clamp-4">
+          {(post.content || '').replace(/<[^>]+>/g, ' ').trim() || '📝'}
+        </p>
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-xl">
+          <span className="text-white text-sm font-semibold">❤️ {post.like_count ?? 0}</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      {isEmpty ? (
+        <p className="text-sm text-muted-foreground italic">📝 Empty post</p>
+      ) : (
+        <>
+          {hasContent && (
+            <div
+              className="text-sm text-foreground leading-relaxed prose prose-invert prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5"
+              dangerouslySetInnerHTML={{ __html: sanitizeHTML(post.content) }}
+            />
+          )}
+          {mediaUrls.length === 1 && (
+            <div className="mt-3 rounded-xl overflow-hidden">
+              {isVideo
+                ? <div className="relative aspect-video bg-black/40 rounded-xl flex items-center justify-center">
+                    <Play className="w-12 h-12 text-white/60" />
+                  </div>
+                : <img src={mediaUrls[0]} alt="" className="w-full max-h-80 object-cover rounded-xl" />}
+            </div>
+          )}
+          {mediaUrls.length > 1 && (
+            <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
+              {mediaUrls.slice(0, 4).map((url, i) => (
+                <div key={i} className="relative aspect-square">
+                  <img src={url} alt="" className="w-full h-full object-cover" />
+                  {i === 3 && mediaUrls.length > 4 && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-bold text-lg">
+                      +{mediaUrls.length - 4}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      <div className="flex items-center gap-4 mt-3 pt-2 border-t border-border/50">
+        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Heart className="w-3 h-3" /> {post.like_count ?? 0}</span>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground"><MessageCircle className="w-3 h-3" /> {post.comment_count ?? 0}</span>
+        {post.view_count > 0 && <span className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="w-3 h-3" /> {post.view_count}</span>}
+        <span className="text-xs text-muted-foreground ml-auto">
+          {post.created_at ? formatDistanceToNow(new Date(post.created_at), { addSuffix: true }) : ''}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ─── WorkExperienceItem ───────────────────────────────────────────────────────
+function WorkExperienceItem({ item }) {
+  const duration = () => {
+    if (!item.start_date) return ''
+    const start = (() => { try { return format(new Date(item.start_date + '-01'), 'MMM yyyy') } catch { return item.start_date } })()
+    const end = item.is_current ? 'Present' : item.end_date ? (() => { try { return format(new Date(item.end_date + '-01'), 'MMM yyyy') } catch { return item.end_date } })() : ''
+    return `${start}${end ? ' – ' + end : ''}`
+  }
+  return (
+    <div className="flex gap-4 py-4 border-b border-border last:border-0">
+      <div className="w-11 h-11 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+        <Briefcase className="w-5 h-5 text-muted-foreground" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-foreground text-sm">{item.job_title}</p>
+        <p className="text-sm text-muted-foreground">{item.company_name}{item.employment_type ? ` · ${item.employment_type}` : ''}</p>
+        {duration() && <p className="text-xs text-muted-foreground mt-0.5">{duration()}</p>}
+        {item.location && <p className="text-xs text-muted-foreground">{item.location}</p>}
+        {item.description && <p className="text-sm text-foreground/70 mt-2 leading-relaxed">{item.description}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ─── EducationItem ────────────────────────────────────────────────────────────
+function EducationItem({ item }) {
+  return (
+    <div className="flex gap-4 py-4 border-b border-border last:border-0">
+      <div className="w-11 h-11 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+        <GraduationCap className="w-5 h-5 text-muted-foreground" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-foreground text-sm">{item.school_name}</p>
+        <p className="text-sm text-muted-foreground">{[item.degree, item.field_of_study].filter(Boolean).join(' · ')}</p>
+        {(item.start_year || item.end_year) && (
+          <p className="text-xs text-muted-foreground mt-0.5">{item.start_year}{item.end_year ? ` – ${item.end_year}` : ''}</p>
+        )}
+        {item.description && <p className="text-sm text-foreground/70 mt-2">{item.description}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ─── ProfileCompletionCard ────────────────────────────────────────────────────
+function ProfileCompletionCard({ profileUser }) {
+  const checks = [
+    { label: 'Add profile photo', done: !!profileUser?.avatar_url, pct: 10 },
+    { label: 'Add a headline', done: !!profileUser?.headline, pct: 10 },
+    { label: 'Add your bio', done: !!profileUser?.bio, pct: 10 },
+    { label: 'Add work experience', done: (profileUser?.work_experience?.length ?? 0) > 0, pct: 15 },
+    { label: 'Add skills', done: (profileUser?.skills?.length ?? 0) > 0, pct: 10 },
+    { label: 'Add your location', done: !!profileUser?.location, pct: 5 },
+    { label: 'Add a website', done: !!profileUser?.website, pct: 5 },
+    { label: 'Connect social accounts', done: !!(profileUser?.social_links?.instagram || profileUser?.social_links?.twitter), pct: 10 },
+  ]
+  const total = checks.reduce((acc, c) => acc + (c.done ? c.pct : 0), 0)
+  if (total >= 90) return null
+
+  return (
+    <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-semibold text-foreground text-sm">Profile Completion</h3>
+        <span className="text-sm font-bold text-primary">{total}%</span>
+      </div>
+      <div className="w-full h-2 bg-muted rounded-full mb-3">
+        <div className="h-2 bg-primary rounded-full transition-all duration-500" style={{ width: `${total}%` }} />
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">Complete your profile to attract more opportunities</p>
+      <div className="space-y-1.5">
+        {checks.filter(c => !c.done).slice(0, 4).map(c => (
+          <div key={c.label} className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="w-3.5 h-3.5 rounded border border-border flex-shrink-0" />
+            <span>{c.label} <span className="text-primary/60">(+{c.pct}%)</span></span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── EditProfileModal ─────────────────────────────────────────────────────────
+function EditProfileModal({ profileUser, onClose, onSave }) {
+  const [tab, setTab] = useState('basic')
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    full_name: profileUser?.full_name ?? '',
+    username: profileUser?.username ?? '',
+    headline: profileUser?.headline ?? '',
+    bio: profileUser?.bio ?? '',
+    location: profileUser?.location ?? '',
+    website: profileUser?.website ?? '',
+    creator_type: profileUser?.creator_type ?? '',
+    content_categories: profileUser?.content_categories ?? [],
+    professional_summary: profileUser?.professional_summary ?? '',
+    industry: profileUser?.industry ?? '',
+    skills: profileUser?.skills ?? [],
+    work_experience: profileUser?.work_experience ?? [],
+    education: profileUser?.education ?? [],
+    social_links: profileUser?.social_links ?? {},
+  })
+  const [newSkill, setNewSkill] = useState('')
+  const [addingWork, setAddingWork] = useState(false)
+  const [addingEdu, setAddingEdu] = useState(false)
+  const [workForm, setWorkForm] = useState({
+    job_title: '', company_name: '', employment_type: 'Full-time',
+    start_date: '', end_date: '', is_current: false, location: '', description: '',
+  })
+  const [eduForm, setEduForm] = useState({
+    school_name: '', degree: "Bachelor's", field_of_study: '',
+    start_year: '', end_year: '', description: '',
+  })
+
+  const f = (key, val) => setForm(prev => ({ ...prev, [key]: val }))
+
+  const handleSave = async () => {
+    setSaving(true)
+    try { await onSave(form); onClose() } finally { setSaving(false) }
+  }
+
+  const addSkill = () => {
+    const s = newSkill.trim()
+    if (!s || form.skills.includes(s)) return
+    f('skills', [...form.skills, s])
+    setNewSkill('')
+  }
+
+  const addWork = () => {
+    if (!workForm.job_title || !workForm.company_name) return
+    f('work_experience', [...form.work_experience, { ...workForm, id: Date.now() }])
+    setWorkForm({ job_title: '', company_name: '', employment_type: 'Full-time', start_date: '', end_date: '', is_current: false, location: '', description: '' })
+    setAddingWork(false)
+  }
+
+  const addEdu = () => {
+    if (!eduForm.school_name) return
+    f('education', [...form.education, { ...eduForm, id: Date.now() }])
+    setEduForm({ school_name: '', degree: "Bachelor's", field_of_study: '', start_year: '', end_year: '', description: '' })
+    setAddingEdu(false)
+  }
+
+  const inp = (key, placeholder, extra = {}) => (
+    <input value={form[key] ?? ''} onChange={e => f(key, e.target.value)} placeholder={placeholder} {...extra}
+      className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
+  )
+
+  const ta = (key, placeholder, rows = 3, max) => (
+    <div>
+      <textarea value={form[key] ?? ''} onChange={e => f(key, e.target.value)} placeholder={placeholder}
+        rows={rows} maxLength={max} className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none" />
+      {max && <p className="text-xs text-muted-foreground text-right mt-0.5">{(form[key] ?? '').length}/{max}</p>}
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+          <h2 className="font-bold text-foreground">Edit Profile</h2>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-muted"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="flex border-b border-border flex-shrink-0 overflow-x-auto">
+          {[['basic', 'Basic Info'], ['creator', 'Creator'], ['pro', 'Professional'], ['social', 'Social Links']].map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`px-5 py-3 text-sm font-medium whitespace-nowrap flex-shrink-0 transition-colors ${tab === k ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          {/* ── BASIC INFO ── */}
+          {tab === 'basic' && (
+            <>
+              <div className="space-y-1"><label className="text-xs font-medium text-muted-foreground">Full Name</label>{inp('full_name', 'Your full name')}</div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Username</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
+                  <input value={form.username ?? ''} onChange={e => f('username', e.target.value)} placeholder="yourhandle"
+                    className="w-full bg-muted rounded-xl pl-7 pr-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Headline <span className="opacity-50">(120 chars)</span></label>
+                {inp('headline', 'Creator | Educator | Entrepreneur', { maxLength: 120 })}
+              </div>
+              <div className="space-y-1"><label className="text-xs font-medium text-muted-foreground">Bio</label>{ta('bio', 'Tell people about yourself...', 4, 500)}</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1"><label className="text-xs font-medium text-muted-foreground">Location</label>{inp('location', 'City, Country')}</div>
+                <div className="space-y-1"><label className="text-xs font-medium text-muted-foreground">Website</label>{inp('website', 'https://yoursite.com')}</div>
+              </div>
+            </>
+          )}
+
+          {/* ── CREATOR ── */}
+          {tab === 'creator' && (
+            <>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Creator Type</label>
+                <div className="flex flex-wrap gap-2">
+                  {CREATOR_TYPES.map(ct => (
+                    <button key={ct} onClick={() => f('creator_type', ct)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${form.creator_type === ct ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
+                      {ct}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Content Categories</label>
+                <div className="flex flex-wrap gap-2">
+                  {CONTENT_CATEGORIES.map(cat => {
+                    const on = (form.content_categories || []).includes(cat)
+                    return (
+                      <button key={cat} onClick={() => f('content_categories', on ? form.content_categories.filter(c => c !== cat) : [...(form.content_categories || []), cat])}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
+                        {cat}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Other Platforms</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[['instagram', 'Instagram @handle'], ['tiktok', 'TikTok @handle'], ['youtube', 'YouTube URL'], ['twitter', 'Twitter/X @handle']].map(([key, ph]) => (
+                    <input key={key} value={form.social_links?.[key] ?? ''} onChange={e => f('social_links', { ...form.social_links, [key]: e.target.value })} placeholder={ph}
+                      className="bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── PROFESSIONAL ── */}
+          {tab === 'pro' && (
+            <>
+              <div className="space-y-1"><label className="text-xs font-medium text-muted-foreground">Professional Summary</label>{ta('professional_summary', 'Describe your professional background...', 5, 2000)}</div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Industry</label>
+                <select value={form.industry ?? ''} onChange={e => f('industry', e.target.value)}
+                  className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40">
+                  <option value="">Select industry...</option>
+                  {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                </select>
+              </div>
+
+              {/* Work Experience */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted-foreground">Work Experience</label>
+                  <button onClick={() => setAddingWork(true)} className="text-xs text-primary flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add</button>
+                </div>
+                {form.work_experience.map((w, i) => (
+                  <div key={w.id || i} className="bg-muted/50 rounded-xl p-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">{w.job_title}</p>
+                      <p className="text-xs text-muted-foreground">{w.company_name} · {w.employment_type}</p>
+                    </div>
+                    <button onClick={() => f('work_experience', form.work_experience.filter((_, j) => j !== i))} className="p-1 rounded hover:bg-muted flex-shrink-0">
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                ))}
+                {addingWork && (
+                  <div className="bg-muted/30 rounded-xl p-4 space-y-3 border border-border">
+                    <div className="grid grid-cols-2 gap-2">
+                      <input value={workForm.job_title} onChange={e => setWorkForm(w => ({ ...w, job_title: e.target.value }))} placeholder="Job title *" className="bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none" />
+                      <input value={workForm.company_name} onChange={e => setWorkForm(w => ({ ...w, company_name: e.target.value }))} placeholder="Company *" className="bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select value={workForm.employment_type} onChange={e => setWorkForm(w => ({ ...w, employment_type: e.target.value }))} className="bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none">
+                        {EMPLOYMENT_TYPES.map(t => <option key={t}>{t}</option>)}
+                      </select>
+                      <input value={workForm.location} onChange={e => setWorkForm(w => ({ ...w, location: e.target.value }))} placeholder="Location" className="bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="month" value={workForm.start_date} onChange={e => setWorkForm(w => ({ ...w, start_date: e.target.value }))} className="bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none" />
+                      {!workForm.is_current && <input type="month" value={workForm.end_date} onChange={e => setWorkForm(w => ({ ...w, end_date: e.target.value }))} className="bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none" />}
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                      <input type="checkbox" checked={workForm.is_current} onChange={e => setWorkForm(w => ({ ...w, is_current: e.target.checked }))} />
+                      Currently working here
+                    </label>
+                    <textarea value={workForm.description} onChange={e => setWorkForm(w => ({ ...w, description: e.target.value }))} placeholder="Description..." rows={2}
+                      className="w-full bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none resize-none" />
+                    <div className="flex gap-2">
+                      <button onClick={addWork} className="px-4 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium">Save</button>
+                      <button onClick={() => setAddingWork(false)} className="px-4 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs font-medium">Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Education */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted-foreground">Education</label>
+                  <button onClick={() => setAddingEdu(true)} className="text-xs text-primary flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add</button>
+                </div>
+                {form.education.map((e, i) => (
+                  <div key={e.id || i} className="bg-muted/50 rounded-xl p-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">{e.school_name}</p>
+                      <p className="text-xs text-muted-foreground">{e.degree} · {e.field_of_study}</p>
+                    </div>
+                    <button onClick={() => f('education', form.education.filter((_, j) => j !== i))} className="p-1 rounded hover:bg-muted flex-shrink-0">
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                ))}
+                {addingEdu && (
+                  <div className="bg-muted/30 rounded-xl p-4 space-y-3 border border-border">
+                    <input value={eduForm.school_name} onChange={e => setEduForm(f => ({ ...f, school_name: e.target.value }))} placeholder="School / University *" className="w-full bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <select value={eduForm.degree} onChange={e => setEduForm(f => ({ ...f, degree: e.target.value }))} className="bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none">
+                        {DEGREE_TYPES.map(d => <option key={d}>{d}</option>)}
+                      </select>
+                      <input value={eduForm.field_of_study} onChange={e => setEduForm(f => ({ ...f, field_of_study: e.target.value }))} placeholder="Field of study" className="bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input value={eduForm.start_year} onChange={e => setEduForm(f => ({ ...f, start_year: e.target.value }))} placeholder="Start year" type="number" min="1950" max="2030" className="bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none" />
+                      <input value={eduForm.end_year} onChange={e => setEduForm(f => ({ ...f, end_year: e.target.value }))} placeholder="End year" type="number" min="1950" max="2030" className="bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={addEdu} className="px-4 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium">Save</button>
+                      <button onClick={() => setAddingEdu(false)} className="px-4 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs font-medium">Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Skills */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Skills</label>
+                <div className="flex gap-2">
+                  <input value={newSkill} onChange={e => setNewSkill(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSkill()} placeholder="Add a skill (Enter to add)"
+                    className="flex-1 bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none" />
+                  <button onClick={addSkill} className="px-3 py-2 bg-primary text-primary-foreground rounded-xl"><Plus className="w-4 h-4" /></button>
+                </div>
+                {form.skills.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {form.skills.map(s => (
+                      <span key={s} className="flex items-center gap-1 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium">
+                        {s}<button onClick={() => f('skills', form.skills.filter(x => x !== s))}><X className="w-3 h-3" /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ── SOCIAL LINKS ── */}
+          {tab === 'social' && (
+            <div className="space-y-3">
+              {[
+                ['instagram', '📸 Instagram', 'https://instagram.com/yourhandle'],
+                ['tiktok', '🎵 TikTok', 'https://tiktok.com/@yourhandle'],
+                ['youtube', '▶️ YouTube', 'https://youtube.com/@yourchannel'],
+                ['twitter', '𝕏 Twitter/X', 'https://twitter.com/yourhandle'],
+                ['linkedin', '💼 LinkedIn', 'https://linkedin.com/in/yourprofile'],
+                ['facebook', '📘 Facebook', 'https://facebook.com/yourpage'],
+                ['website', '🌐 Website', 'https://yourwebsite.com'],
+              ].map(([key, label, ph]) => (
+                <div key={key} className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">{label}</label>
+                  <input value={form.social_links?.[key] ?? ''} onChange={e => f('social_links', { ...form.social_links, [key]: e.target.value })} placeholder={ph}
+                    className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border flex-shrink-0">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            className="px-6 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2">
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />} Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── ShareProfileModal ────────────────────────────────────────────────────────
+function ShareProfileModal({ profileUser, onClose }) {
+  const [copied, setCopied] = useState(false)
+  const link = `https://philomni.app/profile/${profileUser?.username || profileUser?.id || 'user'}`
+
+  const copy = () => {
+    navigator.clipboard.writeText(link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-sm mx-4 overflow-hidden shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="font-semibold text-foreground">Share Profile</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-2.5">
+            <span className="text-xs text-muted-foreground flex-1 truncate">{link}</span>
+            <button onClick={copy} className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors flex-shrink-0 ${copied ? 'bg-green-500/20 text-green-400' : 'bg-primary/15 text-primary'}`}>
+              {copied ? <><Check className="w-3 h-3 inline mr-1" />Copied!</> : 'Copy'}
+            </button>
+          </div>
+          <button onClick={() => { if (navigator.share) navigator.share({ title: `${profileUser?.full_name} on Philomni`, url: link }) }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-muted hover:bg-muted/80 transition-colors text-sm text-foreground">
+            <Share2 className="w-4 h-4 text-muted-foreground" /> Share via...
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Profile Component ───────────────────────────────────────────────────
 export default function Profile() {
   const { user, refreshProfile } = useAuth()
-  const [editing, setEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const { mode } = useMode()
+  const navigate = useNavigate()
+  const { userId } = useParams()
+
+  const isOwnProfile = !userId || userId === user?.id
+
+  const [profileUser, setProfileUser] = useState(isOwnProfile ? user : null)
   const [posts, setPosts] = useState([])
-  const [form, setForm] = useState({ full_name: '', bio: '', headline: '', location: '' })
-  // Avatar / banner upload
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('posts')
+  const [viewMode, setViewMode] = useState('list')
+  const [stats, setStats] = useState({ posts: 0, followers: 0, following: 0 })
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followLoading, setFollowLoading] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState(null)
+  const [bannerUrl, setBannerUrl] = useState(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [bannerUploading, setBannerUploading] = useState(false)
-  const [avatarPreview, setAvatarPreview] = useState(null)
-  const [bannerPreview, setBannerPreview] = useState(null)
   const avatarInputRef = useRef()
   const bannerInputRef = useRef()
 
+  // Sync display user
   useEffect(() => {
-    if (user) {
-      setForm({
-        full_name: user.full_name ?? '',
-        bio: user.bio ?? '',
-        headline: user.headline ?? '',
-        location: user.location ?? '',
-      })
+    if (isOwnProfile) {
+      setProfileUser(user)
+      setAvatarUrl(user?.avatar_url ?? null)
+      setBannerUrl(user?.banner_url ?? null)
+    } else if (userId) {
+      supabase.from('users').select('*').eq('id', userId).single()
+        .then(({ data }) => {
+          if (data) { setProfileUser(data); setAvatarUrl(data.avatar_url); setBannerUrl(data.banner_url) }
+        })
     }
-  }, [user])
+  }, [userId, user, isOwnProfile])
 
+  // Load posts — try both column names
   useEffect(() => {
-    if (!user?.id) return
-    supabase.from('posts').select('*').eq('author_id', user.id).order('created_at', { ascending: false }).limit(20)
-      .then(({ data }) => setPosts(data ?? []))
-  }, [user?.id])
+    const targetId = isOwnProfile ? user?.id : userId
+    if (!targetId) return
+    setLoading(true)
+    const load = async () => {
+      let data = null
+      for (const col of ['author_id', 'created_by']) {
+        try {
+          const { data: d } = await supabase.from('posts').select('*').eq(col, targetId).order('created_at', { ascending: false }).limit(30)
+          if (d?.length) { data = d; break }
+        } catch {}
+      }
+      setPosts(data ?? [])
+      setLoading(false)
+    }
+    load()
+  }, [userId, user?.id, isOwnProfile])
+
+  // Load stats
+  useEffect(() => {
+    const targetId = isOwnProfile ? user?.id : userId
+    if (!targetId) return
+    const load = async () => {
+      const s = { posts: 0, followers: 0, following: 0 }
+      try {
+        const { count } = await supabase.from('posts').select('*', { count: 'exact', head: true })
+          .or(`author_id.eq.${targetId},created_by.eq.${targetId}`)
+        s.posts = count || 0
+      } catch {}
+      try {
+        const { count } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', targetId)
+        s.followers = count || 0
+      } catch {}
+      try {
+        const { count } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', targetId)
+        s.following = count || 0
+      } catch {}
+      setStats(s)
+    }
+    load()
+  }, [userId, user?.id, isOwnProfile])
+
+  // Check follow status
+  useEffect(() => {
+    if (isOwnProfile || !user?.id || !userId) return
+    supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', userId).maybeSingle()
+      .then(({ data }) => setIsFollowing(!!data))
+  }, [userId, user?.id, isOwnProfile])
+
+  const handleFollow = async () => {
+    if (!user?.id || !userId) return
+    setFollowLoading(true)
+    try {
+      if (isFollowing) {
+        await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', userId)
+        setIsFollowing(false)
+        setStats(s => ({ ...s, followers: Math.max(0, s.followers - 1) }))
+      } else {
+        await supabase.from('follows').insert({ follower_id: user.id, following_id: userId, created_at: new Date().toISOString() })
+        setIsFollowing(true)
+        setStats(s => ({ ...s, followers: s.followers + 1 }))
+      }
+    } catch (e) { console.error(e) }
+    setFollowLoading(false)
+  }
 
   const handleAvatarUpload = async (file) => {
-    if (!file || !file.type.startsWith('image/')) return
+    if (!file?.type.startsWith('image/')) return
     setAvatarUploading(true)
-    // Show preview immediately
-    const previewUrl = URL.createObjectURL(file)
-    setAvatarPreview(previewUrl)
+    setAvatarUrl(URL.createObjectURL(file))
     try {
-      const path = `avatars/${user.id}/${Date.now()}-${file.name}`
+      const ext = file.name.split('.').pop()
+      const path = `avatars/${user.id}/avatar-${Date.now()}.${ext}`
       const { data, error } = await supabase.storage.from('uploads').upload(path, file, { upsert: true })
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(data.path)
       await supabase.from('users').update({ avatar_url: publicUrl }).eq('id', user.id)
+      setAvatarUrl(publicUrl)
       await refreshProfile()
-    } catch (err) {
-      console.error('Avatar upload failed:', err)
-      setAvatarPreview(null)
-    } finally {
-      setAvatarUploading(false)
-    }
+    } catch (e) { console.error('Avatar upload:', e) }
+    setAvatarUploading(false)
   }
 
   const handleBannerUpload = async (file) => {
-    if (!file || !file.type.startsWith('image/')) return
+    if (!file?.type.startsWith('image/')) return
     setBannerUploading(true)
-    const previewUrl = URL.createObjectURL(file)
-    setBannerPreview(previewUrl)
+    setBannerUrl(URL.createObjectURL(file))
     try {
-      const path = `banners/${user.id}/${Date.now()}-${file.name}`
+      const ext = file.name.split('.').pop()
+      const path = `banners/${user.id}/banner-${Date.now()}.${ext}`
       const { data, error } = await supabase.storage.from('uploads').upload(path, file, { upsert: true })
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(data.path)
       await supabase.from('users').update({ banner_url: publicUrl }).eq('id', user.id)
+      setBannerUrl(publicUrl)
       await refreshProfile()
-    } catch (err) {
-      console.error('Banner upload failed:', err)
-      setBannerPreview(null)
-    } finally {
-      setBannerUploading(false)
-    }
+    } catch (e) { console.error('Banner upload:', e) }
+    setBannerUploading(false)
   }
 
-  const handleSave = async () => {
-    setSaving(true)
-    await supabase.from('users').update(form).eq('id', user.id)
+  const handleSaveProfile = async (form) => {
+    await supabase.from('users').update({
+      full_name: form.full_name, username: form.username, headline: form.headline,
+      bio: form.bio, location: form.location, website: form.website,
+      creator_type: form.creator_type, content_categories: form.content_categories,
+      professional_summary: form.professional_summary, industry: form.industry,
+      skills: form.skills, work_experience: form.work_experience,
+      education: form.education, social_links: form.social_links,
+    }).eq('id', user.id)
     await refreshProfile()
-    setEditing(false)
-    setSaving(false)
+    setProfileUser(prev => ({ ...prev, ...form }))
   }
 
   if (!user) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
 
-  const bannerSrc = bannerPreview || user.banner_url
-  const avatarSrc = avatarPreview || user.avatar_url
+  const du = profileUser || user
+  const initials = (du?.full_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+
+  const videoPosts = posts.filter(p => p.post_type === 'video' || (p.media_urls || []).some(u => /\.(mp4|mov|webm)/i.test(u)))
+  const photoPosts = posts.filter(p => (p.media_urls?.length > 0 || p.image_url) && p.post_type !== 'video')
+
+  const TABS = [
+    { key: 'posts', label: '📝 Posts', count: posts.length },
+    { key: 'videos', label: '🎬 Videos', count: videoPosts.length },
+    { key: 'photos', label: '📸 Photos', count: photoPosts.length },
+    ...(isOwnProfile ? [{ key: 'saved', label: '🔖 Saved' }] : []),
+    ...(mode === 'pro' ? [{ key: 'professional', label: '💼 Professional' }] : []),
+    { key: 'store', label: '🏪 Store' },
+    { key: 'about', label: 'ℹ️ About' },
+  ]
 
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* Banner */}
-      <div className="relative h-40 rounded-2xl overflow-hidden group">
-        <div
-          className="w-full h-full bg-gradient-to-br from-primary/30 to-purple-900/40"
-          style={bannerSrc ? { background: `url(${bannerSrc}) center/cover no-repeat` } : {}}
-        />
-        {/* Banner upload button */}
-        <button
-          onClick={() => bannerInputRef.current?.click()}
-          disabled={bannerUploading}
-          className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all opacity-0 group-hover:opacity-100">
-          {bannerUploading
-            ? <Loader2 className="w-6 h-6 text-white animate-spin" />
-            : <div className="flex items-center gap-2 bg-black/70 text-white px-3 py-1.5 rounded-xl text-xs font-medium">
-                <ImagePlus className="w-4 h-4" /> Change Banner
-              </div>}
-        </button>
-        <input ref={bannerInputRef} type="file" accept="image/*" className="hidden"
-          onChange={e => handleBannerUpload(e.target.files[0])} />
-      </div>
-
-      {/* Avatar + actions */}
-      <div className="flex items-end justify-between px-4 -mt-10 mb-4">
-        {/* Avatar with upload overlay */}
-        <div className="relative group">
-          <div className="w-20 h-20 rounded-2xl bg-card border-4 border-background overflow-hidden flex items-center justify-center text-2xl font-bold text-primary bg-primary/10">
-            {avatarSrc
-              ? <img src={avatarSrc} alt="" className="w-full h-full object-cover" />
-              : (user.full_name?.[0] ?? '?')}
-          </div>
-          <button
-            onClick={() => avatarInputRef.current?.click()}
-            disabled={avatarUploading}
-            className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/50 rounded-2xl transition-all opacity-0 group-hover:opacity-100">
-            {avatarUploading
-              ? <Loader2 className="w-4 h-4 text-white animate-spin" />
-              : <Camera className="w-5 h-5 text-white" />}
-          </button>
-          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => handleAvatarUpload(e.target.files[0])} />
-        </div>
-
-        <button
-          onClick={() => editing ? handleSave() : setEditing(true)}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-card text-sm font-medium hover:bg-muted transition-all"
-        >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editing ? <Save className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
-          {editing ? 'Save' : 'Edit Profile'}
-        </button>
-      </div>
-
-      {/* Upload hints */}
-      {!editing && (
-        <p className="text-xs text-muted-foreground text-center mb-2 opacity-60">Hover over avatar or banner to change photos</p>
-      )}
-
-      {/* Info */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-4">
-        {editing ? (
-          <div className="space-y-3">
-            <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
-              placeholder="Full name" className="w-full bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
-            <input value={form.headline} onChange={e => setForm(f => ({ ...f, headline: e.target.value }))}
-              placeholder="Headline (e.g. Content Creator & Podcaster)" className="w-full bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
-            <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
-              placeholder="Bio" rows={3} className="w-full bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none" />
-            <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-              placeholder="Location" className="w-full bg-muted rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
-            <button onClick={() => setEditing(false)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-              <X className="w-3.5 h-3.5" /> Cancel
-            </button>
-          </div>
-        ) : (
+    <div className="max-w-2xl mx-auto pb-8">
+      {/* ── BANNER ── */}
+      <div className="relative h-48 rounded-2xl overflow-hidden group">
+        <div className="w-full h-full"
+          style={bannerUrl
+            ? { backgroundImage: `url(${bannerUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+            : { background: 'linear-gradient(135deg, #4c1d95 0%, #7c3aed 50%, #1e1b4b 100%)' }} />
+        {isOwnProfile && (
           <>
-            <h2 className="text-xl font-bold text-foreground">{user.full_name}</h2>
-            {user.headline && <p className="text-sm text-primary mt-0.5">{user.headline}</p>}
-            {user.bio && <p className="text-sm text-muted-foreground mt-2">{user.bio}</p>}
-            {user.location && <p className="text-xs text-muted-foreground mt-1">📍 {user.location}</p>}
-            <p className="text-xs text-muted-foreground mt-1">{user.email}</p>
+            <button onClick={() => bannerInputRef.current?.click()} disabled={bannerUploading}
+              className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all opacity-0 group-hover:opacity-100">
+              {bannerUploading
+                ? <Loader2 className="w-6 h-6 text-white animate-spin" />
+                : <div className="flex items-center gap-2 bg-black/70 text-white px-3 py-1.5 rounded-xl text-xs font-medium"><Camera className="w-4 h-4" /> Change Banner</div>}
+            </button>
+            <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleBannerUpload(e.target.files[0])} />
           </>
         )}
       </div>
 
-      {/* Posts */}
-      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Posts ({posts.length})</h3>
-      <div className="space-y-3">
-        {posts.length === 0
-          ? <div className="text-center py-8 text-muted-foreground text-sm">No posts yet</div>
-          : posts.map(p => (
-            <div key={p.id} className="bg-card border border-border rounded-xl p-4">
-              <p className="text-sm text-foreground whitespace-pre-wrap">{p.content}</p>
-              <p className="text-xs text-muted-foreground mt-2">❤️ {p.like_count ?? 0} · 💬 {p.comment_count ?? 0}</p>
-            </div>
-          ))}
+      {/* ── AVATAR + ACTIONS ── */}
+      <div className="flex items-end justify-between px-1 -mt-12 mb-3 relative z-10">
+        <div className="relative group">
+          <div className="w-24 h-24 rounded-full bg-primary/20 border-4 border-background flex items-center justify-center text-2xl font-bold text-primary overflow-hidden">
+            {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : <span>{initials}</span>}
+          </div>
+          {isOwnProfile && (
+            <>
+              <button onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}
+                className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/50 rounded-full transition-all opacity-0 group-hover:opacity-100">
+                {avatarUploading ? <Loader2 className="w-5 h-5 text-white animate-spin" /> : <Camera className="w-5 h-5 text-white" />}
+              </button>
+              <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleAvatarUpload(e.target.files[0])} />
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 pt-14">
+          {isOwnProfile ? (
+            <>
+              <button onClick={() => setShowEditModal(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-sm font-medium hover:bg-muted transition-all">
+                <Edit2 className="w-3.5 h-3.5" /> Edit Profile
+              </button>
+              <button onClick={() => setShowShareModal(true)}
+                className="p-2 rounded-xl border border-border bg-card hover:bg-muted transition-all" title="Share">
+                <Share2 className="w-4 h-4" />
+              </button>
+              <button onClick={() => navigate('/settings')}
+                className="p-2 rounded-xl border border-border bg-card hover:bg-muted transition-all" title="Settings">
+                <Settings className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={handleFollow} disabled={followLoading}
+                className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold transition-all ${isFollowing ? 'border border-border bg-card text-foreground hover:bg-muted' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}>
+                {followLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isFollowing ? <UserMinus className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
+                {isFollowing ? 'Following' : 'Follow'}
+              </button>
+              <button onClick={() => navigate('/messages')}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-sm font-medium hover:bg-muted transition-all">
+                <MessageSquare className="w-3.5 h-3.5" /> Message
+              </button>
+              <button className="p-2 rounded-xl border border-border bg-card hover:bg-muted transition-all">
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* ── NAME + BIO ── */}
+      <div className="mb-4">
+        <h1 className="text-xl font-bold text-foreground">{du?.full_name || 'User'}</h1>
+        {du?.username && <p className="text-sm text-muted-foreground">@{du.username}</p>}
+        {du?.headline && <p className="text-sm text-primary/80 mt-0.5">{du.headline}</p>}
+        {du?.bio && <p className="text-sm text-foreground/80 mt-2 leading-relaxed">{du.bio}</p>}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+          {du?.location && <span className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{du.location}</span>}
+          {du?.website && (
+            <a href={du.website} target="_blank" rel="noopener noreferrer"
+              className="text-xs text-primary flex items-center gap-1 hover:underline">
+              <Globe className="w-3 h-3" />{du.website.replace(/^https?:\/\//, '')}
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* ── STATS ── */}
+      <div className="flex items-center gap-6 py-3 border-y border-border mb-4">
+        {[
+          { label: 'Posts', value: formatCount(stats.posts || posts.length) },
+          { label: 'Followers', value: formatCount(stats.followers) },
+          { label: 'Following', value: formatCount(stats.following) },
+        ].map(({ label, value }) => (
+          <button key={label} className="text-center hover:opacity-80 transition-opacity">
+            <p className="font-bold text-foreground text-sm">{value}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* ── PROFILE COMPLETION ── */}
+      {isOwnProfile && <ProfileCompletionCard profileUser={du} />}
+
+      {/* ── TABS ── */}
+      <div className="flex overflow-x-auto border-b border-border mb-4 scrollbar-hide">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            className={`px-4 py-3 text-sm font-medium whitespace-nowrap flex-shrink-0 transition-colors ${activeTab === t.key ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+            {t.label}{t.count !== undefined ? ` (${t.count})` : ''}
+          </button>
+        ))}
+      </div>
+
+      {/* ── POSTS TAB ── */}
+      {activeTab === 'posts' && (
+        <div>
+          <div className="flex items-center justify-end mb-4 gap-1">
+            <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-primary/15 text-primary' : 'hover:bg-muted text-muted-foreground'}`}><List className="w-4 h-4" /></button>
+            <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-primary/15 text-primary' : 'hover:bg-muted text-muted-foreground'}`}><Grid className="w-4 h-4" /></button>
+          </div>
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          ) : posts.length === 0 ? (
+            <div className="text-center py-14 text-muted-foreground">
+              <p className="text-4xl mb-3">📝</p>
+              <p className="font-medium">No posts yet</p>
+              {isOwnProfile && <p className="text-sm mt-1 opacity-60">Share your first post to get started</p>}
+            </div>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-3 gap-1">{posts.map(p => <PostCard key={p.id} post={p} viewMode="grid" />)}</div>
+          ) : (
+            <div className="space-y-3">{posts.map(p => <PostCard key={p.id} post={p} viewMode="list" />)}</div>
+          )}
+        </div>
+      )}
+
+      {/* ── VIDEOS TAB ── */}
+      {activeTab === 'videos' && (
+        videoPosts.length === 0
+          ? <div className="text-center py-14 text-muted-foreground"><p className="text-4xl mb-3">🎬</p><p>No videos yet</p></div>
+          : <div className="grid grid-cols-3 gap-1">{videoPosts.map(p => <PostCard key={p.id} post={p} viewMode="grid" />)}</div>
+      )}
+
+      {/* ── PHOTOS TAB ── */}
+      {activeTab === 'photos' && (
+        photoPosts.length === 0
+          ? <div className="text-center py-14 text-muted-foreground"><p className="text-4xl mb-3">📸</p><p>No photos yet</p></div>
+          : <div className="grid grid-cols-3 gap-1">{photoPosts.map(p => <PostCard key={p.id} post={p} viewMode="grid" />)}</div>
+      )}
+
+      {/* ── SAVED TAB ── */}
+      {activeTab === 'saved' && isOwnProfile && (
+        <div className="text-center py-14 text-muted-foreground">
+          <p className="text-4xl mb-3">🔖</p>
+          <p>No saved posts yet</p>
+          <p className="text-sm mt-1 opacity-60">Posts you bookmark will appear here</p>
+        </div>
+      )}
+
+      {/* ── PROFESSIONAL TAB ── */}
+      {activeTab === 'professional' && (
+        <div className="space-y-4">
+          {du?.professional_summary && (
+            <div className="bg-card border border-border rounded-2xl p-5">
+              <h3 className="font-semibold text-foreground mb-3">About</h3>
+              <p className="text-sm text-foreground/80 leading-relaxed">{du.professional_summary}</p>
+            </div>
+          )}
+          {du?.work_experience?.length > 0 && (
+            <div className="bg-card border border-border rounded-2xl p-5">
+              <h3 className="font-semibold text-foreground mb-1">Experience</h3>
+              {du.work_experience.map((w, i) => <WorkExperienceItem key={i} item={w} />)}
+            </div>
+          )}
+          {du?.education?.length > 0 && (
+            <div className="bg-card border border-border rounded-2xl p-5">
+              <h3 className="font-semibold text-foreground mb-1">Education</h3>
+              {du.education.map((e, i) => <EducationItem key={i} item={e} />)}
+            </div>
+          )}
+          {du?.skills?.length > 0 && (
+            <div className="bg-card border border-border rounded-2xl p-5">
+              <h3 className="font-semibold text-foreground mb-3">Skills</h3>
+              <div className="flex flex-wrap gap-2">
+                {du.skills.map(s => <span key={s} className="px-3 py-1.5 bg-muted rounded-full text-xs font-medium text-foreground">{s}</span>)}
+              </div>
+            </div>
+          )}
+          {!du?.professional_summary && !du?.work_experience?.length && !du?.skills?.length && (
+            <div className="text-center py-14 text-muted-foreground">
+              <p className="text-4xl mb-3">💼</p>
+              <p>No professional info yet</p>
+              {isOwnProfile && <button onClick={() => setShowEditModal(true)} className="mt-3 text-sm text-primary hover:underline">Add your experience</button>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── STORE TAB ── */}
+      {activeTab === 'store' && (
+        <div className="text-center py-14 text-muted-foreground">
+          <p className="text-4xl mb-3">🏪</p>
+          <p>No products yet</p>
+          {isOwnProfile && <button onClick={() => navigate('/store')} className="mt-3 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium">Go to My Store</button>}
+        </div>
+      )}
+
+      {/* ── ABOUT TAB ── */}
+      {activeTab === 'about' && (
+        <div className="bg-card border border-border rounded-2xl p-5 space-y-5">
+          {du?.bio && (
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Bio</h3>
+              <p className="text-sm text-foreground/80 leading-relaxed">{du.bio}</p>
+            </div>
+          )}
+          <div className="space-y-2">
+            {du?.location && <p className="text-sm text-foreground flex items-center gap-2"><MapPin className="w-4 h-4 text-muted-foreground" />{du.location}</p>}
+            {du?.website && <a href={du.website} target="_blank" rel="noopener noreferrer" className="text-sm text-primary flex items-center gap-2 hover:underline"><Globe className="w-4 h-4" />{du.website}</a>}
+            {du?.email && <p className="text-sm text-muted-foreground">{du.email}</p>}
+          </div>
+          {du?.social_links && Object.entries(du.social_links).filter(([, v]) => v).length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Social</h3>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(du.social_links).filter(([, v]) => v).map(([key, url]) => (
+                  <a key={key} href={url} target="_blank" rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-muted rounded-full text-xs text-foreground hover:bg-muted/80 capitalize">{key}</a>
+                ))}
+              </div>
+            </div>
+          )}
+          {du?.created_at && (
+            <p className="text-xs text-muted-foreground pt-2 border-t border-border">
+              Joined {format(new Date(du.created_at), 'MMMM yyyy')}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── MODALS ── */}
+      {showEditModal && <EditProfileModal profileUser={du} onClose={() => setShowEditModal(false)} onSave={handleSaveProfile} />}
+      {showShareModal && <ShareProfileModal profileUser={du} onClose={() => setShowShareModal(false)} />}
     </div>
   )
 }

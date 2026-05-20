@@ -138,6 +138,7 @@ export default function App() {
             <Route path="/" element={<P page={Feed} />} />
             <Route path="/pro-feed" element={<P page={ProFeed} />} />
             <Route path="/profile" element={<P page={Profile} />} />
+            <Route path="/profile/:userId" element={<P page={Profile} />} />
             <Route path="/edit-profile" element={<P page={EditProfile} />} />
             <Route path="/settings" element={<P page={Settings} />} />
             <Route path="/notifications" element={<P page={Notifications} />} />
