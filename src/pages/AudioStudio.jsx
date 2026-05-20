@@ -98,12 +98,18 @@ export default function AudioStudio() {
 
   async function fetchTracks() {
     setLoadingTracks(true)
-    const { data } = await supabase
-      .from('audio_tracks')
-      .select('*')
-      .eq('created_by', user.id)
-      .order('created_at', { ascending: false })
-    setTracks(data || [])
+    try {
+      const { data, error } = await supabase
+        .from('audio_tracks')
+        .select('*')
+        .eq('created_by', user.id)
+        .order('created_at', { ascending: false })
+      if (error) console.error('[AudioStudio] audio_tracks:', error.message)
+      setTracks(data || [])
+    } catch (e) {
+      console.error('[AudioStudio] fetchTracks:', e.message)
+      setTracks([])
+    }
     setLoadingTracks(false)
   }
 

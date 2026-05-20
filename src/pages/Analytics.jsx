@@ -176,27 +176,26 @@ export default function Analytics() {
     if (!user?.id) return
     setLoading(true)
 
+    const safeQuery = (q) => q.catch(() => ({ data: null, count: 0, error: null }))
+
     const [postsRes, follRes, followingRes, notifRes, recentLikesRes, recentCommentsRes, recentFollowsRes] = await Promise.all([
-      supabase.from('posts')
+      safeQuery(supabase.from('posts')
         .select('id, view_count, like_count, comment_count, repost_count, save_count, content, created_at, media_urls')
         .eq('author_id', user.id)
-        .order('created_at', { ascending: false }),
-      supabase.from('follows').select('id, created_at', { count: 'exact' }).eq('following_id', user.id),
-      supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', user.id),
-      supabase.from('notifications').select('*').eq('user_id', user.id)
-        .order('created_at', { ascending: false }).limit(10),
-      // recent likes on user's posts
-      supabase.from('likes').select('id, created_at, user_id, post_id, posts!inner(content, author_id, media_urls)')
+        .order('created_at', { ascending: false })),
+      safeQuery(supabase.from('follows').select('id, created_at', { count: 'exact' }).eq('following_id', user.id)),
+      safeQuery(supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', user.id)),
+      safeQuery(supabase.from('notifications').select('*').eq('user_id', user.id)
+        .order('created_at', { ascending: false }).limit(10)),
+      safeQuery(supabase.from('likes').select('id, created_at, user_id, post_id, posts!inner(content, author_id, media_urls)')
         .eq('posts.author_id', user.id)
-        .order('created_at', { ascending: false }).limit(5),
-      // recent comments on user's posts
-      supabase.from('comments').select('id, created_at, content, user_id, post_id, posts!inner(content, author_id)')
+        .order('created_at', { ascending: false }).limit(5)),
+      safeQuery(supabase.from('comments').select('id, created_at, content, user_id, post_id, posts!inner(content, author_id)')
         .eq('posts.author_id', user.id)
-        .order('created_at', { ascending: false }).limit(5),
-      // recent follows received
-      supabase.from('follows').select('id, created_at, follower_id, profiles:follower_id(username, avatar_url)')
+        .order('created_at', { ascending: false }).limit(5)),
+      safeQuery(supabase.from('follows').select('id, created_at, follower_id, profiles:follower_id(username, avatar_url)')
         .eq('following_id', user.id)
-        .order('created_at', { ascending: false }).limit(5),
+        .order('created_at', { ascending: false }).limit(5)),
     ])
 
     const posts     = postsRes.data ?? []
@@ -335,9 +334,18 @@ export default function Analytics() {
 
     setLastUpdated(new Date())
     setLoading(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
-  useEffect(() => { load() }, [load])
+  // Wrap invocation so an unexpected throw never leaves the page in a loading state
+  const loadSafe = useCallback(async () => {
+    try { await load() } catch (e) {
+      console.error('[Analytics] load error:', e.message)
+      setLoading(false)
+    }
+  }, [load])
+
+  useEffect(() => { loadSafe() }, [loadSafe])
 
   // ── Sorted posts table ────────────────────────────────────────────────────
   const sortedPosts = useMemo(() => {
@@ -488,7 +496,7 @@ export default function Analytics() {
             Switch to {mode === 'pro' ? '🎨 Creator' : '💼 Pro'} mode to see {mode === 'pro' ? 'creator' : 'professional'} analytics
           </p>
         </div>
-        <button onClick={load}
+        <button onClick={loadSafe}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-muted hover:bg-muted/80 transition-colors text-xs text-muted-foreground flex-shrink-0">
           <RefreshCw className="w-3.5 h-3.5" />
           {lastUpdated ? `Updated ${timeAgo(lastUpdated.toISOString())}` : 'Refresh'}

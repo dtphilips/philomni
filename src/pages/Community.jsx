@@ -497,9 +497,13 @@ export default function Community() {
   useEffect(() => {
     supabase.from('discussion_posts')
       .select('*').order('created_at', { ascending: false }).limit(60)
-      .then(({ data }) => {
-        const db = data ?? []
-        setPosts(db)
+      .then(({ data, error }) => {
+        if (error) console.error('[Community] discussion_posts:', error.message)
+        setPosts(data ?? [])
+        setLoading(false)
+      })
+      .catch(e => {
+        console.error('[Community] discussion_posts fetch failed:', e.message)
         setLoading(false)
       })
   }, [])

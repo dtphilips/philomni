@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, Crown, Zap, Shield, Sparkles, Users, Globe, Star } from 'lucide-react';
 import { toast } from 'sonner';
+
+// WARNING: VITE_STRIPE_PUBLISHABLE_KEY must be a real key in production.
+// Set to 'pk_live_...' or 'pk_test_...' — never the placeholder value.
+const stripeReady =
+  !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY &&
+  !import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY.includes('your-')
 
 const FREE_FEATURES = [
   'Basic profile & feed',
@@ -53,16 +59,30 @@ const TESTIMONIALS = [
 ];
 
 export default function Upgrade() {
-  const { user } = useOutletContext();
+  const { user } = useAuth();
   const [selectedPlan, setSelectedPlan] = useState('yearly');
   const [loading, setLoading] = useState(false);
   const isPro = user?.plan === 'pro';
 
   const handleUpgrade = async () => {
+    if (!stripeReady) {
+      toast.info('Payment processing is coming soon! Your interest has been noted.');
+      return;
+    }
     setLoading(true);
-    // Stripe integration placeholder — in production, invoke a backend function to create Stripe checkout session
-    await new Promise(r => setTimeout(r, 1200));
-    toast.success('Your upgrade request has been received! Our team will contact you to complete your Pro activation.');
+    try {
+      const priceId = selectedPlan === 'yearly' ? 'price_pro_yearly' : 'price_pro_monthly';
+      const res = await fetch('/api/stripe-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId, userId: user?.id, userEmail: user?.email }),
+      });
+      const { url, error } = await res.json();
+      if (error) throw new Error(error);
+      if (url) window.location.href = url;
+    } catch (err) {
+      toast.error(`Could not start checkout: ${err.message}`);
+    }
     setLoading(false);
   };
 
@@ -81,6 +101,18 @@ export default function Upgrade() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {/* Payments coming soon banner */}
+      {!stripeReady && (
+        <div className="text-center py-8 px-6 bg-card border border-border rounded-2xl mb-8">
+          <div className="text-4xl mb-3">💳</div>
+          <h3 className="text-foreground text-lg font-bold mb-1">Payments Coming Soon</h3>
+          <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+            We're setting up secure payment processing. Clicking "Upgrade" will register your
+            interest — we'll contact you when Pro is live.
+          </p>
+        </div>
+      )}
+
       {/* Hero */}
       <div className="text-center mb-10">
         <Badge className="bg-primary/10 text-primary border-0 mb-4"><Crown className="w-3.5 h-3.5 mr-1" />Philomni Pro</Badge>

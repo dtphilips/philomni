@@ -679,23 +679,31 @@ export default function SkillExchange() {
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true)
-      const [offersRes, wantedRes] = await Promise.all([
-        supabase.from('skill_exchanges').select('*').order('created_at', { ascending: false }).limit(80),
-        supabase.from('wanted_skills').select('*').order('created_at', { ascending: false }).limit(20).catch(() => ({ data: [] })),
-      ])
-      const dbOffers = offersRes.data ?? []
-      const dbIds    = new Set(dbOffers.map(o => o.id))
-      const merged   = [...dbOffers, ...SAMPLES.filter(s => !dbIds.has(s.id))]
-      setOffers(merged)
-      if (user?.id) {
-        setMyOffers(merged.filter(o => o.user_id === user.id))
-        // Load my trades
-        const tradesRes = await supabase.from('trades').select('*')
-          .or(`party_a_id.eq.${user.id},party_b_id.eq.${user.id}`)
-          .order('created_at', { ascending: false }).limit(20)
-        setMyTrades(tradesRes.data ?? [])
+      try {
+        const [offersRes, wantedRes] = await Promise.all([
+          supabase.from('skill_exchanges').select('*').order('created_at', { ascending: false }).limit(80)
+            .catch(() => ({ data: [] })),
+          supabase.from('wanted_skills').select('*').order('created_at', { ascending: false }).limit(20)
+            .catch(() => ({ data: [] })),
+        ])
+        if (offersRes.error) console.error('[SkillExchange] skill_exchanges:', offersRes.error.message)
+        const dbOffers = offersRes.data ?? []
+        const dbIds    = new Set(dbOffers.map(o => o.id))
+        const merged   = [...dbOffers, ...SAMPLES.filter(s => !dbIds.has(s.id))]
+        setOffers(merged)
+        if (user?.id) {
+          setMyOffers(merged.filter(o => o.user_id === user.id))
+          const tradesRes = await supabase.from('trades').select('*')
+            .or(`party_a_id.eq.${user.id},party_b_id.eq.${user.id}`)
+            .order('created_at', { ascending: false }).limit(20)
+            .catch(() => ({ data: [] }))
+          setMyTrades(tradesRes.data ?? [])
+        }
+        setWanted(wantedRes.data ?? [])
+      } catch (e) {
+        console.error('[SkillExchange] load error:', e.message)
+        setOffers(SAMPLES)
       }
-      setWanted(wantedRes.data ?? [])
       setLoading(false)
     }
     loadAll()

@@ -9,6 +9,7 @@
     "api/elevenlabs.js":      { "maxDuration": 30  },
     "api/generate-image.js":  { "maxDuration": 30  },
     "api/daily-room.js":      { "maxDuration": 15  },
+    "api/stripe-checkout.js": { "maxDuration": 30  },
     "api/stripe-webhook.js":  { "maxDuration": 30  },
     "api/jamendo.js":         { "maxDuration": 15  }
   },

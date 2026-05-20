@@ -722,21 +722,30 @@ export default function PitchVault() {
 
   useEffect(() => {
     supabase.from('pitches').select('*').order('created_at', { ascending: false }).limit(30)
-      .then(({ data }) => { setPitches(data ?? []); setLoading(false) })
+      .then(({ data, error }) => {
+        if (error) console.error('[PitchVault] pitches query:', error.message)
+        setPitches(data ?? [])
+        setLoading(false)
+      })
   }, [])
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500) }
 
   const handleSubmit = async (form) => {
-    const { data } = await supabase.from('pitches').insert({
-      title: form.title, description: form.tagline,
-      category: form.category, stage: form.stage,
-      seeking: form.seeking,
-      funding_goal: form.funding_goal ? parseFloat(form.funding_goal) : null,
-      visibility: form.visibility, status: 'pending',
-      created_by: user?.id,
-    }).select().single()
-    if (data) setPitches(p => [data, ...p])
+    try {
+      const { data, error } = await supabase.from('pitches').insert({
+        title: form.title, description: form.tagline,
+        category: form.category, stage: form.stage,
+        seeking: form.seeking,
+        funding_goal: form.funding_goal ? parseFloat(form.funding_goal) : null,
+        visibility: form.visibility, status: 'pending',
+        created_by: user?.id,
+      }).select().single()
+      if (error) throw error
+      if (data) setPitches(p => [data, ...p])
+    } catch (e) {
+      console.error('[PitchVault] insert pitch:', e.message)
+    }
     setShowForm(false)
     showToast('Your pitch is live! 🚀')
   }

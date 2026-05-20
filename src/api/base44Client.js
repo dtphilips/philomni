@@ -12,7 +12,9 @@
 import { supabase } from './supabaseClient';
 
 // ─── Dev mode mock user ──────────────────────────────────────────────────────
-const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true';
+// WARNING: VITE_DEV_MODE must be 'false' in production.
+// import.meta.env.DEV is Vite's built-in flag: true during `vite dev`, false after `vite build`.
+const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true' && import.meta.env.DEV;
 const DEV_USER = {
   id: 'dev-user-001',
   email: 'dev@philomni.com',

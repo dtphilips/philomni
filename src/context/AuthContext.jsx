@@ -3,7 +3,9 @@ import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
-const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true'
+// WARNING: VITE_DEV_MODE must be 'false' in production.
+// import.meta.env.DEV is Vite's built-in flag: true during `vite dev`, false after `vite build`.
+const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true' && import.meta.env.DEV
 const DEV_USER = DEV_MODE ? {
   id: 'dev-user-id',
   email: 'dev@philomni.app',

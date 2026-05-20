@@ -4,8 +4,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Play, Pause, Square, Search, Loader2, Music2, ExternalLink, SkipForward, SkipBack } from 'lucide-react';
 
-const JAMENDO_CLIENT_ID = '7c82b2f9'; // public demo client id — royalty-free, Creative Commons
-
 const GENRES = ['All', 'pop', 'rock', 'hiphop', 'electronic', 'jazz', 'classical', 'ambient', 'reggae', 'soul'];
 
 function formatDuration(secs) {
@@ -29,19 +27,18 @@ export default function MusicLibrary() {
   const fetchTracks = async (q = '', g = 'All') => {
     setLoading(true);
     try {
+      // Route through our server-side proxy to avoid CORS issues and centralise the API key
       const params = new URLSearchParams({
-        client_id: JAMENDO_CLIENT_ID,
-        format: 'json',
+        action: q ? 'search' : 'tracks',
         limit: '30',
-        include: 'musicinfo',
-        audioformat: 'mp31',
-        order: 'popularity_total',
-        ...(q ? { search: q } : {}),
-        ...(g !== 'All' ? { tags: g } : {}),
+        ...(q ? { q } : {}),
+        ...(g !== 'All' ? { genre: g } : {}),
       });
-      const res = await fetch(`https://api.jamendo.com/v3.0/tracks/?${params}`);
+      const res = await fetch(`/api/jamendo?${params}`);
       const data = await res.json();
-      setTracks(data.results || []);
+      // proxy returns normalised shape: { tracks: [...] }
+      // fall back to raw Jamendo shape if proxy returns results array directly
+      setTracks(data.tracks || data.results || []);
     } catch {
       setTracks([]);
     }
@@ -66,7 +63,7 @@ export default function MusicLibrary() {
       return;
     }
 
-    audio.src = track.audio;
+    audio.src = track.audio_url || track.audio;
     audio.play();
     setPlayingId(track.id);
     setCurrentIdx(idx);

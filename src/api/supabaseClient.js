@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true';
+// WARNING: VITE_DEV_MODE must be 'false' in production.
+// Set to 'true' only for local development.
+// import.meta.env.DEV is Vite's built-in flag: true during `vite dev`, false after `vite build`.
+// This double-gate ensures DEV_MODE is NEVER active on Vercel even if the env var is accidentally set.
+const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true' && import.meta.env.DEV;
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key';

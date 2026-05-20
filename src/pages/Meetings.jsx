@@ -1087,14 +1087,24 @@ function SpaceView({ space, onBack }) {
     if (!file) return
     setUploading(true)
     try {
-      const path = `spaces/${space.id}/files/${Date.now()}-${file.name}`
-      await supabase.storage.from('meeting-files').upload(path, file)
-      const newFile = {
-        id: 'f' + Date.now(), name: file.name, size: file.size,
-        type: file.name.split('.').pop(), uploader: 'You', uploaded_at: new Date().toISOString(),
+      // Use the shared 'uploads' storage bucket with a meetings/ prefix path
+      const path = `meetings/spaces/${space.id}/${Date.now()}-${file.name}`
+      const { data: uploadData } = await supabase.storage.from('uploads').upload(path, file)
+      let publicUrl = null
+      if (uploadData?.path) {
+        const { data: { publicUrl: url } } = supabase.storage.from('uploads').getPublicUrl(uploadData.path)
+        publicUrl = url
       }
-      setFiles(prev => [...prev, newFile])
-    } catch (e) { /* ignore */ }
+      // Save metadata to meeting_files table
+      const meta = {
+        meeting_id: space.id, file_name: file.name,
+        file_url: publicUrl, file_size: file.size,
+        file_type: file.name.split('.').pop(), uploader_id: null,
+        uploaded_at: new Date().toISOString(),
+      }
+      await supabase.from('meeting_files').insert(meta).catch(() => {})
+      setFiles(prev => [...prev, { id: 'f' + Date.now(), name: file.name, size: file.size, type: meta.file_type, uploader: 'You', uploaded_at: meta.uploaded_at }])
+    } catch (e) { console.error('[Meetings] space file upload:', e.message) }
     setUploading(false)
   }
 
@@ -1316,10 +1326,21 @@ function ActiveMeetingView({ meeting, onEnd }) {
     if (!file) return
     setUploading(true)
     try {
-      const path = `meetings/${meeting.id}/files/${Date.now()}-${file.name}`
-      await supabase.storage.from('meeting-files').upload(path, file)
+      // Use shared 'uploads' storage bucket with meetings/ prefix path
+      const path = `meetings/${meeting.id}/${Date.now()}-${file.name}`
+      const { data: uploadData } = await supabase.storage.from('uploads').upload(path, file)
+      let publicUrl = null
+      if (uploadData?.path) {
+        const { data: { publicUrl: url } } = supabase.storage.from('uploads').getPublicUrl(uploadData.path)
+        publicUrl = url
+      }
+      await supabase.from('meeting_files').insert({
+        meeting_id: meeting.id, file_name: file.name, file_url: publicUrl,
+        file_size: file.size, file_type: file.name.split('.').pop(),
+        uploaded_at: new Date().toISOString(),
+      }).catch(() => {})
       setFiles(prev => [...prev, { id: Date.now(), name: file.name, size: file.size, type: file.name.split('.').pop(), uploader: 'You', uploaded_at: new Date().toISOString() }])
-    } catch (e) { /* ignore */ }
+    } catch (e) { console.error('[Meetings] file upload:', e.message) }
     setUploading(false)
   }
 
