@@ -7,7 +7,7 @@ import {
   Music, Palette, Library, Briefcase, Globe, Zap, ShoppingBag,
   Video, LogOut, Menu, X, ChevronRight, Bell, Package,
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
-  Newspaper, Award, Target, ClipboardList, Hash,
+  Newspaper, Award, Target, ClipboardList, Hash, Sparkles,
 } from 'lucide-react'
 
 // ─── Creator Mode Navigation ──────────────────────────────────────────────────
@@ -23,6 +23,7 @@ const CREATOR_NAV = [
   {
     label: 'Connect',
     items: [
+      { to: '/match',        icon: Sparkles,      label: 'SmartMatch', badge: 'NEW' },
       { to: '/community',    icon: Users,         label: 'Community' },
       { to: '/messages',     icon: MessageSquare, label: 'Messages' },
       { to: '/rooms',        icon: Radio,         label: 'Rooms' },
@@ -62,6 +63,7 @@ const PRO_NAV = [
     label: 'Network',
     items: [
       { to: '/pro-feed',  icon: Newspaper, label: 'Professional Feed' },
+      { to: '/match',     icon: Sparkles,  label: 'SmartMatch', badge: 'NEW' },
       { to: '/community', icon: Users,     label: 'Community' },
       { to: '/companies', icon: Building2, label: 'Companies' },
       { to: '/directory', icon: Globe,     label: 'Directory' },
@@ -102,7 +104,7 @@ const PRO_NAV = [
   },
 ]
 
-function NavItem({ to, icon: Icon, label, onClick }) {
+function NavItem({ to, icon: Icon, label, badge, onClick }) {
   return (
     <NavLink
       to={to}
@@ -117,7 +119,12 @@ function NavItem({ to, icon: Icon, label, onClick }) {
       }
     >
       <Icon className="w-4 h-4 flex-shrink-0" />
-      <span className="truncate">{label}</span>
+      <span className="truncate flex-1">{label}</span>
+      {badge && (
+        <span className="text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full leading-none flex-shrink-0">
+          {badge}
+        </span>
+      )}
     </NavLink>
   )
 }

@@ -90,6 +90,9 @@ import MonetizationHub from './pages/MonetizationHub'
 import Upgrade from './pages/Upgrade'
 import Billing from './pages/Billing'
 
+// SmartMatch
+import SmartMatch from './pages/SmartMatch'
+
 // Business tools
 import PitchVault from './pages/PitchVault'
 import BookingCalendar from './pages/BookingCalendar'
@@ -216,6 +219,9 @@ export default function App() {
             <Route path="/monetize" element={<P page={MonetizationHub} />} />
             <Route path="/upgrade" element={<P page={Upgrade} />} />
             <Route path="/billing" element={<P page={Billing} />} />
+
+            {/* SmartMatch */}
+            <Route path="/match" element={<P page={SmartMatch} />} />
 
             {/* Business */}
             <Route path="/pitch-vault" element={<P page={PitchVault} />} />

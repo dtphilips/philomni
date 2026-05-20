@@ -8,8 +8,9 @@ import {
   Send, Loader2, MoreHorizontal, Trash2, Bold, Italic, Smile, X, Plus,
   Bookmark, Repeat2, Eye, MapPin, Globe, Users, Lock, Flag,
   Copy, BookOpen, MessageSquare,
-  UserPlus, Hash, Calendar, ChevronRight, Edit3, Film,
+  UserPlus, Hash, Calendar, ChevronRight, Edit3, Film, Sparkles, ArrowRight,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import MediaEditor from '@/components/editor/MediaEditor'
 
 const PAGE_SIZE = 10
@@ -1750,7 +1751,69 @@ function RightSidebar() {
         </div>
       )}
 
+      {/* SmartMatch CTA */}
+      <SmartMatchCTA />
+
       <p className="text-xs text-muted-foreground/50 text-center pb-4">© 2025 Philomni</p>
+    </div>
+  )
+}
+
+// ─── SmartMatch CTA (sidebar widget) ─────────────────────────────────────────
+
+function SmartMatchCTA() {
+  const navigate = useNavigate()
+  return (
+    <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background border border-primary/30 rounded-2xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Sparkles className="w-4 h-4 text-primary" />
+        <span className="text-sm font-bold text-foreground">SmartMatch</span>
+        <span className="text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">NEW</span>
+      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        Find your perfect collaborator, investor, or creative partner — powered by AI matching.
+      </p>
+      <button
+        onClick={() => navigate('/match')}
+        className="w-full flex items-center justify-center gap-1.5 bg-primary text-primary-foreground text-xs font-semibold py-2.5 rounded-xl hover:bg-primary/90 transition"
+      >
+        Get Matched <ArrowRight className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  )
+}
+
+// ─── Connection Story Card (in-feed) ─────────────────────────────────────────
+
+const STORY_CARDS = [
+  { from: 'A creator in Lagos', to: 'a brand in Toronto', result: 'landed a $15K UGC deal', emoji: '🎬' },
+  { from: 'A startup founder in Accra', to: 'their co-founder', result: 'launched and hit 1K users in 30 days', emoji: '🚀' },
+  { from: 'An angel investor in London', to: 'a Nigerian fintech', result: 'made their first African investment', emoji: '💰' },
+  { from: 'A music producer in Abuja', to: 'an LA-based artist', result: 'released a charting single together', emoji: '🎵' },
+]
+let storyIdx = 0
+
+function ConnectionStoryCard() {
+  const navigate = useNavigate()
+  const card = STORY_CARDS[storyIdx++ % STORY_CARDS.length]
+  return (
+    <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-2xl p-4 flex gap-4 items-center">
+      <div className="text-3xl flex-shrink-0">{card.emoji}</div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-1">
+          <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+          <span className="text-xs font-bold text-primary">Philomni Connection</span>
+        </div>
+        <p className="text-sm text-foreground">
+          <span className="font-medium">{card.from}</span> connected with <span className="font-medium">{card.to}</span> and {card.result}.
+        </p>
+      </div>
+      <button
+        onClick={() => navigate('/match')}
+        className="flex-shrink-0 text-xs font-semibold text-primary hover:underline whitespace-nowrap"
+      >
+        Find yours →
+      </button>
     </div>
   )
 }
@@ -1858,8 +1921,11 @@ export default function Feed() {
         ) : (
           <>
             <div className="space-y-4">
-              {posts.map(post => (
-                <PostCard key={post.id} post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} />
+              {posts.map((post, i) => (
+                <React.Fragment key={post.id}>
+                  <PostCard post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} />
+                  {(i + 1) % 4 === 0 && i < posts.length - 1 && <ConnectionStoryCard />}
+                </React.Fragment>
               ))}
             </div>
             <div ref={sentinelRef} className="h-12 flex items-center justify-center mt-2">
