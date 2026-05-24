@@ -7,7 +7,9 @@ import { useMode } from '../context/ModeContext'
 import {
   Send, Mic, MicOff, Paperclip, RefreshCw, Copy,
   ThumbsUp, ThumbsDown, Plus, MessageSquare, X,
-  ChevronLeft, Check, FileText, Image as ImageIcon,
+  ChevronLeft, ChevronRight, ChevronDown, Check,
+  FileText, Image as ImageIcon, Trash2, FolderPlus,
+  Folder, FolderOpen, MoreHorizontal, GitBranch,
 } from 'lucide-react'
 
 // ── Philo's system prompt ────────────────────────────────────────────────────
@@ -68,26 +70,42 @@ function buildSystemPrompt(user, mode) {
     `- Mode: ${mode === 'pro' ? 'Professional (Pro)' : 'Creator'}`,
     user.industry ? `- Industry: ${user.industry}` : '',
     Array.isArray(user.skills) && user.skills.length
-      ? `- Skills: ${user.skills.join(', ')}`
-      : '',
+      ? `- Skills: ${user.skills.join(', ')}` : '',
     user.bio ? `- Bio: ${user.bio}` : '',
     user.location ? `- Location: ${user.location}` : '',
   ].filter(Boolean)
   return PHILO_BASE_PROMPT + lines.join('\n')
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function cleanMsgsForStorage(msgs) {
+  return msgs.map(m => ({
+    ...m,
+    attachments: (m.attachments || []).map(a => ({ name: a.name, type: a.type })),
+  }))
+}
+
+function detectQuickActions(content) {
+  const lower = content.toLowerCase()
+  const actions = []
+  if (lower.includes('caption') || lower.includes('post for') || lower.includes('social media'))
+    actions.push({ label: '📋 Copy to Feed', action: 'feed' })
+  if (lower.includes('pitch') || lower.includes('startup') || lower.includes('business idea'))
+    actions.push({ label: '🚀 Pitch Vault', action: 'pitch-vault' })
+  if (lower.includes('connect') || lower.includes('network') || lower.includes('smartmatch'))
+    actions.push({ label: '✨ SmartMatch', action: 'match' })
+  if (lower.includes('bio') || lower.includes('your profile') || lower.includes('update your'))
+    actions.push({ label: '👤 Edit Profile', action: 'edit-profile' })
+  return actions.slice(0, 3)
+}
+
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 function PhiloAvatar({ size = 'md' }) {
-  const s = {
-    sm: 'w-8 h-8 text-base',
-    md: 'w-9 h-9 text-lg',
-    lg: 'w-16 h-16 text-3xl',
-  }[size] || 'w-9 h-9 text-lg'
+  const s = { sm: 'w-8 h-8 text-base', md: 'w-9 h-9 text-lg', lg: 'w-16 h-16 text-3xl' }[size]
   return (
-    <div
-      className={`${s} rounded-full bg-gradient-to-br from-purple-500 to-violet-700 flex items-center justify-center flex-shrink-0 shadow-md`}
-    >
+    <div className={`${s} rounded-full bg-gradient-to-br from-purple-500 to-violet-700 flex items-center justify-center flex-shrink-0 shadow-md`}>
       <span>✨</span>
     </div>
   )
@@ -100,66 +118,26 @@ function MarkdownContent({ content }) {
       components={{
         // eslint-disable-next-line no-unused-vars
         code({ node, inline, className, children, ...props }) {
-          if (inline) {
-            return (
-              <code
-                className="bg-muted/80 px-1.5 py-0.5 rounded text-xs font-mono text-primary"
-                {...props}
-              >
-                {children}
-              </code>
-            )
-          }
+          if (inline) return <code className="bg-muted/80 px-1.5 py-0.5 rounded text-xs font-mono text-primary" {...props}>{children}</code>
           return (
             <pre className="bg-muted rounded-lg p-3 overflow-x-auto mt-2 mb-2">
-              <code className="text-xs font-mono text-foreground" {...props}>
-                {children}
-              </code>
+              <code className="text-xs font-mono text-foreground" {...props}>{children}</code>
             </pre>
           )
         },
-        p({ children }) {
-          return <p className="mb-2 last:mb-0 leading-relaxed text-sm">{children}</p>
-        },
-        ul({ children }) {
-          return <ul className="list-disc pl-5 mb-2 space-y-1 text-sm">{children}</ul>
-        },
-        ol({ children }) {
-          return <ol className="list-decimal pl-5 mb-2 space-y-1 text-sm">{children}</ol>
-        },
-        li({ children }) {
-          return <li className="text-sm leading-relaxed">{children}</li>
-        },
-        strong({ children }) {
-          return <strong className="font-semibold text-foreground">{children}</strong>
-        },
-        h1({ children }) {
-          return <h1 className="text-base font-bold mb-2 text-foreground">{children}</h1>
-        },
-        h2({ children }) {
-          return <h2 className="text-sm font-bold mb-2 text-foreground">{children}</h2>
-        },
-        h3({ children }) {
-          return <h3 className="text-sm font-semibold mb-1 text-foreground">{children}</h3>
-        },
+        p({ children }) { return <p className="mb-2 last:mb-0 leading-relaxed text-sm">{children}</p> },
+        ul({ children }) { return <ul className="list-disc pl-5 mb-2 space-y-1 text-sm">{children}</ul> },
+        ol({ children }) { return <ol className="list-decimal pl-5 mb-2 space-y-1 text-sm">{children}</ol> },
+        li({ children }) { return <li className="text-sm leading-relaxed">{children}</li> },
+        strong({ children }) { return <strong className="font-semibold text-foreground">{children}</strong> },
+        h1({ children }) { return <h1 className="text-base font-bold mb-2 text-foreground">{children}</h1> },
+        h2({ children }) { return <h2 className="text-sm font-bold mb-2 text-foreground">{children}</h2> },
+        h3({ children }) { return <h3 className="text-sm font-semibold mb-1 text-foreground">{children}</h3> },
         blockquote({ children }) {
-          return (
-            <blockquote className="border-l-2 border-primary pl-3 italic text-muted-foreground my-2">
-              {children}
-            </blockquote>
-          )
+          return <blockquote className="border-l-2 border-primary pl-3 italic text-muted-foreground my-2">{children}</blockquote>
         },
         a({ children, href }) {
-          return (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary underline hover:opacity-80"
-            >
-              {children}
-            </a>
-          )
+          return <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:opacity-80">{children}</a>
         },
       }}
     >
@@ -168,39 +146,13 @@ function MarkdownContent({ content }) {
   )
 }
 
-function detectQuickActions(content) {
-  const lower = content.toLowerCase()
-  const actions = []
-  if (lower.includes('caption') || lower.includes('post for') || lower.includes('social media')) {
-    actions.push({ label: '📋 Copy to Feed', action: 'feed' })
-  }
-  if (lower.includes('pitch') || lower.includes('startup') || lower.includes('business idea')) {
-    actions.push({ label: '🚀 Pitch Vault', action: 'pitch-vault' })
-  }
-  if (lower.includes('connect') || lower.includes('network') || lower.includes('smartmatch')) {
-    actions.push({ label: '✨ SmartMatch', action: 'match' })
-  }
-  if (lower.includes('bio') || lower.includes('your profile') || lower.includes('update your')) {
-    actions.push({ label: '👤 Edit Profile', action: 'edit-profile' })
-  }
-  return actions.slice(0, 3)
-}
-
-// Strip any residual base64 blobs from attachment metadata before storing to Supabase.
-// The userMsg object already strips base64 at creation time, but this is a safety net.
-function cleanMsgsForStorage(msgs) {
-  return msgs.map(m => ({
-    ...m,
-    attachments: (m.attachments || []).map(a => ({ name: a.name, type: a.type })),
-  }))
-}
-
 // ── Main component ───────────────────────────────────────────────────────────
 export default function PhilomniAI() {
   const { user } = useAuth()
   const { mode } = useMode()
   const navigate = useNavigate()
 
+  // ── Core chat state ────────────────────────────────────────────────────────
   const [conversations, setConversations] = useState([])
   const [currentConvId, setCurrentConvId] = useState(null)
   const [messages, setMessages] = useState([])
@@ -212,25 +164,95 @@ export default function PhilomniAI() {
   const [feedbackMap, setFeedbackMap] = useState({})
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 
+  // ── Feature state ──────────────────────────────────────────────────────────
+  const [folders, setFolders] = useState([])
+  const [collapsedFolders, setCollapsedFolders] = useState(new Set())
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null)   // conv awaiting delete
+  const [folderMenuConvId, setFolderMenuConvId] = useState(null) // conv showing folder picker
+  const [draggingConvId, setDraggingConvId] = useState(null)
+  const [dragOverTarget, setDragOverTarget] = useState(null)     // folder id or 'unfiled'
+  const [msgMenuId, setMsgMenuId] = useState(null)               // message id showing "..." menu
+  const [branchingIdx, setBranchingIdx] = useState(null)         // message index being branched
+
+  // ── Refs ───────────────────────────────────────────────────────────────────
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
   const fileInputRef = useRef(null)
   const recognitionRef = useRef(null)
   const saveTimerRef = useRef(null)
   const convIdRef = useRef(null)
+  const folderMenuRef = useRef(null)
+  const msgMenuRef = useRef(null)
+  const newFolderInputRef = useRef(null)
 
-  // Keep ref in sync so async callbacks have latest value
+  // Keep ref in sync with state so async callbacks always have latest convId
   useEffect(() => { convIdRef.current = currentConvId }, [currentConvId])
 
-  // ── Load conversation list ─────────────────────────────────────────────────
+  // Close folder picker when clicking outside
+  useEffect(() => {
+    if (!folderMenuConvId) return
+    const handler = e => {
+      if (folderMenuRef.current && !folderMenuRef.current.contains(e.target))
+        setFolderMenuConvId(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [folderMenuConvId])
+
+  // Close message "..." menu when clicking outside
+  useEffect(() => {
+    if (!msgMenuId) return
+    const handler = e => {
+      if (msgMenuRef.current && !msgMenuRef.current.contains(e.target))
+        setMsgMenuId(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [msgMenuId])
+
+  // Focus new folder input when it appears
+  useEffect(() => {
+    if (creatingFolder) setTimeout(() => newFolderInputRef.current?.focus(), 50)
+  }, [creatingFolder])
+
+  // ── Scroll + textarea resize ───────────────────────────────────────────────
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isTyping])
+
+  useEffect(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'
+  }, [input])
+
+  // ── Load folders ───────────────────────────────────────────────────────────
+  const loadFolders = useCallback(async () => {
+    if (!user?.id) return
+    const { data, error } = await supabase
+      .from('ai_folders')
+      .select('id, name')
+      .eq('user_id', user.id)
+      .order('created_at')
+    if (error) {
+      console.error('[PhilomniAI] loadFolders error:', error.message)
+      return
+    }
+    setFolders(data || [])
+  }, [user])
+
+  // ── Load conversation list (includes folder_id) ────────────────────────────
   const loadConversations = useCallback(async () => {
     if (!user?.id) return
     const { data, error } = await supabase
       .from('ai_conversations')
-      .select('id, title, updated_at')
+      .select('id, title, updated_at, folder_id')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
-      .limit(40)
+      .limit(60)
     if (error) {
       console.error('[PhilomniAI] loadConversations error:', error.message, error.code)
       return
@@ -238,20 +260,10 @@ export default function PhilomniAI() {
     setConversations(data || [])
   }, [user])
 
-  useEffect(() => { loadConversations() }, [loadConversations])
-
-  // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isTyping])
-
-  // Auto-resize textarea
-  useEffect(() => {
-    const ta = textareaRef.current
-    if (!ta) return
-    ta.style.height = 'auto'
-    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'
-  }, [input])
+    loadConversations()
+    loadFolders()
+  }, [loadConversations, loadFolders])
 
   // ── Load a saved conversation ──────────────────────────────────────────────
   const loadConversation = useCallback(async (id) => {
@@ -277,6 +289,7 @@ export default function PhilomniAI() {
   const startNewChat = () => {
     setMessages([])
     setCurrentConvId(null)
+    convIdRef.current = null
     setInput('')
     setAttachments([])
     setMobileSidebarOpen(false)
@@ -290,7 +303,6 @@ export default function PhilomniAI() {
     const title = (msgs[0]?.content || 'Chat').toString().slice(0, 60)
 
     if (convId) {
-      // UPDATE existing row
       const { error } = await supabase
         .from('ai_conversations')
         .update({ messages: safe, updated_at: new Date().toISOString() })
@@ -300,7 +312,6 @@ export default function PhilomniAI() {
         return
       }
     } else {
-      // INSERT new row — first message in a fresh chat
       const { data, error } = await supabase
         .from('ai_conversations')
         .insert({ user_id: user.id, title, messages: safe })
@@ -315,15 +326,115 @@ export default function PhilomniAI() {
         convIdRef.current = data.id
       }
     }
-    // Refresh sidebar list after every save
     loadConversations()
   }, [user, loadConversations])
 
+  // ── DELETE conversation ────────────────────────────────────────────────────
+  const deleteConversation = useCallback(async (id) => {
+    const { error } = await supabase
+      .from('ai_conversations')
+      .delete()
+      .eq('id', id)
+    if (error) {
+      console.error('[PhilomniAI] delete error:', error.message)
+      return
+    }
+    // Optimistic update: remove from local list immediately
+    setConversations(prev => prev.filter(c => c.id !== id))
+    if (convIdRef.current === id) startNewChat()
+    setDeleteConfirmId(null)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── CREATE folder ──────────────────────────────────────────────────────────
+  const createFolder = useCallback(async () => {
+    const name = newFolderName.trim()
+    if (!name || !user?.id) return
+    const { data, error } = await supabase
+      .from('ai_folders')
+      .insert({ user_id: user.id, name })
+      .select('id, name')
+      .single()
+    if (error) {
+      console.error('[PhilomniAI] createFolder error:', error.message)
+      return
+    }
+    if (data) setFolders(prev => [...prev, data])
+    setNewFolderName('')
+    setCreatingFolder(false)
+  }, [user, newFolderName])
+
+  // ── DELETE folder (moves its conversations to unfiled) ─────────────────────
+  const deleteFolder = useCallback(async (folderId) => {
+    // First move all conversations in this folder to unfiled
+    await supabase
+      .from('ai_conversations')
+      .update({ folder_id: null })
+      .eq('folder_id', folderId)
+
+    const { error } = await supabase
+      .from('ai_folders')
+      .delete()
+      .eq('id', folderId)
+    if (error) {
+      console.error('[PhilomniAI] deleteFolder error:', error.message)
+      return
+    }
+    setFolders(prev => prev.filter(f => f.id !== folderId))
+    setConversations(prev =>
+      prev.map(c => c.folder_id === folderId ? { ...c, folder_id: null } : c)
+    )
+  }, [])
+
+  // ── MOVE conversation to folder ────────────────────────────────────────────
+  const moveToFolder = useCallback(async (convId, folderId) => {
+    const { error } = await supabase
+      .from('ai_conversations')
+      .update({ folder_id: folderId })
+      .eq('id', convId)
+    if (error) {
+      console.error('[PhilomniAI] moveToFolder error:', error.message)
+      return
+    }
+    setConversations(prev =>
+      prev.map(c => c.id === convId ? { ...c, folder_id: folderId } : c)
+    )
+    setFolderMenuConvId(null)
+  }, [])
+
+  // ── BRANCH chat from a message index ──────────────────────────────────────
+  const branchChat = useCallback(async (upToIdx) => {
+    if (!user?.id) return
+    setBranchingIdx(upToIdx)
+    const branchMsgs = messages.slice(0, upToIdx + 1)
+    const originTitle = conversations.find(c => c.id === convIdRef.current)?.title || 'Chat'
+    const title = `Branch: ${originTitle.slice(0, 45)}`
+    const safe = cleanMsgsForStorage(branchMsgs)
+
+    const { data, error } = await supabase
+      .from('ai_conversations')
+      .insert({ user_id: user.id, title, messages: safe })
+      .select('id')
+      .single()
+
+    setBranchingIdx(null)
+    setMsgMenuId(null)
+
+    if (error) {
+      console.error('[PhilomniAI] branchChat error:', error.message)
+      return
+    }
+    if (data?.id) {
+      // Switch to the new branch
+      setMessages(branchMsgs)
+      setCurrentConvId(data.id)
+      convIdRef.current = data.id
+      loadConversations()
+    }
+  }, [user, messages, conversations, loadConversations])
+
   // ── Send a message ─────────────────────────────────────────────────────────
   const sendMessage = useCallback(async (overrideText) => {
-    const text = typeof overrideText === 'string'
-      ? overrideText.trim()
-      : input.trim()
+    const text = typeof overrideText === 'string' ? overrideText.trim() : input.trim()
     if (!text && attachments.length === 0) return
 
     const userMsg = {
@@ -341,7 +452,6 @@ export default function PhilomniAI() {
     setIsTyping(true)
 
     try {
-      // Vision: build multipart content if image attachments present
       const imageAttachments = attachments.filter(a => a.type.startsWith('image/'))
       let userContent
       if (imageAttachments.length > 0) {
@@ -354,7 +464,6 @@ export default function PhilomniAI() {
         ]
       }
 
-      // Build conversation history for context (cap at last 20 messages to stay within token limits)
       const history = messages
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .slice(-20)
@@ -385,26 +494,22 @@ export default function PhilomniAI() {
       const finalMessages = [...newMessages, assistantMsg]
       setMessages(finalMessages)
 
-      // Debounced Supabase save
       clearTimeout(saveTimerRef.current)
       saveTimerRef.current = setTimeout(() => saveConversation(finalMessages), 1200)
     } catch (err) {
       console.error('[PhilomniAI] sendMessage:', err)
-      setMessages(prev => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: 'I ran into an issue connecting. Please try again.',
-          timestamp: new Date().toISOString(),
-        },
-      ])
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'I ran into an issue connecting. Please try again.',
+        timestamp: new Date().toISOString(),
+      }])
     } finally {
       setIsTyping(false)
     }
   }, [input, attachments, messages, user, mode, saveConversation])
 
-  // ── Regenerate last Philo response ─────────────────────────────────────────
+  // ── Regenerate ─────────────────────────────────────────────────────────────
   const regenerate = useCallback(async () => {
     const lastAssistantIdx = messages.map(m => m.role).lastIndexOf('assistant')
     if (lastAssistantIdx < 1) return
@@ -415,7 +520,7 @@ export default function PhilomniAI() {
     await sendMessage(lastUser.content)
   }, [messages, sendMessage])
 
-  // ── Copy message text ──────────────────────────────────────────────────────
+  // ── Copy / voice / file ────────────────────────────────────────────────────
   const copyMessage = async (content, id) => {
     try {
       await navigator.clipboard.writeText(content)
@@ -424,160 +529,345 @@ export default function PhilomniAI() {
     } catch { /* clipboard not available */ }
   }
 
-  // ── File attachment ────────────────────────────────────────────────────────
   const handleFileAttach = async (e) => {
     const files = Array.from(e.target.files || [])
     const newAttachments = await Promise.all(
-      files.slice(0, 3).map(
-        file => new Promise(resolve => {
-          const reader = new FileReader()
-          reader.onload = () => {
-            const base64 = reader.result.split(',')[1]
-            resolve({
-              name: file.name,
-              type: file.type,
-              base64,
-              preview: file.type.startsWith('image/') ? reader.result : null,
-            })
-          }
-          reader.readAsDataURL(file)
-        })
-      )
+      files.slice(0, 3).map(file => new Promise(resolve => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const base64 = reader.result.split(',')[1]
+          resolve({ name: file.name, type: file.type, base64, preview: file.type.startsWith('image/') ? reader.result : null })
+        }
+        reader.readAsDataURL(file)
+      }))
     )
     setAttachments(prev => [...prev, ...newAttachments].slice(0, 3))
     e.target.value = ''
   }
 
-  // ── Voice input ────────────────────────────────────────────────────────────
   const handleVoice = () => {
-    if (isRecording) {
-      recognitionRef.current?.stop()
-      setIsRecording(false)
-      return
-    }
+    if (isRecording) { recognitionRef.current?.stop(); setIsRecording(false); return }
     try {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-      if (!SR) {
-        alert('Voice input is not supported in this browser.')
-        return
-      }
+      if (!SR) { alert('Voice input is not supported in this browser.'); return }
       const recognition = new SR()
-      recognition.continuous = false
-      recognition.interimResults = false
-      recognition.lang = 'en-US'
-      recognition.onresult = e => {
-        const t = e.results[0][0].transcript
-        setInput(prev => (prev ? prev + ' ' + t : t))
-        setIsRecording(false)
-      }
+      recognition.continuous = false; recognition.interimResults = false; recognition.lang = 'en-US'
+      recognition.onresult = e => { setInput(prev => prev ? prev + ' ' + e.results[0][0].transcript : e.results[0][0].transcript); setIsRecording(false) }
       recognition.onerror = () => setIsRecording(false)
       recognition.onend = () => setIsRecording(false)
       recognitionRef.current = recognition
-      recognition.start()
-      setIsRecording(true)
+      recognition.start(); setIsRecording(true)
     } catch { setIsRecording(false) }
   }
 
-  // ── Quick action navigation ────────────────────────────────────────────────
   const handleQuickAction = (action, content) => {
-    if (action === 'feed') {
-      navigate('/?compose=' + encodeURIComponent(content.slice(0, 300)))
-    } else {
-      navigate('/' + action)
-    }
+    if (action === 'feed') navigate('/?compose=' + encodeURIComponent(content.slice(0, 300)))
+    else navigate('/' + action)
   }
 
   const handleKeyDown = e => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
-  const charCount = input.length
-  const charColor =
-    charCount > 2000 ? 'text-destructive' :
-    charCount > 1500 ? 'text-amber-400' :
-    'text-muted-foreground'
+  // ── Drag & drop helpers ────────────────────────────────────────────────────
+  const handleDragStart = (e, convId) => {
+    setDraggingConvId(convId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  const handleDragEnd = () => { setDraggingConvId(null); setDragOverTarget(null) }
+  const handleDragOver = (e, targetId) => { e.preventDefault(); setDragOverTarget(targetId) }
+  const handleDrop = (e, targetFolderId) => {
+    e.preventDefault()
+    if (draggingConvId) moveToFolder(draggingConvId, targetFolderId)
+    setDraggingConvId(null); setDragOverTarget(null)
+  }
 
+  // ── Derived data ───────────────────────────────────────────────────────────
+  const charCount = input.length
+  const charColor = charCount > 2000 ? 'text-destructive' : charCount > 1500 ? 'text-amber-400' : 'text-muted-foreground'
   const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant')
+  const filedConvIds = new Set(conversations.filter(c => c.folder_id).map(c => c.id))
+  const unfiledConvs = conversations.filter(c => !c.folder_id)
+
+  // ── Conversation row renderer (used in sidebar) ────────────────────────────
+  const renderConvRow = (conv) => {
+    const isActive = currentConvId === conv.id
+    const isPendingDelete = deleteConfirmId === conv.id
+    const isFolderMenuOpen = folderMenuConvId === conv.id
+
+    if (isPendingDelete) {
+      return (
+        <div key={conv.id} className="mx-1 px-3 py-2.5 rounded-lg bg-destructive/10 border border-destructive/30">
+          <p className="text-xs text-destructive font-medium mb-2">Delete this chat?</p>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => deleteConversation(conv.id)}
+              className="flex-1 text-xs px-2 py-1 rounded bg-destructive text-white hover:bg-destructive/90 transition-colors font-medium"
+            >
+              Delete
+            </button>
+            <button
+              onClick={() => setDeleteConfirmId(null)}
+              className="flex-1 text-xs px-2 py-1 rounded bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div
+        key={conv.id}
+        draggable
+        onDragStart={e => handleDragStart(e, conv.id)}
+        onDragEnd={handleDragEnd}
+        className={[
+          'group relative mx-1 rounded-lg transition-colors cursor-grab active:cursor-grabbing',
+          isActive ? 'bg-primary/15' : 'hover:bg-muted',
+          draggingConvId === conv.id ? 'opacity-40' : '',
+        ].join(' ')}
+      >
+        {/* Main clickable area */}
+        <button
+          onClick={() => loadConversation(conv.id)}
+          className="w-full text-left px-3 py-2.5"
+        >
+          <div className="flex items-center gap-1.5 pr-12">
+            <MessageSquare className={`w-3 h-3 flex-shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`truncate text-xs font-medium ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+              {conv.title || 'Chat'}
+            </span>
+          </div>
+          <span className="text-[10px] opacity-40 pl-4">
+            {new Date(conv.updated_at).toLocaleDateString()}
+          </span>
+        </button>
+
+        {/* Hover action buttons */}
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5">
+          {/* Folder picker */}
+          <div className="relative" ref={isFolderMenuOpen ? folderMenuRef : null}>
+            <button
+              onClick={e => { e.stopPropagation(); setFolderMenuConvId(isFolderMenuOpen ? null : conv.id) }}
+              className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              title="Move to folder"
+            >
+              <Folder className="w-3 h-3" />
+            </button>
+            {isFolderMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 bg-card border border-border rounded-xl shadow-xl py-1 min-w-[140px]">
+                {folders.length === 0 && (
+                  <p className="text-xs text-muted-foreground px-3 py-2">No folders yet</p>
+                )}
+                {folders.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => moveToFolder(conv.id, f.id)}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted text-foreground flex items-center gap-2 transition-colors"
+                  >
+                    <Folder className="w-3 h-3 text-primary" />
+                    <span className="truncate">{f.name}</span>
+                    {conv.folder_id === f.id && <Check className="w-3 h-3 text-primary ml-auto flex-shrink-0" />}
+                  </button>
+                ))}
+                {conv.folder_id && (
+                  <>
+                    <div className="border-t border-border my-1" />
+                    <button
+                      onClick={() => moveToFolder(conv.id, null)}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted text-muted-foreground transition-colors"
+                    >
+                      Remove from folder
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          {/* Delete */}
+          <button
+            onClick={e => { e.stopPropagation(); setDeleteConfirmId(conv.id); setFolderMenuConvId(null) }}
+            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+            title="Delete chat"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="-mx-4 -my-6 flex h-[calc(100vh-56px)] lg:h-screen overflow-hidden bg-background">
 
-      {/* ── History sidebar — mobile overlay + desktop permanent ─────────── */}
       {/* Mobile backdrop */}
       {mobileSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 z-30 lg:hidden"
-          onClick={() => setMobileSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={() => setMobileSidebarOpen(false)} />
       )}
 
-      <aside
-        className={[
-          'flex flex-col border-r border-border bg-card flex-shrink-0 transition-all duration-300',
-          // Mobile: slide in as overlay
-          mobileSidebarOpen
-            ? 'fixed inset-y-0 left-0 w-64 z-40 shadow-2xl'
-            : 'w-0 overflow-hidden',
-          // Desktop: always visible at 200px
-          'lg:relative lg:w-52 lg:overflow-visible lg:shadow-none lg:block',
-        ].join(' ')}
-      >
+      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
+      <aside className={[
+        'flex flex-col border-r border-border bg-card flex-shrink-0 transition-all duration-300',
+        mobileSidebarOpen ? 'fixed inset-y-0 left-0 w-64 z-40 shadow-2xl' : 'w-0 overflow-hidden',
+        'lg:relative lg:w-56 lg:overflow-visible lg:shadow-none lg:block',
+      ].join(' ')}>
+
         {/* Sidebar header */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-border flex-shrink-0">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border flex-shrink-0">
+          <div className="flex items-center gap-2">
             <PhiloAvatar size="sm" />
             <span className="font-bold text-foreground text-sm">Philo</span>
           </div>
-          <button
-            onClick={() => setMobileSidebarOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
-          >
+          <button onClick={() => setMobileSidebarOpen(false)} className="lg:hidden p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* New chat button */}
-        <div className="px-3 py-3 flex-shrink-0">
+        {/* Action buttons: New Chat + New Folder */}
+        <div className="px-3 py-2.5 flex gap-2 flex-shrink-0 border-b border-border/60">
           <button
             onClick={startNewChat}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+            className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             New Chat
+          </button>
+          <button
+            onClick={() => { setCreatingFolder(true); setNewFolderName('') }}
+            className="p-2 rounded-xl border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            title="New folder"
+          >
+            <FolderPlus className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Conversation list */}
-        <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5">
-          {conversations.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-6 px-3">
+        {/* Scrollable conversation + folder list */}
+        <div className="flex-1 overflow-y-auto py-2">
+
+          {/* New folder creation input */}
+          {creatingFolder && (
+            <div className="mx-2 mb-2 p-2 rounded-xl border border-primary/40 bg-primary/5">
+              <input
+                ref={newFolderInputRef}
+                type="text"
+                value={newFolderName}
+                onChange={e => setNewFolderName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') createFolder()
+                  if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName('') }
+                }}
+                placeholder="Folder name..."
+                className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none mb-2"
+              />
+              <div className="flex gap-1.5">
+                <button
+                  onClick={createFolder}
+                  disabled={!newFolderName.trim()}
+                  className="flex-1 text-xs py-1 px-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors font-medium"
+                >
+                  Create
+                </button>
+                <button
+                  onClick={() => { setCreatingFolder(false); setNewFolderName('') }}
+                  className="text-xs py-1 px-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Folders */}
+          {folders.map(folder => {
+            const folderConvs = conversations.filter(c => c.folder_id === folder.id)
+            const isCollapsed = collapsedFolders.has(folder.id)
+            const isDragTarget = dragOverTarget === folder.id
+
+            return (
+              <div
+                key={folder.id}
+                onDragOver={e => handleDragOver(e, folder.id)}
+                onDrop={e => handleDrop(e, folder.id)}
+                onDragLeave={() => setDragOverTarget(null)}
+                className={`mb-1 rounded-lg mx-1 transition-colors ${isDragTarget ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}
+              >
+                {/* Folder header */}
+                <div className="group flex items-center gap-1 px-2 py-1.5">
+                  <button
+                    onClick={() => setCollapsedFolders(prev => {
+                      const next = new Set(prev)
+                      if (next.has(folder.id)) next.delete(folder.id)
+                      else next.add(folder.id)
+                      return next
+                    })}
+                    className="flex-1 flex items-center gap-1.5 text-left"
+                  >
+                    {isCollapsed
+                      ? <ChevronRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                      : <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                    }
+                    {isCollapsed
+                      ? <Folder className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                      : <FolderOpen className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                    }
+                    <span className="text-xs font-semibold text-foreground truncate">{folder.name}</span>
+                    {folderConvs.length > 0 && (
+                      <span className="text-[10px] text-muted-foreground ml-auto flex-shrink-0">
+                        {folderConvs.length}
+                      </span>
+                    )}
+                  </button>
+                  {/* Delete folder button */}
+                  <button
+                    onClick={() => deleteFolder(folder.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-muted text-muted-foreground hover:text-destructive transition-all"
+                    title="Delete folder"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {/* Folder conversations */}
+                {!isCollapsed && (
+                  <div className="space-y-0.5 pb-1 pl-2">
+                    {folderConvs.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground/50 px-3 py-1">
+                        Drop chats here
+                      </p>
+                    ) : (
+                      folderConvs.map(renderConvRow)
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {/* Unfiled conversations */}
+          {unfiledConvs.length > 0 && (
+            <div
+              onDragOver={e => handleDragOver(e, 'unfiled')}
+              onDrop={e => handleDrop(e, null)}
+              onDragLeave={() => setDragOverTarget(null)}
+              className={`space-y-0.5 rounded-lg transition-colors ${dragOverTarget === 'unfiled' ? 'bg-primary/10 ring-1 ring-primary/30 mx-1 p-1' : ''}`}
+            >
+              {folders.length > 0 && (
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 px-4 py-1">
+                  Other
+                </p>
+              )}
+              {unfiledConvs.map(renderConvRow)}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {conversations.length === 0 && !creatingFolder && (
+            <p className="text-xs text-muted-foreground text-center py-6 px-4">
               Your conversations will appear here
             </p>
-          ) : (
-            conversations.map(conv => (
-              <button
-                key={conv.id}
-                onClick={() => loadConversation(conv.id)}
-                className={[
-                  'w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors',
-                  currentConvId === conv.id
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                ].join(' ')}
-              >
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <MessageSquare className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate font-medium">{conv.title || 'Chat'}</span>
-                </div>
-                <span className="text-[10px] opacity-50 pl-4">
-                  {new Date(conv.updated_at).toLocaleDateString()}
-                </span>
-              </button>
-            ))
           )}
         </div>
       </aside>
@@ -587,13 +877,9 @@ export default function PhilomniAI() {
 
         {/* Top bar */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card flex-shrink-0">
-          <button
-            onClick={() => setMobileSidebarOpen(true)}
-            className="lg:hidden p-2 rounded-lg hover:bg-muted text-muted-foreground"
-          >
+          <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-muted text-muted-foreground">
             <ChevronLeft className="w-5 h-5" />
           </button>
-
           <PhiloAvatar size="sm" />
           <div className="flex-1 min-w-0">
             <p className="font-bold text-foreground text-sm leading-none">Philo ✨</p>
@@ -601,7 +887,6 @@ export default function PhilomniAI() {
               {isTyping ? 'Thinking...' : 'Your AI assistant on Philomni'}
             </p>
           </div>
-
           {messages.length > 0 && (
             <button
               onClick={startNewChat}
@@ -617,19 +902,12 @@ export default function PhilomniAI() {
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-5">
 
           {messages.length === 0 ? (
-            /* ── Welcome screen ─────────────────────────────────────────── */
+            /* Welcome screen */
             <div className="flex flex-col items-center justify-center min-h-full text-center py-8 px-4">
               <PhiloAvatar size="lg" />
-              <h1 className="mt-6 text-2xl font-bold text-foreground">
-                Hi, I&apos;m Philo ✨
-              </h1>
-              <p className="text-muted-foreground mt-1 text-sm">
-                Your AI assistant on Philomni
-              </p>
-              <p className="text-sm text-muted-foreground mt-1 mb-8">
-                I can help you create, grow, connect, and succeed.
-              </p>
-
+              <h1 className="mt-6 text-2xl font-bold text-foreground">Hi, I&apos;m Philo ✨</h1>
+              <p className="text-muted-foreground mt-1 text-sm">Your AI assistant on Philomni</p>
+              <p className="text-sm text-muted-foreground mt-1 mb-8">I can help you create, grow, connect, and succeed.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
                 {QUICK_PROMPTS.map(qp => (
                   <button
@@ -639,9 +917,7 @@ export default function PhilomniAI() {
                   >
                     <span className="text-xl flex-shrink-0 mt-0.5">{qp.emoji}</span>
                     <div>
-                      <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-                        {qp.title}
-                      </p>
+                      <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">{qp.title}</p>
                       <p className="text-xs text-muted-foreground">{qp.subtitle}</p>
                     </div>
                   </button>
@@ -649,21 +925,17 @@ export default function PhilomniAI() {
               </div>
             </div>
           ) : (
-            /* ── Chat messages ──────────────────────────────────────────── */
             <>
               {messages.map((msg, idx) => {
                 const isUser = msg.role === 'user'
                 const isLastMsg = idx === messages.length - 1
                 const isLastAssistant = !isUser && isLastMsg
-                const quickActions = isLastAssistant
-                  ? detectQuickActions(msg.content)
-                  : []
+                const quickActions = isLastAssistant ? detectQuickActions(msg.content) : []
+                const isThisMsgMenuOpen = msgMenuId === msg.id
+                const isBranching = branchingIdx === idx
 
                 return (
-                  <div
-                    key={msg.id}
-                    className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
-                  >
+                  <div key={msg.id} className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
                     {/* Avatar */}
                     {isUser ? (
                       <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 text-sm font-semibold text-primary">
@@ -675,28 +947,21 @@ export default function PhilomniAI() {
 
                     {/* Bubble + actions */}
                     <div className={`max-w-[78%] flex flex-col gap-1.5 ${isUser ? 'items-end' : 'items-start'}`}>
-                      {/* Bubble */}
-                      <div
-                        className={[
-                          'group relative rounded-2xl px-4 py-3 text-sm',
-                          isUser
-                            ? 'bg-primary text-primary-foreground rounded-tr-none'
-                            : 'bg-card border border-border text-foreground rounded-tl-none',
-                        ].join(' ')}
-                      >
+                      <div className={[
+                        'group relative rounded-2xl px-4 py-3 text-sm',
+                        isUser
+                          ? 'bg-primary text-primary-foreground rounded-tr-none'
+                          : 'bg-card border border-border text-foreground rounded-tl-none',
+                      ].join(' ')}>
+
+                        {/* Content */}
                         {isUser ? (
                           <div>
                             {msg.attachments?.length > 0 && (
                               <div className="flex gap-1.5 mb-2 flex-wrap">
                                 {msg.attachments.map((a, i) => (
-                                  <span
-                                    key={i}
-                                    className="text-xs bg-primary-foreground/20 rounded-full px-2 py-0.5 flex items-center gap-1"
-                                  >
-                                    {a.type.startsWith('image/')
-                                      ? <ImageIcon className="w-3 h-3" />
-                                      : <FileText className="w-3 h-3" />
-                                    }
+                                  <span key={i} className="text-xs bg-primary-foreground/20 rounded-full px-2 py-0.5 flex items-center gap-1">
+                                    {a.type?.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
                                     {a.name.slice(0, 24)}
                                   </span>
                                 ))}
@@ -708,44 +973,58 @@ export default function PhilomniAI() {
                           <MarkdownContent content={msg.content} />
                         )}
 
-                        {/* Hover actions */}
-                        <div
-                          className={[
-                            'flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity',
-                            isUser ? 'justify-end' : 'justify-start',
-                          ].join(' ')}
-                        >
+                        {/* Hover action bar */}
+                        <div className={[
+                          'flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity',
+                          isUser ? 'justify-end' : 'justify-start',
+                        ].join(' ')}>
                           <button
                             onClick={() => copyMessage(msg.content, msg.id)}
                             className="p-1.5 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
                             title="Copy"
                           >
-                            {copiedId === msg.id
-                              ? <Check className="w-3.5 h-3.5 text-green-400" />
-                              : <Copy className="w-3.5 h-3.5" />
-                            }
+                            {copiedId === msg.id ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                           </button>
 
                           {!isUser && (
                             <>
                               <button
                                 onClick={() => setFeedbackMap(p => ({ ...p, [msg.id]: 'up' }))}
-                                className={`p-1.5 rounded-lg hover:bg-muted/50 transition-colors ${
-                                  feedbackMap[msg.id] === 'up' ? 'text-green-400' : 'text-muted-foreground hover:text-foreground'
-                                }`}
+                                className={`p-1.5 rounded-lg hover:bg-muted/50 transition-colors ${feedbackMap[msg.id] === 'up' ? 'text-green-400' : 'text-muted-foreground hover:text-foreground'}`}
                                 title="Good response"
                               >
                                 <ThumbsUp className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => setFeedbackMap(p => ({ ...p, [msg.id]: 'down' }))}
-                                className={`p-1.5 rounded-lg hover:bg-muted/50 transition-colors ${
-                                  feedbackMap[msg.id] === 'down' ? 'text-red-400' : 'text-muted-foreground hover:text-foreground'
-                                }`}
+                                className={`p-1.5 rounded-lg hover:bg-muted/50 transition-colors ${feedbackMap[msg.id] === 'down' ? 'text-red-400' : 'text-muted-foreground hover:text-foreground'}`}
                                 title="Bad response"
                               >
                                 <ThumbsDown className="w-3.5 h-3.5" />
                               </button>
+
+                              {/* "..." menu with Branch */}
+                              <div className="relative" ref={isThisMsgMenuOpen ? msgMenuRef : null}>
+                                <button
+                                  onClick={() => setMsgMenuId(isThisMsgMenuOpen ? null : msg.id)}
+                                  className="p-1.5 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                                  title="More options"
+                                >
+                                  <MoreHorizontal className="w-3.5 h-3.5" />
+                                </button>
+                                {isThisMsgMenuOpen && (
+                                  <div className="absolute left-0 bottom-full mb-1 z-50 bg-card border border-border rounded-xl shadow-xl py-1 min-w-[160px]">
+                                    <button
+                                      onClick={() => branchChat(idx)}
+                                      disabled={isBranching}
+                                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-muted text-foreground transition-colors disabled:opacity-50"
+                                    >
+                                      <GitBranch className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                                      {isBranching ? 'Branching...' : 'Branch from here'}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </>
                           )}
 
@@ -795,7 +1074,6 @@ export default function PhilomniAI() {
                   </div>
                 </div>
               )}
-
               <div ref={messagesEndRef} />
             </>
           )}
@@ -804,24 +1082,16 @@ export default function PhilomniAI() {
         {/* ── Input area ───────────────────────────────────────────────────── */}
         <div className="flex-shrink-0 px-4 pb-4 pt-2 border-t border-border bg-card">
 
-          {/* Attachment previews */}
           {attachments.length > 0 && (
             <div className="flex gap-2 mb-2.5 flex-wrap">
               {attachments.map((a, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-2 bg-muted rounded-xl px-3 py-1.5 text-xs max-w-[180px]"
-                >
-                  {a.preview ? (
-                    <img src={a.preview} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />
-                  ) : (
-                    <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-                  )}
+                <div key={i} className="flex items-center gap-2 bg-muted rounded-xl px-3 py-1.5 text-xs max-w-[180px]">
+                  {a.preview
+                    ? <img src={a.preview} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />
+                    : <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+                  }
                   <span className="text-foreground truncate">{a.name}</span>
-                  <button
-                    onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}
-                    className="flex-shrink-0 ml-1"
-                  >
+                  <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} className="flex-shrink-0 ml-1">
                     <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
                   </button>
                 </div>
@@ -829,26 +1099,12 @@ export default function PhilomniAI() {
             </div>
           )}
 
-          {/* Input row */}
           <div className="flex items-end gap-2 bg-muted rounded-2xl px-3 py-2.5">
-            {/* Attach */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-              title="Attach file or image"
-            >
+            <button onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors flex-shrink-0" title="Attach file or image">
               <Paperclip className="w-4 h-4" />
             </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,.pdf,.txt,.md,.doc,.docx"
-              multiple
-              className="hidden"
-              onChange={handleFileAttach}
-            />
+            <input ref={fileInputRef} type="file" accept="image/*,.pdf,.txt,.md,.doc,.docx" multiple className="hidden" onChange={handleFileAttach} />
 
-            {/* Textarea */}
             <textarea
               ref={textareaRef}
               value={input}
@@ -860,43 +1116,26 @@ export default function PhilomniAI() {
               className="flex-1 bg-transparent resize-none outline-none text-sm text-foreground placeholder:text-muted-foreground py-0.5 min-h-[24px] max-h-[160px] leading-relaxed"
             />
 
-            {/* Voice */}
             <button
               onClick={handleVoice}
-              className={[
-                'p-1.5 rounded-lg transition-colors flex-shrink-0',
-                isRecording
-                  ? 'text-red-400 bg-red-400/10 animate-pulse'
-                  : 'text-muted-foreground hover:text-foreground',
-              ].join(' ')}
+              className={['p-1.5 rounded-lg transition-colors flex-shrink-0', isRecording ? 'text-red-400 bg-red-400/10 animate-pulse' : 'text-muted-foreground hover:text-foreground'].join(' ')}
               title={isRecording ? 'Stop recording' : 'Voice input'}
             >
               {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </button>
 
-            {/* Send */}
             <button
               onClick={() => sendMessage()}
               disabled={(!input.trim() && attachments.length === 0) || isTyping}
-              className={[
-                'p-2 rounded-xl flex-shrink-0 transition-all',
-                (input.trim() || attachments.length > 0) && !isTyping
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm'
-                  : 'bg-muted-foreground/20 text-muted-foreground cursor-not-allowed',
-              ].join(' ')}
+              className={['p-2 rounded-xl flex-shrink-0 transition-all', (input.trim() || attachments.length > 0) && !isTyping ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm' : 'bg-muted-foreground/20 text-muted-foreground cursor-not-allowed'].join(' ')}
             >
               <Send className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Footer */}
           <div className="flex items-center justify-between mt-2 px-1">
-            <p className="text-[11px] text-muted-foreground/50">
-              Philo can make mistakes. Use judgment for important decisions.
-            </p>
-            {charCount > 500 && (
-              <span className={`text-[11px] font-mono ${charColor}`}>{charCount}</span>
-            )}
+            <p className="text-[11px] text-muted-foreground/50">Philo can make mistakes. Use judgment for important decisions.</p>
+            {charCount > 500 && <span className={`text-[11px] font-mono ${charColor}`}>{charCount}</span>}
           </div>
         </div>
       </div>
