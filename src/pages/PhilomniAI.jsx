@@ -186,6 +186,15 @@ function detectQuickActions(content) {
   return actions.slice(0, 3)
 }
 
+// Strip any residual base64 blobs from attachment metadata before storing to Supabase.
+// The userMsg object already strips base64 at creation time, but this is a safety net.
+function cleanMsgsForStorage(msgs) {
+  return msgs.map(m => ({
+    ...m,
+    attachments: (m.attachments || []).map(a => ({ name: a.name, type: a.type })),
+  }))
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 export default function PhilomniAI() {
   const { user } = useAuth()
@@ -215,14 +224,17 @@ export default function PhilomniAI() {
 
   // ── Load conversation list ─────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
-    if (!user) return
-    const { data } = await supabase
+    if (!user?.id) return
+    const { data, error } = await supabase
       .from('ai_conversations')
       .select('id, title, updated_at')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
       .limit(40)
-      .catch(() => ({ data: [] }))
+    if (error) {
+      console.error('[PhilomniAI] loadConversations error:', error.message, error.code)
+      return
+    }
     setConversations(data || [])
   }, [user])
 
@@ -243,15 +255,19 @@ export default function PhilomniAI() {
 
   // ── Load a saved conversation ──────────────────────────────────────────────
   const loadConversation = useCallback(async (id) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('ai_conversations')
       .select('messages')
       .eq('id', id)
       .single()
-      .catch(() => ({ data: null }))
+    if (error) {
+      console.error('[PhilomniAI] loadConversation error:', error.message, error.code)
+      return
+    }
     if (data?.messages) {
       setMessages(data.messages)
       setCurrentConvId(id)
+      convIdRef.current = id
       setAttachments([])
       setMobileSidebarOpen(false)
     }
@@ -268,27 +284,38 @@ export default function PhilomniAI() {
 
   // ── Persist conversation to Supabase ───────────────────────────────────────
   const saveConversation = useCallback(async (msgs) => {
-    if (!user || msgs.length === 0) return
+    if (!user?.id || msgs.length === 0) return
     const convId = convIdRef.current
+    const safe = cleanMsgsForStorage(msgs)
     const title = (msgs[0]?.content || 'Chat').toString().slice(0, 60)
+
     if (convId) {
-      await supabase
+      // UPDATE existing row
+      const { error } = await supabase
         .from('ai_conversations')
-        .update({ messages: msgs, updated_at: new Date().toISOString() })
+        .update({ messages: safe, updated_at: new Date().toISOString() })
         .eq('id', convId)
-        .catch(() => {})
+      if (error) {
+        console.error('[PhilomniAI] update error:', error.message, error.code)
+        return
+      }
     } else {
-      const { data } = await supabase
+      // INSERT new row — first message in a fresh chat
+      const { data, error } = await supabase
         .from('ai_conversations')
-        .insert({ user_id: user.id, title, messages: msgs })
+        .insert({ user_id: user.id, title, messages: safe })
         .select('id')
         .single()
-        .catch(() => ({ data: null }))
+      if (error) {
+        console.error('[PhilomniAI] insert error:', error.message, error.code)
+        return
+      }
       if (data?.id) {
         setCurrentConvId(data.id)
         convIdRef.current = data.id
       }
     }
+    // Refresh sidebar list after every save
     loadConversations()
   }, [user, loadConversations])
 
