@@ -327,9 +327,10 @@ export default function PhilomniAI() {
         ]
       }
 
-      // Build conversation history for context
+      // Build conversation history for context (cap at last 20 messages to stay within token limits)
       const history = messages
         .filter(m => m.role === 'user' || m.role === 'assistant')
+        .slice(-20)
         .map(m => ({ role: m.role, content: m.content }))
 
       const body = {
