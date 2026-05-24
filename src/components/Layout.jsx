@@ -9,9 +9,16 @@ import {
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
   Newspaper, Award, Target, ClipboardList, Hash, Sparkles, DollarSign,
 } from 'lucide-react'
+import PhiloDrawer from './PhiloDrawer'
 
 // ─── Creator Mode Navigation ──────────────────────────────────────────────────
 const CREATOR_NAV = [
+  {
+    label: 'AI',
+    items: [
+      { to: '/ai', icon: Sparkles, label: 'Philo AI', badge: '✨' },
+    ],
+  },
   {
     label: 'Create',
     items: [
@@ -60,6 +67,12 @@ const CREATOR_NAV = [
 
 // ─── Pro Mode Navigation ──────────────────────────────────────────────────────
 const PRO_NAV = [
+  {
+    label: 'AI',
+    items: [
+      { to: '/ai', icon: Sparkles, label: 'Philo AI', badge: '✨' },
+    ],
+  },
   {
     label: 'Network',
     items: [
@@ -359,6 +372,9 @@ export default function Layout({ children }) {
           </div>
         </div>
       )}
+
+      {/* Floating Philo AI drawer — visible on all pages */}
+      <PhiloDrawer />
     </div>
   )
 }

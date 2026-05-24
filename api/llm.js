@@ -1,20 +1,61 @@
 /**
  * Vercel Serverless Function — Claude LLM proxy
- * POST /api/llm  { prompt, response_json_schema? }
+ *
+ * POST /api/llm
+ * Body:
+ *   prompt            string   — current user message text (required unless content provided)
+ *   content           array    — multipart content for current user message (vision etc.)
+ *   system            string   — custom system prompt (overrides default)
+ *   history           array    — prior messages [{role, content}] for multi-turn chat
+ *   max_tokens        number   — max tokens to generate (default 4096)
+ *   response_json_schema object — if set, forces JSON response matching the schema
  */
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { prompt, response_json_schema } = req.body;
-  if (!prompt) return res.status(400).json({ error: 'prompt is required' });
+  const {
+    prompt,
+    content: userContent,
+    response_json_schema,
+    system,
+    history = [],
+    max_tokens,
+  } = req.body;
+
+  // Need at least one of: prompt or content
+  const hasInput = prompt || (Array.isArray(userContent) && userContent.length > 0);
+  if (!hasInput) return res.status(400).json({ error: 'prompt or content is required' });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
 
   try {
-    const systemPrompt = response_json_schema
-      ? `You are a helpful AI assistant. Respond ONLY with valid JSON matching this schema: ${JSON.stringify(response_json_schema)}. No markdown, no explanation.`
-      : 'You are a helpful AI assistant for Philomni, a global creator and professional platform. Be concise, helpful, and professional.';
+    // Determine system prompt:
+    // 1. Caller-supplied `system` wins
+    // 2. JSON schema mode uses schema-enforcement prompt
+    // 3. Default Philomni assistant prompt
+    let systemPrompt;
+    if (system) {
+      systemPrompt = system;
+    } else if (response_json_schema) {
+      systemPrompt = `You are a helpful AI assistant. Respond ONLY with valid JSON matching this schema: ${JSON.stringify(response_json_schema)}. No markdown, no explanation.`;
+    } else {
+      systemPrompt = 'You are a helpful AI assistant for Philomni, a global creator and professional platform. Be concise, helpful, and professional.';
+    }
+
+    // Build the current user message content.
+    // userContent is an array (e.g. vision: [{type:'image',...},{type:'text',...}])
+    // prompt is a plain string. Fall back gracefully.
+    const currentContent = userContent || prompt;
+
+    // Build messages: validated history + current user message
+    const filteredHistory = history.filter(
+      (m) => m && (m.role === 'user' || m.role === 'assistant') && m.content
+    );
+    const messages = [
+      ...filteredHistory,
+      { role: 'user', content: currentContent },
+    ];
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -25,9 +66,9 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4096,
+        max_tokens: max_tokens || 4096,
         system: systemPrompt,
-        messages: [{ role: 'user', content: prompt }],
+        messages,
       }),
     });
 
@@ -39,7 +80,7 @@ export default async function handler(req, res) {
     const data = await response.json();
     const text = data.content?.[0]?.text ?? '';
 
-    // If a schema was requested, parse JSON
+    // If a JSON schema was requested, parse and return raw JSON
     if (response_json_schema) {
       try {
         return res.status(200).json(JSON.parse(text));
@@ -48,7 +89,12 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ result: text });
+    // Normal response: return both `result` (legacy) and `content` (new Philo field)
+    return res.status(200).json({
+      result: text,
+      content: text,
+      usage: data.usage,
+    });
   } catch (err) {
     console.error('[api/llm]', err);
     return res.status(500).json({ error: err.message });

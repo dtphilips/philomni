@@ -92,6 +92,9 @@ import Billing from './pages/Billing'
 // SmartMatch
 import SmartMatch from './pages/SmartMatch'
 
+// Philo AI
+import PhilomniAI from './pages/PhilomniAI'
+
 // Business tools
 import PitchVault from './pages/PitchVault'
 import BookingCalendar from './pages/BookingCalendar'
@@ -221,6 +224,9 @@ export default function App() {
 
             {/* SmartMatch */}
             <Route path="/match" element={<P page={SmartMatch} />} />
+
+            {/* Philo AI */}
+            <Route path="/ai" element={<P page={PhilomniAI} />} />
 
             {/* Business */}
             <Route path="/pitch-vault" element={<P page={PitchVault} />} />
