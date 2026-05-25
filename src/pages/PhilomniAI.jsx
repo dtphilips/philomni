@@ -9,7 +9,7 @@ import {
   ThumbsUp, ThumbsDown, Plus, MessageSquare, X,
   ChevronLeft, ChevronRight, ChevronDown, Check,
   FileText, Image as ImageIcon, Trash2, FolderPlus,
-  Folder, FolderOpen, MoreHorizontal, GitBranch,
+  Folder, FolderOpen, MoreHorizontal, GitBranch, Download,
 } from 'lucide-react'
 
 // ── Philo's system prompt ────────────────────────────────────────────────────
@@ -98,6 +98,29 @@ function detectQuickActions(content) {
   if (lower.includes('bio') || lower.includes('your profile') || lower.includes('update your'))
     actions.push({ label: '👤 Edit Profile', action: 'edit-profile' })
   return actions.slice(0, 3)
+}
+
+/**
+ * Returns true when the user's message is asking Philo to generate an image.
+ * Requires both an action verb AND an image-type noun to avoid false positives
+ * (e.g. "create a post" should NOT trigger image generation).
+ */
+function detectImageIntent(text) {
+  const lower = text.toLowerCase()
+  const actionWords = [
+    'generate', 'create', 'make', 'draw', 'design',
+    'generate me', 'create me', 'make me', 'draw me', 'design me',
+    'can you generate', 'can you create', 'can you make', 'can you draw', 'can you design',
+    'please generate', 'please create', 'please make', 'please draw',
+  ]
+  const imageWords = [
+    'image', 'photo', 'picture', 'logo', 'banner',
+    'illustration', 'artwork', 'portrait', 'poster', 'thumbnail',
+    'graphic', 'visual', 'icon',
+  ]
+  const hasAction = actionWords.some(w => lower.includes(w))
+  const hasImageWord = imageWords.some(w => lower.includes(w))
+  return hasAction && hasImageWord
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
@@ -588,6 +611,41 @@ export default function PhilomniAI() {
     setIsTyping(true)
 
     try {
+      // ── Image generation path ──────────────────────────────────────────────
+      // Intercept before the LLM call when the user is asking to generate an image.
+      if (text && detectImageIntent(text)) {
+        console.log('[PhilomniAI] image intent detected → calling /api/image')
+        const imgRes = await fetch('/api/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: text }),
+        })
+        const imgData = await imgRes.json()
+        console.log('[PhilomniAI] /api/image response:', imgData.imageUrl ? '✓ got URL' : imgData.error)
+
+        const assistantMsg = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          timestamp: new Date().toISOString(),
+          ...(imgData.imageUrl
+            ? {
+                content: "Here's your generated image! ✨",
+                imageUrl: imgData.imageUrl,
+                imagePrompt: text,
+              }
+            : {
+                content: `I had trouble generating that image. ${imgData.error || 'Please try again.'}`,
+              }
+          ),
+        }
+        const finalMessages = [...newMessages, assistantMsg]
+        setMessages(finalMessages)
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = setTimeout(() => saveConversation(finalMessages), 1200)
+        return  // skip LLM call entirely
+      }
+
+      // ── Normal LLM path ────────────────────────────────────────────────────
       const imageAttachments = attachments.filter(a => a.type.startsWith('image/'))
       let userContent
       if (imageAttachments.length > 0) {
@@ -1110,7 +1168,30 @@ export default function PhilomniAI() {
                             <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                           </div>
                         ) : (
-                          <MarkdownContent content={msg.content} />
+                          <>
+                            <MarkdownContent content={msg.content} />
+                            {/* Generated image — persisted in messages JSONB via imageUrl field */}
+                            {msg.imageUrl && (
+                              <div className="mt-3 space-y-2">
+                                <img
+                                  src={msg.imageUrl}
+                                  alt={msg.imagePrompt || 'Generated image'}
+                                  className="rounded-xl w-full max-w-sm object-cover border border-border"
+                                  onError={e => { e.currentTarget.style.display = 'none' }}
+                                />
+                                <a
+                                  href={msg.imageUrl}
+                                  download={`philo-image-${msg.id}.jpg`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  Download image
+                                </a>
+                              </div>
+                            )}
+                          </>
                         )}
 
                         {/* Action bar — visible on hover, always rendered for branch/copy access */}
