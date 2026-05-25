@@ -152,6 +152,11 @@ export default function PhilomniAI() {
   const { mode } = useMode()
   const navigate = useNavigate()
 
+  // Derive a stable primitive so useCallback / useEffect deps don't thrash.
+  // The full `user` object is recreated on every AuthContext render (spread),
+  // but user?.id is a plain string — React's Object.is comparison stays stable.
+  const userId = user?.id || null
+
   // ── Core chat state ────────────────────────────────────────────────────────
   const [conversations, setConversations] = useState([])
   const [currentConvId, setCurrentConvId] = useState(null)
@@ -231,42 +236,67 @@ export default function PhilomniAI() {
 
   // ── Load folders ───────────────────────────────────────────────────────────
   const loadFolders = useCallback(async () => {
-    if (!user?.id) return
+    if (!userId) return
+    console.log('[PhilomniAI] loadFolders → userId:', userId)
     const { data, error } = await supabase
       .from('ai_folders')
       .select('id, name')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at')
     if (error) {
-      console.error('[PhilomniAI] loadFolders error:', error.message)
+      console.error('[PhilomniAI] loadFolders error:', error.message, error.code)
       return
     }
+    console.log('[PhilomniAI] loadFolders got', data?.length ?? 0, 'folders')
     setFolders(data || [])
-  }, [user])
+  }, [userId])
 
   // ── Load conversation list (includes folder_id) ────────────────────────────
   const loadConversations = useCallback(async () => {
-    if (!user?.id) return
+    if (!userId) return
+    console.log('[PhilomniAI] loadConversations → userId:', userId)
     const { data, error } = await supabase
       .from('ai_conversations')
       .select('id, title, updated_at, folder_id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(60)
     if (error) {
       console.error('[PhilomniAI] loadConversations error:', error.message, error.code)
       return
     }
+    console.log('[PhilomniAI] loadConversations got', data?.length ?? 0, 'conversations')
     setConversations(data || [])
-  }, [user])
+  }, [userId])
 
+  // Fire once when userId becomes available (e.g. after login / page refresh).
+  // Using userId (primitive string) avoids the object-reference thrash that
+  // would happen if we depended on the full `user` object or the callbacks.
   useEffect(() => {
-    loadConversations()
-    loadFolders()
-  }, [loadConversations, loadFolders])
+    if (!userId) {
+      console.log('[PhilomniAI] init effect: no userId yet, skipping')
+      return
+    }
+    console.log('[PhilomniAI] init effect: userId ready →', userId)
+
+    const init = async () => {
+      await loadConversations()
+      await loadFolders()
+
+      // Restore the last open conversation across page refreshes
+      const savedId = localStorage.getItem('philo_last_conv_id')
+      if (savedId) {
+        console.log('[PhilomniAI] restoring last conversation from localStorage:', savedId)
+        loadConversation(savedId)
+      }
+    }
+    init()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
 
   // ── Load a saved conversation ──────────────────────────────────────────────
   const loadConversation = useCallback(async (id) => {
+    console.log('[PhilomniAI] loadConversation → id:', id)
     const { data, error } = await supabase
       .from('ai_conversations')
       .select('messages')
@@ -274,9 +304,12 @@ export default function PhilomniAI() {
       .single()
     if (error) {
       console.error('[PhilomniAI] loadConversation error:', error.message, error.code)
+      // If the saved id no longer exists (was deleted), clear it
+      if (error.code === 'PGRST116') localStorage.removeItem('philo_last_conv_id')
       return
     }
     if (data?.messages) {
+      console.log('[PhilomniAI] loadConversation: loaded', data.messages.length, 'messages')
       setMessages(data.messages)
       setCurrentConvId(id)
       convIdRef.current = id
@@ -285,22 +318,32 @@ export default function PhilomniAI() {
     }
   }, [])
 
+  // Persist last-open conversation ID so page refresh restores it
+  useEffect(() => {
+    if (currentConvId) {
+      localStorage.setItem('philo_last_conv_id', currentConvId)
+    }
+  }, [currentConvId])
+
   // ── Start a new chat ───────────────────────────────────────────────────────
   const startNewChat = () => {
+    console.log('[PhilomniAI] startNewChat')
     setMessages([])
     setCurrentConvId(null)
     convIdRef.current = null
     setInput('')
     setAttachments([])
     setMobileSidebarOpen(false)
+    localStorage.removeItem('philo_last_conv_id')
   }
 
   // ── Persist conversation to Supabase ───────────────────────────────────────
   const saveConversation = useCallback(async (msgs) => {
-    if (!user?.id || msgs.length === 0) return
+    if (!userId || msgs.length === 0) return
     const convId = convIdRef.current
     const safe = cleanMsgsForStorage(msgs)
     const title = (msgs[0]?.content || 'Chat').toString().slice(0, 60)
+    console.log('[PhilomniAI] saveConversation → convId:', convId, 'msgs:', msgs.length)
 
     if (convId) {
       const { error } = await supabase
@@ -311,10 +354,11 @@ export default function PhilomniAI() {
         console.error('[PhilomniAI] update error:', error.message, error.code)
         return
       }
+      console.log('[PhilomniAI] saveConversation: updated row', convId)
     } else {
       const { data, error } = await supabase
         .from('ai_conversations')
-        .insert({ user_id: user.id, title, messages: safe })
+        .insert({ user_id: userId, title, messages: safe })
         .select('id')
         .single()
       if (error) {
@@ -322,54 +366,68 @@ export default function PhilomniAI() {
         return
       }
       if (data?.id) {
+        console.log('[PhilomniAI] saveConversation: inserted new row', data.id)
         setCurrentConvId(data.id)
         convIdRef.current = data.id
       }
     }
     loadConversations()
-  }, [user, loadConversations])
+  }, [userId, loadConversations])
 
   // ── DELETE conversation ────────────────────────────────────────────────────
   const deleteConversation = useCallback(async (id) => {
+    console.log('[PhilomniAI] deleteConversation → id:', id)
     const { error } = await supabase
       .from('ai_conversations')
       .delete()
       .eq('id', id)
     if (error) {
-      console.error('[PhilomniAI] delete error:', error.message)
+      console.error('[PhilomniAI] delete error:', error.message, error.code)
       return
     }
-    // Optimistic update: remove from local list immediately
+    // Remove from local list immediately (optimistic)
     setConversations(prev => prev.filter(c => c.id !== id))
-    if (convIdRef.current === id) startNewChat()
+    if (convIdRef.current === id) {
+      localStorage.removeItem('philo_last_conv_id')
+      startNewChat()
+    }
     setDeleteConfirmId(null)
+    console.log('[PhilomniAI] deleteConversation: done')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── CREATE folder ──────────────────────────────────────────────────────────
   const createFolder = useCallback(async () => {
     const name = newFolderName.trim()
-    if (!name || !user?.id) return
+    console.log('[PhilomniAI] createFolder called → name:', JSON.stringify(name), 'userId:', userId)
+    if (!name) { console.warn('[PhilomniAI] createFolder: empty name, aborting'); return }
+    if (!userId) { console.warn('[PhilomniAI] createFolder: no userId, aborting'); return }
+
+    console.log('[PhilomniAI] createFolder: inserting into ai_folders...')
     const { data, error } = await supabase
       .from('ai_folders')
-      .insert({ user_id: user.id, name })
+      .insert({ user_id: userId, name })
       .select('id, name')
       .single()
+
     if (error) {
-      console.error('[PhilomniAI] createFolder error:', error.message)
+      console.error('[PhilomniAI] createFolder error:', error.message, error.code, error.details, error.hint)
       return
     }
+    console.log('[PhilomniAI] createFolder success:', data)
     if (data) setFolders(prev => [...prev, data])
     setNewFolderName('')
     setCreatingFolder(false)
-  }, [user, newFolderName])
+  }, [userId, newFolderName])
 
   // ── DELETE folder (moves its conversations to unfiled) ─────────────────────
   const deleteFolder = useCallback(async (folderId) => {
-    // First move all conversations in this folder to unfiled
-    await supabase
+    console.log('[PhilomniAI] deleteFolder → folderId:', folderId)
+    // Move all conversations in this folder to unfiled first
+    const { error: moveErr } = await supabase
       .from('ai_conversations')
       .update({ folder_id: null })
       .eq('folder_id', folderId)
+    if (moveErr) console.error('[PhilomniAI] deleteFolder move error:', moveErr.message)
 
     const { error } = await supabase
       .from('ai_folders')
@@ -401,18 +459,35 @@ export default function PhilomniAI() {
     setFolderMenuConvId(null)
   }, [])
 
+  // Keep live refs so branchChat always reads latest values without
+  // needing messages/conversations as useCallback deps (avoids stale closures).
+  const messagesRef = useRef(messages)
+  const conversationsRef = useRef(conversations)
+  useEffect(() => { messagesRef.current = messages }, [messages])
+  useEffect(() => { conversationsRef.current = conversations }, [conversations])
+
   // ── BRANCH chat from a message index ──────────────────────────────────────
   const branchChat = useCallback(async (upToIdx) => {
-    if (!user?.id) return
+    console.log('[PhilomniAI] branchChat called → upToIdx:', upToIdx, 'userId:', userId)
+    if (!userId) { console.warn('[PhilomniAI] branchChat: no userId'); return }
+
+    const currentMsgs = messagesRef.current
+    const currentConvs = conversationsRef.current
+
     setBranchingIdx(upToIdx)
-    const branchMsgs = messages.slice(0, upToIdx + 1)
-    const originTitle = conversations.find(c => c.id === convIdRef.current)?.title || 'Chat'
+    const branchMsgs = currentMsgs.slice(0, upToIdx + 1)
+    console.log('[PhilomniAI] branchChat: slicing', branchMsgs.length, 'messages from', currentMsgs.length, 'total')
+
+    const originTitle = currentConvs.find(c => c.id === convIdRef.current)?.title || 'Chat'
     const title = `Branch: ${originTitle.slice(0, 45)}`
+    console.log('[PhilomniAI] branchChat: title =', title)
+
     const safe = cleanMsgsForStorage(branchMsgs)
+    console.log('[PhilomniAI] branchChat: inserting new conversation...')
 
     const { data, error } = await supabase
       .from('ai_conversations')
-      .insert({ user_id: user.id, title, messages: safe })
+      .insert({ user_id: userId, title, messages: safe })
       .select('id')
       .single()
 
@@ -420,17 +495,17 @@ export default function PhilomniAI() {
     setMsgMenuId(null)
 
     if (error) {
-      console.error('[PhilomniAI] branchChat error:', error.message)
+      console.error('[PhilomniAI] branchChat insert error:', error.message, error.code, error.details)
       return
     }
+    console.log('[PhilomniAI] branchChat: new conversation created →', data?.id)
     if (data?.id) {
-      // Switch to the new branch
       setMessages(branchMsgs)
       setCurrentConvId(data.id)
       convIdRef.current = data.id
       loadConversations()
     }
-  }, [user, messages, conversations, loadConversations])
+  }, [userId, loadConversations])
 
   // ── Send a message ─────────────────────────────────────────────────────────
   const sendMessage = useCallback(async (overrideText) => {
