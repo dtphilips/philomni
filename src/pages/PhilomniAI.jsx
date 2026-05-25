@@ -148,7 +148,7 @@ function MarkdownContent({ content }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 export default function PhilomniAI() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const { mode } = useMode()
   const navigate = useNavigate()
 
@@ -176,6 +176,7 @@ export default function PhilomniAI() {
   const [newFolderName, setNewFolderName] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)   // conv awaiting delete
   const [folderMenuConvId, setFolderMenuConvId] = useState(null) // conv showing folder picker
+  const [folderError, setFolderError] = useState('')             // folder create error message
   const [draggingConvId, setDraggingConvId] = useState(null)
   const [dragOverTarget, setDragOverTarget] = useState(null)     // folder id or 'unfiled'
   const [msgMenuId, setMsgMenuId] = useState(null)               // message id showing "..." menu
@@ -251,13 +252,13 @@ export default function PhilomniAI() {
     setFolders(data || [])
   }, [userId])
 
-  // ── Load conversation list (includes folder_id) ────────────────────────────
+  // ── Load conversation list (includes all fields) ──────────────────────────
   const loadConversations = useCallback(async () => {
     if (!userId) return
     console.log('[PhilomniAI] loadConversations → userId:', userId)
     const { data, error } = await supabase
       .from('ai_conversations')
-      .select('id, title, updated_at, folder_id')
+      .select('*')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(60)
@@ -269,30 +270,54 @@ export default function PhilomniAI() {
     setConversations(data || [])
   }, [userId])
 
-  // Fire once when userId becomes available (e.g. after login / page refresh).
-  // Using userId (primitive string) avoids the object-reference thrash that
-  // would happen if we depended on the full `user` object or the callbacks.
+  // Fire on every mount once auth is confirmed (authLoading = false).
+  // Calls Supabase directly — does NOT rely on local state — so a page
+  // refresh always re-fetches fresh data from the database.
   useEffect(() => {
-    if (!userId) {
-      console.log('[PhilomniAI] init effect: no userId yet, skipping')
+    if (authLoading || !userId) {
+      console.log('[PhilomniAI] init effect: waiting for auth… authLoading:', authLoading, 'userId:', userId)
       return
     }
-    console.log('[PhilomniAI] init effect: userId ready →', userId)
+    console.log('[PhilomniAI] init effect: auth confirmed, userId →', userId)
 
     const init = async () => {
-      await loadConversations()
-      await loadFolders()
+      // BUG 1 FIX: always fetch directly from Supabase on every mount/refresh
+      console.log('[PhilomniAI] init: fetching conversations from Supabase...')
+      const { data: convData, error: convError } = await supabase
+        .from('ai_conversations')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+      if (convError) {
+        console.error('[PhilomniAI] init conversations fetch error:', convError.message, convError.code)
+      } else {
+        console.log('[PhilomniAI] init: loaded', convData?.length ?? 0, 'conversations')
+        setConversations(convData || [])
+      }
+
+      console.log('[PhilomniAI] init: fetching folders from Supabase...')
+      const { data: folderData, error: folderError } = await supabase
+        .from('ai_folders')
+        .select('id, name')
+        .eq('user_id', userId)
+        .order('created_at')
+      if (folderError) {
+        console.error('[PhilomniAI] init folders fetch error:', folderError.message, folderError.code)
+      } else {
+        console.log('[PhilomniAI] init: loaded', folderData?.length ?? 0, 'folders')
+        setFolders(folderData || [])
+      }
 
       // Restore the last open conversation across page refreshes
       const savedId = localStorage.getItem('philo_last_conv_id')
       if (savedId) {
-        console.log('[PhilomniAI] restoring last conversation from localStorage:', savedId)
+        console.log('[PhilomniAI] init: restoring conversation from localStorage:', savedId)
         loadConversation(savedId)
       }
     }
     init()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId])
+  }, [userId, authLoading])
 
   // ── Load a saved conversation ──────────────────────────────────────────────
   const loadConversation = useCallback(async (id) => {
@@ -325,19 +350,8 @@ export default function PhilomniAI() {
     }
   }, [currentConvId])
 
-  // ── Start a new chat ───────────────────────────────────────────────────────
-  const startNewChat = () => {
-    console.log('[PhilomniAI] startNewChat')
-    setMessages([])
-    setCurrentConvId(null)
-    convIdRef.current = null
-    setInput('')
-    setAttachments([])
-    setMobileSidebarOpen(false)
-    localStorage.removeItem('philo_last_conv_id')
-  }
-
   // ── Persist conversation to Supabase ───────────────────────────────────────
+  // Defined BEFORE startNewChat so startNewChat can depend on it.
   const saveConversation = useCallback(async (msgs) => {
     if (!userId || msgs.length === 0) return
     const convId = convIdRef.current
@@ -374,6 +388,26 @@ export default function PhilomniAI() {
     loadConversations()
   }, [userId, loadConversations])
 
+  // ── Start a new chat ───────────────────────────────────────────────────────
+  // BUG 2 FIX: save current conversation to Supabase BEFORE clearing the chat
+  // so the previous chat still appears in the sidebar after clicking New Chat.
+  // Pass shouldSave=false when called from deleteConversation (conv already gone).
+  const startNewChat = useCallback(async (shouldSave = true) => {
+    console.log('[PhilomniAI] startNewChat → shouldSave:', shouldSave)
+    const currentMsgs = messagesRef.current
+    if (shouldSave && currentMsgs.length > 0 && userId) {
+      console.log('[PhilomniAI] startNewChat: saving', currentMsgs.length, 'messages before clearing')
+      await saveConversation(currentMsgs)
+    }
+    setMessages([])
+    setCurrentConvId(null)
+    convIdRef.current = null
+    setInput('')
+    setAttachments([])
+    setMobileSidebarOpen(false)
+    localStorage.removeItem('philo_last_conv_id')
+  }, [userId, saveConversation])
+
   // ── DELETE conversation ────────────────────────────────────────────────────
   const deleteConversation = useCallback(async (id) => {
     console.log('[PhilomniAI] deleteConversation → id:', id)
@@ -389,19 +423,38 @@ export default function PhilomniAI() {
     setConversations(prev => prev.filter(c => c.id !== id))
     if (convIdRef.current === id) {
       localStorage.removeItem('philo_last_conv_id')
-      startNewChat()
+      startNewChat(false)  // don't save — conversation was just deleted
     }
     setDeleteConfirmId(null)
     console.log('[PhilomniAI] deleteConversation: done')
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── CREATE folder ──────────────────────────────────────────────────────────
+  // BUG 3 FIX: validate name, show UI error on failure, add to state on success.
+  // NOTE: If folder creation silently fails even with this code, run in Supabase:
+  //   CREATE TABLE IF NOT EXISTS ai_folders (
+  //     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  //     user_id UUID REFERENCES users(id),
+  //     name TEXT NOT NULL,
+  //     created_at TIMESTAMPTZ DEFAULT NOW()
+  //   );
+  //   ALTER TABLE ai_folders DISABLE ROW LEVEL SECURITY;
   const createFolder = useCallback(async () => {
     const name = newFolderName.trim()
     console.log('[PhilomniAI] createFolder called → name:', JSON.stringify(name), 'userId:', userId)
-    if (!name) { console.warn('[PhilomniAI] createFolder: empty name, aborting'); return }
-    if (!userId) { console.warn('[PhilomniAI] createFolder: no userId, aborting'); return }
 
+    if (!name) {
+      console.warn('[PhilomniAI] createFolder: empty name, aborting')
+      setFolderError('Please enter a folder name')
+      return
+    }
+    if (!userId) {
+      console.warn('[PhilomniAI] createFolder: no userId, aborting')
+      setFolderError('Not logged in — please refresh')
+      return
+    }
+
+    setFolderError('')
     console.log('[PhilomniAI] createFolder: inserting into ai_folders...')
     const { data, error } = await supabase
       .from('ai_folders')
@@ -411,11 +464,13 @@ export default function PhilomniAI() {
 
     if (error) {
       console.error('[PhilomniAI] createFolder error:', error.message, error.code, error.details, error.hint)
+      setFolderError(error.message || 'Failed to create folder — check console')
       return
     }
     console.log('[PhilomniAI] createFolder success:', data)
     if (data) setFolders(prev => [...prev, data])
     setNewFolderName('')
+    setFolderError('')
     setCreatingFolder(false)
   }, [userId, newFolderName])
 
@@ -829,14 +884,18 @@ export default function PhilomniAI() {
                 ref={newFolderInputRef}
                 type="text"
                 value={newFolderName}
-                onChange={e => setNewFolderName(e.target.value)}
+                onChange={e => { setNewFolderName(e.target.value); setFolderError('') }}
                 onKeyDown={e => {
                   if (e.key === 'Enter') createFolder()
-                  if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName('') }
+                  if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); setFolderError('') }
                 }}
                 placeholder="Folder name..."
                 className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none mb-2"
               />
+              {/* BUG 3 FIX: show error message in UI */}
+              {folderError && (
+                <p className="text-[10px] text-destructive mb-1.5 leading-tight">{folderError}</p>
+              )}
               <div className="flex gap-1.5">
                 <button
                   onClick={createFolder}
@@ -846,7 +905,7 @@ export default function PhilomniAI() {
                   Create
                 </button>
                 <button
-                  onClick={() => { setCreatingFolder(false); setNewFolderName('') }}
+                  onClick={() => { setCreatingFolder(false); setNewFolderName(''); setFolderError('') }}
                   className="text-xs py-1 px-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
                 >
                   Cancel
@@ -1048,9 +1107,9 @@ export default function PhilomniAI() {
                           <MarkdownContent content={msg.content} />
                         )}
 
-                        {/* Hover action bar */}
+                        {/* Action bar — visible on hover, always rendered for branch/copy access */}
                         <div className={[
-                          'flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity',
+                          'flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150',
                           isUser ? 'justify-end' : 'justify-start',
                         ].join(' ')}>
                           <button
