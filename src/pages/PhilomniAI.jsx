@@ -46,6 +46,28 @@ Your response: "Creating a beautiful logo for Sunrise Coffee Shop! ☕✨
 
 [GENERATE_IMAGE: minimalist coffee shop logo for a brand called Sunrise, warm golden and amber color palette, stylised rising sun integrated with a steaming coffee cup, clean modern sans-serif typography, professional brand identity, white background, vector style]"
 
+ACTION BUTTONS — CRITICAL INSTRUCTIONS:
+At the very end of EVERY response (after any [GENERATE_IMAGE:] marker), embed one or more action markers using this EXACT format — plain text, no backticks, no code blocks:
+[ACTION: action_type | Button Label | destination]
+
+Choose the most relevant actions based on what you just created or answered:
+
+- Caption, post, tweet, or social content → [ACTION: post_feed | Post to Feed | /]
+- Pitch, business proposal, or investor deck → [ACTION: pitch_vault | Upload to Pitch Vault | /pitch-vault] then [ACTION: download_pdf | Download as PDF | pdf]
+- Job description or gig listing → [ACTION: post_job | Post as Job | /jobs]
+- Bio, about me, or profile summary → [ACTION: update_bio | Update My Profile Bio | /profile]
+- Cover letter → [ACTION: download_pdf | Download as PDF | pdf]
+- CV or resume → [ACTION: download_pdf | Download as PDF | pdf] then [ACTION: save_profile | Save to Profile | /profile]
+- Newsletter, article, or blog post → [ACTION: download_pdf | Download as PDF | pdf] then [ACTION: post_feed | Share a snippet | /]
+- Business plan or strategy document → [ACTION: download_pdf | Download as PDF | pdf] then [ACTION: pitch_vault | Save to Pitch Vault | /pitch-vault]
+- Script or video concept → [ACTION: post_feed | Post to Feed | /] then [ACTION: download_pdf | Download as PDF | pdf]
+- Product description or listing → [ACTION: post_product | List on Marketplace | /marketplace]
+- Event description → [ACTION: post_event | Post as Event | /community]
+- Image generated (alongside [GENERATE_IMAGE:]) → [ACTION: post_feed | Post to Feed | /]
+- Advice, question answered, or general conversation → [ACTION: none | | ]
+
+Rules: Include up to 3 markers. Always place them at the very end. Never display them — they are stripped automatically.
+
 Always be helpful, specific, and actionable. When relevant, mention Philomni features that can help (SmartMatch for connections, Pitch Vault for ideas, Marketplace for selling skills etc).
 
 Format your responses clearly using markdown when helpful — use **bold** for emphasis, bullet points for lists, and code blocks for code. Keep responses focused and practical.`
@@ -102,59 +124,30 @@ function cleanMsgsForStorage(msgs) {
 }
 
 /**
- * Detect the type of content in a Philo response and return the right
- * contextual action buttons. Called on every assistant message.
+ * Parse all [ACTION: type | Label | destination] markers from a Claude response.
+ * Returns an array of { type, label, destination } objects, filtering out "none".
+ * This is the single source of truth for contextual action buttons —
+ * no hardcoded keyword matching needed.
  */
-function detectContentType(msg) {
-  const c = (msg.content || '').toLowerCase()
-  const buttons = []
-
-  // ── Image was generated ──────────────────────────────────────────────────
-  if (msg.imageUrl) {
-    return [
-      { label: '📤 Post to Feed', action: 'post-image' },
-      { label: '⬇️ Download', action: 'download-image' },
-    ]
+function parseActionMarkers(text) {
+  const regex = /\[ACTION:\s*([^|\]]+?)\s*\|\s*([^|\]]*?)\s*\|\s*([^\]]*?)\s*\]/gi
+  const actions = []
+  let match
+  while ((match = regex.exec(text)) !== null) {
+    const type = match[1].trim()
+    const label = match[2].trim()
+    const destination = match[3].trim()
+    if (type && type.toLowerCase() !== 'none' && label) {
+      actions.push({ type, label, destination })
+    }
   }
-
-  // ── Caption / social post ────────────────────────────────────────────────
-  if (/caption|here.?s your (caption|post)|for your post|social media post|instagram (caption|post)/.test(c)) {
-    return [{ label: '📤 Post to Feed', action: 'post-caption' }]
-  }
-
-  // ── Pitch / business proposal ────────────────────────────────────────────
-  if (/\bpitch\b|investor|here.?s your pitch|executive summary|business proposal|value proposition/.test(c)) {
-    return [
-      { label: '🚀 Upload to Pitch Vault', action: 'pitch-vault' },
-      { label: '📄 Download as PDF', action: 'download-pdf' },
-    ]
-  }
-
-  // ── Job listing / gig ────────────────────────────────────────────────────
-  if (/job description|job listing|we are hiring|responsibilities:|requirements:|gig (posting|listing)/.test(c)) {
-    return [{ label: '💼 Post as Job', action: 'post-job' }]
-  }
-
-  // ── Bio / profile summary ────────────────────────────────────────────────
-  if (/\bbio\b|about me|here.?s your bio|professional summary|profile summary/.test(c)) {
-    return [{ label: '👤 Update My Profile Bio', action: 'update-bio' }]
-  }
-
-  // ── Cover letter ─────────────────────────────────────────────────────────
-  if (/cover letter|dear hiring manager|i am writing to apply/.test(c)) {
-    return [{ label: '📄 Download as PDF', action: 'download-pdf' }]
-  }
-
-  // ── CV / resume ──────────────────────────────────────────────────────────
-  if (/\bresume\b|curriculum vitae|\bcv\b/.test(c)) {
-    return [
-      { label: '📄 Download as PDF', action: 'download-pdf' },
-      { label: '💾 Save to Profile', action: 'save-profile' },
-    ]
-  }
-
-  // ── Default ──────────────────────────────────────────────────────────────
-  return [{ label: '📋 Copy to Feed', action: 'copy-feed' }]
+  // Deduplicate by type (keep first occurrence)
+  const seen = new Set()
+  return actions.filter(a => {
+    if (seen.has(a.type)) return false
+    seen.add(a.type)
+    return true
+  })
 }
 
 /**
@@ -700,15 +693,21 @@ export default function PhilomniAI() {
       const llmData = await res.json()
       const rawReply = llmData.content || llmData.result || 'Sorry, I had trouble with that. Please try again.'
 
-      // ── Step 2: Detect [GENERATE_IMAGE: description] marker in Claude's reply ─
-      // Claude is instructed to add this marker when image generation is requested.
+      // ── Step 2: Extract all markers from Claude's reply ──────────────────────
+      // a) [GENERATE_IMAGE: description] — triggers Ideogram image generation
       const imageMarker = rawReply.match(/\[GENERATE_IMAGE:\s*([\s\S]+?)\]/i)
-      // Strip the marker from the displayed text so users only see the friendly message
-      const cleanReply = imageMarker
-        ? rawReply.replace(/\[GENERATE_IMAGE:\s*[\s\S]+?\]/i, '').trim()
-        : rawReply
+      // b) [ACTION: type | Label | destination] — dynamic contextual buttons
+      const parsedActions = parseActionMarkers(rawReply)
 
-      // ── Step 3: If marker found, call Ideogram via our server-side proxy ────
+      // Strip BOTH marker types from the displayed text (users never see them)
+      const cleanReply = rawReply
+        .replace(/\[GENERATE_IMAGE:\s*[\s\S]+?\]/gi, '')
+        .replace(/\[ACTION:\s*[^\]]+\]/gi, '')
+        .trim()
+
+      console.log('[PhilomniAI] parsed actions:', parsedActions)
+
+      // ── Step 3: If image marker found, call Ideogram via server-side proxy ───
       let imageUrl = null
       if (imageMarker) {
         const imageDesc = imageMarker[1].trim()
@@ -730,12 +729,13 @@ export default function PhilomniAI() {
         }
       }
 
-      // ── Step 4: Build assistant message with optional imageUrl ───────────────
+      // ── Step 4: Build assistant message ──────────────────────────────────────
       const assistantMsg = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: cleanReply,
         timestamp: new Date().toISOString(),
+        actions: parsedActions,          // Claude-chosen buttons, persisted in JSONB
         ...(imageUrl ? { imageUrl, imagePrompt: imageMarker[1].trim() } : {}),
       }
       const finalMessages = [...newMessages, assistantMsg]
@@ -807,35 +807,39 @@ export default function PhilomniAI() {
   }
 
   // ── Smart contextual action handler ───────────────────────────────────────
-  const handleSmartAction = useCallback(async (action, msg) => {
+  // btn = { type, label, destination } parsed from Claude's [ACTION:] markers.
+  // Image-specific actions (post_image, download_image) are injected by the
+  // renderer when msg.imageUrl is present — they don't come from Claude.
+  const handleSmartAction = useCallback(async (btn, msg) => {
+    const { type, destination } = btn
     const content = msg.content || ''
-    // Derive a clean title from the first meaningful line of text
-    const firstLine = content.split('\n')
-      .map(l => l.replace(/^[#*\->\s]+/, '').trim())
-      .find(l => l.length > 10) || 'Philo AI Content'
-    const title = firstLine.slice(0, 80)
+    // Clean title from first meaningful text line
+    const title = (
+      content.split('\n')
+        .map(l => l.replace(/^[#*\->\s]+/, '').trim())
+        .find(l => l.length > 10) || 'Philo AI Content'
+    ).slice(0, 80)
+    const dest = destination && destination !== 'pdf' ? destination : null
 
-    switch (action) {
-      case 'copy-feed':
-      case 'post-caption': {
-        // Pre-fill the feed composer via URL param
+    switch (type) {
+      // ── Feed actions ────────────────────────────────────────────────────
+      case 'post_feed':
         navigate('/?compose=' + encodeURIComponent(content.slice(0, 1000)))
         break
-      }
-      case 'post-image': {
-        // Pre-fill composer with caption and image URL
+
+      // ── Image-specific (injected by renderer, not Claude) ───────────────
+      case 'post_image': {
         const params = new URLSearchParams({ compose: content.slice(0, 500) })
         if (msg.imageUrl) params.set('imageUrl', msg.imageUrl)
         navigate('/?' + params.toString())
         break
       }
-      case 'download-image': {
-        // Open image in new tab — browser offers Save
+      case 'download_image':
         if (msg.imageUrl) window.open(msg.imageUrl, '_blank')
         break
-      }
-      case 'pitch-vault': {
-        // Insert into pitches table then navigate
+
+      // ── Pitch Vault ─────────────────────────────────────────────────────
+      case 'pitch_vault': {
         if (userId) {
           const { error } = await supabase.from('pitches').insert({
             title,
@@ -844,31 +848,53 @@ export default function PhilomniAI() {
             created_by: userId,
             status: 'under_review',
           })
-          if (error) console.error('[PhilomniAI] pitch-vault insert:', error.message)
+          if (error) console.error('[PhilomniAI] pitch_vault insert:', error.message)
         }
-        navigate('/pitch-vault')
+        navigate(dest || '/pitch-vault')
         break
       }
-      case 'post-job': {
-        navigate('/jobs?compose=' + encodeURIComponent(content.slice(0, 1000)))
+
+      // ── Jobs ─────────────────────────────────────────────────────────────
+      case 'post_job':
+        navigate((dest || '/jobs') + '?compose=' + encodeURIComponent(content.slice(0, 1000)))
         break
-      }
-      case 'update-bio':
-      case 'save-profile': {
+
+      // ── Profile / Bio ────────────────────────────────────────────────────
+      case 'update_bio':
+      case 'save_profile': {
         if (userId) {
           const bio = content.replace(/\*\*/g, '').replace(/#{1,6}\s/g, '').slice(0, 500)
           const { error } = await supabase.from('users').update({ bio }).eq('id', userId)
-          if (error) console.error('[PhilomniAI] update-bio:', error.message)
+          if (error) console.error('[PhilomniAI] update_bio:', error.message)
           else refreshProfile?.()
         }
-        navigate('/profile')
+        navigate(dest || '/profile')
         break
       }
-      case 'download-pdf': {
+
+      // ── PDF download ─────────────────────────────────────────────────────
+      case 'download_pdf':
         downloadAsPDF(content, title)
         break
-      }
+
+      // ── Events ──────────────────────────────────────────────────────────
+      case 'post_event':
+        navigate((dest || '/community') + '?compose=' + encodeURIComponent(content.slice(0, 1000)))
+        break
+
+      // ── Marketplace ──────────────────────────────────────────────────────
+      case 'post_product':
+        navigate((dest || '/marketplace') + '?compose=' + encodeURIComponent(content.slice(0, 1000)))
+        break
+
+      // ── Rooms ────────────────────────────────────────────────────────────
+      case 'create_room':
+        navigate(dest || '/rooms')
+        break
+
+      // ── Extensible: any future destination Claude invents ───────────────
       default:
+        if (dest && dest.startsWith('/')) navigate(dest)
         break
     }
   }, [userId, navigate, refreshProfile])
@@ -1241,7 +1267,20 @@ export default function PhilomniAI() {
                 const isUser = msg.role === 'user'
                 const isLastMsg = idx === messages.length - 1
                 const isLastAssistant = !isUser && isLastMsg
-                const ctxButtons = !isUser ? detectContentType(msg) : []
+                // Build contextual buttons from Claude's parsed [ACTION:] markers.
+                // For image messages, prepend image-specific buttons that Claude
+                // doesn't emit directly (they operate on the imageUrl field).
+                const claudeActions = !isUser ? (msg.actions || []) : []
+                const ctxButtons = !isUser ? [
+                  ...(msg.imageUrl ? [
+                    { type: 'post_image', label: '📤 Post to Feed', destination: '/' },
+                    { type: 'download_image', label: '⬇️ Download', destination: msg.imageUrl },
+                  ] : []),
+                  // Filter out post_feed from Claude's actions if we already have post_image
+                  ...claudeActions.filter(a =>
+                    a.type !== 'none' && !(msg.imageUrl && a.type === 'post_feed')
+                  ),
+                ] : []
                 const isThisMsgMenuOpen = msgMenuId === msg.id
                 const isBranching = branchingIdx === idx
 
