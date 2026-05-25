@@ -753,6 +753,33 @@ CREATE TABLE IF NOT EXISTS file_attachments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ── AI CONVERSATIONS (Philo AI chat sessions) ────────────────
+CREATE TABLE IF NOT EXISTS ai_conversations (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+  title      TEXT,
+  messages   JSONB DEFAULT '[]',
+  folder_id  UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE ai_conversations DISABLE ROW LEVEL SECURITY;
+
+-- ── AI FOLDERS (organise Philo AI conversations) ─────────────
+CREATE TABLE IF NOT EXISTS ai_folders (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE ai_folders DISABLE ROW LEVEL SECURITY;
+
+-- Link folder_id after ai_folders exists
+ALTER TABLE ai_conversations
+  ADD COLUMN IF NOT EXISTS folder_id UUID REFERENCES ai_folders(id) ON DELETE SET NULL;
+
 -- ── STORAGE BUCKETS ──────────────────────────────────────────
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('uploads', 'uploads', true)

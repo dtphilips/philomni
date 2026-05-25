@@ -533,9 +533,15 @@ export default function PhilomniAI() {
     const branchMsgs = currentMsgs.slice(0, upToIdx + 1)
     console.log('[PhilomniAI] branchChat: slicing', branchMsgs.length, 'messages from', currentMsgs.length, 'total')
 
-    const originTitle = currentConvs.find(c => c.id === convIdRef.current)?.title || 'Chat'
+    // FIX 2: Use actual conversation title — prefer sidebar entry, fall back to
+    // the first user message content (same source saveConversation uses for titles).
+    // This prevents "Branch: Chat" when the conv isn't yet in conversationsRef.
+    const originConv = currentConvs.find(c => c.id === convIdRef.current)
+    console.log('[PhilomniAI] branchChat: originConv from ref:', originConv)
+    const originTitle = originConv?.title
+      || (currentMsgs.find(m => m.role === 'user')?.content || 'Chat').toString().slice(0, 60)
     const title = `Branch: ${originTitle.slice(0, 45)}`
-    console.log('[PhilomniAI] branchChat: title =', title)
+    console.log('[PhilomniAI] branchChat: title =', title, '(from conv entry:', !!originConv, ')')
 
     const safe = cleanMsgsForStorage(branchMsgs)
     console.log('[PhilomniAI] branchChat: inserting new conversation...')
