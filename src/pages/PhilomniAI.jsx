@@ -31,6 +31,21 @@ You can help with:
 - Brainstorming and creative ideas
 - General questions on any topic
 
+IMAGE GENERATION — CRITICAL INSTRUCTIONS:
+When a user asks you to generate, create, make, draw, design, or produce an image, photo, picture, logo, banner, poster, illustration, icon, or any visual:
+- NEVER say you cannot generate images. You CAN — Philomni's image engine handles it.
+- Respond with 1–2 enthusiastic sentences describing what you are creating.
+- Then, on its own line at the very end of your response, add this exact marker:
+  [GENERATE_IMAGE: detailed description of exactly what to generate]
+- Inside the marker, write a rich, detailed prompt (style, colors, mood, composition, subject).
+- Do NOT wrap the marker in backticks or code blocks. Plain text only.
+- The marker is processed automatically — the user will see the image appear in chat.
+
+Example — user says "generate a logo for my coffee shop called Sunrise":
+Your response: "Creating a beautiful logo for Sunrise Coffee Shop! ☕✨
+
+[GENERATE_IMAGE: minimalist coffee shop logo for a brand called Sunrise, warm golden and amber color palette, stylised rising sun integrated with a steaming coffee cup, clean modern sans-serif typography, professional brand identity, white background, vector style]"
+
 Always be helpful, specific, and actionable. When relevant, mention Philomni features that can help (SmartMatch for connections, Pitch Vault for ideas, Marketplace for selling skills etc).
 
 Format your responses clearly using markdown when helpful — use **bold** for emphasis, bullet points for lists, and code blocks for code. Keep responses focused and practical.`
@@ -86,41 +101,80 @@ function cleanMsgsForStorage(msgs) {
   }))
 }
 
-function detectQuickActions(content) {
-  const lower = content.toLowerCase()
-  const actions = []
-  if (lower.includes('caption') || lower.includes('post for') || lower.includes('social media'))
-    actions.push({ label: '📋 Copy to Feed', action: 'feed' })
-  if (lower.includes('pitch') || lower.includes('startup') || lower.includes('business idea'))
-    actions.push({ label: '🚀 Pitch Vault', action: 'pitch-vault' })
-  if (lower.includes('connect') || lower.includes('network') || lower.includes('smartmatch'))
-    actions.push({ label: '✨ SmartMatch', action: 'match' })
-  if (lower.includes('bio') || lower.includes('your profile') || lower.includes('update your'))
-    actions.push({ label: '👤 Edit Profile', action: 'edit-profile' })
-  return actions.slice(0, 3)
+/**
+ * Detect the type of content in a Philo response and return the right
+ * contextual action buttons. Called on every assistant message.
+ */
+function detectContentType(msg) {
+  const c = (msg.content || '').toLowerCase()
+  const buttons = []
+
+  // ── Image was generated ──────────────────────────────────────────────────
+  if (msg.imageUrl) {
+    return [
+      { label: '📤 Post to Feed', action: 'post-image' },
+      { label: '⬇️ Download', action: 'download-image' },
+    ]
+  }
+
+  // ── Caption / social post ────────────────────────────────────────────────
+  if (/caption|here.?s your (caption|post)|for your post|social media post|instagram (caption|post)/.test(c)) {
+    return [{ label: '📤 Post to Feed', action: 'post-caption' }]
+  }
+
+  // ── Pitch / business proposal ────────────────────────────────────────────
+  if (/\bpitch\b|investor|here.?s your pitch|executive summary|business proposal|value proposition/.test(c)) {
+    return [
+      { label: '🚀 Upload to Pitch Vault', action: 'pitch-vault' },
+      { label: '📄 Download as PDF', action: 'download-pdf' },
+    ]
+  }
+
+  // ── Job listing / gig ────────────────────────────────────────────────────
+  if (/job description|job listing|we are hiring|responsibilities:|requirements:|gig (posting|listing)/.test(c)) {
+    return [{ label: '💼 Post as Job', action: 'post-job' }]
+  }
+
+  // ── Bio / profile summary ────────────────────────────────────────────────
+  if (/\bbio\b|about me|here.?s your bio|professional summary|profile summary/.test(c)) {
+    return [{ label: '👤 Update My Profile Bio', action: 'update-bio' }]
+  }
+
+  // ── Cover letter ─────────────────────────────────────────────────────────
+  if (/cover letter|dear hiring manager|i am writing to apply/.test(c)) {
+    return [{ label: '📄 Download as PDF', action: 'download-pdf' }]
+  }
+
+  // ── CV / resume ──────────────────────────────────────────────────────────
+  if (/\bresume\b|curriculum vitae|\bcv\b/.test(c)) {
+    return [
+      { label: '📄 Download as PDF', action: 'download-pdf' },
+      { label: '💾 Save to Profile', action: 'save-profile' },
+    ]
+  }
+
+  // ── Default ──────────────────────────────────────────────────────────────
+  return [{ label: '📋 Copy to Feed', action: 'copy-feed' }]
 }
 
 /**
- * Returns true when the user's message is asking Philo to generate an image.
- * Requires both an action verb AND an image-type noun to avoid false positives
- * (e.g. "create a post" should NOT trigger image generation).
+ * Open content in a new window and trigger the browser's native Print → Save as PDF.
+ * No extra dependencies needed.
  */
-function detectImageIntent(text) {
-  const lower = text.toLowerCase()
-  const actionWords = [
-    'generate', 'create', 'make', 'draw', 'design',
-    'generate me', 'create me', 'make me', 'draw me', 'design me',
-    'can you generate', 'can you create', 'can you make', 'can you draw', 'can you design',
-    'please generate', 'please create', 'please make', 'please draw',
-  ]
-  const imageWords = [
-    'image', 'photo', 'picture', 'logo', 'banner',
-    'illustration', 'artwork', 'portrait', 'poster', 'thumbnail',
-    'graphic', 'visual', 'icon',
-  ]
-  const hasAction = actionWords.some(w => lower.includes(w))
-  const hasImageWord = imageWords.some(w => lower.includes(w))
-  return hasAction && hasImageWord
+function downloadAsPDF(content, title = 'Philo AI Content') {
+  const safeTitle = title.replace(/[<>"]/g, '')
+  const safeBody = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  const win = window.open('', '_blank')
+  if (!win) return
+  win.document.write(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>${safeTitle}</title>
+<style>body{font-family:Georgia,serif;max-width:750px;margin:48px auto;padding:0 24px;line-height:1.8;color:#111;font-size:14px}h1{font-size:20px;margin-bottom:24px}pre{white-space:pre-wrap;word-break:break-word;font-family:inherit;margin:0}@media print{body{margin:0}}</style>
+</head><body><h1>${safeTitle}</h1><pre>${safeBody}</pre>
+<script>setTimeout(()=>{window.print()},300)<\/script></body></html>`)
+  win.document.close()
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
@@ -171,7 +225,7 @@ function MarkdownContent({ content }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 export default function PhilomniAI() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, refreshProfile } = useAuth()
   const { mode } = useMode()
   const navigate = useNavigate()
 
@@ -191,6 +245,7 @@ export default function PhilomniAI() {
   const [copiedId, setCopiedId] = useState(null)
   const [feedbackMap, setFeedbackMap] = useState({})
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false)
 
   // ── Feature state ──────────────────────────────────────────────────────────
   const [folders, setFolders] = useState([])
@@ -611,41 +666,7 @@ export default function PhilomniAI() {
     setIsTyping(true)
 
     try {
-      // ── Image generation path ──────────────────────────────────────────────
-      // Intercept before the LLM call when the user is asking to generate an image.
-      if (text && detectImageIntent(text)) {
-        console.log('[PhilomniAI] image intent detected → calling /api/image')
-        const imgRes = await fetch('/api/image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: text }),
-        })
-        const imgData = await imgRes.json()
-        console.log('[PhilomniAI] /api/image response:', imgData.imageUrl ? '✓ got URL' : imgData.error)
-
-        const assistantMsg = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          timestamp: new Date().toISOString(),
-          ...(imgData.imageUrl
-            ? {
-                content: "Here's your generated image! ✨",
-                imageUrl: imgData.imageUrl,
-                imagePrompt: text,
-              }
-            : {
-                content: `I had trouble generating that image. ${imgData.error || 'Please try again.'}`,
-              }
-          ),
-        }
-        const finalMessages = [...newMessages, assistantMsg]
-        setMessages(finalMessages)
-        clearTimeout(saveTimerRef.current)
-        saveTimerRef.current = setTimeout(() => saveConversation(finalMessages), 1200)
-        return  // skip LLM call entirely
-      }
-
-      // ── Normal LLM path ────────────────────────────────────────────────────
+      // ── Step 1: Always call Claude first ────────────────────────────────────
       const imageAttachments = attachments.filter(a => a.type.startsWith('image/'))
       let userContent
       if (imageAttachments.length > 0) {
@@ -676,18 +697,49 @@ export default function PhilomniAI() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json()
-      const reply = data.content || data.result || 'Sorry, I had trouble with that. Please try again.'
+      const llmData = await res.json()
+      const rawReply = llmData.content || llmData.result || 'Sorry, I had trouble with that. Please try again.'
 
+      // ── Step 2: Detect [GENERATE_IMAGE: description] marker in Claude's reply ─
+      // Claude is instructed to add this marker when image generation is requested.
+      const imageMarker = rawReply.match(/\[GENERATE_IMAGE:\s*([\s\S]+?)\]/i)
+      // Strip the marker from the displayed text so users only see the friendly message
+      const cleanReply = imageMarker
+        ? rawReply.replace(/\[GENERATE_IMAGE:\s*[\s\S]+?\]/i, '').trim()
+        : rawReply
+
+      // ── Step 3: If marker found, call Ideogram via our server-side proxy ────
+      let imageUrl = null
+      if (imageMarker) {
+        const imageDesc = imageMarker[1].trim()
+        console.log('[PhilomniAI] [GENERATE_IMAGE] detected →', imageDesc.slice(0, 100))
+        setIsGeneratingImage(true)
+        try {
+          const imgRes = await fetch('/api/image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: imageDesc }),
+          })
+          const imgData = await imgRes.json()
+          console.log('[PhilomniAI] Ideogram result:', imgData.imageUrl ? '✓ got URL' : imgData.error)
+          imageUrl = imgData.imageUrl || null
+        } catch (imgErr) {
+          console.error('[PhilomniAI] Ideogram call failed:', imgErr)
+        } finally {
+          setIsGeneratingImage(false)
+        }
+      }
+
+      // ── Step 4: Build assistant message with optional imageUrl ───────────────
       const assistantMsg = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: reply,
+        content: cleanReply,
         timestamp: new Date().toISOString(),
+        ...(imageUrl ? { imageUrl, imagePrompt: imageMarker[1].trim() } : {}),
       }
       const finalMessages = [...newMessages, assistantMsg]
       setMessages(finalMessages)
-
       clearTimeout(saveTimerRef.current)
       saveTimerRef.current = setTimeout(() => saveConversation(finalMessages), 1200)
     } catch (err) {
@@ -754,10 +806,72 @@ export default function PhilomniAI() {
     } catch { setIsRecording(false) }
   }
 
-  const handleQuickAction = (action, content) => {
-    if (action === 'feed') navigate('/?compose=' + encodeURIComponent(content.slice(0, 300)))
-    else navigate('/' + action)
-  }
+  // ── Smart contextual action handler ───────────────────────────────────────
+  const handleSmartAction = useCallback(async (action, msg) => {
+    const content = msg.content || ''
+    // Derive a clean title from the first meaningful line of text
+    const firstLine = content.split('\n')
+      .map(l => l.replace(/^[#*\->\s]+/, '').trim())
+      .find(l => l.length > 10) || 'Philo AI Content'
+    const title = firstLine.slice(0, 80)
+
+    switch (action) {
+      case 'copy-feed':
+      case 'post-caption': {
+        // Pre-fill the feed composer via URL param
+        navigate('/?compose=' + encodeURIComponent(content.slice(0, 1000)))
+        break
+      }
+      case 'post-image': {
+        // Pre-fill composer with caption and image URL
+        const params = new URLSearchParams({ compose: content.slice(0, 500) })
+        if (msg.imageUrl) params.set('imageUrl', msg.imageUrl)
+        navigate('/?' + params.toString())
+        break
+      }
+      case 'download-image': {
+        // Open image in new tab — browser offers Save
+        if (msg.imageUrl) window.open(msg.imageUrl, '_blank')
+        break
+      }
+      case 'pitch-vault': {
+        // Insert into pitches table then navigate
+        if (userId) {
+          const { error } = await supabase.from('pitches').insert({
+            title,
+            description: content,
+            one_liner: content.replace(/\n/g, ' ').slice(0, 200),
+            created_by: userId,
+            status: 'under_review',
+          })
+          if (error) console.error('[PhilomniAI] pitch-vault insert:', error.message)
+        }
+        navigate('/pitch-vault')
+        break
+      }
+      case 'post-job': {
+        navigate('/jobs?compose=' + encodeURIComponent(content.slice(0, 1000)))
+        break
+      }
+      case 'update-bio':
+      case 'save-profile': {
+        if (userId) {
+          const bio = content.replace(/\*\*/g, '').replace(/#{1,6}\s/g, '').slice(0, 500)
+          const { error } = await supabase.from('users').update({ bio }).eq('id', userId)
+          if (error) console.error('[PhilomniAI] update-bio:', error.message)
+          else refreshProfile?.()
+        }
+        navigate('/profile')
+        break
+      }
+      case 'download-pdf': {
+        downloadAsPDF(content, title)
+        break
+      }
+      default:
+        break
+    }
+  }, [userId, navigate, refreshProfile])
 
   const handleKeyDown = e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
@@ -779,7 +893,6 @@ export default function PhilomniAI() {
   // ── Derived data ───────────────────────────────────────────────────────────
   const charCount = input.length
   const charColor = charCount > 2000 ? 'text-destructive' : charCount > 1500 ? 'text-amber-400' : 'text-muted-foreground'
-  const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant')
   const filedConvIds = new Set(conversations.filter(c => c.folder_id).map(c => c.id))
   const unfiledConvs = conversations.filter(c => !c.folder_id)
 
@@ -1128,7 +1241,7 @@ export default function PhilomniAI() {
                 const isUser = msg.role === 'user'
                 const isLastMsg = idx === messages.length - 1
                 const isLastAssistant = !isUser && isLastMsg
-                const quickActions = isLastAssistant ? detectQuickActions(msg.content) : []
+                const ctxButtons = !isUser ? detectContentType(msg) : []
                 const isThisMsgMenuOpen = msgMenuId === msg.id
                 const isBranching = branchingIdx === idx
 
@@ -1262,16 +1375,16 @@ export default function PhilomniAI() {
                         </div>
                       </div>
 
-                      {/* Quick action chips */}
-                      {isLastAssistant && quickActions.length > 0 && (
+                      {/* Smart contextual action buttons — shown on every Philo response */}
+                      {ctxButtons.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-1">
-                          {quickActions.map(a => (
+                          {ctxButtons.map(btn => (
                             <button
-                              key={a.action}
-                              onClick={() => handleQuickAction(a.action, lastAssistantMsg?.content || '')}
+                              key={btn.action}
+                              onClick={() => handleSmartAction(btn.action, msg)}
                               className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition-colors font-medium"
                             >
-                              {a.label}
+                              {btn.label}
                             </button>
                           ))}
                         </div>
@@ -1291,7 +1404,9 @@ export default function PhilomniAI() {
                       <span className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
                       <span className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
                     </div>
-                    <span className="text-xs text-muted-foreground">Philo is thinking...</span>
+                    <span className="text-xs text-muted-foreground">
+                      {isGeneratingImage ? '🎨 Generating your image...' : 'Philo is thinking...'}
+                    </span>
                   </div>
                 </div>
               )}
