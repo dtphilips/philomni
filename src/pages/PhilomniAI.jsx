@@ -170,6 +170,39 @@ function downloadAsPDF(content, title = 'Philo AI Content') {
   win.document.close()
 }
 
+/**
+ * Detect context-aware suggestion chips from assistant message content.
+ * Returns up to 3 chips that link to relevant Philomni features.
+ * These are secondary "explore" buttons shown below the primary action buttons.
+ */
+function detectSuggestionChips(content) {
+  const text = content.toLowerCase()
+  const candidates = []
+
+  if (/\b(job|career|interview|resume|cv|hire|position|role|apply|work|employment|salary)\b/.test(text))
+    candidates.push({ type: 'smartmatch_chip', label: '🔗 SmartMatch', destination: '/smartmatch' })
+
+  if (/\b(pitch|startup|investor|funding|business plan|investment|raise|venture)\b/.test(text))
+    candidates.push({ type: 'pitch_chip', label: '💡 Pitch Vault', destination: '/pitch-vault' })
+
+  if (/\b(content|caption|video|script|creator|audience|growth|social media|reel|brand|channel)\b/.test(text))
+    candidates.push({ type: 'creator_chip', label: '🎬 Creator Studio', destination: '/creator-studio' })
+
+  if (/\b(event|community|connect|network|people|collaborate|meet|join)\b/.test(text))
+    candidates.push({ type: 'community_chip', label: '🌍 Community', destination: '/community' })
+
+  if (/\b(product|sell|service|marketplace|shop|offer|digital product|listing)\b/.test(text))
+    candidates.push({ type: 'marketplace_chip', label: '🛍️ Marketplace', destination: '/marketplace' })
+
+  // Always surface at least SmartMatch + Community as default explore chips
+  if (candidates.length === 0) {
+    candidates.push({ type: 'smartmatch_chip', label: '🔗 SmartMatch', destination: '/smartmatch' })
+    candidates.push({ type: 'community_chip', label: '🌍 Community', destination: '/community' })
+  }
+
+  return candidates.slice(0, 3)
+}
+
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 function PhiloAvatar({ size = 'md' }) {
@@ -692,6 +725,7 @@ export default function PhilomniAI() {
       })
       const llmData = await res.json()
       const rawReply = llmData.content || llmData.result || 'Sorry, I had trouble with that. Please try again.'
+      console.log('[PhilomniAI] RAW CLAUDE RESPONSE:', rawReply)
 
       // ── Step 2: Extract all markers from Claude's reply ──────────────────────
       // a) [GENERATE_IMAGE: description] — triggers Ideogram image generation
@@ -705,7 +739,7 @@ export default function PhilomniAI() {
         .replace(/\[ACTION:\s*[^\]]+\]/gi, '')
         .trim()
 
-      console.log('[PhilomniAI] parsed actions:', parsedActions)
+      console.log('[PhilomniAI] PARSED ACTIONS:', parsedActions)
 
       // ── Step 3: If image marker found, call Ideogram via server-side proxy ───
       let imageUrl = null
@@ -735,9 +769,12 @@ export default function PhilomniAI() {
         role: 'assistant',
         content: cleanReply,
         timestamp: new Date().toISOString(),
+        // BUG 3 FIX: actions array is spread via ...m in cleanMsgsForStorage so it
+        // persists in Supabase JSONB and survives page refresh correctly.
         actions: parsedActions,          // Claude-chosen buttons, persisted in JSONB
         ...(imageUrl ? { imageUrl, imagePrompt: imageMarker[1].trim() } : {}),
       }
+      console.log('[PhilomniAI] STORED MESSAGE:', assistantMsg)
       const finalMessages = [...newMessages, assistantMsg]
       setMessages(finalMessages)
       clearTimeout(saveTimerRef.current)
@@ -1414,18 +1451,40 @@ export default function PhilomniAI() {
                         </div>
                       </div>
 
-                      {/* Smart contextual action buttons — shown on every Philo response */}
-                      {ctxButtons.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {ctxButtons.map(btn => (
-                            <button
-                              key={btn.action}
-                              onClick={() => handleSmartAction(btn.action, msg)}
-                              className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition-colors font-medium"
-                            >
-                              {btn.label}
-                            </button>
-                          ))}
+                      {/* Smart contextual action buttons + suggestion chips — shown on every Philo response */}
+                      {!isUser && (
+                        <div className="flex flex-col gap-1.5 mt-1">
+                          {/* Primary action buttons row: Claude's [ACTION:] markers, fallback to Copy */}
+                          <div className="flex flex-wrap gap-2">
+                            {(ctxButtons.length > 0
+                              ? ctxButtons
+                              : [{ type: 'copy', label: '📋 Copy Response', destination: '' }]
+                            ).map(btn => (
+                              <button
+                                key={btn.type}
+                                onClick={() =>
+                                  btn.type === 'copy'
+                                    ? copyMessage(msg.content, msg.id + '_action')
+                                    : handleSmartAction(btn, msg)
+                                }
+                                className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition-colors font-medium"
+                              >
+                                {btn.label}
+                              </button>
+                            ))}
+                          </div>
+                          {/* Secondary suggestion chips: context-aware links to Philomni features */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {detectSuggestionChips(msg.content).map(chip => (
+                              <button
+                                key={chip.type}
+                                onClick={() => navigate(chip.destination)}
+                                className="text-[11px] px-2.5 py-1 rounded-full border border-border/60 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                              >
+                                {chip.label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
