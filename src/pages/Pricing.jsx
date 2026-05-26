@@ -5,9 +5,10 @@ import { useSubscription } from '../context/SubscriptionContext'
 import { PLAN_META, PRICE_IDS, annualSavingsPct } from '../lib/plans'
 import {
   Check, X, Zap, Crown, Sparkles, Star, Users, Globe,
-  ArrowRight, ChevronDown, ChevronUp,
+  ArrowRight, ChevronDown, ChevronUp, ShieldCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import MultiGatewayCheckout from '../components/checkout/MultiGatewayCheckout'
 
 const TESTIMONIALS = [
   { name: 'Amara O.',    role: 'Content Creator',  text: 'The image generation alone doubled my content output. Worth every penny.' },
@@ -23,57 +24,43 @@ const FAQ = [
   { q: 'Can I switch between plans?', a: 'Yes, you can upgrade or downgrade at any time. Charges are prorated automatically by Stripe.' },
 ]
 
-const stripeReady =
-  !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY &&
-  !import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY.includes('your-')
-
 export default function Pricing() {
-  const { user } = useAuth()
-  const { plan: currentPlan } = useSubscription()
+  const { user, refreshProfile } = useAuth()
+  const { plan: currentPlan }    = useSubscription()
   const navigate = useNavigate()
 
-  const [billing,   setBilling]   = useState('monthly') // 'monthly' | 'annual'
-  const [loading,   setLoading]   = useState(null)       // planKey being processed
-  const [openFaq,   setOpenFaq]   = useState(null)
+  const [billing,       setBilling]       = useState('monthly') // 'monthly' | 'annual'
+  const [loading,       setLoading]       = useState(null)       // planKey being processed (unused but kept for compat)
+  const [openFaq,       setOpenFaq]       = useState(null)
+  const [checkoutPlan,  setCheckoutPlan]  = useState(null)       // opens MultiGatewayCheckout modal
 
-  const handleUpgrade = async (planKey) => {
+  const handleUpgrade = (planKey) => {
     if (!user) { navigate('/login'); return }
     if (planKey === 'free') { toast.info('You\'re already on the Free plan.'); return }
     if (planKey === currentPlan) { toast.info(`You\'re already on ${PLAN_META[planKey].name}.`); return }
+    setCheckoutPlan(planKey)
+  }
 
-    if (!stripeReady) {
-      toast.info('Payments are coming soon — your interest has been noted!')
-      return
-    }
-
-    const priceIdKey = `${planKey}_${billing === 'annual' ? 'annual' : 'monthly'}`
-    const priceId    = PRICE_IDS[priceIdKey]
-
-    setLoading(planKey)
-    try {
-      const res  = await fetch('/api/stripe-checkout', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          priceId,
-          plan:      planKey,
-          userId:    user?.id,
-          userEmail: user?.email,
-        }),
-      })
-      const { url, error } = await res.json()
-      if (error) throw new Error(error)
-      if (url) window.location.href = url
-    } catch (err) {
-      toast.error(`Checkout failed: ${err.message}`)
-    }
-    setLoading(null)
+  const handleCheckoutSuccess = ({ plan }) => {
+    refreshProfile?.()
+    setCheckoutPlan(null)
   }
 
   const plans = [PLAN_META.free, PLAN_META.pro, PLAN_META.promax]
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 space-y-16">
+
+      {/* ── Multi-gateway checkout modal ──────────────────────────────────── */}
+      {checkoutPlan && (
+        <MultiGatewayCheckout
+          planKey={checkoutPlan}
+          billing={billing}
+          user={user}
+          onSuccess={handleCheckoutSuccess}
+          onClose={() => setCheckoutPlan(null)}
+        />
+      )}
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <div className="text-center space-y-4">
@@ -360,7 +347,43 @@ export default function Pricing() {
             Go Pro Max
           </button>
         </div>
-        <p className="text-xs text-muted-foreground mt-4">Cancel anytime · Secure payment via Stripe · 7-day money-back guarantee</p>
+        <p className="text-xs text-muted-foreground mt-4">
+          Cancel anytime · 7-day money-back guarantee · Payments secured by Stripe, Paystack, Flutterwave &amp; PayPal
+        </p>
+      </div>
+
+      {/* ── Payment methods footer ────────────────────────────────────────── */}
+      <div className="text-center space-y-4 pb-4">
+        <p className="text-sm text-muted-foreground font-medium flex items-center justify-center gap-1.5">
+          <ShieldCheck className="w-4 h-4 text-green-400" />
+          We accept payments worldwide
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {/* Stripe */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-border text-xs text-muted-foreground font-medium">
+            💳 <span>Stripe</span>
+          </div>
+          {/* Paystack */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-border text-xs text-muted-foreground font-medium">
+            🏦 <span>Paystack</span>
+          </div>
+          {/* Flutterwave */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-border text-xs text-muted-foreground font-medium">
+            📱 <span>Flutterwave</span>
+          </div>
+          {/* PayPal */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-border text-xs text-muted-foreground font-medium">
+            🅿️ <span>PayPal</span>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground/60">
+          <span>Visa</span><span>·</span>
+          <span>Mastercard</span><span>·</span>
+          <span>Mobile Money</span><span>·</span>
+          <span>USSD</span><span>·</span>
+          <span>Bank Transfer</span><span>·</span>
+          <span>PayPal</span>
+        </div>
       </div>
     </div>
   )
