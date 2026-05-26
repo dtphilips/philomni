@@ -72,7 +72,7 @@ export default function Upgrade() {
     setLoading(true);
     try {
       const priceId = selectedPlan === 'yearly' ? 'price_pro_yearly' : 'price_pro_monthly';
-      const res = await fetch('/api/stripe-checkout', {
+      const res = await fetch('/api/stripe?action=checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ priceId, userId: user?.id, userEmail: user?.email }),

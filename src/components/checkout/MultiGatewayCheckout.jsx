@@ -85,7 +85,7 @@ export default function MultiGatewayCheckout({ planKey, billing, user, onSuccess
 
     setStripeLoading(true)
     try {
-      const res  = await fetch('/api/stripe-checkout', {
+      const res  = await fetch('/api/stripe?action=checkout', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({

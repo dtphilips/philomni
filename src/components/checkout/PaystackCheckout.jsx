@@ -53,7 +53,7 @@ export default function PaystackCheckout({
       onSuccess: async (txn) => {
         setLoading(true)
         try {
-          const res  = await fetch('/api/paystack-verify', {
+          const res  = await fetch('/api/payments?action=verify-paystack', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ reference: txn.reference, userId, plan: planKey }),

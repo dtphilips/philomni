@@ -67,7 +67,7 @@ export default function FlutterwaveCheckout({
         }
         setLoading(true)
         try {
-          const res  = await fetch('/api/flutterwave-verify', {
+          const res  = await fetch('/api/payments?action=verify-flutterwave', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({

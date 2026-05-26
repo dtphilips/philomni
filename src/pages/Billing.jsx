@@ -69,7 +69,7 @@ export default function Billing() {
     }
     setPortalLoading(true)
     try {
-      const res  = await fetch('/api/stripe-portal', {
+      const res  = await fetch('/api/stripe?action=portal', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ customerId: user.stripe_customer_id }),

@@ -44,7 +44,7 @@ export default function PayPalCheckout({
   const onApprove = useCallback(async (data, actions) => {
     setLoading(true)
     try {
-      const res  = await fetch('/api/paypal-capture', {
+      const res  = await fetch('/api/payments?action=capture-paypal', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
