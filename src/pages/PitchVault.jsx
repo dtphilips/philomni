@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useSubscription } from '../context/SubscriptionContext'
+import UpgradePrompt from '../components/UpgradePrompt'
 import {
   Rocket, Loader2, X, Eye, Check, ArrowLeft, ArrowRight,
   UploadCloud, Globe, Lock, Zap, TrendingUp, Heart,
@@ -714,11 +716,13 @@ function PitchForm({ onClose, onSubmit }) {
 
 export default function PitchVault() {
   const { user } = useAuth()
+  const { canUse, incrementUsage } = useSubscription()
   const [pitches, setPitches] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [tab, setTab] = useState('browse')
   const [toast, setToast] = useState(null)
+  const [pitchLimitMsg, setPitchLimitMsg] = useState(null)
 
   useEffect(() => {
     supabase.from('pitches').select('*').order('created_at', { ascending: false }).limit(30)
@@ -732,6 +736,13 @@ export default function PitchVault() {
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500) }
 
   const handleSubmit = async (form) => {
+    // Check pitch upload limit
+    const check = canUse('pitch_upload')
+    if (!check.allowed) {
+      setShowForm(false)
+      setPitchLimitMsg(check.reason)
+      return
+    }
     try {
       const { data, error } = await supabase.from('pitches').insert({
         title: form.title, description: form.tagline,
@@ -742,11 +753,15 @@ export default function PitchVault() {
         created_by: user?.id,
       }).select().single()
       if (error) throw error
-      if (data) setPitches(p => [data, ...p])
+      if (data) {
+        setPitches(p => [data, ...p])
+        incrementUsage('pitch_upload')
+      }
     } catch (e) {
       console.error('[PitchVault] insert pitch:', e.message)
     }
     setShowForm(false)
+    setPitchLimitMsg(null)
     showToast('Your pitch is live! 🚀')
   }
 
@@ -762,6 +777,7 @@ export default function PitchVault() {
       )}
 
       {showForm && <PitchForm onClose={() => setShowForm(false)} onSubmit={handleSubmit} />}
+      {pitchLimitMsg && <UpgradePrompt reason={pitchLimitMsg} className="mt-2" />}
 
       {/* Header */}
       <div className="text-center py-8 px-4 bg-gradient-to-br from-primary/20 via-primary/5 to-background border border-primary/20 rounded-3xl">

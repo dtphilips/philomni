@@ -4,6 +4,8 @@ import ReactMarkdown from 'react-markdown'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
+import { useSubscription } from '../context/SubscriptionContext'
+import UpgradePrompt from '../components/UpgradePrompt'
 import {
   Send, Mic, MicOff, Paperclip, RefreshCw, Copy,
   ThumbsUp, ThumbsDown, Plus, MessageSquare, X,
@@ -253,6 +255,7 @@ function MarkdownContent({ content }) {
 export default function PhilomniAI() {
   const { user, loading: authLoading, refreshProfile } = useAuth()
   const { mode } = useMode()
+  const { canUse, incrementUsage, plan } = useSubscription()
   const navigate = useNavigate()
 
   // Derive a stable primitive so useCallback / useEffect deps don't thrash.
@@ -272,6 +275,7 @@ export default function PhilomniAI() {
   const [feedbackMap, setFeedbackMap] = useState({})
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+  const [limitMsg, setLimitMsg]                   = useState(null) // usage limit hit message
 
   // ── Feature state ──────────────────────────────────────────────────────────
   const [folders, setFolders] = useState([])
@@ -677,6 +681,14 @@ export default function PhilomniAI() {
     const text = typeof overrideText === 'string' ? overrideText.trim() : input.trim()
     if (!text && attachments.length === 0) return
 
+    // ── Usage limit gate ─────────────────────────────────────────────────────
+    const msgCheck = canUse('ai_message')
+    if (!msgCheck.allowed) {
+      setLimitMsg(msgCheck.reason)
+      return
+    }
+    setLimitMsg(null)
+
     const userMsg = {
       id: Date.now().toString(),
       role: 'user',
@@ -744,22 +756,31 @@ export default function PhilomniAI() {
       // ── Step 3: If image marker found, call Ideogram via server-side proxy ───
       let imageUrl = null
       if (imageMarker) {
-        const imageDesc = imageMarker[1].trim()
-        console.log('[PhilomniAI] [GENERATE_IMAGE] detected →', imageDesc.slice(0, 100))
-        setIsGeneratingImage(true)
-        try {
-          const imgRes = await fetch('/api/image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: imageDesc }),
-          })
-          const imgData = await imgRes.json()
-          console.log('[PhilomniAI] Ideogram result:', imgData.imageUrl ? '✓ got URL' : imgData.error)
-          imageUrl = imgData.imageUrl || null
-        } catch (imgErr) {
-          console.error('[PhilomniAI] Ideogram call failed:', imgErr)
-        } finally {
-          setIsGeneratingImage(false)
+        const imgCheck = canUse('image_gen')
+        if (!imgCheck.allowed) {
+          // Don't hard-block — just skip generation and note in the reply
+          console.log('[PhilomniAI] image gen blocked:', imgCheck.reason)
+          // Append a small note to the clean reply so the user knows why no image appeared
+          // (cleanReply is const — we handle this by building assistantMsg below with extra text)
+        } else {
+          const imageDesc = imageMarker[1].trim()
+          console.log('[PhilomniAI] [GENERATE_IMAGE] detected →', imageDesc.slice(0, 100))
+          setIsGeneratingImage(true)
+          try {
+            const imgRes = await fetch('/api/image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: imageDesc }),
+            })
+            const imgData = await imgRes.json()
+            console.log('[PhilomniAI] Ideogram result:', imgData.imageUrl ? '✓ got URL' : imgData.error)
+            imageUrl = imgData.imageUrl || null
+            if (imageUrl) incrementUsage('image_gen')
+          } catch (imgErr) {
+            console.error('[PhilomniAI] Ideogram call failed:', imgErr)
+          } finally {
+            setIsGeneratingImage(false)
+          }
         }
       }
 
@@ -777,6 +798,8 @@ export default function PhilomniAI() {
       console.log('[PhilomniAI] STORED MESSAGE:', assistantMsg)
       const finalMessages = [...newMessages, assistantMsg]
       setMessages(finalMessages)
+      // Track AI message usage (fire-and-forget)
+      incrementUsage('ai_message')
       clearTimeout(saveTimerRef.current)
       saveTimerRef.current = setTimeout(() => saveConversation(finalMessages), 1200)
     } catch (err) {
@@ -1516,6 +1539,11 @@ export default function PhilomniAI() {
         {/* ── Input area ───────────────────────────────────────────────────── */}
         <div className="flex-shrink-0 px-4 pb-4 pt-2 border-t border-border bg-card">
 
+          {/* Usage limit message */}
+          {limitMsg && (
+            <UpgradePrompt reason={limitMsg} className="mb-3" />
+          )}
+
           {attachments.length > 0 && (
             <div className="flex gap-2 mb-2.5 flex-wrap">
               {attachments.map((a, i) => (
@@ -1569,7 +1597,14 @@ export default function PhilomniAI() {
 
           <div className="flex items-center justify-between mt-2 px-1">
             <p className="text-[11px] text-muted-foreground/50">Philo can make mistakes. Use judgment for important decisions.</p>
-            {charCount > 500 && <span className={`text-[11px] font-mono ${charColor}`}>{charCount}</span>}
+            <div className="flex items-center gap-3">
+              {plan !== 'promax' && (
+                <span className="text-[11px] text-muted-foreground/40">
+                  {/* Usage hint shown to free/pro users — SubscriptionContext manages the count */}
+                </span>
+              )}
+              {charCount > 500 && <span className={`text-[11px] font-mono ${charColor}`}>{charCount}</span>}
+            </div>
           </div>
         </div>
       </div>

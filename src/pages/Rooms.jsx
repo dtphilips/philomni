@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
+import { useSubscription } from '../context/SubscriptionContext'
 import { useNavigate } from 'react-router-dom'
 import {
   Radio, Plus, Users, Search, Mic, Video, Monitor, BookOpen,
@@ -596,7 +597,38 @@ function Toast({ message, onDismiss }) {
 export default function Rooms() {
   const { user } = useAuth()
   const { mode } = useMode()
+  const { plan } = useSubscription()
   const navigate = useNavigate()
+
+  // Rooms is a Pro+ feature — gate free users with an upgrade prompt
+  if (plan === 'free') {
+    return (
+      <div className="max-w-lg mx-auto text-center py-20 px-6 space-y-5">
+        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+          <span className="text-3xl">🎙️</span>
+        </div>
+        <h2 className="text-2xl font-bold text-foreground">Rooms is a Pro feature</h2>
+        <p className="text-muted-foreground leading-relaxed">
+          Host and join live audio, video, and presentation rooms with your community.
+          Upgrade to Pro to get access.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+          <button
+            onClick={() => navigate('/pricing')}
+            className="px-6 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+          >
+            View Pricing Plans
+          </button>
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-3 rounded-xl border border-border text-muted-foreground text-sm hover:bg-muted transition-colors"
+          >
+            Back to Feed
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const [liveRooms, setLiveRooms] = useState([])
   const [upcomingRooms, setUpcomingRooms] = useState([])

@@ -2,6 +2,7 @@ import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ModeProvider } from './context/ModeContext'
+import { SubscriptionProvider } from './context/SubscriptionContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
@@ -88,6 +89,7 @@ import SkillExchange from './pages/SkillExchange'
 import Monetization from './pages/Monetization'
 import Upgrade from './pages/Upgrade'
 import Billing from './pages/Billing'
+import Pricing from './pages/Pricing'
 
 // SmartMatch
 import SmartMatch from './pages/SmartMatch'
@@ -130,6 +132,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+      <SubscriptionProvider>
       <ModeProvider>
         <BrowserRouter>
           <Routes>
@@ -219,11 +222,13 @@ export default function App() {
             <Route path="/templates" element={<P page={TemplateMarketplace} />} />
             <Route path="/skills" element={<P page={SkillExchange} />} />
             <Route path="/monetize" element={<P page={Monetization} />} />
-            <Route path="/upgrade" element={<P page={Upgrade} />} />
-            <Route path="/billing" element={<P page={Billing} />} />
+            <Route path="/upgrade"  element={<P page={Upgrade} />} />
+            <Route path="/billing"  element={<P page={Billing} />} />
+            <Route path="/pricing"  element={<P page={Pricing} />} />
 
             {/* SmartMatch */}
-            <Route path="/match" element={<P page={SmartMatch} />} />
+            <Route path="/match"      element={<P page={SmartMatch} />} />
+            <Route path="/smartmatch" element={<P page={SmartMatch} />} />
 
             {/* Philo AI */}
             <Route path="/ai" element={<P page={PhilomniAI} />} />
@@ -247,6 +252,7 @@ export default function App() {
           </Routes>
         </BrowserRouter>
       </ModeProvider>
+      </SubscriptionProvider>
       </AuthProvider>
     </QueryClientProvider>
   )

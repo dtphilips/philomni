@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
+import { useSubscription } from '../context/SubscriptionContext'
+import UpgradePrompt from '../components/UpgradePrompt'
 import {
   Search, MapPin, DollarSign, Bookmark, BookmarkCheck,
   X, ChevronRight, ChevronLeft, Briefcase, Clock,
@@ -1444,6 +1446,7 @@ Return ONLY the JSON array, nothing else.`
 export default function Jobs() {
   const { user } = useAuth()
   const { mode } = useMode()
+  const { canUse, incrementUsage } = useSubscription()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('browse')
   const [searchQuery, setSearchQuery] = useState('')
@@ -1453,6 +1456,7 @@ export default function Jobs() {
   const [selectedJob, setSelectedJob] = useState(null)
   const [showApply, setShowApply] = useState(false)
   const [showPostJob, setShowPostJob] = useState(false)
+  const [jobLimitMsg, setJobLimitMsg] = useState(null)
 
   const JOB_TYPES = ['All', 'Full-time', 'Part-time', 'Contract', 'Freelance']
 
@@ -1496,7 +1500,16 @@ export default function Jobs() {
   }
 
   function handleApply() {
+    // Check job application limit before opening the apply modal
+    const check = canUse('job_application')
+    if (!check.allowed) {
+      setJobLimitMsg(check.reason)
+      return
+    }
+    setJobLimitMsg(null)
     setShowApply(true)
+    // Track usage when the modal opens (user intent to apply)
+    incrementUsage('job_application')
   }
 
   const statusColors = {
@@ -1764,6 +1777,19 @@ export default function Jobs() {
           <HiringPipeline />
         )}
       </div>
+
+      {/* Job application limit prompt */}
+      {jobLimitMsg && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4">
+          <UpgradePrompt reason={jobLimitMsg} />
+          <button
+            onClick={() => setJobLimitMsg(null)}
+            className="absolute top-1 right-5 text-muted-foreground hover:text-foreground text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Job Detail Modal */}
       {selectedJob && !showApply && (

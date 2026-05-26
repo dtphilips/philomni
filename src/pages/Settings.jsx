@@ -440,8 +440,8 @@ export default function Settings() {
                 <p className="text-sm font-medium">{user?.plan === 'pro' ? 'Monetization Active' : 'Upgrade to Pro to Monetize'}</p>
                 <p className="text-xs text-muted-foreground">{user?.plan === 'pro' ? 'You can charge for premium content and accept tips' : 'Pro plan required to enable monetization features'}</p>
               </div>
-              {user?.plan !== 'pro' && (
-                <Link to="/upgrade" className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold text-primary border border-primary/30 hover:bg-primary/5 transition-colors flex-shrink-0">
+              {!['pro', 'promax'].includes(user?.plan) && (
+                <Link to="/pricing" className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold text-primary border border-primary/30 hover:bg-primary/5 transition-colors flex-shrink-0">
                   Upgrade
                 </Link>
               )}

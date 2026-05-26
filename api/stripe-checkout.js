@@ -1,10 +1,17 @@
 /**
  * Vercel Serverless Function — Stripe Checkout session creation
+ *
  * POST /api/stripe-checkout
- *   { priceId, userId, userEmail, successUrl?, cancelUrl? }
+ * Body:
+ *   priceId    string  — Stripe price ID (required)
+ *   plan       string  — 'pro' | 'promax' — stored in metadata so webhook knows what to activate
+ *   userId     string  — Supabase user ID
+ *   userEmail  string  — pre-fills the checkout email field
+ *   successUrl string? — override success redirect (default: /billing?success=true)
+ *   cancelUrl  string? — override cancel redirect  (default: /pricing)
  *
  * Returns { sessionId, url } on success.
- * Returns { error } with status 503 when Stripe is not configured.
+ * Returns { error }        on failure.
  */
 import Stripe from 'stripe'
 
@@ -19,7 +26,7 @@ export default async function handler(req, res) {
   }
 
   const stripe = new Stripe(stripeKey)
-  const { priceId, userId, userEmail, successUrl, cancelUrl } = req.body ?? {}
+  const { priceId, plan, userId, userEmail, successUrl, cancelUrl } = req.body ?? {}
 
   if (!priceId) return res.status(400).json({ error: 'priceId is required' })
 
@@ -28,18 +35,28 @@ export default async function handler(req, res) {
       ? process.env.VITE_APP_URL
       : 'https://philomni.app'
 
+  // Normalise plan name for metadata storage
+  const planName = (plan || 'pro').toLowerCase().replace(/[_\s-]/g, '') === 'promax' ? 'promax' : 'pro'
+
   try {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       ...(userEmail ? { customer_email: userEmail } : {}),
-      line_items: [{ price: priceId, quantity: 1 }],
-      mode: 'subscription',
+      line_items:  [{ price: priceId, quantity: 1 }],
+      mode:        'subscription',
       success_url: successUrl || `${appUrl}/billing?success=true`,
-      cancel_url: cancelUrl || `${appUrl}/billing?cancelled=true`,
-      metadata: { user_id: userId ?? '' },
+      cancel_url:  cancelUrl  || `${appUrl}/pricing`,
+      metadata: {
+        user_id: userId ?? '',
+        plan:    planName,          // 'pro' or 'promax' — read by webhook
+      },
+      subscription_data: {
+        metadata: { user_id: userId ?? '', plan: planName },
+      },
       allow_promotion_codes: true,
     })
 
+    console.log(`[api/stripe-checkout] created session ${session.id} for plan=${planName} user=${userId}`)
     return res.status(200).json({ sessionId: session.id, url: session.url })
   } catch (err) {
     console.error('[api/stripe-checkout]', err)
