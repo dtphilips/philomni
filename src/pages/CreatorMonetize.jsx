@@ -180,7 +180,7 @@ export default function CreatorMonetize() {
         <h2 className="font-semibold text-foreground">How Earnings Work</h2>
         <div className="grid sm:grid-cols-2 gap-4">
           {[
-            { emoji: '💰', title: '55% to Creators',    desc: 'You earn 55% of monthly ad revenue — matching YouTube and Meta's creator split.' },
+            { emoji: '💰', title: '55% to Creators',    desc: "You earn 55% of monthly ad revenue — matching YouTube and Meta's creator split." },
             { emoji: '📊', title: 'Performance-based',  desc: 'Your share is calculated from views (35%), engagement (25%), consistency (20%), followers (10%), profile (10%).' },
             { emoji: '📅', title: 'Monthly Payouts',    desc: `Payments processed on the 1st of each month. Next payout: ${nextPayoutDate()}.` },
             { emoji: '🌍', title: 'Merit-based',        desc: 'Earnings are purely performance-based — same formula for every creator regardless of country.' },
