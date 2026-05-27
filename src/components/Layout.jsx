@@ -8,7 +8,7 @@ import {
   Video, LogOut, Menu, X, ChevronRight, Bell, Package,
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
   Newspaper, Award, Target, ClipboardList, Hash, Sparkles, DollarSign,
-  Wallet, TrendingUp, BookMarked,
+  Wallet, TrendingUp, BookMarked, Megaphone,
 } from 'lucide-react'
 import PhiloDrawer from './PhiloDrawer'
 
@@ -238,6 +238,25 @@ function Sidebar({ user, mode, navSections, onModeSwitch, onSignOut, onNav }) {
           <LogOut className="w-4 h-4" />
           Sign out
         </button>
+
+        {/* Company footer links */}
+        <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-x-3 gap-y-1 px-1">
+          {[
+            { to: '/partners', label: 'Advertise' },
+            { to: '/settings', label: 'About' },
+            { to: '/settings', label: 'Privacy' },
+            { to: '/settings', label: 'Terms' },
+          ].map(link => (
+            <NavLink
+              key={link.label}
+              to={link.to}
+              onClick={onNav}
+              className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+            >
+              {link.label}
+            </NavLink>
+          ))}
+        </div>
       </div>
     </div>
   )

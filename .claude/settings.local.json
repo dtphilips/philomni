@@ -86,7 +86,8 @@
       "Bash(node -e \"const p = require\\('./node_modules/flutterwave-react-v3/package.json'\\); console.log\\('flutterwave-react-v3:', p.version\\)\")",
       "Bash(node -e \"const p = require\\('./node_modules/react-paystack/package.json'\\); console.log\\('react-paystack:', p.version\\)\")",
       "Bash(node -e \"const p = require\\('./node_modules/@paypal/react-paypal-js/package.json'\\); console.log\\('@paypal/react-paypal-js:', p.version\\)\")",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(python -c ' *)"
     ]
   }
 }

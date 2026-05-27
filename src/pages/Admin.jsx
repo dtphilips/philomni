@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Users, FileText, Briefcase, Lightbulb, Shield, Loader2,
-  BadgeCheck, DollarSign, Megaphone, ArrowRight,
+  BadgeCheck, DollarSign, Megaphone, ArrowRight, Building2,
 } from 'lucide-react'
 import { ROLE_LABELS } from '@/lib/categories'
 
@@ -31,6 +31,7 @@ export default function Admin() {
   const { data: pendingAds        = [] } = useQuery({ queryKey: ['admin-pending-ads'],     queryFn: () => supabase.from('ads').select('id').eq('status','pending').then(r => r.data || []) })
   const { data: activeAdStats     = [] } = useQuery({ queryKey: ['admin-ad-stats'],        queryFn: () => supabase.from('ads').select('spent,total_views').eq('status','active').then(r => r.data || []) })
   const { data: creatorPayouts    = [] } = useQuery({ queryKey: ['admin-payouts'],         queryFn: () => supabase.from('earnings').select('amount').eq('status','pending').then(r => r.data || []) })
+  const { data: newBrandInquiries = [] } = useQuery({ queryKey: ['admin-brand-inquiries'], queryFn: () => supabase.from('brand_inquiries').select('id').eq('status','new').then(r => r.data || []) })
 
   const totalAdRevenue   = activeAdStats.reduce((s, a) => s + (a.spent || 0), 0)
   const totalPayoutsDue  = creatorPayouts.reduce((s, e) => s + (e.amount || 0), 0)
@@ -56,6 +57,10 @@ export default function Admin() {
     {
       icon: Megaphone, title: 'Ad Review', color: 'text-yellow-400', bg: 'bg-yellow-400/10',
       count: pendingAds.length, label: 'pending', href: '/admin/ads',
+    },
+    {
+      icon: Building2, title: 'Brand Inquiries', color: 'text-pink-400', bg: 'bg-pink-400/10',
+      count: newBrandInquiries.length, label: 'new', href: '/admin/brands',
     },
   ]
 
@@ -109,7 +114,7 @@ export default function Admin() {
       {/* Module quick-access cards */}
       <div>
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Review Queues</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {moduleCards.map(m => (
             <button key={m.href} onClick={() => navigate(m.href)}
               className="bg-card rounded-xl border border-border p-5 text-left hover:border-primary/40 hover:bg-muted/30 transition-all group">

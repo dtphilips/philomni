@@ -112,6 +112,8 @@ import Admin from './pages/Admin'
 import AdminBadges from './pages/admin/AdminBadges'
 import AdminMonetize from './pages/admin/AdminMonetize'
 import AdminAds from './pages/admin/AdminAds'
+import AdminBrands from './pages/admin/AdminBrands'
+import Partners from './pages/Partners'
 import VerifyBadge from './pages/VerifyBadge'
 import CreatorMonetize from './pages/CreatorMonetize'
 import Advertise from './pages/Advertise'
@@ -158,6 +160,7 @@ export default function App() {
             {/* Public */}
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/partners" element={<Partners />} />
             <Route path="/shared/video/:id" element={<SharedVideoView />} />
             <Route path="/shared/project/:id" element={<SharedProjectView />} />
 
@@ -276,6 +279,7 @@ export default function App() {
             <Route path="/admin/badges"   element={<P page={AdminBadges} />} />
             <Route path="/admin/monetize" element={<P page={AdminMonetize} />} />
             <Route path="/admin/ads"      element={<P page={AdminAds} />} />
+            <Route path="/admin/brands"   element={<P page={AdminBrands} />} />
             <Route path="/verify-badge"   element={<P page={VerifyBadge} />} />
             <Route path="/monetize"       element={<P page={CreatorMonetize} />} />
             <Route path="/advertise"      element={<P page={Advertise} />} />

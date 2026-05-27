@@ -3,9 +3,10 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { Link } from 'react-router-dom'
 import {
   Megaphone, Upload, Eye, MousePointer, DollarSign,
-  Calendar, Target, Loader2, ExternalLink, ImageIcon,
+  Calendar, Target, Loader2, ExternalLink, ImageIcon, ArrowRight,
 } from 'lucide-react'
 
 const INDUSTRIES = [
@@ -107,9 +108,21 @@ export default function Advertise() {
 
   return (
     <div className="max-w-5xl mx-auto py-6 px-4">
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-4">
         <Megaphone className="w-6 h-6 text-primary" />
         <h1 className="text-2xl font-bold text-foreground">Create an Ad</h1>
+      </div>
+
+      {/* Managed campaign callout */}
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-primary/8 border border-primary/20 mb-6">
+        <ArrowRight className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+        <p className="text-sm text-muted-foreground">
+          <span className="text-foreground font-medium">Running a campaign over $500?</span>{' '}
+          Contact our partnerships team for custom pricing, priority placement, and a dedicated account manager.{' '}
+          <Link to="/partners" className="text-primary hover:underline font-medium">
+            View Packages &rarr;
+          </Link>
+        </p>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-8">
