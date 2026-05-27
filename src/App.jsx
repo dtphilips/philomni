@@ -116,6 +116,18 @@ import VerifyBadge from './pages/VerifyBadge'
 import CreatorMonetize from './pages/CreatorMonetize'
 import Advertise from './pages/Advertise'
 import MyAds from './pages/MyAds'
+// Creator Economy
+import Wallet from './pages/Wallet'
+import Learn from './pages/Learn'
+import CourseDetail from './pages/CourseDetail'
+import CourseWatch from './pages/CourseWatch'
+import Teach from './pages/Teach'
+import ProductMarketplace from './pages/ProductMarketplace'
+import Sell from './pages/Sell'
+import Consulting from './pages/Consulting'
+import ConsultingOffer from './pages/ConsultingOffer'
+import Investors from './pages/Investors'
+
 import Onboarding from './pages/Onboarding'
 import OnboardingProfile from './pages/OnboardingProfile'
 
@@ -222,7 +234,7 @@ export default function App() {
             <Route path="/orders/:id" element={<P page={OrderPage} />} />
             <Route path="/course/:id" element={<P page={CourseViewer} />} />
             <Route path="/seller/:sellerId" element={<P page={SellerStorefront} />} />
-            <Route path="/marketplace" element={<P page={CreatorMarket} />} />
+            <Route path="/marketplace" element={<P page={ProductMarketplace} />} />
             <Route path="/creator-marketplace" element={<P page={CreatorMarketplace} />} />
             <Route path="/shop" element={<P page={Marketplace} />} />
             <Route path="/video-marketplace" element={<P page={VideoMarketplace} />} />
@@ -232,6 +244,17 @@ export default function App() {
             <Route path="/upgrade"  element={<P page={Upgrade} />} />
             <Route path="/billing"  element={<P page={Billing} />} />
             <Route path="/pricing"  element={<P page={Pricing} />} />
+
+            {/* Creator Economy */}
+            <Route path="/wallet"             element={<P page={Wallet} />} />
+            <Route path="/learn"              element={<P page={Learn} />} />
+            <Route path="/learn/:courseId"    element={<P page={CourseDetail} />} />
+            <Route path="/learn/:courseId/watch" element={<P page={CourseWatch} />} />
+            <Route path="/teach"              element={<P page={Teach} />} />
+            <Route path="/sell"               element={<P page={Sell} />} />
+            <Route path="/consulting"         element={<P page={Consulting} />} />
+            <Route path="/consulting/offer"   element={<P page={ConsultingOffer} />} />
+            <Route path="/investors"          element={<P page={Investors} />} />
 
             {/* SmartMatch */}
             <Route path="/match"      element={<P page={SmartMatch} />} />

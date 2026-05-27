@@ -8,6 +8,7 @@ import {
   Video, LogOut, Menu, X, ChevronRight, Bell, Package,
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
   Newspaper, Award, Target, ClipboardList, Hash, Sparkles, DollarSign,
+  Wallet, TrendingUp, BookMarked,
 } from 'lucide-react'
 import PhiloDrawer from './PhiloDrawer'
 
@@ -56,11 +57,22 @@ const CREATOR_NAV = [
     ],
   },
   {
-    label: 'Discover',
+    label: 'Earn',
     items: [
-      { to: '/music-library', icon: Library,    label: 'Music Library' },
-      { to: '/marketplace',   icon: ShoppingBag,label: 'Marketplace' },
-      { to: '/skills',        icon: Zap,        label: 'Skill Exchange' },
+      { to: '/wallet',          icon: Wallet,      label: 'My Wallet' },
+      { to: '/consulting/offer',icon: Briefcase,   label: 'Consulting' },
+      { to: '/sell',            icon: Package,     label: 'Sell Products' },
+      { to: '/teach',           icon: GraduationCap, label: 'Teach' },
+    ],
+  },
+  {
+    label: 'Marketplace',
+    items: [
+      { to: '/marketplace',     icon: ShoppingBag, label: 'Digital Products' },
+      { to: '/learn',           icon: BookOpen,    label: 'Courses' },
+      { to: '/consulting',      icon: Users,       label: 'Consulting' },
+      { to: '/music-library',   icon: Library,     label: 'Music Library' },
+      { to: '/skills',          icon: Zap,         label: 'Skill Exchange' },
     ],
   },
 ]
@@ -95,8 +107,32 @@ const PRO_NAV = [
   {
     label: 'Learn',
     items: [
-      { to: '/learning',             icon: GraduationCap, label: 'Learning Hub' },
+      { to: '/learn',                icon: BookOpen,      label: 'Learn Hub' },
+      { to: '/teach',                icon: GraduationCap, label: 'Teach', badge: '💡' },
       { to: '/learning/certificates',icon: Award,         label: 'Certificates' },
+    ],
+  },
+  {
+    label: 'Marketplace',
+    items: [
+      { to: '/marketplace',     icon: ShoppingBag, label: 'Digital Products' },
+      { to: '/sell',            icon: Package,     label: 'Sell Products' },
+      { to: '/consulting',      icon: Briefcase,   label: 'Find Consultants' },
+    ],
+  },
+  {
+    label: 'Earn',
+    items: [
+      { to: '/wallet',          icon: Wallet,      label: 'My Wallet' },
+      { to: '/monetize',        icon: DollarSign,  label: 'Monetize', badge: '💰' },
+      { to: '/consulting/offer',icon: Users,       label: 'Offer Consulting' },
+    ],
+  },
+  {
+    label: 'Invest',
+    items: [
+      { to: '/pitch-vault', icon: Target,      label: 'Pitch Vault' },
+      { to: '/investors',   icon: TrendingUp,  label: 'Investor Access', badge: 'PRO' },
     ],
   },
   {
@@ -105,14 +141,12 @@ const PRO_NAV = [
       { to: '/rooms',      icon: Radio,    label: 'Rooms' },
       { to: '/meetings',   icon: Video,    label: 'Meetings' },
       { to: '/podcasts',   icon: Mic2,     label: 'Podcasts' },
-      { to: '/pitch-vault',icon: Target,   label: 'Pitch Vault' },
     ],
   },
   {
     label: 'Tools',
     items: [
       { to: '/analytics',    icon: BarChart2,     label: 'Analytics' },
-      { to: '/monetize',     icon: DollarSign,    label: 'Monetize', badge: '💰' },
       { to: '/messages',     icon: MessageSquare, label: 'Messages' },
       { to: '/notifications',icon: Bell,          label: 'Notifications' },
     ],

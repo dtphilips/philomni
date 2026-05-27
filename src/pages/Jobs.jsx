@@ -111,7 +111,7 @@ function remoteTypeBadge(type) {
 function JobCard({ job, onOpen, saved, onSave }) {
   return (
     <div
-      className="bg-card border border-border rounded-xl p-5 shadow-sm hover:border-primary/40 transition-all cursor-pointer group"
+      className={`bg-card border rounded-xl p-5 shadow-sm hover:border-primary/40 transition-all cursor-pointer group ${job.is_featured ? 'border-yellow-500/40 bg-gradient-to-br from-yellow-500/5 to-card' : 'border-border'}`}
       onClick={() => onOpen(job)}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -124,9 +124,16 @@ function JobCard({ job, onOpen, saved, onSave }) {
             <p className="text-xs text-muted-foreground/60">{daysAgo(job.posted_days)}</p>
           </div>
         </div>
-        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${matchColor(job.match)}`}>
-          {job.match}% match
-        </span>
+        <div className="flex items-center gap-1.5">
+          {job.is_featured && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+              ⭐ Featured
+            </span>
+          )}
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${matchColor(job.match)}`}>
+            {job.match}% match
+          </span>
+        </div>
       </div>
 
       <h3 className="text-lg font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
@@ -814,7 +821,7 @@ function PostJobModal({ onClose }) {
     title: '', company: '', logo: '', type: 'Full-time', location: '', remote_type: 'Remote',
     salary_min: '', salary_max: '', salary_period: 'year', description: '',
     requirements: [''], skills: [], deadline: '',
-    questions: [''],
+    questions: [''], is_featured: false,
   })
 
   function updateForm(key, val) { setForm(f => ({ ...f, [key]: val })) }
@@ -994,6 +1001,20 @@ function PostJobModal({ onClose }) {
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Application Deadline</label>
                 <input type="date" value={form.deadline} onChange={e => updateForm('deadline', e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div
+                    onClick={() => updateForm('is_featured', !form.is_featured)}
+                    className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${form.is_featured ? 'bg-yellow-500' : 'bg-muted'}`}
+                  >
+                    <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${form.is_featured ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">⭐ Feature this listing</p>
+                    <p className="text-xs text-muted-foreground">Featured jobs appear at the top with a gold badge</p>
+                  </div>
+                </label>
               </div>
             </>
           )}

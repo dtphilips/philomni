@@ -154,6 +154,25 @@ export function SubscriptionProvider({ children }) {
           `You've used your ${limits.pitch_uploads_per_month} monthly pitch upload. Upgrade to Pro for unlimited uploads.`,
         )
 
+      case 'enroll_paid_course':
+        if (plan === 'free') {
+          return { allowed: false, reason: 'Upgrade to Pro to enroll in paid courses.', isLimitError: true }
+        }
+        return { allowed: true, reason: null }
+
+      case 'purchase_product':
+        if (plan === 'free') {
+          return { allowed: false, reason: 'Upgrade to Pro to purchase digital products.', isLimitError: true }
+        }
+        return { allowed: true, reason: null }
+
+      case 'view_pitch':
+      case 'investor_access':
+        if (plan !== 'promax') {
+          return { allowed: false, reason: 'Investor access requires a Pro Max plan.', isLimitError: true }
+        }
+        return { allowed: true, reason: null }
+
       default:
         return { allowed: true, reason: null }
     }
