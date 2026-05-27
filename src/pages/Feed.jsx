@@ -9,9 +9,95 @@ import {
   Bookmark, Repeat2, Eye, MapPin, Globe, Users, Lock, Flag,
   Copy, BookOpen, MessageSquare,
   UserPlus, Hash, Calendar, ChevronRight, Edit3, Film, Sparkles, ArrowRight,
+  ExternalLink, Megaphone,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import MediaEditor from '@/components/editor/MediaEditor'
+
+// ── In-feed Ad Card ───────────────────────────────────────────────────────────
+function AdCard({ ad, viewerId }) {
+  const cardRef  = useRef(null)
+  const tracked  = useRef(false)
+
+  useEffect(() => {
+    if (!ad?.id || tracked.current) return
+    const observer = new IntersectionObserver(
+      async ([entry]) => {
+        if (entry.isIntersecting && !tracked.current) {
+          tracked.current = true
+          observer.disconnect()
+          // Record view
+          await supabase.from('ad_views').insert({ ad_id: ad.id, viewer_id: viewerId || null })
+          // Increment total_views and spent
+          await supabase.rpc
+            ? supabase.from('ads').update({
+                total_views: (ad.total_views || 0) + 1,
+                spent: Math.min(ad.budget || 0, parseFloat(((ad.spent || 0) + (ad.cost_per_view || 0.001)).toFixed(4))),
+              }).eq('id', ad.id)
+            : null
+          // Mark budget exhausted
+          const newSpent = (ad.spent || 0) + (ad.cost_per_view || 0.001)
+          if (newSpent >= (ad.budget || 0)) {
+            await supabase.from('ads').update({ status: 'completed' }).eq('id', ad.id)
+          }
+        }
+      },
+      { threshold: 0.6 }
+    )
+    if (cardRef.current) observer.observe(cardRef.current)
+    return () => observer.disconnect()
+  }, [ad?.id, viewerId])
+
+  const handleClick = async () => {
+    await supabase.from('ad_views').update({ clicked: true }).eq('ad_id', ad.id).eq('viewer_id', viewerId || null)
+    await supabase.from('ads').update({ total_clicks: (ad.total_clicks || 0) + 1 }).eq('id', ad.id)
+    if (ad.cta_url) window.open(ad.cta_url, '_blank', 'noopener noreferrer')
+  }
+
+  return (
+    <div ref={cardRef} className="bg-card rounded-2xl border border-border/60 overflow-hidden shadow-sm">
+      <div className="flex items-center justify-between px-4 pt-3 pb-1">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
+            <Megaphone className="w-3.5 h-3.5 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground leading-tight">{ad.title}</p>
+          </div>
+        </div>
+        <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">Sponsored</span>
+      </div>
+
+      {ad.image_url && (
+        <img src={ad.image_url} alt={ad.title} className="w-full max-h-72 object-cover mt-2" />
+      )}
+      {ad.video_url && !ad.image_url && (
+        <video src={ad.video_url} className="w-full max-h-72 object-cover mt-2" muted loop autoPlay playsInline />
+      )}
+
+      <div className="px-4 py-3">
+        {ad.content && <p className="text-sm text-muted-foreground mb-3 leading-relaxed">{ad.content}</p>}
+        <button onClick={handleClick}
+          className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+          {ad.cta_text || 'Learn More'} <ExternalLink className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Fetch one random active ad for injection
+async function fetchFeedAd() {
+  const { data } = await supabase
+    .from('ads')
+    .select('*')
+    .eq('status', 'active')
+    .lte('spent', supabase.rpc ? 'budget' : 99999)
+    .limit(10)
+  if (!data || data.length === 0) return null
+  return data[Math.floor(Math.random() * data.length)]
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 10
 
@@ -1827,8 +1913,12 @@ export default function Feed() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
+  const [feedAd, setFeedAd] = useState(null)
   const sentinelRef = useRef()
   const pageRef = useRef(0)
+
+  // Load a sponsored ad for injection
+  useEffect(() => { fetchFeedAd().then(setFeedAd) }, [])
 
   const loadPosts = useCallback(async (pageNum) => {
     if (pageNum > 0) setLoadingMore(true)
@@ -1925,6 +2015,9 @@ export default function Feed() {
                 <React.Fragment key={post.id}>
                   <PostCard post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} />
                   {(i + 1) % 4 === 0 && i < posts.length - 1 && <ConnectionStoryCard />}
+                  {(i + 1) % 8 === 0 && feedAd && (
+                    <AdCard key={`ad-${i}`} ad={feedAd} viewerId={user?.id} />
+                  )}
                 </React.Fragment>
               ))}
             </div>

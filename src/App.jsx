@@ -109,6 +109,13 @@ import PostVideoEditorPage from './pages/PostVideoEditorPage'
 import QualityReview from './pages/QualityReview'
 import Gamification from './pages/Gamification'
 import Admin from './pages/Admin'
+import AdminBadges from './pages/admin/AdminBadges'
+import AdminMonetize from './pages/admin/AdminMonetize'
+import AdminAds from './pages/admin/AdminAds'
+import VerifyBadge from './pages/VerifyBadge'
+import CreatorMonetize from './pages/CreatorMonetize'
+import Advertise from './pages/Advertise'
+import MyAds from './pages/MyAds'
 import Onboarding from './pages/Onboarding'
 import OnboardingProfile from './pages/OnboardingProfile'
 
@@ -221,7 +228,7 @@ export default function App() {
             <Route path="/video-marketplace" element={<P page={VideoMarketplace} />} />
             <Route path="/templates" element={<P page={TemplateMarketplace} />} />
             <Route path="/skills" element={<P page={SkillExchange} />} />
-            <Route path="/monetize" element={<P page={Monetization} />} />
+            {/* /monetize is now handled by the CreatorMonetize route added below */}
             <Route path="/upgrade"  element={<P page={Upgrade} />} />
             <Route path="/billing"  element={<P page={Billing} />} />
             <Route path="/pricing"  element={<P page={Pricing} />} />
@@ -243,6 +250,13 @@ export default function App() {
             <Route path="/video-editor/:id" element={<P page={PostVideoEditorPage} />} />
             <Route path="/gamification" element={<P page={Gamification} />} />
             <Route path="/admin" element={<P page={Admin} />} />
+            <Route path="/admin/badges"   element={<P page={AdminBadges} />} />
+            <Route path="/admin/monetize" element={<P page={AdminMonetize} />} />
+            <Route path="/admin/ads"      element={<P page={AdminAds} />} />
+            <Route path="/verify-badge"   element={<P page={VerifyBadge} />} />
+            <Route path="/monetize"       element={<P page={CreatorMonetize} />} />
+            <Route path="/advertise"      element={<P page={Advertise} />} />
+            <Route path="/my-ads"         element={<P page={MyAds} />} />
 
             {/* Onboarding */}
             <Route path="/onboarding" element={<Onboarding />} />

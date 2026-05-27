@@ -73,7 +73,20 @@
       "Bash(node_modules/.bin/vite build *)",
       "Bash(git commit *)",
       "Bash(dir src\\\\pages\\\\*.jsx)",
-      "Bash(findstr /i \"AudioStudio MusicLibrary PitchVault Directory Podcasts Profile Messages\")"
+      "Bash(findstr /i \"AudioStudio MusicLibrary PitchVault Directory Podcasts Profile Messages\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(Object.keys\\(p.dependencies\\)\\)\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'src\\\\pages\\\\Monetization.jsx'\\) -replace \\\\\"'See what's included'\\\\\", \\\\\"\\\\\\\\\\\\\"See what's included\\\\\\\\\\\\\"\\\\\" | Set-Content 'src\\\\pages\\\\Monetization.jsx'\")",
+      "Bash(python3 -c ' *)",
+      "Bash(cat .env)",
+      "Bash(cat .env.local)",
+      "Bash(git remote *)",
+      "Bash(git ls-remote *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); const keys=Object.keys\\({...p.dependencies,...p.devDependencies}\\); console.log\\(keys.filter\\(k=>k.includes\\('mark'\\)||k.includes\\('react-'\\)\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(p.dependencies['@anthropic-ai/sdk'] || 'NOT INSTALLED'\\)\")",
+      "Bash(node -e \"const p = require\\('./node_modules/flutterwave-react-v3/package.json'\\); console.log\\('flutterwave-react-v3:', p.version\\)\")",
+      "Bash(node -e \"const p = require\\('./node_modules/react-paystack/package.json'\\); console.log\\('react-paystack:', p.version\\)\")",
+      "Bash(node -e \"const p = require\\('./node_modules/@paypal/react-paypal-js/package.json'\\); console.log\\('@paypal/react-paypal-js:', p.version\\)\")",
+      "Bash(git rm *)"
     ]
   }
 }
