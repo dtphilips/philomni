@@ -597,11 +597,11 @@ function Toast({ message, onDismiss }) {
 export default function Rooms() {
   const { user } = useAuth()
   const { mode } = useMode()
-  const { plan } = useSubscription()
+  const { plan, isAdmin } = useSubscription()
   const navigate = useNavigate()
 
   // Rooms is a Pro+ feature — gate free users with an upgrade prompt
-  if (plan === 'free') {
+  if (plan === 'free' && !isAdmin) {
     return (
       <div className="max-w-lg mx-auto text-center py-20 px-6 space-y-5">
         <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">

@@ -20,9 +20,11 @@ const EMPTY_USAGE = {
 
 export function SubscriptionProvider({ children }) {
   const { user, loading: authLoading } = useAuth()
-  const userId = user?.id || null
-  const plan   = normalisePlan(user?.plan)
-  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free
+  const userId  = user?.id || null
+  const isAdmin = user?.is_admin === true
+  // Admins always present as promax so all feature UI shows correctly
+  const plan    = isAdmin ? 'promax' : normalisePlan(user?.plan)
+  const limits  = PLAN_LIMITS[plan] || PLAN_LIMITS.free
 
   const [usage,        setUsage]        = useState(null)
   const [loadingUsage, setLoadingUsage] = useState(true)
@@ -89,7 +91,8 @@ export function SubscriptionProvider({ children }) {
 
   // ── canUse — check if an action is within limits ───────────────────────────
   const canUse = useCallback((feature) => {
-    if (!usage) return { allowed: true, reason: null } // optimistic while loading
+    if (isAdmin) return { allowed: true, reason: null } // admins bypass all limits
+    if (!usage) return { allowed: true, reason: null }  // optimistic while loading
 
     const ok = (count, limit, dailyOrMonthly, upgradeText) => {
       if (limit === UNLIMITED) return { allowed: true, reason: null }
@@ -158,6 +161,7 @@ export function SubscriptionProvider({ children }) {
 
   // ── incrementUsage — call AFTER a successful action ────────────────────────
   const incrementUsage = useCallback(async (feature) => {
+    if (isAdmin) return // admins don't consume usage quota
     if (!userId || !usage) return
 
     const field = {
@@ -207,6 +211,7 @@ export function SubscriptionProvider({ children }) {
       usage,
       usageDisplay,
       loadingUsage,
+      isAdmin,
       canUse,
       incrementUsage,
       refreshUsage: loadUsage,

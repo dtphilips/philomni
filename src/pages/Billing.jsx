@@ -50,7 +50,7 @@ function PlanIcon({ plan }) {
 
 export default function Billing() {
   const { user }                                       = useAuth()
-  const { plan, usageDisplay, loadingUsage, refreshUsage } = useSubscription()
+  const { plan, isAdmin, usageDisplay, loadingUsage, refreshUsage } = useSubscription()
   const navigate                                       = useNavigate()
   const [portalLoading, setPortalLoading]              = useState(false)
 
@@ -116,7 +116,11 @@ export default function Billing() {
           </div>
 
           <div className="flex flex-col gap-2 items-end">
-            {isPaid ? (
+            {isAdmin ? (
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                👑 Admin Account
+              </span>
+            ) : isPaid ? (
               <button
                 onClick={openPortal}
                 disabled={portalLoading}
@@ -132,7 +136,7 @@ export default function Billing() {
                 Upgrade <ArrowRight className="w-3 h-3" />
               </button>
             )}
-            {user?.plan_expires_at && (
+            {!isAdmin && user?.plan_expires_at && (
               <p className="text-[11px] text-muted-foreground text-right">
                 Renews {new Date(user.plan_expires_at).toLocaleDateString()}
               </p>
@@ -202,7 +206,7 @@ export default function Billing() {
       </div>
 
       {/* ── Upgrade nudge for free users ──────────────────────────────────── */}
-      {plan === 'free' && (
+      {plan === 'free' && !isAdmin && (
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 text-center space-y-3">
           <Crown className="w-8 h-8 text-primary mx-auto" />
           <h3 className="font-semibold text-foreground">Unlock more with Pro</h3>

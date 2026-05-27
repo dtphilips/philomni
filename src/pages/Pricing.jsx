@@ -26,7 +26,7 @@ const FAQ = [
 
 export default function Pricing() {
   const { user, refreshProfile } = useAuth()
-  const { plan: currentPlan }    = useSubscription()
+  const { plan: currentPlan, isAdmin } = useSubscription()
   const navigate = useNavigate()
 
   const [billing,       setBilling]       = useState('monthly') // 'monthly' | 'annual'
@@ -35,6 +35,7 @@ export default function Pricing() {
   const [checkoutPlan,  setCheckoutPlan]  = useState(null)       // opens MultiGatewayCheckout modal
 
   const handleUpgrade = (planKey) => {
+    if (isAdmin) { toast.info('Admin accounts have all features unlocked — no payment needed.'); return }
     if (!user) { navigate('/login'); return }
     if (planKey === 'free') { toast.info('You\'re already on the Free plan.'); return }
     if (planKey === currentPlan) { toast.info(`You\'re already on ${PLAN_META[planKey].name}.`); return }
