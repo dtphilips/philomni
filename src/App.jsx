@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ModeProvider } from './context/ModeContext'
 import { SubscriptionProvider } from './context/SubscriptionContext'
+import { MusicProvider } from './context/MusicContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
@@ -113,6 +114,7 @@ import AdminBadges from './pages/admin/AdminBadges'
 import AdminMonetize from './pages/admin/AdminMonetize'
 import AdminAds from './pages/admin/AdminAds'
 import AdminBrands from './pages/admin/AdminBrands'
+import AdminMusic from './pages/admin/AdminMusic'
 import Partners from './pages/Partners'
 import VerifyBadge from './pages/VerifyBadge'
 import CreatorMonetize from './pages/CreatorMonetize'
@@ -154,6 +156,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
       <SubscriptionProvider>
+      <MusicProvider>
       <ModeProvider>
         <BrowserRouter>
           <Routes>
@@ -205,6 +208,7 @@ export default function App() {
 
             {/* Media */}
             <Route path="/music-library" element={<P page={MusicLibrary} />} />
+            <Route path="/music"         element={<P page={MusicLibrary} />} />
             <Route path="/podcasts" element={<P page={Podcasts} />} />
             <Route path="/video-captions/:draftId" element={<P page={VideoCaptions} />} />
             <Route path="/video-analytics/:draftId" element={<P page={VideoAnalyticsDashboard} />} />
@@ -280,6 +284,7 @@ export default function App() {
             <Route path="/admin/monetize" element={<P page={AdminMonetize} />} />
             <Route path="/admin/ads"      element={<P page={AdminAds} />} />
             <Route path="/admin/brands"   element={<P page={AdminBrands} />} />
+            <Route path="/admin/music"    element={<P page={AdminMusic} />} />
             <Route path="/verify-badge"   element={<P page={VerifyBadge} />} />
             <Route path="/monetize"       element={<P page={CreatorMonetize} />} />
             <Route path="/advertise"      element={<P page={Advertise} />} />
@@ -293,6 +298,7 @@ export default function App() {
           </Routes>
         </BrowserRouter>
       </ModeProvider>
+      </MusicProvider>
       </SubscriptionProvider>
       </AuthProvider>
     </QueryClientProvider>

@@ -11,8 +11,9 @@ import {
   UserPlus, Hash, Calendar, ChevronRight, Edit3, Film, Sparkles, ArrowRight,
   ExternalLink, Megaphone,
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import MediaEditor from '@/components/editor/MediaEditor'
+import { useMusic } from '../context/MusicContext'
 
 // ── In-feed Ad Card ───────────────────────────────────────────────────────────
 function AdCard({ ad, viewerId }) {
@@ -1235,6 +1236,20 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate }) {
         {/* Media */}
         <MediaDisplay urls={post.media_urls} type={post.media_type} />
 
+        {/* Music credit bar */}
+        {post.music_track_meta && (
+          <a
+            href="/music"
+            onClick={e => e.stopPropagation()}
+            className="flex items-center gap-2 px-4 py-2 bg-primary/8 border-t border-primary/15 hover:bg-primary/12 transition-colors group"
+          >
+            <span className="text-sm animate-pulse">🎵</span>
+            <span className="text-xs text-primary font-medium truncate">
+              {post.music_track_meta.title} — {post.music_track_meta.artist || 'Philomni Originals'}
+            </span>
+          </a>
+        )}
+
         {/* View count */}
         {post.view_count > 0 && (
           <div className="flex items-center gap-1 px-4 pt-2 text-xs text-muted-foreground">
@@ -1458,6 +1473,7 @@ const AUDIENCE_OPTIONS = [
 
 function PostComposer({ user, onCreated }) {
   const { mode } = useMode()
+  const { selectedTrack, clearSelectedTrack } = useMusic()
   const editorRef = useRef()
   const imgInputRef = useRef()
   const vidInputRef = useRef()
@@ -1474,6 +1490,9 @@ function PostComposer({ user, onCreated }) {
   const [expanded, setExpanded] = useState(false)
   const audienceRef = useRef()
   const feedPickerRef = useRef()
+
+  // Auto-expand when a track is pre-selected
+  useEffect(() => { if (selectedTrack) setExpanded(true) }, [selectedTrack])
 
   // Keep feedType in sync if mode changes externally
   useEffect(() => { setFeedType(mode === 'pro' ? 'pro' : 'creator') }, [mode])
@@ -1544,6 +1563,7 @@ function PostComposer({ user, onCreated }) {
     setExpanded(false)
     setError('')
     setShowEmoji(false)
+    clearSelectedTrack()
   }
 
   const handlePost = async () => {
@@ -1568,8 +1588,22 @@ function PostComposer({ user, onCreated }) {
         visibility: audience,
         feed_type: feedType,
         created_at: new Date().toISOString(),
+        music_track_id: selectedTrack?.id || null,
+        music_track_meta: selectedTrack
+          ? { title: selectedTrack.title, artist: selectedTrack.artist || 'Philomni Originals' }
+          : null,
       }).select().single()
       if (err) { setError(err.message); return }
+      // Record music usage
+      if (selectedTrack?.id && data?.id && !String(selectedTrack.id).startsWith('demo_')) {
+        supabase.from('music_usage').insert({
+          track_id: selectedTrack.id,
+          user_id: user.id,
+          post_id: data.id,
+          platform: 'philomni',
+        }).then(() => {})
+      }
+      clearSelectedTrack()
       reset()
       onCreated(data)
     } catch (err) {
@@ -1690,6 +1724,23 @@ function PostComposer({ user, onCreated }) {
         </div>
       )}
 
+      {/* Music track attachment */}
+      {selectedTrack && (
+        <div className="mx-4 mb-3 flex items-center gap-3 px-3 py-2.5 rounded-xl bg-primary/8 border border-primary/20">
+          <span className="text-base">🎵</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-primary truncate">{selectedTrack.title}</p>
+            <p className="text-[10px] text-muted-foreground">{selectedTrack.artist || 'Philomni Originals'}</p>
+          </div>
+          <button
+            onClick={clearSelectedTrack}
+            className="w-5 h-5 flex items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
       {/* Footer */}
       {expanded && (
         <div className="px-4 py-2.5 border-t border-border/60 flex items-center justify-between gap-2 flex-wrap bg-muted/10">
@@ -1719,6 +1770,12 @@ function PostComposer({ user, onCreated }) {
                 <MapPin className="w-4 h-4" />
               </button>
               <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">Add Location</span>
+            </div>
+            <div className="relative group">
+              <Link to="/music" className={`p-2 rounded-xl hover:bg-muted transition-colors flex items-center ${selectedTrack ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-primary'}`}>
+                🎵
+              </Link>
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">Add Music</span>
             </div>
           </div>
           <div className="flex items-center gap-3">

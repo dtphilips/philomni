@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Users, FileText, Briefcase, Lightbulb, Shield, Loader2,
-  BadgeCheck, DollarSign, Megaphone, ArrowRight, Building2,
+  BadgeCheck, DollarSign, Megaphone, ArrowRight, Building2, Music,
 } from 'lucide-react'
 import { ROLE_LABELS } from '@/lib/categories'
 
@@ -61,6 +61,10 @@ export default function Admin() {
     {
       icon: Building2, title: 'Brand Inquiries', color: 'text-pink-400', bg: 'bg-pink-400/10',
       count: newBrandInquiries.length, label: 'new', href: '/admin/brands',
+    },
+    {
+      icon: Music, title: 'Music Library', color: 'text-teal-400', bg: 'bg-teal-400/10',
+      count: null, label: 'manage tracks', href: '/admin/music',
     },
   ]
 
@@ -114,7 +118,7 @@ export default function Admin() {
       {/* Module quick-access cards */}
       <div>
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Review Queues</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {moduleCards.map(m => (
             <button key={m.href} onClick={() => navigate(m.href)}
               className="bg-card rounded-xl border border-border p-5 text-left hover:border-primary/40 hover:bg-muted/30 transition-all group">
@@ -125,7 +129,9 @@ export default function Admin() {
                 <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </div>
               <p className="font-semibold text-foreground text-sm mb-0.5">{m.title}</p>
-              <p className={`text-2xl font-bold ${m.count > 0 ? m.color : 'text-foreground'}`}>{m.count}</p>
+              {m.count !== null && (
+                <p className={`text-2xl font-bold ${m.count > 0 ? m.color : 'text-foreground'}`}>{m.count}</p>
+              )}
               <p className="text-xs text-muted-foreground">{m.label}</p>
             </button>
           ))}

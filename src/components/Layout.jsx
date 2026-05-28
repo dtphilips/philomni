@@ -11,6 +11,7 @@ import {
   Wallet, TrendingUp, BookMarked, Megaphone,
 } from 'lucide-react'
 import PhiloDrawer from './PhiloDrawer'
+import FloatingMusicPlayer from './FloatingMusicPlayer'
 
 // ─── Creator Mode Navigation ──────────────────────────────────────────────────
 const CREATOR_NAV = [
@@ -71,7 +72,7 @@ const CREATOR_NAV = [
       { to: '/marketplace',     icon: ShoppingBag, label: 'Digital Products' },
       { to: '/learn',           icon: BookOpen,    label: 'Courses' },
       { to: '/consulting',      icon: Users,       label: 'Consulting' },
-      { to: '/music-library',   icon: Library,     label: 'Music Library' },
+      { to: '/music',           icon: Music,       label: 'Philomni Sounds', badge: '🎵' },
       { to: '/skills',          icon: Zap,         label: 'Skill Exchange' },
     ],
   },
@@ -118,6 +119,7 @@ const PRO_NAV = [
       { to: '/marketplace',     icon: ShoppingBag, label: 'Digital Products' },
       { to: '/sell',            icon: Package,     label: 'Sell Products' },
       { to: '/consulting',      icon: Briefcase,   label: 'Find Consultants' },
+      { to: '/music',           icon: Music,       label: 'Philomni Sounds', badge: '🎵' },
     ],
   },
   {
@@ -428,6 +430,9 @@ export default function Layout({ children }) {
 
       {/* Floating Philo AI drawer — visible on all pages */}
       <PhiloDrawer />
+
+      {/* Floating music player — persists across routes */}
+      <FloatingMusicPlayer />
     </div>
   )
 }
