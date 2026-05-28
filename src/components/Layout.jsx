@@ -354,10 +354,11 @@ export default function Layout({ children }) {
         {
           label: 'Admin',
           items: [
-            { to: '/admin',        icon: Shield,    label: 'Dashboard'         },
-            { to: '/admin/music',  icon: Music,     label: 'Music Management', badge: '🎵' },
-            { to: '/admin/badges', icon: Award,     label: 'Badge Applications' },
-            { to: '/admin/brands', icon: Building2, label: 'Brand Inquiries'   },
+            { to: '/admin',           icon: Shield,    label: 'Dashboard'          },
+            { to: '/admin/music',     icon: Music,     label: 'Music Management',  badge: '🎵' },
+            { to: '/admin/spotlight', icon: Award,     label: 'Spotlight',         badge: '⭐' },
+            { to: '/admin/badges',    icon: Award,     label: 'Badge Applications' },
+            { to: '/admin/brands',    icon: Building2, label: 'Brand Inquiries'    },
           ],
         },
       ]

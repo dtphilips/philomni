@@ -87,7 +87,9 @@
       "Bash(node -e \"const p = require\\('./node_modules/react-paystack/package.json'\\); console.log\\('react-paystack:', p.version\\)\")",
       "Bash(node -e \"const p = require\\('./node_modules/@paypal/react-paypal-js/package.json'\\); console.log\\('@paypal/react-paypal-js:', p.version\\)\")",
       "Bash(git rm *)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(node -e \"const p = require\\('./node_modules/lucide-react/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(node -e \"const {Repeat1,Repeat2,Shuffle,Volume1} = require\\('./node_modules/lucide-react'\\); console.log\\('Repeat1:', !!Repeat1, 'Repeat2:', !!Repeat2, 'Shuffle:', !!Shuffle, 'Volume1:', !!Volume1\\)\")"
     ]
   }
 }

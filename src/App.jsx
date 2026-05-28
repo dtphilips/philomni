@@ -115,7 +115,11 @@ import AdminMonetize from './pages/admin/AdminMonetize'
 import AdminAds from './pages/admin/AdminAds'
 import AdminBrands from './pages/admin/AdminBrands'
 import AdminMusic from './pages/admin/AdminMusic'
+import AdminSpotlight from './pages/admin/AdminSpotlight'
 import ArtistProfile from './pages/ArtistProfile'
+import SpotlightArchive from './pages/SpotlightArchive'
+import SpotlightPage from './pages/SpotlightPage'
+import SpotlightNominate from './pages/SpotlightNominate'
 import PlaylistPage from './pages/PlaylistPage'
 import Partners from './pages/Partners'
 import VerifyBadge from './pages/VerifyBadge'
@@ -286,8 +290,14 @@ export default function App() {
             <Route path="/admin/monetize" element={<P page={AdminMonetize} />} />
             <Route path="/admin/ads"      element={<P page={AdminAds} />} />
             <Route path="/admin/brands"   element={<P page={AdminBrands} />} />
-            <Route path="/admin/music"    element={<P page={AdminMusic} />} />
-            <Route path="/verify-badge"   element={<P page={VerifyBadge} />} />
+            <Route path="/admin/music"      element={<P page={AdminMusic} />} />
+            <Route path="/admin/spotlight" element={<P page={AdminSpotlight} />} />
+            <Route path="/verify-badge"    element={<P page={VerifyBadge} />} />
+
+            {/* Spotlight */}
+            <Route path="/spotlight"          element={<P page={SpotlightArchive} />} />
+            <Route path="/spotlight/nominate" element={<P page={SpotlightNominate} />} />
+            <Route path="/spotlight/:month"   element={<P page={SpotlightPage} />} />
             <Route path="/monetize"       element={<P page={CreatorMonetize} />} />
             <Route path="/advertise"      element={<P page={Advertise} />} />
             <Route path="/my-ads"         element={<P page={MyAds} />} />

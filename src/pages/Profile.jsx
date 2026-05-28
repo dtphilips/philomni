@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import {
   Camera, Edit2, Loader2, MapPin, Globe, Share2, Settings,
   MessageSquare, UserPlus, UserMinus, MoreHorizontal, Grid, List,
   Briefcase, GraduationCap, Heart, MessageCircle, Eye, Play,
-  Plus, X, Check,
+  Plus, X, Check, Star,
 } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 
@@ -805,7 +805,32 @@ export default function Profile() {
 
       {/* ── NAME + BIO ── */}
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-foreground">{du?.full_name || 'User'}</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-bold text-foreground">{du?.full_name || 'User'}</h1>
+          {du?.spotlight_winner && du?.spotlight_month && (
+            <Link
+              to={`/spotlight/${du.spotlight_month}`}
+              className="group flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-amber-600 dark:text-amber-400 border border-amber-500/40 bg-gradient-to-r from-amber-500/10 to-teal-500/10 hover:from-amber-500/20 hover:to-teal-500/20 transition-colors overflow-hidden relative"
+              title="Philomni Spotlight Winner"
+            >
+              <Star className="w-3 h-3 fill-amber-500 text-amber-500 flex-shrink-0" style={{ animation: 'pulse 2s ease-in-out infinite' }} />
+              <span>⭐ Spotlight</span>
+              {/* Shimmer */}
+              <span className="absolute inset-0 w-full h-full"
+                style={{
+                  background: 'linear-gradient(90deg, transparent, rgba(251,191,36,0.3), transparent)',
+                  animation: 'shimmerBadge 2s ease-in-out infinite',
+                  backgroundSize: '200% 100%',
+                }} />
+            </Link>
+          )}
+        </div>
+        <style>{`
+          @keyframes shimmerBadge {
+            0%   { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+          }
+        `}</style>
         {du?.username && <p className="text-sm text-muted-foreground">@{du.username}</p>}
         {du?.headline && <p className="text-sm text-primary/80 mt-0.5">{du.headline}</p>}
         {du?.bio && <p className="text-sm text-foreground/80 mt-2 leading-relaxed">{du.bio}</p>}

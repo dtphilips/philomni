@@ -14,6 +14,7 @@ import {
 import { useNavigate, Link } from 'react-router-dom'
 import MediaEditor from '@/components/editor/MediaEditor'
 import { useMusic } from '../context/MusicContext'
+import SpotlightBanner from '../components/SpotlightBanner'
 
 // ── In-feed Ad Card ───────────────────────────────────────────────────────────
 function AdCard({ ad, viewerId }) {
@@ -2031,6 +2032,9 @@ export default function Feed() {
     <div className="flex gap-6 max-w-5xl mx-auto">
       {/* Center: feed */}
       <div className="flex-1 min-w-0 max-w-[600px] mx-auto lg:mx-0">
+        {/* Spotlight Banner */}
+        <SpotlightBanner />
+
         {/* Stories */}
         <div className="bg-card border border-border/60 rounded-2xl p-4 mb-4 shadow-sm">
           <StoriesBar currentUser={user} />
