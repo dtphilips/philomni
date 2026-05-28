@@ -411,42 +411,42 @@ export default function MusicLibrary() {
   const [createPlaylistTrack, setCreatePlaylistTrack] = useState(null)
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
 
-  // ── Fetch ─────────────────────────────────────────────────────────────────
+  // ── Fetch tracks — public, runs once on mount, no auth dependency ─────────
   const [tracksError, setTracksError] = useState(null)
   useEffect(() => {
-    let cancelled = false
-    async function load() {
-      setLoading(true)
-      setTracksError(null)
-      // Try active/public filter first
-      const { data: tracks, error: tracksErr } = await supabase
-        .from('music_tracks')
-        .select('*')
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-      console.log('Tracks fetched:', tracks?.length, tracksErr)
-      let finalTracks = tracks
-      if (tracksErr || !tracks?.length) {
-        // Fallback: fetch all tracks regardless of status
-        const { data: allT, error: allErr } = await supabase
+    const fetchTracks = async () => {
+      try {
+        setLoading(true)
+        setTracksError(null)
+        const { data, error } = await supabase
           .from('music_tracks')
           .select('*')
           .order('created_at', { ascending: false })
-        console.log('All tracks:', allT?.length, allErr)
-        if (allErr) setTracksError(allErr.message)
-        finalTracks = allT
-      }
-      const { data: pls } = user
-        ? await supabase.from('playlists').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
-        : { data: [] }
-      if (!cancelled) {
-        setAllTracks(finalTracks || [])
-        setPlaylists(pls || [])
+        console.log('Tracks loaded:', data?.length, error)
+        if (error) {
+          setTracksError(error.message)
+        } else {
+          setAllTracks(data || [])
+        }
+      } catch (err) {
+        console.error('Unexpected tracks error:', err)
+        setTracksError(err.message)
+      } finally {
         setLoading(false)
       }
     }
-    load()
-    return () => { cancelled = true }
+    fetchTracks()
+  }, []) // runs once — tracks are public, no auth needed
+
+  // ── Fetch playlists — only when user is logged in ─────────────────────────
+  useEffect(() => {
+    if (!user?.id) return
+    supabase
+      .from('playlists')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setPlaylists(data || []))
   }, [user?.id])
 
   // Sync liked tracks from likedIds
