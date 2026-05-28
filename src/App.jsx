@@ -115,6 +115,8 @@ import AdminMonetize from './pages/admin/AdminMonetize'
 import AdminAds from './pages/admin/AdminAds'
 import AdminBrands from './pages/admin/AdminBrands'
 import AdminMusic from './pages/admin/AdminMusic'
+import ArtistProfile from './pages/ArtistProfile'
+import PlaylistPage from './pages/PlaylistPage'
 import Partners from './pages/Partners'
 import VerifyBadge from './pages/VerifyBadge'
 import CreatorMonetize from './pages/CreatorMonetize'
@@ -289,6 +291,10 @@ export default function App() {
             <Route path="/monetize"       element={<P page={CreatorMonetize} />} />
             <Route path="/advertise"      element={<P page={Advertise} />} />
             <Route path="/my-ads"         element={<P page={MyAds} />} />
+
+            {/* Music - Artist & Playlist pages */}
+            <Route path="/artist/:userId"   element={<P page={ArtistProfile} />} />
+            <Route path="/playlist/:id"     element={<P page={PlaylistPage} />} />
 
             {/* Onboarding */}
             <Route path="/onboarding" element={<Onboarding />} />
