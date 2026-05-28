@@ -103,9 +103,15 @@ export function AuthProvider({ children }) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
-    setUser(null)
-    setProfile(null)
+    try {
+      localStorage.clear()
+      sessionStorage.clear()
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.error('Sign out error:', err)
+    } finally {
+      window.location.href = '/'
+    }
   }
 
   const refreshProfile = () => loadProfile(user)

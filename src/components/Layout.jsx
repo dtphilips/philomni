@@ -342,10 +342,7 @@ export default function Layout({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
-  const handleSignOut = async () => {
-    await signOut()
-    navigate('/login')
-  }
+  const handleSignOut = () => signOut() // signOut in AuthContext clears storage + hard redirects
 
   const baseNav = mode === 'creator' ? CREATOR_NAV : PRO_NAV
   const navSections = user?.is_admin

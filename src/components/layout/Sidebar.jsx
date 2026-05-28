@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Search, Briefcase, Lightbulb, Users, Building2,
@@ -161,7 +162,10 @@ export default function Sidebar({ user }) {
         </Link>
 
         <button
-          onClick={() => supabase.auth.signOut()}
+          onClick={() => {
+            try { localStorage.clear(); sessionStorage.clear() } catch (_) {}
+            supabase.auth.signOut().finally(() => { window.location.href = '/' })
+          }}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors min-h-[44px]"
           style={{ color:'hsl(var(--muted-foreground))' }}
           onMouseEnter={e => { e.currentTarget.style.background='hsl(var(--muted))'; e.currentTarget.style.color='hsl(var(--foreground))'; }}
