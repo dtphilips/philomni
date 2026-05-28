@@ -8,7 +8,7 @@ import {
   Video, LogOut, Menu, X, ChevronRight, Bell, Package,
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
   Newspaper, Award, Target, ClipboardList, Hash, Sparkles, DollarSign,
-  Wallet, TrendingUp, BookMarked, Megaphone,
+  Wallet, TrendingUp, BookMarked, Megaphone, Shield,
 } from 'lucide-react'
 import PhiloDrawer from './PhiloDrawer'
 import FloatingMusicPlayer from './FloatingMusicPlayer'
@@ -347,7 +347,21 @@ export default function Layout({ children }) {
     navigate('/login')
   }
 
-  const navSections = mode === 'creator' ? CREATOR_NAV : PRO_NAV
+  const baseNav = mode === 'creator' ? CREATOR_NAV : PRO_NAV
+  const navSections = user?.is_admin
+    ? [
+        ...baseNav,
+        {
+          label: 'Admin',
+          items: [
+            { to: '/admin',        icon: Shield,    label: 'Dashboard'         },
+            { to: '/admin/music',  icon: Music,     label: 'Music Management', badge: '🎵' },
+            { to: '/admin/badges', icon: Award,     label: 'Badge Applications' },
+            { to: '/admin/brands', icon: Building2, label: 'Brand Inquiries'   },
+          ],
+        },
+      ]
+    : baseNav
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
