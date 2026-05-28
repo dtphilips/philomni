@@ -23,10 +23,20 @@ const MOODS = [
   'Motivational', 'Dark', 'Happy', 'Spiritual', 'Neutral',
 ]
 
+const LICENSE_TYPES = [
+  { value: 'philomni_exclusive', label: 'Philomni Exclusive' },
+  { value: 'creative_commons',   label: 'Creative Commons'  },
+  { value: 'all_rights_reserved', label: 'All Rights Reserved' },
+]
+
 const EMPTY_META = {
   title: '', artist: 'Philomni Originals', album: '', genre: '',
   mood: '', bpm: '', tags: '', isrc_code: '', copyright_year: '2026',
   socan_registered: false, is_premium: false,
+  label: 'Philomni Technologies Inc.',
+  license_type: 'philomni_exclusive',
+  is_philomni_original: true,
+  content_id_ready: false,
 }
 
 const fmtCount = (n) => {
@@ -39,17 +49,21 @@ const fmtCount = (n) => {
 
 function EditModal({ track, onClose, onSaved }) {
   const [form, setForm] = useState({
-    title: track.title || '',
-    artist: track.artist || 'Philomni Originals',
-    album: track.album || '',
-    genre: track.genre || '',
-    mood: track.mood || '',
-    bpm: track.bpm || '',
-    tags: (track.tags || []).join(', '),
-    isrc_code: track.isrc_code || '',
-    copyright_year: track.copyright_year || '2026',
-    socan_registered: track.socan_registered || false,
-    is_premium: track.is_premium || false,
+    title:               track.title               || '',
+    artist:              track.artist              || 'Philomni Originals',
+    album:               track.album               || '',
+    genre:               track.genre               || '',
+    mood:                track.mood                || '',
+    bpm:                 track.bpm                 || '',
+    tags:                (track.tags || []).join(', '),
+    isrc_code:           track.isrc_code           || '',
+    copyright_year:      track.copyright_year      || '2026',
+    label:               track.label               || 'Philomni Technologies Inc.',
+    license_type:        track.license_type        || 'philomni_exclusive',
+    is_philomni_original: track.is_philomni_original !== false,
+    socan_registered:    track.socan_registered    || false,
+    is_premium:          track.is_premium          || false,
+    content_id_ready:    track.content_id_ready    || false,
   })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
@@ -57,17 +71,21 @@ function EditModal({ track, onClose, onSaved }) {
   const handleSave = async () => {
     setSaving(true)
     const { error } = await supabase.from('music_tracks').update({
-      title: form.title,
-      artist: form.artist,
-      album: form.album || null,
-      genre: form.genre || null,
-      mood: form.mood || null,
-      bpm: form.bpm ? parseInt(form.bpm) : null,
-      tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : null,
-      isrc_code: form.isrc_code || null,
-      copyright_year: parseInt(form.copyright_year) || 2026,
-      socan_registered: form.socan_registered,
-      is_premium: form.is_premium,
+      title:               form.title,
+      artist:              form.artist,
+      album:               form.album || null,
+      genre:               form.genre || null,
+      mood:                form.mood  || null,
+      bpm:                 form.bpm ? parseInt(form.bpm) : null,
+      tags:                form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : null,
+      isrc_code:           form.isrc_code || null,
+      copyright_year:      parseInt(form.copyright_year) || 2026,
+      label:               form.label || 'Philomni Technologies Inc.',
+      license_type:        form.license_type || 'philomni_exclusive',
+      is_philomni_original: form.is_philomni_original,
+      socan_registered:    form.socan_registered,
+      is_premium:          form.is_premium,
+      content_id_ready:    form.content_id_ready,
     }).eq('id', track.id)
     if (error) { toast.error(error.message) }
     else { toast.success('Track updated'); onSaved(); onClose() }
@@ -83,14 +101,16 @@ function EditModal({ track, onClose, onSaved }) {
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl leading-none">×</button>
         </div>
         <div className="p-5 space-y-3">
+          {/* Text inputs */}
           {[
-            { label: 'Title *', key: 'title' },
-            { label: 'Artist',  key: 'artist' },
-            { label: 'Album',   key: 'album' },
-            { label: 'ISRC Code', key: 'isrc_code', placeholder: 'CB-XXX-YY-NNNNN', mono: true },
-            { label: 'BPM',     key: 'bpm', type: 'number' },
-            { label: 'Tags (comma separated)', key: 'tags' },
-            { label: 'Copyright Year', key: 'copyright_year', type: 'number' },
+            { label: 'Title *',                  key: 'title' },
+            { label: 'Artist',                   key: 'artist' },
+            { label: 'Album',                    key: 'album' },
+            { label: 'ISRC Code',                key: 'isrc_code', placeholder: 'CB-XXX-26-00001', mono: true },
+            { label: 'Label',                    key: 'label' },
+            { label: 'BPM',                      key: 'bpm', type: 'number' },
+            { label: 'Tags (comma separated)',   key: 'tags' },
+            { label: 'Copyright Year',           key: 'copyright_year', type: 'number' },
           ].map(f => (
             <div key={f.key}>
               <label className="block text-xs font-medium text-muted-foreground mb-1">{f.label}</label>
@@ -99,6 +119,8 @@ function EditModal({ track, onClose, onSaved }) {
                 className={`w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary ${f.mono ? 'font-mono' : ''}`} />
             </div>
           ))}
+
+          {/* Selects */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Genre</label>
@@ -117,15 +139,27 @@ function EditModal({ track, onClose, onSaved }) {
               </select>
             </div>
           </div>
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.socan_registered} onChange={e => set('socan_registered', e.target.checked)} className="w-4 h-4 accent-primary" />
-              <span className="text-sm text-foreground">SOCAN Registered</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.is_premium} onChange={e => set('is_premium', e.target.checked)} className="w-4 h-4 accent-primary" />
-              <span className="text-sm text-foreground">Premium Track</span>
-            </label>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">License Type</label>
+            <select value={form.license_type} onChange={e => set('license_type', e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+              {LICENSE_TYPES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+            </select>
+          </div>
+
+          {/* Toggles */}
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { key: 'is_philomni_original', label: 'Philomni Original' },
+              { key: 'socan_registered',     label: 'SOCAN Registered'  },
+              { key: 'is_premium',           label: 'Premium Track'     },
+              { key: 'content_id_ready',     label: 'YouTube Content ID Ready' },
+            ].map(t => (
+              <label key={t.key} className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form[t.key]} onChange={e => set(t.key, e.target.checked)} className="w-4 h-4 accent-primary" />
+                <span className="text-sm text-foreground">{t.label}</span>
+              </label>
+            ))}
           </div>
         </div>
         <div className="p-5 border-t border-border flex justify-end gap-3">
@@ -395,25 +429,26 @@ export default function AdminMusic() {
 
       // Insert track into DB
       const payload = {
-        title: meta.title.trim(),
-        artist: meta.artist.trim() || 'Philomni Originals',
-        album: meta.album.trim() || null,
-        genre: meta.genre || null,
-        mood: meta.mood || null,
-        bpm: meta.bpm ? parseInt(meta.bpm, 10) : null,
-        tags: meta.tags ? meta.tags.split(',').map(t => t.trim()).filter(Boolean) : null,
-        isrc_code: meta.isrc_code.trim() || null,
-        copyright_year: parseInt(meta.copyright_year, 10) || 2026,
-        socan_registered: meta.socan_registered,
-        is_premium: meta.is_premium,
-        audio_url: audioUploadedUrl,   // ← preserved from Step 1
-        cover_art_url: coverUrl,
-        is_philomni_original: true,
-        license_type: 'philomni_exclusive',
-        label: 'Philomni Technologies Inc.',
-        uploaded_by: user.id,
-        status: 'active',
-        play_count: 0,
+        title:               meta.title.trim(),
+        artist:              meta.artist.trim() || 'Philomni Originals',
+        album:               meta.album.trim() || null,
+        genre:               meta.genre || null,
+        mood:                meta.mood  || null,
+        bpm:                 meta.bpm ? parseInt(meta.bpm, 10) : null,
+        tags:                meta.tags ? meta.tags.split(',').map(t => t.trim()).filter(Boolean) : null,
+        isrc_code:           meta.isrc_code.trim() || null,
+        copyright_year:      parseInt(meta.copyright_year, 10) || 2026,
+        label:               meta.label.trim() || 'Philomni Technologies Inc.',
+        license_type:        meta.license_type || 'philomni_exclusive',
+        is_philomni_original: meta.is_philomni_original,
+        socan_registered:    meta.socan_registered,
+        is_premium:          meta.is_premium,
+        content_id_ready:    meta.content_id_ready,
+        audio_url:           audioUploadedUrl,   // ← preserved from Step 1
+        cover_art_url:       coverUrl,
+        uploaded_by:         user.id,
+        status:              'active',
+        play_count:          0,
       }
 
       console.log('Inserting to database:', payload)
@@ -735,6 +770,22 @@ export default function AdminMusic() {
                 <input type="number" value={meta.copyright_year} onChange={e => setM('copyright_year', e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
+
+              {/* Label */}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Label</label>
+                <input value={meta.label} onChange={e => setM('label', e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+            </div>
+
+            {/* License Type */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">License Type</label>
+              <select value={meta.license_type} onChange={e => setM('license_type', e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                {LICENSE_TYPES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+              </select>
             </div>
 
             {/* Tags */}
@@ -746,15 +797,18 @@ export default function AdminMusic() {
             </div>
 
             {/* Toggles */}
-            <div className="flex items-center gap-6 flex-wrap">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={meta.socan_registered} onChange={e => setM('socan_registered', e.target.checked)} className="w-4 h-4 accent-primary" />
-                <span className="text-sm text-foreground">SOCAN Registered</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={meta.is_premium} onChange={e => setM('is_premium', e.target.checked)} className="w-4 h-4 accent-primary" />
-                <span className="text-sm text-foreground">Premium (Pro/ProMax only)</span>
-              </label>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { key: 'is_philomni_original', label: 'Philomni Original'       },
+                { key: 'socan_registered',     label: 'SOCAN Registered'        },
+                { key: 'is_premium',           label: 'Premium (Pro/ProMax)'    },
+                { key: 'content_id_ready',     label: 'YouTube Content ID Ready'},
+              ].map(t => (
+                <label key={t.key} className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={meta[t.key]} onChange={e => setM(t.key, e.target.checked)} className="w-4 h-4 accent-primary" />
+                  <span className="text-sm text-foreground">{t.label}</span>
+                </label>
+              ))}
             </div>
 
             {/* Cover art */}
@@ -837,6 +891,9 @@ export default function AdminMusic() {
                     )}
                     {track.socan_registered && (
                       <ShieldCheck className="w-3.5 h-3.5 text-green-400" title="SOCAN Registered" />
+                    )}
+                    {track.content_id_ready && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 font-bold" title="YouTube Content ID Ready">YT CID</span>
                     )}
                     {track.status === 'inactive' && (
                       <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20 font-bold">INACTIVE</span>
