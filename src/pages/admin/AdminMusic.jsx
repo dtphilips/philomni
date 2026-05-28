@@ -7,7 +7,7 @@ import {
   Music, Upload, Loader2, Trash2, Edit3,
   CheckCircle2, XCircle, ShieldCheck, Play,
   Eye, BarChart2, AlertCircle, ArrowRight, ChevronLeft,
-  Clock, ThumbsUp, ThumbsDown,
+  Clock, ThumbsUp, ThumbsDown, Users,
 } from 'lucide-react'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -25,9 +25,9 @@ const MOODS = [
 ]
 
 const LICENSE_TYPES = [
-  { value: 'philomni_exclusive', label: 'Philomni Exclusive' },
-  { value: 'creative_commons',   label: 'Creative Commons'  },
-  { value: 'all_rights_reserved', label: 'All Rights Reserved' },
+  { value: 'philomni_exclusive',  label: 'Philomni Exclusive'   },
+  { value: 'creative_commons',    label: 'Creative Commons'     },
+  { value: 'all_rights_reserved', label: 'All Rights Reserved'  },
 ]
 
 const EMPTY_META = {
@@ -50,21 +50,21 @@ const fmtCount = (n) => {
 
 function EditModal({ track, onClose, onSaved }) {
   const [form, setForm] = useState({
-    title:               track.title               || '',
-    artist:              track.artist              || 'Philomni Originals',
-    album:               track.album               || '',
-    genre:               track.genre               || '',
-    mood:                track.mood                || '',
-    bpm:                 track.bpm                 || '',
-    tags:                (track.tags || []).join(', '),
-    isrc_code:           track.isrc_code           || '',
-    copyright_year:      track.copyright_year      || '2026',
-    label:               track.label               || 'Philomni Technologies Inc.',
-    license_type:        track.license_type        || 'philomni_exclusive',
+    title:                track.title               || '',
+    artist:               track.artist              || 'Philomni Originals',
+    album:                track.album               || '',
+    genre:                track.genre               || '',
+    mood:                 track.mood                || '',
+    bpm:                  track.bpm                 || '',
+    tags:                 (track.tags || []).join(', '),
+    isrc_code:            track.isrc_code           || '',
+    copyright_year:       track.copyright_year      || '2026',
+    label:                track.label               || 'Philomni Technologies Inc.',
+    license_type:         track.license_type        || 'philomni_exclusive',
     is_philomni_original: track.is_philomni_original !== false,
-    socan_registered:    track.socan_registered    || false,
-    is_premium:          track.is_premium          || false,
-    content_id_ready:    track.content_id_ready    || false,
+    socan_registered:     track.socan_registered    || false,
+    is_premium:           track.is_premium          || false,
+    content_id_ready:     track.content_id_ready    || false,
   })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
@@ -72,21 +72,21 @@ function EditModal({ track, onClose, onSaved }) {
   const handleSave = async () => {
     setSaving(true)
     const { error } = await supabase.from('music_tracks').update({
-      title:               form.title,
-      artist:              form.artist,
-      album:               form.album || null,
-      genre:               form.genre || null,
-      mood:                form.mood  || null,
-      bpm:                 form.bpm ? parseInt(form.bpm) : null,
-      tags:                form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : null,
-      isrc_code:           form.isrc_code || null,
-      copyright_year:      parseInt(form.copyright_year) || 2026,
-      label:               form.label || 'Philomni Technologies Inc.',
-      license_type:        form.license_type || 'philomni_exclusive',
+      title:                form.title,
+      artist:               form.artist,
+      album:                form.album || null,
+      genre:                form.genre || null,
+      mood:                 form.mood  || null,
+      bpm:                  form.bpm ? parseInt(form.bpm) : null,
+      tags:                 form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : null,
+      isrc_code:            form.isrc_code || null,
+      copyright_year:       parseInt(form.copyright_year) || 2026,
+      label:                form.label || 'Philomni Technologies Inc.',
+      license_type:         form.license_type || 'philomni_exclusive',
       is_philomni_original: form.is_philomni_original,
-      socan_registered:    form.socan_registered,
-      is_premium:          form.is_premium,
-      content_id_ready:    form.content_id_ready,
+      socan_registered:     form.socan_registered,
+      is_premium:           form.is_premium,
+      content_id_ready:     form.content_id_ready,
     }).eq('id', track.id)
     if (error) { toast.error(error.message) }
     else { toast.success('Track updated'); onSaved(); onClose() }
@@ -102,16 +102,15 @@ function EditModal({ track, onClose, onSaved }) {
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl leading-none">×</button>
         </div>
         <div className="p-5 space-y-3">
-          {/* Text inputs */}
           {[
-            { label: 'Title *',                  key: 'title' },
-            { label: 'Artist',                   key: 'artist' },
-            { label: 'Album',                    key: 'album' },
-            { label: 'ISRC Code',                key: 'isrc_code', placeholder: 'CB-XXX-26-00001', mono: true },
-            { label: 'Label',                    key: 'label' },
-            { label: 'BPM',                      key: 'bpm', type: 'number' },
-            { label: 'Tags (comma separated)',   key: 'tags' },
-            { label: 'Copyright Year',           key: 'copyright_year', type: 'number' },
+            { label: 'Title *',                 key: 'title' },
+            { label: 'Artist',                  key: 'artist' },
+            { label: 'Album',                   key: 'album' },
+            { label: 'ISRC Code',               key: 'isrc_code', placeholder: 'CB-XXX-26-00001', mono: true },
+            { label: 'Label',                   key: 'label' },
+            { label: 'BPM',                     key: 'bpm', type: 'number' },
+            { label: 'Tags (comma separated)',  key: 'tags' },
+            { label: 'Copyright Year',          key: 'copyright_year', type: 'number' },
           ].map(f => (
             <div key={f.key}>
               <label className="block text-xs font-medium text-muted-foreground mb-1">{f.label}</label>
@@ -121,7 +120,6 @@ function EditModal({ track, onClose, onSaved }) {
             </div>
           ))}
 
-          {/* Selects */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Genre</label>
@@ -148,13 +146,12 @@ function EditModal({ track, onClose, onSaved }) {
             </select>
           </div>
 
-          {/* Toggles */}
           <div className="grid grid-cols-2 gap-2">
             {[
-              { key: 'is_philomni_original', label: 'Philomni Original' },
-              { key: 'socan_registered',     label: 'SOCAN Registered'  },
-              { key: 'is_premium',           label: 'Premium Track'     },
-              { key: 'content_id_ready',     label: 'YouTube Content ID Ready' },
+              { key: 'is_philomni_original', label: 'Philomni Original'          },
+              { key: 'socan_registered',     label: 'SOCAN Registered'           },
+              { key: 'is_premium',           label: 'Premium Track'              },
+              { key: 'content_id_ready',     label: 'YouTube Content ID Ready'   },
             ].map(t => (
               <label key={t.key} className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form[t.key]} onChange={e => set(t.key, e.target.checked)} className="w-4 h-4 accent-primary" />
@@ -202,6 +199,65 @@ function StepDots({ step }) {
   )
 }
 
+// ─── Admin Track Row ──────────────────────────────────────────────────────────
+
+function AdminTrackRow({ track, onEdit, onToggle, onDelete }) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
+      <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+        {track.cover_art_url
+          ? <img src={track.cover_art_url} alt="" className="w-full h-full object-cover" />
+          : <div className="w-full h-full flex items-center justify-center"><Music className="w-5 h-5 text-muted-foreground/40" /></div>
+        }
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-sm font-semibold text-foreground truncate">{track.title}</p>
+          {track.is_premium && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold">PRO</span>
+          )}
+          {track.socan_registered && (
+            <ShieldCheck className="w-3.5 h-3.5 text-green-400" title="SOCAN Registered" />
+          )}
+          {track.content_id_ready && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 font-bold" title="YouTube Content ID Ready">YT CID</span>
+          )}
+          {track.status === 'inactive' && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20 font-bold">INACTIVE</span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {track.artist}
+          {track.genre && <span className="ml-1.5 text-muted-foreground/60">· {track.genre}</span>}
+          {track.mood && <span className="ml-1.5 text-muted-foreground/60">· {track.mood}</span>}
+          {track.isrc_code && <span className="ml-1.5 font-mono text-muted-foreground/50"> · {track.isrc_code}</span>}
+        </p>
+      </div>
+      <div className="hidden sm:flex items-center gap-1 text-[10px] text-muted-foreground/60 flex-shrink-0">
+        <Play className="w-3 h-3" /> {fmtCount(track.play_count)}
+      </div>
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <button onClick={() => onEdit(track)}
+          className="w-8 h-8 rounded-lg flex items-center justify-center bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-all" title="Edit">
+          <Edit3 className="w-3.5 h-3.5" />
+        </button>
+        <button onClick={() => onToggle(track)}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+            track.status === 'active'
+              ? 'bg-green-500/15 text-green-400 hover:bg-green-500/25'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          }`} title={track.status === 'active' ? 'Deactivate' : 'Activate'}>
+          {track.status === 'active' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+        </button>
+        <button onClick={() => onDelete(track.id)}
+          className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all" title="Delete">
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AdminMusic() {
@@ -211,33 +267,36 @@ export default function AdminMusic() {
   const audioInputRef = useRef(null)
   const coverInputRef = useRef(null)
 
+  // ── Tab state ─────────────────────────────────────────────────────────────
+  const [adminTab, setAdminTab] = useState('originals')
+
   // ── Track list state ──────────────────────────────────────────────────────
-  const [tracks, setTracks]     = useState([])
-  const [pending, setPending]   = useState([])
-  const [loading, setLoading]   = useState(true)
+  const [tracks, setTracks]       = useState([])
+  const [pending, setPending]     = useState([])
+  const [loading, setLoading]     = useState(true)
   const [editTrack, setEditTrack] = useState(null)
-  const [stats, setStats]       = useState({ total: 0, plays: 0, usage: 0, topTrack: null })
+  const [stats, setStats]         = useState({ total: 0, plays: 0, usage: 0, topTrack: null })
 
   // ── Wizard state ──────────────────────────────────────────────────────────
-  const [wizardStep, setWizardStep] = useState(1)   // 1 = upload file, 2 = metadata
+  const [wizardStep, setWizardStep] = useState(1)
 
   // Step 1 — audio file upload
-  const [audioFile, setAudioFile]           = useState(null)
-  const [audioDuration, setAudioDuration]   = useState(null)
-  const [audioSize, setAudioSize]           = useState(null)
-  const [uploading, setUploading]           = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploadStage, setUploadStage]       = useState('')
-  const [uploadError, setUploadError]       = useState('')
-  const [audioUploadedUrl, setAudioUploadedUrl] = useState('')   // ← KEY: set after step-1 upload
-  const [audioUploaded, setAudioUploaded]   = useState(false)    // ← drives Next button
+  const [audioFile, setAudioFile]             = useState(null)
+  const [audioDuration, setAudioDuration]     = useState(null)
+  const [audioSize, setAudioSize]             = useState(null)
+  const [uploading, setUploading]             = useState(false)
+  const [uploadProgress, setUploadProgress]   = useState(0)
+  const [uploadStage, setUploadStage]         = useState('')
+  const [uploadError, setUploadError]         = useState('')
+  const [audioUploadedUrl, setAudioUploadedUrl] = useState('')
+  const [audioUploaded, setAudioUploaded]     = useState(false)
 
   // Step 2 — metadata + cover
-  const [meta, setMeta]               = useState(EMPTY_META)
-  const [coverFile, setCoverFile]     = useState(null)
+  const [meta, setMeta]                 = useState(EMPTY_META)
+  const [coverFile, setCoverFile]       = useState(null)
   const [coverPreview, setCoverPreview] = useState(null)
-  const [saving, setSaving]           = useState(false)
-  const [saveError, setSaveError]     = useState('')
+  const [saving, setSaving]             = useState(false)
+  const [saveError, setSaveError]       = useState('')
 
   const setM = (k, v) => setMeta(prev => ({ ...prev, [k]: v }))
 
@@ -267,14 +326,14 @@ export default function AdminMusic() {
   }
 
   const rejectTrack = async (id) => {
-    const reason = window.prompt('Rejection reason (optional — will be logged):')
+    const reason = window.prompt('Rejection reason (shown to artist — leave blank if none):')
+    if (reason === null) return   // user cancelled the prompt dialog
     const { error } = await supabase
       .from('music_tracks')
-      .update({ status: 'rejected' })
+      .update({ status: 'rejected', rejection_reason: reason || null })
       .eq('id', id)
     if (error) { toast.error(error.message); return }
     toast.success('Track rejected')
-    console.log('Rejected track', id, 'reason:', reason)
     fetchTracks()
   }
 
@@ -303,11 +362,9 @@ export default function AdminMusic() {
   const handleAudioChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    console.log('Audio file selected:', file.name, file.type, file.size)
     setAudioFile(file)
     setAudioSize((file.size / 1024 / 1024).toFixed(2) + ' MB')
     setUploadError('')
-    // Reset upload state if user picks a new file
     setAudioUploaded(false)
     setAudioUploadedUrl('')
     setUploadProgress(0)
@@ -325,7 +382,7 @@ export default function AdminMusic() {
 
   // ── Step 1 — upload audio to Supabase Storage ─────────────────────────────
   const handleUploadAudio = async () => {
-    if (!audioFile) { setUploadError('Please select an audio file first.'); return }
+    if (!audioFile) { setUploadError('Please select an audio file first.'); return null }
 
     setUploading(true)
     setUploadError('')
@@ -334,22 +391,19 @@ export default function AdminMusic() {
 
     try {
       const sanitizeFilename = (name) => name
-        .normalize('NFD')                    // decompose accented chars (e.g. à → a + ̀)
-        .replace(/[̀-ͯ]/g, '')     // strip the accent combining chars
-        .replace(/[^a-zA-Z0-9.-]/g, '_')    // replace anything non-safe with _
-        .replace(/_+/g, '_')                 // collapse consecutive underscores
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-zA-Z0-9.-]/g, '_')
+        .replace(/_+/g, '_')
         .toLowerCase()
 
-      const fileName = Date.now() + '_' + sanitizeFilename(audioFile.name)
+      const fileName  = Date.now() + '_' + sanitizeFilename(audioFile.name)
       const audioPath = 'audio/' + fileName
-
-      console.log('Starting audio upload to:', audioPath)
-      console.log('File:', audioFile.name, audioFile.type, audioFile.size, 'bytes')
 
       setUploadProgress(25)
       setUploadStage('Uploading audio file…')
 
-      const { data: storageData, error: storageError } = await supabase.storage
+      const { error: storageError } = await supabase.storage
         .from('philomni-music')
         .upload(audioPath, audioFile, {
           contentType: audioFile.type || 'audio/mpeg',
@@ -357,14 +411,10 @@ export default function AdminMusic() {
           upsert: true,
         })
 
-      console.log('STORAGE SUCCESS:', storageData)
-
       if (storageError) {
-        console.error('STORAGE ERROR:', storageError)
         setUploadError('Upload failed: ' + storageError.message)
         setUploadProgress(0)
         setUploadStage('')
-        setUploading(false)
         return null
       }
 
@@ -375,26 +425,19 @@ export default function AdminMusic() {
         .from('philomni-music')
         .getPublicUrl(audioPath)
 
-      console.log('Audio public URL:', publicUrl)
-
       setUploadProgress(100)
       setUploadStage('Upload complete!')
-
-      // ── CRITICAL: store URL in state and mark as uploaded ──
       setAudioUploadedUrl(publicUrl)
-      setAudioUploaded(true)           // ← this enables the Next button
-
-      console.log('audioUploaded set to TRUE, URL:', publicUrl)
-      return publicUrl                 // ← return so handleNext can use it immediately
+      setAudioUploaded(true)
+      return publicUrl
 
     } catch (err) {
-      console.error('Upload failed:', err)
       setUploadError(err.message || 'Upload failed. Check console for details.')
       setUploadProgress(0)
       setUploadStage('')
       setAudioUploaded(false)
       setAudioUploadedUrl('')
-      return null                      // ← signal failure to caller
+      return null
     } finally {
       setUploading(false)
     }
@@ -403,15 +446,11 @@ export default function AdminMusic() {
   // ── Step 1 → Step 2 ───────────────────────────────────────────────────────
   const handleNext = async () => {
     if (!audioFile) return
-    // If already uploaded, go straight to step 2
     let url = audioUploadedUrl
     if (!audioUploaded || !url) {
-      // File selected but not yet uploaded — upload first, then proceed
-      console.log('Next clicked before upload — auto-uploading first…')
       url = await handleUploadAudio()
-      if (!url) return   // upload failed; error is already shown in UI
+      if (!url) return
     }
-    console.log('Moving to Step 2. audioUploadedUrl:', url)
     setWizardStep(2)
   }
 
@@ -419,7 +458,6 @@ export default function AdminMusic() {
   const handleCoverChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    console.log('Cover file selected:', file.name, file.type)
     setCoverFile(file)
     setCoverPreview(URL.createObjectURL(file))
     setSaveError('')
@@ -428,68 +466,57 @@ export default function AdminMusic() {
   // ── Step 2 — save to DB ───────────────────────────────────────────────────
   const handleSave = async () => {
     if (!meta.title.trim()) { setSaveError('Track title is required'); return }
-    if (!audioUploadedUrl) { setSaveError('No audio URL found — please go back and re-upload the file'); return }
+    if (!audioUploadedUrl) { setSaveError('No audio URL — please go back and re-upload the file'); return }
 
     setSaving(true)
     setSaveError('')
 
     try {
-      // Upload cover art (optional)
       let coverUrl = null
       if (coverFile) {
-        console.log('Uploading cover art:', coverFile.name)
         const safeCover = coverFile.name
           .normalize('NFD').replace(/[̀-ͯ]/g, '')
           .replace(/[^a-zA-Z0-9.-]/g, '_').replace(/_+/g, '_').toLowerCase()
         const coverPath = 'covers/' + Date.now() + '_' + safeCover
-        const { data: coverData, error: coverError } = await supabase.storage
+        const { error: coverError } = await supabase.storage
           .from('philomni-music')
           .upload(coverPath, coverFile, { cacheControl: '3600', upsert: false })
-        if (coverError) {
-          console.warn('Cover upload failed (non-fatal):', coverError.message)
-        } else {
+        if (!coverError) {
           const { data: { publicUrl } } = supabase.storage.from('philomni-music').getPublicUrl(coverPath)
           coverUrl = publicUrl
-          console.log('Cover URL:', coverUrl)
         }
       }
 
-      // Insert track into DB
       const payload = {
-        title:               meta.title.trim(),
-        artist:              meta.artist.trim() || 'Philomni Originals',
-        album:               meta.album.trim() || null,
-        genre:               meta.genre || null,
-        mood:                meta.mood  || null,
-        bpm:                 meta.bpm ? parseInt(meta.bpm, 10) : null,
-        tags:                meta.tags ? meta.tags.split(',').map(t => t.trim()).filter(Boolean) : null,
-        isrc_code:           meta.isrc_code.trim() || null,
-        copyright_year:      parseInt(meta.copyright_year, 10) || 2026,
-        label:               meta.label.trim() || 'Philomni Technologies Inc.',
-        license_type:        meta.license_type || 'philomni_exclusive',
+        title:                meta.title.trim(),
+        artist:               meta.artist.trim() || 'Philomni Originals',
+        album:                meta.album.trim() || null,
+        genre:                meta.genre || null,
+        mood:                 meta.mood  || null,
+        bpm:                  meta.bpm ? parseInt(meta.bpm, 10) : null,
+        tags:                 meta.tags ? meta.tags.split(',').map(t => t.trim()).filter(Boolean) : null,
+        isrc_code:            meta.isrc_code.trim() || null,
+        copyright_year:       parseInt(meta.copyright_year, 10) || 2026,
+        label:                meta.label.trim() || 'Philomni Technologies Inc.',
+        license_type:         meta.license_type || 'philomni_exclusive',
         is_philomni_original: meta.is_philomni_original,
-        socan_registered:    meta.socan_registered,
-        is_premium:          meta.is_premium,
-        content_id_ready:    meta.content_id_ready,
-        audio_url:           audioUploadedUrl,   // ← preserved from Step 1
-        cover_art_url:       coverUrl,
-        uploaded_by:         user.id,
-        status:              'active',
-        play_count:          0,
+        socan_registered:     meta.socan_registered,
+        is_premium:           meta.is_premium,
+        content_id_ready:     meta.content_id_ready,
+        audio_url:            audioUploadedUrl,
+        cover_art_url:        coverUrl,
+        uploaded_by:          user.id,
+        status:               'active',
+        play_count:           0,
       }
 
-      console.log('Inserting to database:', payload)
-
-      const { data: inserted, error: dbError } = await supabase
+      const { error: dbError } = await supabase
         .from('music_tracks')
         .insert(payload)
         .select()
         .single()
 
-      console.log('DB response:', inserted, dbError)
-
       if (dbError) {
-        console.error('DB INSERT ERROR:', JSON.stringify(dbError))
         throw new Error(
           'Database error: ' + dbError.message +
           (dbError.details ? ' | Details: ' + dbError.details : '') +
@@ -498,13 +525,10 @@ export default function AdminMusic() {
       }
 
       toast.success('Track saved successfully!')
-
-      // Full reset
       resetWizard()
       fetchTracks()
 
     } catch (err) {
-      console.error('Save failed:', err)
       setSaveError(err.message || 'Save failed. Check console for details.')
     } finally {
       setSaving(false)
@@ -547,9 +571,13 @@ export default function AdminMusic() {
     toast.success('Track deleted')
   }
 
+  // ── Derived lists ─────────────────────────────────────────────────────────
+  const originals    = tracks.filter(t => t.is_philomni_original || t.track_type === 'philomni_original')
+  const artistTracks = tracks.filter(t => !t.is_philomni_original && t.track_type !== 'philomni_original')
+
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-5xl mx-auto py-6 px-4 space-y-8">
+    <div className="max-w-5xl mx-auto py-6 px-4 space-y-6">
 
       {/* Header */}
       <div className="flex items-center gap-2">
@@ -557,469 +585,491 @@ export default function AdminMusic() {
         <h1 className="text-2xl font-bold text-foreground">Music Library Management</h1>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ── 4-Tab Nav ──────────────────────────────────────────────────────── */}
+      <div className="flex gap-1 bg-muted p-1 rounded-xl w-fit overflow-x-auto">
         {[
-          { icon: Music,    label: 'Total Tracks',  value: stats.total,           color: 'text-primary'   },
-          { icon: Eye,      label: 'Total Plays',   value: fmtCount(stats.plays), color: 'text-blue-400'  },
-          { icon: BarChart2,label: 'Used in Posts', value: fmtCount(stats.usage), color: 'text-green-400' },
-          { icon: Play,     label: 'Most Played',
-            value: stats.topTrack ? stats.topTrack.title.slice(0, 14) + '…' : '—',
-            color: 'text-amber-400' },
-        ].map(s => (
-          <div key={s.label} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-            <s.icon className={`w-7 h-7 flex-shrink-0 ${s.color}`} />
-            <div className="min-w-0">
-              <p className="font-bold text-foreground truncate">{s.value}</p>
-              <p className="text-xs text-muted-foreground">{s.label}</p>
-            </div>
-          </div>
+          { key: 'originals', label: 'Philomni Originals', icon: '✦' },
+          { key: 'pending',   label: 'Pending Submissions', count: pending.length },
+          { key: 'artists',   label: 'All Artist Tracks' },
+          { key: 'stats',     label: 'Stats' },
+        ].map(tab => (
+          <button key={tab.key} onClick={() => setAdminTab(tab.key)}
+            className={`flex items-center gap-1.5 flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              adminTab === tab.key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab.icon && <span className="text-amber-400">{tab.icon}</span>}
+            {tab.label}
+            {tab.count > 0 && (
+              <span className="ml-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                {tab.count}
+              </span>
+            )}
+          </button>
         ))}
       </div>
 
-      {/* ══ PENDING REVIEW ══════════════════════════════════════════════════ */}
-      {pending.length > 0 && (
-        <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Clock className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-sm font-bold text-yellow-400">Artist Track Submissions</h2>
-            <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-              {pending.length} pending
-            </span>
-          </div>
-          <div className="space-y-2">
-            {pending.map(track => (
-              <div key={track.id} className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                  {track.cover_art_url
-                    ? <img src={track.cover_art_url} alt="" className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center"><Music className="w-4 h-4 text-muted-foreground/40" /></div>
-                  }
+      {/* ══ TAB 1: PHILOMNI ORIGINALS ══════════════════════════════════════ */}
+      {adminTab === 'originals' && (
+        <div className="space-y-6">
+
+          {/* Upload Wizard */}
+          <div className="bg-card border border-border rounded-2xl p-6">
+            <StepDots step={wizardStep} />
+
+            {/* ── Step 1: Upload audio ── */}
+            {wizardStep === 1 && (
+              <div className="space-y-5">
+                <div>
+                  <h2 className="text-base font-bold text-foreground mb-0.5">Step 1 — Upload Audio File</h2>
+                  <p className="text-xs text-muted-foreground">Upload the .mp3 or .wav file first. Once it reaches 100%, the Next button activates.</p>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{track.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {track.artist}
-                    {track.genre && <span className="ml-1.5 text-muted-foreground/60">· {track.genre}</span>}
-                  </p>
-                  {track.audio_url && (
-                    <audio controls src={track.audio_url} className="mt-2 h-7 w-full max-w-xs" />
-                  )}
+
+                {uploadError && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span className="font-mono text-xs break-all">{uploadError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    Audio File <span className="text-destructive">*</span>
+                    <span className="text-muted-foreground/60 font-normal ml-1">(.mp3 or .wav, max 50 MB)</span>
+                  </label>
+                  <label className={`flex flex-col items-center justify-center gap-2 px-4 py-8 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+                    audioUploaded
+                      ? 'border-green-500/50 bg-green-500/5'
+                      : audioFile
+                      ? 'border-primary/50 bg-primary/5'
+                      : 'border-border hover:border-primary/40 bg-muted/40 hover:bg-muted/60'
+                  }`}>
+                    {audioUploaded ? (
+                      <>
+                        <CheckCircle2 className="w-8 h-8 text-green-500" />
+                        <p className="text-sm font-semibold text-green-500">Upload complete!</p>
+                        <p className="text-xs text-muted-foreground truncate max-w-[280px] text-center">{audioFile?.name}</p>
+                        <p className="text-xs text-muted-foreground">{audioSize}{audioDuration ? ` · ${audioDuration}` : ''}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">Click to pick a different file</p>
+                      </>
+                    ) : audioFile ? (
+                      <>
+                        <span className="text-2xl">🎵</span>
+                        <p className="text-sm font-semibold text-foreground truncate max-w-[280px] text-center">{audioFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{audioSize}{audioDuration ? ` · ${audioDuration}` : ''}</p>
+                        <p className="text-[10px] text-primary mt-1">File selected — click Upload below</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-8 h-8 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Click to select audio file</p>
+                        <p className="text-xs text-muted-foreground/60">MP3 or WAV · up to 50 MB</p>
+                      </>
+                    )}
+                    <input
+                      ref={audioInputRef}
+                      type="file"
+                      accept=".mp3,.wav,audio/mpeg,audio/wav,audio/mp3,audio/x-wav"
+                      className="hidden"
+                      onChange={handleAudioChange}
+                      disabled={uploading}
+                    />
+                  </label>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+
+                {(uploading || uploadProgress > 0) && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className={`font-medium ${audioUploaded ? 'text-green-500' : 'text-muted-foreground'}`}>
+                        {uploadStage || (audioUploaded ? 'Upload complete!' : 'Uploading…')}
+                      </span>
+                      <span className={`font-mono ${audioUploaded ? 'text-green-500' : 'text-muted-foreground'}`}>
+                        {uploadProgress}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${audioUploaded ? 'bg-green-500' : 'bg-primary'}`}
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 pt-1">
                   <button
-                    onClick={() => approveTrack(track.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 text-xs font-semibold transition-all"
+                    onClick={handleUploadAudio}
+                    disabled={uploading || !audioFile}
+                    className="flex-1 py-3 rounded-xl bg-muted text-foreground font-semibold text-sm hover:bg-muted/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    <ThumbsUp className="w-3.5 h-3.5" /> Approve
+                    {uploading
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</>
+                      : audioUploaded
+                      ? <><CheckCircle2 className="w-4 h-4 text-green-500" /> Re-upload File</>
+                      : <><Upload className="w-4 h-4" /> Upload File</>
+                    }
                   </button>
                   <button
-                    onClick={() => rejectTrack(track.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-all"
+                    onClick={handleNext}
+                    disabled={!audioFile || uploading}
+                    className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    <ThumbsDown className="w-3.5 h-3.5" /> Reject
+                    {uploading
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</>
+                      : <>Next — Add Details <ArrowRight className="w-4 h-4" /></>
+                    }
+                  </button>
+                </div>
+
+                <p className="text-xs text-center text-muted-foreground/60">
+                  {!audioFile
+                    ? 'Select a file above to continue'
+                    : audioUploaded
+                    ? '✅ File is in Supabase storage — click Next to add track details'
+                    : 'Click Upload File first, or click Next to upload & continue automatically'}
+                </p>
+              </div>
+            )}
+
+            {/* ── Step 2: Metadata ── */}
+            {wizardStep === 2 && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-bold text-foreground mb-0.5">Step 2 — Track Details</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Audio ready: <span className="text-green-500 font-medium">{audioFile?.name}</span>
+                    </p>
+                  </div>
+                  <button onClick={() => setWizardStep(1)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    <ChevronLeft className="w-3.5 h-3.5" /> Back
+                  </button>
+                </div>
+
+                {saveError && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span className="font-mono text-xs break-all">{saveError}</span>
+                  </div>
+                )}
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Track Title <span className="text-destructive">*</span></label>
+                    <input value={meta.title} onChange={e => { setM('title', e.target.value); setSaveError('') }}
+                      placeholder="Track title"
+                      className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Artist</label>
+                    <input value={meta.artist} onChange={e => setM('artist', e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Album (optional)</label>
+                    <input value={meta.album} onChange={e => setM('album', e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">ISRC Code</label>
+                    <input value={meta.isrc_code} onChange={e => setM('isrc_code', e.target.value)}
+                      placeholder="CB-XXX-YY-NNNNN"
+                      className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Genre</label>
+                    <select value={meta.genre} onChange={e => setM('genre', e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                      <option value="">Select genre</option>
+                      {GENRES.map(g => <option key={g}>{g}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Mood</label>
+                    <select value={meta.mood} onChange={e => setM('mood', e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                      <option value="">Select mood</option>
+                      {MOODS.map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">BPM (optional)</label>
+                    <input type="number" value={meta.bpm} onChange={e => setM('bpm', e.target.value)}
+                      placeholder="120"
+                      className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Copyright Year</label>
+                    <input type="number" value={meta.copyright_year} onChange={e => setM('copyright_year', e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Label</label>
+                    <input value={meta.label} onChange={e => setM('label', e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">License Type</label>
+                  <select value={meta.license_type} onChange={e => setM('license_type', e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                    {LICENSE_TYPES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Tags (comma separated)</label>
+                  <input value={meta.tags} onChange={e => setM('tags', e.target.value)}
+                    placeholder="chill, study, late night…"
+                    className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { key: 'is_philomni_original', label: 'Philomni Original'        },
+                    { key: 'socan_registered',     label: 'SOCAN Registered'         },
+                    { key: 'is_premium',           label: 'Premium (Pro/ProMax)'     },
+                    { key: 'content_id_ready',     label: 'YouTube Content ID Ready' },
+                  ].map(t => (
+                    <label key={t.key} className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={meta[t.key]} onChange={e => setM(t.key, e.target.checked)} className="w-4 h-4 accent-primary" />
+                      <span className="text-sm text-foreground">{t.label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                    Cover Art <span className="text-muted-foreground/60 font-normal ml-1">(optional · .jpg or .png)</span>
+                  </label>
+                  <label className={`flex flex-col items-center justify-center gap-1.5 px-4 py-5 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
+                    coverFile ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/40 bg-muted/40 hover:bg-muted/60'
+                  }`}>
+                    {coverPreview ? (
+                      <>
+                        <img src={coverPreview} alt="" className="w-16 h-16 object-cover rounded-lg" />
+                        <p className="text-[10px] text-primary">Click to change</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-5 h-5 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Upload cover art</span>
+                        <span className="text-xs text-muted-foreground/60">JPG or PNG</span>
+                      </>
+                    )}
+                    <input
+                      ref={coverInputRef}
+                      type="file"
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                      className="hidden"
+                      onChange={handleCoverChange}
+                    />
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-3 pt-1">
+                  <button onClick={() => setWizardStep(1)}
+                    className="px-5 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors flex items-center gap-2">
+                    <ChevronLeft className="w-4 h-4" /> Back
+                  </button>
+                  <button onClick={resetWizard}
+                    className="px-5 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={handleSave} disabled={saving}
+                    className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all">
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    {saving ? 'Saving to Library…' : 'Save Track to Library'}
                   </button>
                 </div>
               </div>
-            ))}
+            )}
+          </div>
+
+          {/* Philomni Originals list */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+                <span className="text-amber-400">✦</span>
+                Philomni Originals ({originals.length})
+              </h2>
+            </div>
+            {loading ? (
+              <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+            ) : originals.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">
+                <Music className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                No Philomni Originals yet. Upload the first one above.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {originals.map(track => (
+                  <AdminTrackRow key={track.id} track={track}
+                    onEdit={setEditTrack} onToggle={toggleStatus} onDelete={deleteTrack} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* ══ WIZARD ══════════════════════════════════════════════════════════ */}
-      <div className="bg-card border border-border rounded-2xl p-6">
-        <StepDots step={wizardStep} />
-
-        {/* ── STEP 1: Upload audio file ── */}
-        {wizardStep === 1 && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-base font-bold text-foreground mb-0.5">Step 1 — Upload Audio File</h2>
-              <p className="text-xs text-muted-foreground">Upload the .mp3 or .wav file first. Once it reaches 100%, the Next button activates.</p>
+      {/* ══ TAB 2: PENDING SUBMISSIONS ══════════════════════════════════════ */}
+      {adminTab === 'pending' && (
+        <div>
+          {pending.length === 0 ? (
+            <div className="text-center py-24">
+              <Clock className="w-12 h-12 mx-auto mb-4 text-muted-foreground/30" />
+              <p className="text-sm font-semibold text-foreground mb-1">No pending submissions</p>
+              <p className="text-xs text-muted-foreground">Artist track submissions will appear here for review</p>
             </div>
-
-            {/* Error banner */}
-            {uploadError && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span className="font-mono text-xs break-all">{uploadError}</span>
-              </div>
-            )}
-
-            {/* File picker */}
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Audio File <span className="text-destructive">*</span>
-                <span className="text-muted-foreground/60 font-normal ml-1">(.mp3 or .wav, max 50 MB)</span>
-              </label>
-              <label className={`flex flex-col items-center justify-center gap-2 px-4 py-8 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
-                audioUploaded
-                  ? 'border-green-500/50 bg-green-500/5'
-                  : audioFile
-                  ? 'border-primary/50 bg-primary/5'
-                  : 'border-border hover:border-primary/40 bg-muted/40 hover:bg-muted/60'
-              }`}>
-                {audioUploaded ? (
-                  <>
-                    <CheckCircle2 className="w-8 h-8 text-green-500" />
-                    <p className="text-sm font-semibold text-green-500">Upload complete!</p>
-                    <p className="text-xs text-muted-foreground truncate max-w-[280px] text-center">{audioFile?.name}</p>
-                    <p className="text-xs text-muted-foreground">{audioSize}{audioDuration ? ` · ${audioDuration}` : ''}</p>
-                    <p className="text-[10px] text-muted-foreground/60 mt-1">Click to pick a different file</p>
-                  </>
-                ) : audioFile ? (
-                  <>
-                    <span className="text-2xl">🎵</span>
-                    <p className="text-sm font-semibold text-foreground truncate max-w-[280px] text-center">{audioFile.name}</p>
-                    <p className="text-xs text-muted-foreground">{audioSize}{audioDuration ? ` · ${audioDuration}` : ''}</p>
-                    <p className="text-[10px] text-primary mt-1">File selected — click Upload below</p>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-8 h-8 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Click to select audio file</p>
-                    <p className="text-xs text-muted-foreground/60">MP3 or WAV · up to 50 MB</p>
-                  </>
-                )}
-                <input
-                  ref={audioInputRef}
-                  type="file"
-                  accept=".mp3,.wav,audio/mpeg,audio/wav,audio/mp3,audio/x-wav"
-                  className="hidden"
-                  onChange={handleAudioChange}
-                  disabled={uploading}
-                />
-              </label>
-            </div>
-
-            {/* Progress bar — shown while uploading OR after complete */}
-            {(uploading || uploadProgress > 0) && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className={`font-medium ${audioUploaded ? 'text-green-500' : 'text-muted-foreground'}`}>
-                    {uploadStage || (audioUploaded ? 'Upload complete!' : 'Uploading…')}
-                  </span>
-                  <span className={`font-mono ${audioUploaded ? 'text-green-500' : 'text-muted-foreground'}`}>
-                    {uploadProgress}%
-                  </span>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground mb-1">
+                {pending.length} track{pending.length !== 1 ? 's' : ''} awaiting review
+              </p>
+              {pending.map(track => (
+                <div key={track.id} className="bg-card border border-yellow-500/20 rounded-xl p-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                      {track.cover_art_url
+                        ? <img src={track.cover_art_url} alt="" className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center"><Music className="w-5 h-5 text-muted-foreground/40" /></div>
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-foreground">{track.title}</p>
+                      <p className="text-xs text-muted-foreground">{track.artist}</p>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {track.genre && <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{track.genre}</span>}
+                        {track.mood  && <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">{track.mood}</span>}
+                        {track.bpm   && <span className="text-[10px] text-muted-foreground/60 font-mono">{track.bpm} bpm</span>}
+                      </div>
+                      {track.audio_url && (
+                        <audio controls src={track.audio_url} className="mt-2.5 h-8 w-full max-w-sm" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+                    <button onClick={() => approveTrack(track.id)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 text-xs font-semibold transition-all">
+                      <ThumbsUp className="w-3.5 h-3.5" /> Approve — Make Live
+                    </button>
+                    <button onClick={() => rejectTrack(track.id)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-all">
+                      <ThumbsDown className="w-3.5 h-3.5" /> Reject
+                    </button>
+                  </div>
                 </div>
-                <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${audioUploaded ? 'bg-green-500' : 'bg-primary'}`}
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Action buttons row */}
-            <div className="flex items-center gap-3 pt-1">
-              {/* Upload button — disabled only while already uploading */}
-              <button
-                onClick={handleUploadAudio}
-                disabled={uploading || !audioFile}
-                className="flex-1 py-3 rounded-xl bg-muted text-foreground font-semibold text-sm hover:bg-muted/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {uploading
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</>
-                  : audioUploaded
-                  ? <><CheckCircle2 className="w-4 h-4 text-green-500" /> Re-upload File</>
-                  : <><Upload className="w-4 h-4" /> Upload File</>
-                }
-              </button>
-
-              {/* Next button — active as soon as a file is selected */}
-              <button
-                onClick={handleNext}
-                disabled={!audioFile || uploading}
-                className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {uploading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</>
-                ) : (
-                  <>Next — Add Details <ArrowRight className="w-4 h-4" /></>
-                )}
-              </button>
-            </div>
-
-            {/* Helper text under buttons */}
-            <p className="text-xs text-center text-muted-foreground/60">
-              {!audioFile
-                ? 'Select a file above to continue'
-                : audioUploaded
-                ? '✅ File is in Supabase storage — click Next to add track details'
-                : 'Click Upload File first, or click Next to upload & continue automatically'}
-            </p>
-          </div>
-        )}
-
-        {/* ── STEP 2: Track metadata ── */}
-        {wizardStep === 2 && (
-          <div className="space-y-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-foreground mb-0.5">Step 2 — Track Details</h2>
-                <p className="text-xs text-muted-foreground">
-                  Audio ready: <span className="text-green-500 font-medium">{audioFile?.name}</span>
-                </p>
-              </div>
-              <button
-                onClick={() => setWizardStep(1)}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" /> Back
-              </button>
-            </div>
-
-            {/* Save error */}
-            {saveError && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span className="font-mono text-xs break-all">{saveError}</span>
-              </div>
-            )}
-
-            <div className="grid sm:grid-cols-2 gap-4">
-              {/* Title */}
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Track Title <span className="text-destructive">*</span>
-                </label>
-                <input value={meta.title} onChange={e => { setM('title', e.target.value); setSaveError('') }}
-                  placeholder="Track title"
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-
-              {/* Artist */}
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Artist</label>
-                <input value={meta.artist} onChange={e => setM('artist', e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-
-              {/* Album */}
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Album (optional)</label>
-                <input value={meta.album} onChange={e => setM('album', e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-
-              {/* ISRC */}
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">ISRC Code</label>
-                <input value={meta.isrc_code} onChange={e => setM('isrc_code', e.target.value)}
-                  placeholder="CB-XXX-YY-NNNNN"
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-
-              {/* Genre */}
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Genre</label>
-                <select value={meta.genre} onChange={e => setM('genre', e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                  <option value="">Select genre</option>
-                  {GENRES.map(g => <option key={g}>{g}</option>)}
-                </select>
-              </div>
-
-              {/* Mood */}
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Mood</label>
-                <select value={meta.mood} onChange={e => setM('mood', e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                  <option value="">Select mood</option>
-                  {MOODS.map(m => <option key={m}>{m}</option>)}
-                </select>
-              </div>
-
-              {/* BPM */}
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">BPM (optional)</label>
-                <input type="number" value={meta.bpm} onChange={e => setM('bpm', e.target.value)}
-                  placeholder="120"
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-
-              {/* Copyright year */}
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Copyright Year</label>
-                <input type="number" value={meta.copyright_year} onChange={e => setM('copyright_year', e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-
-              {/* Label */}
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Label</label>
-                <input value={meta.label} onChange={e => setM('label', e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-            </div>
-
-            {/* License Type */}
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">License Type</label>
-              <select value={meta.license_type} onChange={e => setM('license_type', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                {LICENSE_TYPES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-              </select>
-            </div>
-
-            {/* Tags */}
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Tags (comma separated)</label>
-              <input value={meta.tags} onChange={e => setM('tags', e.target.value)}
-                placeholder="chill, study, late night…"
-                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-            </div>
-
-            {/* Toggles */}
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { key: 'is_philomni_original', label: 'Philomni Original'       },
-                { key: 'socan_registered',     label: 'SOCAN Registered'        },
-                { key: 'is_premium',           label: 'Premium (Pro/ProMax)'    },
-                { key: 'content_id_ready',     label: 'YouTube Content ID Ready'},
-              ].map(t => (
-                <label key={t.key} className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={meta[t.key]} onChange={e => setM(t.key, e.target.checked)} className="w-4 h-4 accent-primary" />
-                  <span className="text-sm text-foreground">{t.label}</span>
-                </label>
               ))}
             </div>
-
-            {/* Cover art */}
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Cover Art
-                <span className="text-muted-foreground/60 font-normal ml-1">(optional · .jpg or .png)</span>
-              </label>
-              <label className={`flex flex-col items-center justify-center gap-1.5 px-4 py-5 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
-                coverFile ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/40 bg-muted/40 hover:bg-muted/60'
-              }`}>
-                {coverPreview ? (
-                  <>
-                    <img src={coverPreview} alt="" className="w-16 h-16 object-cover rounded-lg" />
-                    <p className="text-[10px] text-primary">Click to change</p>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-5 h-5 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Upload cover art</span>
-                    <span className="text-xs text-muted-foreground/60">JPG or PNG</span>
-                  </>
-                )}
-                <input
-                  ref={coverInputRef}
-                  type="file"
-                  accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                  className="hidden"
-                  onChange={handleCoverChange}
-                />
-              </label>
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex items-center gap-3 pt-1">
-              <button onClick={() => setWizardStep(1)}
-                className="px-5 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors flex items-center gap-2">
-                <ChevronLeft className="w-4 h-4" /> Back
-              </button>
-              <button onClick={resetWizard}
-                className="px-5 py-3 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">
-                Cancel
-              </button>
-              <button onClick={handleSave} disabled={saving}
-                className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                {saving ? 'Saving to Library…' : 'Save Track to Library'}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Track list ── */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-bold text-foreground">All Tracks ({tracks.length})</h2>
-          <div className="flex gap-2 text-xs text-muted-foreground">
-            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              {tracks.filter(t => t.is_philomni_original).length} Originals
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              {tracks.filter(t => !t.is_philomni_original).length} Artist
-            </span>
-          </div>
+          )}
         </div>
+      )}
 
-        {loading ? (
-          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-        ) : tracks.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground text-sm">
-            <Music className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            No tracks yet. Upload the first one above.
+      {/* ══ TAB 3: ALL ARTIST TRACKS ════════════════════════════════════════ */}
+      {adminTab === 'artists' && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+              <Users className="w-4 h-4 text-blue-400" />
+              Approved Artist Tracks ({artistTracks.length})
+            </h2>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {tracks.map(track => (
-              <div key={track.id} className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                  {track.cover_art_url
-                    ? <img src={track.cover_art_url} alt="" className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center"><Music className="w-5 h-5 text-muted-foreground/40" /></div>
-                  }
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="text-sm font-semibold text-foreground truncate">{track.title}</p>
-                    {track.is_premium && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold">PRO</span>
-                    )}
-                    {track.socan_registered && (
-                      <ShieldCheck className="w-3.5 h-3.5 text-green-400" title="SOCAN Registered" />
-                    )}
-                    {track.content_id_ready && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 font-bold" title="YouTube Content ID Ready">YT CID</span>
-                    )}
-                    {track.status === 'inactive' && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20 font-bold">INACTIVE</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {track.artist}
-                    {track.genre && <span className="ml-1.5 text-muted-foreground/60">· {track.genre}</span>}
-                    {track.mood && <span className="ml-1.5 text-muted-foreground/60">· {track.mood}</span>}
-                    {track.isrc_code && <span className="ml-1.5 font-mono text-muted-foreground/50"> · {track.isrc_code}</span>}
-                  </p>
-                </div>
-                <div className="hidden sm:flex flex-col items-end gap-0.5 flex-shrink-0 min-w-[60px]">
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Play className="w-3 h-3" /> {fmtCount(track.play_count)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <button onClick={() => setEditTrack(track)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-all" title="Edit">
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => toggleStatus(track)}
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                      track.status === 'active'
-                        ? 'bg-green-500/15 text-green-400 hover:bg-green-500/25'
-                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                    }`} title={track.status === 'active' ? 'Deactivate' : 'Activate'}>
-                    {track.status === 'active' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                  </button>
-                  <button onClick={() => deleteTrack(track.id)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all" title="Delete">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          ) : artistTracks.length === 0 ? (
+            <div className="text-center py-20">
+              <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground/30" />
+              <p className="text-sm font-semibold text-foreground mb-1">No approved artist tracks yet</p>
+              <p className="text-xs text-muted-foreground">Approved submissions will appear here</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {artistTracks.map(track => (
+                <AdminTrackRow key={track.id} track={track}
+                  onEdit={setEditTrack} onToggle={toggleStatus} onDelete={deleteTrack} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ TAB 4: STATS ════════════════════════════════════════════════════ */}
+      {adminTab === 'stats' && (
+        <div className="space-y-6">
+
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { icon: Music,    label: 'Total Tracks',  value: tracks.length + pending.length, color: 'text-primary'   },
+              { icon: Eye,      label: 'Total Plays',   value: fmtCount(stats.plays),          color: 'text-blue-400'  },
+              { icon: BarChart2,label: 'Used in Posts', value: fmtCount(stats.usage),          color: 'text-green-400' },
+              { icon: Play,     label: 'Most Played',
+                value: stats.topTrack
+                  ? (stats.topTrack.title.length > 14 ? stats.topTrack.title.slice(0, 14) + '…' : stats.topTrack.title)
+                  : '—',
+                color: 'text-amber-400' },
+            ].map(s => (
+              <div key={s.label} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+                <s.icon className={`w-7 h-7 flex-shrink-0 ${s.color}`} />
+                <div className="min-w-0">
+                  <p className="font-bold text-foreground truncate">{s.value}</p>
+                  <p className="text-xs text-muted-foreground">{s.label}</p>
                 </div>
               </div>
             ))}
           </div>
-        )}
-      </div>
+
+          {/* Tracks by type */}
+          <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+            <h3 className="text-sm font-bold text-foreground">Tracks by Type</h3>
+            {[
+              { label: 'Philomni Originals',      count: originals.length,    color: 'bg-amber-500'  },
+              { label: 'Approved Artist Tracks',  count: artistTracks.length, color: 'bg-blue-500'   },
+              { label: 'Pending Review',          count: pending.length,      color: 'bg-yellow-500' },
+            ].map(row => (
+              <div key={row.label} className="flex items-center gap-3">
+                <div className={`w-2.5 h-2.5 rounded-full ${row.color} flex-shrink-0`} />
+                <span className="text-sm text-foreground flex-1">{row.label}</span>
+                <span className="text-sm font-bold text-foreground">{row.count}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Most played */}
+          {tracks.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-5">
+              <h3 className="text-sm font-bold text-foreground mb-3">Most Played</h3>
+              <div className="space-y-2.5">
+                {[...tracks]
+                  .sort((a, b) => (b.play_count || 0) - (a.play_count || 0))
+                  .slice(0, 5)
+                  .map((track, i) => (
+                    <div key={track.id} className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-muted-foreground/40 w-4 flex-shrink-0">{i + 1}</span>
+                      <div className="w-8 h-8 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                        {track.cover_art_url
+                          ? <img src={track.cover_art_url} alt="" className="w-full h-full object-cover" />
+                          : <div className="w-full h-full flex items-center justify-center"><Music className="w-3.5 h-3.5 text-muted-foreground/40" /></div>
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">{track.title}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{track.artist}</p>
+                      </div>
+                      <span className="text-xs font-mono text-muted-foreground flex-shrink-0 flex items-center gap-1">
+                        <Play className="w-3 h-3" /> {fmtCount(track.play_count)}
+                      </span>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {editTrack && (
         <EditModal track={editTrack} onClose={() => setEditTrack(null)} onSaved={fetchTracks} />

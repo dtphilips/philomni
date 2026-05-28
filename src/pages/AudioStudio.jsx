@@ -88,9 +88,17 @@ function TrackRow({ track, onPlay, onUseInPost, plan, onDelete, ownTrack = false
           {ownTrack && track.status === 'active' && (
             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30 font-bold">Live</span>
           )}
+          {ownTrack && track.status === 'rejected' && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 font-bold">Rejected</span>
+          )}
           {isNowPlaying && <PlayingBars />}
         </div>
         <p className="text-xs text-muted-foreground truncate mt-0.5">{track.artist || 'Unknown artist'}</p>
+        {ownTrack && track.status === 'rejected' && track.rejection_reason && (
+          <p className="text-[10px] text-red-400/80 mt-0.5 truncate">
+            Reason: {track.rejection_reason}
+          </p>
+        )}
       </div>
 
       {/* Chips */}

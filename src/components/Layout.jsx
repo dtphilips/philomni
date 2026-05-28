@@ -44,8 +44,14 @@ const CREATOR_NAV = [
     label: 'Studio',
     items: [
       { to: '/creator-studio', icon: Wand2,   label: 'Creator Studio' },
-      { to: '/audio-studio',   icon: Music,   label: 'Audio Studio' },
       { to: '/content',        icon: Rss,     label: 'Content Suite' },
+    ],
+  },
+  {
+    label: 'Music',
+    items: [
+      { to: '/music',        icon: Music, label: 'Philomni Sounds', badge: '🎵' },
+      { to: '/audio-studio', icon: Music, label: 'Audio Studio' },
     ],
   },
   {
@@ -72,7 +78,6 @@ const CREATOR_NAV = [
       { to: '/marketplace',     icon: ShoppingBag, label: 'Digital Products' },
       { to: '/learn',           icon: BookOpen,    label: 'Courses' },
       { to: '/consulting',      icon: Users,       label: 'Consulting' },
-      { to: '/music',           icon: Music,       label: 'Philomni Sounds', badge: '🎵' },
       { to: '/skills',          icon: Zap,         label: 'Skill Exchange' },
     ],
   },
@@ -119,7 +124,12 @@ const PRO_NAV = [
       { to: '/marketplace',     icon: ShoppingBag, label: 'Digital Products' },
       { to: '/sell',            icon: Package,     label: 'Sell Products' },
       { to: '/consulting',      icon: Briefcase,   label: 'Find Consultants' },
-      { to: '/music',           icon: Music,       label: 'Philomni Sounds', badge: '🎵' },
+    ],
+  },
+  {
+    label: 'Music',
+    items: [
+      { to: '/music', icon: Music, label: 'Philomni Sounds', badge: '🎵' },
     ],
   },
   {
