@@ -7,6 +7,7 @@ import {
   Music, Upload, Loader2, Trash2, Edit3,
   CheckCircle2, XCircle, ShieldCheck, Play,
   Eye, BarChart2, AlertCircle, ArrowRight, ChevronLeft,
+  Clock, ThumbsUp, ThumbsDown,
 } from 'lucide-react'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -211,10 +212,11 @@ export default function AdminMusic() {
   const coverInputRef = useRef(null)
 
   // ── Track list state ──────────────────────────────────────────────────────
-  const [tracks, setTracks]   = useState([])
-  const [loading, setLoading] = useState(true)
+  const [tracks, setTracks]     = useState([])
+  const [pending, setPending]   = useState([])
+  const [loading, setLoading]   = useState(true)
   const [editTrack, setEditTrack] = useState(null)
-  const [stats, setStats]     = useState({ total: 0, plays: 0, usage: 0, topTrack: null })
+  const [stats, setStats]       = useState({ total: 0, plays: 0, usage: 0, topTrack: null })
 
   // ── Wizard state ──────────────────────────────────────────────────────────
   const [wizardStep, setWizardStep] = useState(1)   // 1 = upload file, 2 = metadata
@@ -247,8 +249,33 @@ export default function AdminMusic() {
       .select('*')
       .order('created_at', { ascending: false })
     if (error) console.error('fetchTracks error:', error)
-    setTracks(data || [])
+    const all = data || []
+    setTracks(all.filter(t => t.status !== 'pending_review'))
+    setPending(all.filter(t => t.status === 'pending_review'))
     setLoading(false)
+  }
+
+  // ── Approve / reject artist track ─────────────────────────────────────────
+  const approveTrack = async (id) => {
+    const { error } = await supabase
+      .from('music_tracks')
+      .update({ status: 'active' })
+      .eq('id', id)
+    if (error) { toast.error(error.message); return }
+    toast.success('Track approved — now live in library')
+    fetchTracks()
+  }
+
+  const rejectTrack = async (id) => {
+    const reason = window.prompt('Rejection reason (optional — will be logged):')
+    const { error } = await supabase
+      .from('music_tracks')
+      .update({ status: 'rejected' })
+      .eq('id', id)
+    if (error) { toast.error(error.message); return }
+    toast.success('Track rejected')
+    console.log('Rejected track', id, 'reason:', reason)
+    fetchTracks()
   }
 
   const fetchStats = async () => {
@@ -549,6 +576,55 @@ export default function AdminMusic() {
           </div>
         ))}
       </div>
+
+      {/* ══ PENDING REVIEW ══════════════════════════════════════════════════ */}
+      {pending.length > 0 && (
+        <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="w-5 h-5 text-yellow-400" />
+            <h2 className="text-sm font-bold text-yellow-400">Artist Track Submissions</h2>
+            <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+              {pending.length} pending
+            </span>
+          </div>
+          <div className="space-y-2">
+            {pending.map(track => (
+              <div key={track.id} className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                  {track.cover_art_url
+                    ? <img src={track.cover_art_url} alt="" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center"><Music className="w-4 h-4 text-muted-foreground/40" /></div>
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{track.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {track.artist}
+                    {track.genre && <span className="ml-1.5 text-muted-foreground/60">· {track.genre}</span>}
+                  </p>
+                  {track.audio_url && (
+                    <audio controls src={track.audio_url} className="mt-2 h-7 w-full max-w-xs" />
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => approveTrack(track.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 text-xs font-semibold transition-all"
+                  >
+                    <ThumbsUp className="w-3.5 h-3.5" /> Approve
+                  </button>
+                  <button
+                    onClick={() => rejectTrack(track.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-all"
+                  >
+                    <ThumbsDown className="w-3.5 h-3.5" /> Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ══ WIZARD ══════════════════════════════════════════════════════════ */}
       <div className="bg-card border border-border rounded-2xl p-6">
@@ -864,7 +940,17 @@ export default function AdminMusic() {
 
       {/* ── Track list ── */}
       <div>
-        <h2 className="text-base font-bold text-foreground mb-4">All Tracks ({tracks.length})</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-bold text-foreground">All Tracks ({tracks.length})</h2>
+          <div className="flex gap-2 text-xs text-muted-foreground">
+            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              {tracks.filter(t => t.is_philomni_original).length} Originals
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              {tracks.filter(t => !t.is_philomni_original).length} Artist
+            </span>
+          </div>
+        </div>
 
         {loading ? (
           <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
