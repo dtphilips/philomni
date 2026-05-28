@@ -417,7 +417,10 @@ export default function MusicLibrary() {
     async function load() {
       setLoading(true)
       const [{ data: tracks }, { data: pls }] = await Promise.all([
-        supabase.from('music_tracks').select('*').eq('status', 'active').eq('is_public', true).order('created_at', { ascending: false }),
+        supabase.from('music_tracks').select('*')
+          .or('status.eq.active,status.is.null')
+          .or('is_public.eq.true,is_public.is.null')
+          .order('created_at', { ascending: false }),
         user ? supabase.from('playlists').select('*').eq('user_id', user.id).order('created_at', { ascending: false }) : { data: [] },
       ])
       if (!cancelled) {

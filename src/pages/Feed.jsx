@@ -1981,9 +1981,8 @@ export default function Feed() {
   const loadPosts = useCallback(async (pageNum) => {
     if (pageNum > 0) setLoadingMore(true)
     const from = pageNum * PAGE_SIZE
-    // FIX 6: Only show creator or both-feed posts (backward-compat: null = creator)
+    // Show all posts — no feed_type filter (backward-compatible with all post schemas)
     const { data } = await supabase.from('posts').select('*')
-      .or('feed_type.eq.creator,feed_type.eq.both,feed_type.is.null')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
     if (data) {

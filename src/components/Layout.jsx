@@ -358,6 +358,8 @@ export default function Layout({ children }) {
             { to: '/admin/music',     icon: Music,     label: 'Music Management',  badge: '🎵' },
             { to: '/admin/spotlight', icon: Award,     label: 'Spotlight',         badge: '⭐' },
             { to: '/admin/badges',    icon: Award,     label: 'Badge Applications' },
+            { to: '/admin/monetize',  icon: DollarSign,label: 'Monetize Queue'     },
+            { to: '/admin/ads',       icon: Megaphone, label: 'Ad Review'          },
             { to: '/admin/brands',    icon: Building2, label: 'Brand Inquiries'    },
           ],
         },

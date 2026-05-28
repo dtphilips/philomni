@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Users, FileText, Briefcase, Lightbulb, Shield, Loader2,
-  BadgeCheck, DollarSign, Megaphone, ArrowRight, Building2, Music,
+  BadgeCheck, DollarSign, Megaphone, ArrowRight, Building2, Music, Star,
 } from 'lucide-react'
 import { ROLE_LABELS } from '@/lib/categories'
 
@@ -65,6 +65,10 @@ export default function Admin() {
     {
       icon: Music, title: 'Music Library', color: 'text-teal-400', bg: 'bg-teal-400/10',
       count: null, label: 'manage tracks', href: '/admin/music',
+    },
+    {
+      icon: Star, title: 'Spotlight', color: 'text-amber-400', bg: 'bg-amber-400/10',
+      count: null, label: 'monthly spotlight', href: '/admin/spotlight',
     },
   ]
 

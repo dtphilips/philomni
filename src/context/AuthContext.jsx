@@ -12,8 +12,13 @@ const DEV_USER = DEV_MODE ? {
   full_name: 'Dami Dev',
   avatar_url: null,
   role: 'creator',
-  plan: 'pro',
+  plan: 'promax',
+  is_admin: true,
 } : null
+
+// Hardcoded admin emails — these always get is_admin=true and plan=promax
+// regardless of DB state, so admin can never be locked out.
+const ADMIN_EMAILS = ['dtphilips1992@gmail.com']
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(DEV_USER)
@@ -88,7 +93,16 @@ export function AuthProvider({ children }) {
   const refreshProfile = () => loadProfile(user)
 
   // Merged object: auth user + db profile
-  const fullUser = user && profile ? { ...user, ...profile } : null
+  // Admin emails always get is_admin=true and plan=promax so they're never locked out
+  const isHardcodedAdmin = user ? ADMIN_EMAILS.includes((user.email || '').toLowerCase()) : false
+  const fullUser = user && profile
+    ? {
+        ...user,
+        ...profile,
+        is_admin: profile.is_admin === true || isHardcodedAdmin,
+        plan:     (profile.is_admin === true || isHardcodedAdmin) ? 'promax' : (profile.plan || 'free'),
+      }
+    : null
 
   return (
     <AuthContext.Provider value={{ user: fullUser, profile, loading, signIn, signUp, signOut, refreshProfile }}>
