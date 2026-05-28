@@ -307,6 +307,7 @@ export default function AdminMusic() {
       setAudioUploaded(true)           // ← this enables the Next button
 
       console.log('audioUploaded set to TRUE, URL:', publicUrl)
+      return publicUrl                 // ← return so handleNext can use it immediately
 
     } catch (err) {
       console.error('Upload failed:', err)
@@ -315,15 +316,24 @@ export default function AdminMusic() {
       setUploadStage('')
       setAudioUploaded(false)
       setAudioUploadedUrl('')
+      return null                      // ← signal failure to caller
     } finally {
       setUploading(false)
     }
   }
 
   // ── Step 1 → Step 2 ───────────────────────────────────────────────────────
-  const handleNext = () => {
-    if (!audioUploaded || !audioUploadedUrl) return
-    console.log('Moving to Step 2. audioUploadedUrl:', audioUploadedUrl)
+  const handleNext = async () => {
+    if (!audioFile) return
+    // If already uploaded, go straight to step 2
+    let url = audioUploadedUrl
+    if (!audioUploaded || !url) {
+      // File selected but not yet uploaded — upload first, then proceed
+      console.log('Next clicked before upload — auto-uploading first…')
+      url = await handleUploadAudio()
+      if (!url) return   // upload failed; error is already shown in UI
+    }
+    console.log('Moving to Step 2. audioUploadedUrl:', url)
     setWizardStep(2)
   }
 
@@ -581,24 +591,27 @@ export default function AdminMusic() {
                 }
               </button>
 
-              {/* Next button — ONLY disabled when upload has NOT completed */}
+              {/* Next button — active as soon as a file is selected */}
               <button
                 onClick={handleNext}
-                disabled={!audioUploaded}
+                disabled={!audioFile || uploading}
                 className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Next — Add Details
-                <ArrowRight className="w-4 h-4" />
+                {uploading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</>
+                ) : (
+                  <>Next — Add Details <ArrowRight className="w-4 h-4" /></>
+                )}
               </button>
             </div>
 
             {/* Helper text under buttons */}
             <p className="text-xs text-center text-muted-foreground/60">
               {!audioFile
-                ? 'Select a file above, then click Upload File'
-                : !audioUploaded
-                ? 'Click Upload File to send to Supabase storage, then Next will activate'
-                : '✅ File is in Supabase storage — click Next to add track details'}
+                ? 'Select a file above to continue'
+                : audioUploaded
+                ? '✅ File is in Supabase storage — click Next to add track details'
+                : 'Click Upload File first, or click Next to upload & continue automatically'}
             </p>
           </div>
         )}
