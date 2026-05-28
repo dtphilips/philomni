@@ -16,11 +16,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     // generate large cookie headers (causing HTTP 431 on the Vite server).
     autoRefreshToken: !DEV_MODE,
     persistSession: !DEV_MODE,
-    detectSessionInUrl: !DEV_MODE,
+    // detectSessionInUrl: false speeds up initial load — we don't use OAuth
+    // magic-link URLs, so URL scanning is never needed.
+    detectSessionInUrl: false,
     // Single storage key prevents multiple GoTrueClient instances conflicting
     storageKey: 'philomni-auth',
   },
+  global: {
+    fetch: fetch.bind(globalThis),
+  },
   realtime: {
-    params: { eventsPerSecond: 10 },
+    params: { eventsPerSecond: 2 },
   },
 });

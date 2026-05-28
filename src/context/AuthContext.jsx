@@ -57,17 +57,35 @@ export function AuthProvider({ children }) {
 
     if (DEV_MODE) return // skip real auth in dev mode
 
+    // Hard 3-second timeout — app WILL unblock even if Supabase is slow
+    const timeout = setTimeout(() => {
+      console.warn('[Auth] Timeout — forcing loading=false after 3 s')
+      setLoading(false)
+    }, 3000)
+
+    // Check session immediately; unblock loading as soon as we know auth state.
+    // Profile load runs in the background — it does NOT block the app.
     supabase.auth.getSession().then(({ data: { session } }) => {
+      clearTimeout(timeout)
       setUser(session?.user ?? null)
-      loadProfile(session?.user ?? null).finally(() => setLoading(false))
+      setLoading(false) // unblock immediately — profile enriches separately
+      if (session?.user) loadProfile(session.user) // background, non-blocking
+      else setProfile(null)
+    }).catch(() => {
+      clearTimeout(timeout)
+      setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
-      loadProfile(session?.user ?? null)
+      if (session?.user) loadProfile(session.user)
+      else setProfile(null)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
   }, [])
 
   const signIn = async (email, password) => {
@@ -93,15 +111,28 @@ export function AuthProvider({ children }) {
   const refreshProfile = () => loadProfile(user)
 
   // Merged object: auth user + db profile
-  // Admin emails always get is_admin=true and plan=promax so they're never locked out
+  // Admin emails always get is_admin=true and plan=promax so they're never locked out.
+  // When user is authenticated but profile hasn't loaded yet we return basic auth
+  // data immediately — this prevents a flash-redirect to /login while profile loads.
   const isHardcodedAdmin = user ? ADMIN_EMAILS.includes((user.email || '').toLowerCase()) : false
-  const fullUser = user && profile
-    ? {
-        ...user,
-        ...profile,
-        is_admin: profile.is_admin === true || isHardcodedAdmin,
-        plan:     (profile.is_admin === true || isHardcodedAdmin) ? 'promax' : (profile.plan || 'free'),
-      }
+  const fullUser = user
+    ? profile
+      ? {
+          ...user,
+          ...profile,
+          is_admin: profile.is_admin === true || isHardcodedAdmin,
+          plan:     (profile.is_admin === true || isHardcodedAdmin) ? 'promax' : (profile.plan || 'free'),
+        }
+      : {
+          // Profile not yet loaded — serve basic auth data so the app doesn't redirect to login
+          id:         user.id,
+          email:      user.email,
+          full_name:  user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+          avatar_url: user.user_metadata?.avatar_url || null,
+          role:       'creator',
+          plan:       isHardcodedAdmin ? 'promax' : 'free',
+          is_admin:   isHardcodedAdmin,
+        }
     : null
 
   return (
