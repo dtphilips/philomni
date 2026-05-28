@@ -412,19 +412,35 @@ export default function MusicLibrary() {
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
+  const [tracksError, setTracksError] = useState(null)
   useEffect(() => {
     let cancelled = false
     async function load() {
       setLoading(true)
-      const [{ data: tracks }, { data: pls }] = await Promise.all([
-        supabase.from('music_tracks').select('*')
-          .or('status.eq.active,status.is.null')
-          .or('is_public.eq.true,is_public.is.null')
-          .order('created_at', { ascending: false }),
-        user ? supabase.from('playlists').select('*').eq('user_id', user.id).order('created_at', { ascending: false }) : { data: [] },
-      ])
+      setTracksError(null)
+      // Try active/public filter first
+      const { data: tracks, error: tracksErr } = await supabase
+        .from('music_tracks')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+      console.log('Tracks fetched:', tracks?.length, tracksErr)
+      let finalTracks = tracks
+      if (tracksErr || !tracks?.length) {
+        // Fallback: fetch all tracks regardless of status
+        const { data: allT, error: allErr } = await supabase
+          .from('music_tracks')
+          .select('*')
+          .order('created_at', { ascending: false })
+        console.log('All tracks:', allT?.length, allErr)
+        if (allErr) setTracksError(allErr.message)
+        finalTracks = allT
+      }
+      const { data: pls } = user
+        ? await supabase.from('playlists').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+        : { data: [] }
       if (!cancelled) {
-        setAllTracks(tracks || [])
+        setAllTracks(finalTracks || [])
         setPlaylists(pls || [])
         setLoading(false)
       }
@@ -685,6 +701,11 @@ export default function MusicLibrary() {
 
         {/* Main content */}
         <div className="flex-1 min-w-0">
+          {tracksError && (
+            <div style={{ color: 'red', padding: '10px', background: '#fee', borderRadius: '8px', marginBottom: '12px', fontSize: '13px' }}>
+              Music library error: {tracksError}
+            </div>
+          )}
           {mainContent}
         </div>
       </div>

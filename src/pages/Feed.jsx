@@ -1972,6 +1972,7 @@ export default function Feed() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [feedAd, setFeedAd] = useState(null)
+  const [feedError, setFeedError] = useState(null)
   const sentinelRef = useRef()
   const pageRef = useRef(0)
 
@@ -1981,11 +1982,41 @@ export default function Feed() {
   const loadPosts = useCallback(async (pageNum) => {
     if (pageNum > 0) setLoadingMore(true)
     const from = pageNum * PAGE_SIZE
-    // Show all posts — no feed_type filter (backward-compatible with all post schemas)
-    const { data } = await supabase.from('posts').select('*')
+    // Try join query first (with user profile data)
+    const { data, error } = await supabase
+      .from('posts')
+      .select(`
+        *,
+        users (
+          id,
+          full_name,
+          avatar_url,
+          username,
+          is_admin,
+          plan,
+          badge_type
+        )
+      `)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
-    if (data) {
+    console.log('Posts fetched:', data?.length, error)
+    if (error) {
+      // Fallback: simple query without join
+      console.warn('Join query failed, trying simple query:', error.message)
+      const { data: simpleData, error: simpleError } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1)
+      console.log('Simple posts:', simpleData?.length, simpleError)
+      if (simpleError) {
+        setFeedError(simpleError.message)
+      } else if (simpleData) {
+        setPosts(prev => pageNum === 0 ? simpleData : [...prev, ...simpleData])
+        setHasMore(simpleData.length === PAGE_SIZE)
+      }
+    } else if (data) {
+      setFeedError(null)
       setPosts(prev => pageNum === 0 ? data : [...prev, ...data])
       setHasMore(data.length === PAGE_SIZE)
     }
@@ -2043,6 +2074,11 @@ export default function Feed() {
         <PostComposer user={user} onCreated={handleCreated} />
 
         {/* Posts */}
+        {feedError && (
+          <div style={{ color: 'red', padding: '10px', background: '#fee', borderRadius: '8px', marginBottom: '12px', fontSize: '13px' }}>
+            Feed error: {feedError}
+          </div>
+        )}
         {loading ? (
           <div className="space-y-4">
             {[1,2,3].map(i => (

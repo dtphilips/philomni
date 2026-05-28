@@ -17,6 +17,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: !DEV_MODE,
     persistSession: !DEV_MODE,
     detectSessionInUrl: !DEV_MODE,
+    // Single storage key prevents multiple GoTrueClient instances conflicting
+    storageKey: 'philomni-auth',
   },
   realtime: {
     params: { eventsPerSecond: 10 },
