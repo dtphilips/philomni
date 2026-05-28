@@ -281,7 +281,11 @@ export default function AdminMusic() {
 
       const { data: storageData, error: storageError } = await supabase.storage
         .from('philomni-music')
-        .upload(audioPath, audioFile, { cacheControl: '3600', upsert: false })
+        .upload(audioPath, audioFile, {
+          contentType: audioFile.type || 'audio/mpeg',
+          cacheControl: '3600',
+          upsert: true,
+        })
 
       console.log('Storage response:', storageData, storageError)
 

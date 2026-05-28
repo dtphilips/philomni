@@ -27,7 +27,7 @@ ON storage.objects FOR DELETE
 TO authenticated
 USING (bucket_id = 'philomni-music');
 
--- Allow authenticated users to update
+-- Allow authenticated users to update (needed for upsert: true)
 CREATE POLICY "Allow authenticated updates"
 ON storage.objects FOR UPDATE
 TO authenticated

@@ -100,11 +100,11 @@ export default function AudioStudio() {
     setLoadingTracks(true)
     try {
       const { data, error } = await supabase
-        .from('audio_tracks')
+        .from('music_tracks')
         .select('*')
         .eq('created_by', user.id)
         .order('created_at', { ascending: false })
-      if (error) console.error('[AudioStudio] audio_tracks:', error.message)
+      if (error) console.error('[AudioStudio] music_tracks:', error.message)
       setTracks(data || [])
     } catch (e) {
       console.error('[AudioStudio] fetchTracks:', e.message)
@@ -138,7 +138,7 @@ export default function AudioStudio() {
 
   // ── Delete track ────────────────────────────────────────────────────────
   async function deleteTrack(id) {
-    await supabase.from('audio_tracks').delete().eq('id', id)
+    await supabase.from('music_tracks').delete().eq('id', id)
     setTracks(t => t.filter(x => x.id !== id))
     setOpenMenuId(null)
     if (playingId === id) {
@@ -198,7 +198,7 @@ export default function AudioStudio() {
   // ── Publish ─────────────────────────────────────────────────────────────
   async function handlePublish(isDraft = false) {
     setPublishing(true)
-    await supabase.from('audio_tracks').insert({
+    await supabase.from('music_tracks').insert({
       title: trackDetails.title,
       genre: trackDetails.genre,
       audio_url: audioUrl,
