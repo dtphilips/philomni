@@ -12,8 +12,10 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const GENRES = [
-  'Afrobeats', 'Pop', 'R&B', 'Hip Hop', 'Gospel',
-  'Electronic', 'Ambient', 'Lo-Fi', 'Classical', 'Jazz', 'Other',
+  'Afrobeats', 'Afropop', 'Amapiano', 'Pop', 'Hip Hop', 'R&B',
+  'Gospel', 'Soul', 'Electronic', 'Lo-Fi', 'Indie', 'Rock',
+  'Country', 'Jazz', 'Classical', 'Ambient', 'Reggae', 'Dancehall',
+  'Latin', 'Blues', 'Folk', 'World', 'Spoken Word', 'Other',
 ]
 
 const MOODS = [
@@ -270,7 +272,14 @@ export default function AdminMusic() {
     setUploadStage('Preparing upload…')
 
     try {
-      const fileName = Date.now() + '_' + audioFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+      const sanitizeFilename = (name) => name
+        .normalize('NFD')                    // decompose accented chars (e.g. à → a + ̀)
+        .replace(/[̀-ͯ]/g, '')     // strip the accent combining chars
+        .replace(/[^a-zA-Z0-9.-]/g, '_')    // replace anything non-safe with _
+        .replace(/_+/g, '_')                 // collapse consecutive underscores
+        .toLowerCase()
+
+      const fileName = Date.now() + '_' + sanitizeFilename(audioFile.name)
       const audioPath = 'audio/' + fileName
 
       console.log('Starting audio upload to:', audioPath)
@@ -368,8 +377,10 @@ export default function AdminMusic() {
       let coverUrl = null
       if (coverFile) {
         console.log('Uploading cover art:', coverFile.name)
-        const safeName = coverFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-        const coverPath = `covers/${Date.now()}-${safeName}`
+        const safeCover = coverFile.name
+          .normalize('NFD').replace(/[̀-ͯ]/g, '')
+          .replace(/[^a-zA-Z0-9.-]/g, '_').replace(/_+/g, '_').toLowerCase()
+        const coverPath = 'covers/' + Date.now() + '_' + safeCover
         const { data: coverData, error: coverError } = await supabase.storage
           .from('philomni-music')
           .upload(coverPath, coverFile, { cacheControl: '3600', upsert: false })
@@ -415,7 +426,14 @@ export default function AdminMusic() {
 
       console.log('DB response:', inserted, dbError)
 
-      if (dbError) throw new Error('Database error: ' + dbError.message)
+      if (dbError) {
+        console.error('DB INSERT ERROR:', JSON.stringify(dbError))
+        throw new Error(
+          'Database error: ' + dbError.message +
+          (dbError.details ? ' | Details: ' + dbError.details : '') +
+          (dbError.hint   ? ' | Hint: '    + dbError.hint    : '')
+        )
+      }
 
       toast.success('Track saved successfully!')
 
