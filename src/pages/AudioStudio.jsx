@@ -102,7 +102,7 @@ export default function AudioStudio() {
       const { data, error } = await supabase
         .from('music_tracks')
         .select('*')
-        .eq('created_by', user.id)
+        .eq('uploaded_by', user.id)
         .order('created_at', { ascending: false })
       if (error) console.error('[AudioStudio] music_tracks:', error.message)
       setTracks(data || [])
@@ -205,7 +205,7 @@ export default function AudioStudio() {
       cover_url: coverUrl || null,
       bpm: trackDetails.bpm ? parseInt(trackDetails.bpm) : null,
       mood: trackDetails.mood,
-      created_by: user.id,
+      uploaded_by: user.id,
       is_public: !isDraft,
       plays: 0,
     })

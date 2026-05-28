@@ -270,8 +270,8 @@ export default function AdminMusic() {
     setUploadStage('Preparing upload…')
 
     try {
-      const safeName = audioFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const audioPath = `audio/${Date.now()}-${safeName}`
+      const fileName = Date.now() + '_' + audioFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+      const audioPath = 'audio/' + fileName
 
       console.log('Starting audio upload to:', audioPath)
       console.log('File:', audioFile.name, audioFile.type, audioFile.size, 'bytes')
@@ -287,11 +287,15 @@ export default function AdminMusic() {
           upsert: true,
         })
 
-      console.log('Storage response:', storageData, storageError)
+      console.log('STORAGE SUCCESS:', storageData)
 
       if (storageError) {
-        console.error('Storage upload error:', storageError)
-        throw new Error('Storage upload failed: ' + storageError.message)
+        console.error('STORAGE ERROR:', storageError)
+        setUploadError('Upload failed: ' + storageError.message)
+        setUploadProgress(0)
+        setUploadStage('')
+        setUploading(false)
+        return null
       }
 
       setUploadProgress(80)
