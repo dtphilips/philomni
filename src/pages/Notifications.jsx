@@ -50,17 +50,25 @@ export default function Notifications() {
   const [markingAll, setMarkingAll] = useState(false);
   const channelRef = useRef(null);
 
-  // Load notifications
+  // Load notifications — no auth dependency, get session inside
   useEffect(() => {
-    if (!user) return;
+    const timeout = setTimeout(() => setLoading(false), 5000);
 
     async function load() {
-      setLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setNotifications(SAMPLE_NOTIFICATIONS);
+        setLoading(false);
+        clearTimeout(timeout);
+        return;
+      }
+      const uid = session.user.id;
       try {
+        setLoading(true);
         const { data, error } = await supabase
           .from('notifications')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', uid)
           .order('created_at', { ascending: false })
           .limit(50);
 
@@ -70,29 +78,29 @@ export default function Notifications() {
         setNotifications(SAMPLE_NOTIFICATIONS);
       } finally {
         setLoading(false);
+        clearTimeout(timeout);
       }
+
+      // Realtime subscription
+      channelRef.current = supabase
+        .channel('notifications')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${uid}` },
+          (payload) => { setNotifications((prev) => [payload.new, ...prev]); }
+        )
+        .subscribe();
     }
 
     load();
 
-    // Realtime subscription
-    channelRef.current = supabase
-      .channel('notifications')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
-        (payload) => {
-          setNotifications((prev) => [payload.new, ...prev]);
-        }
-      )
-      .subscribe();
-
     return () => {
+      clearTimeout(timeout);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [user]);
+  }, []); // runs once — session fetched inside
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 

@@ -81,28 +81,37 @@ export default function Wallet() {
   const [showWithdraw, setShowWithdraw] = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState('')
 
-  const fetchWallet = useCallback(async () => {
-    if (!user?.id) return
-    const { data } = await supabase.from('wallet').select('*').eq('user_id', user.id).single()
+  const fetchWallet = useCallback(async (uid) => {
+    const { data } = await supabase.from('wallet').select('*').eq('user_id', uid).single()
     setWallet(data || { balance: 0, total_earned: 0, total_withdrawn: 0, pending_payout: 0 })
-  }, [user?.id])
+  }, [])
 
-  const fetchTxns = useCallback(async () => {
-    if (!user?.id) return
+  const fetchTxns = useCallback(async (uid) => {
     const from = page * PAGE_SIZE
     const { data, count } = await supabase
       .from('wallet_transactions')
       .select('*', { count: 'exact' })
-      .eq('user_id', user.id)
+      .eq('user_id', uid)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
     setTxns(data || [])
     setTotal(count || 0)
-  }, [user?.id, page])
+  }, [page])
 
   useEffect(() => {
-    if (!user?.id) return
-    Promise.all([fetchWallet(), fetchTxns()]).then(() => setLoading(false))
+    const timeout = setTimeout(() => setLoading(false), 5000)
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { setLoading(false); clearTimeout(timeout); return }
+      try {
+        await Promise.all([fetchWallet(session.user.id), fetchTxns(session.user.id)])
+      } finally {
+        setLoading(false)
+        clearTimeout(timeout)
+      }
+    }
+    init()
+    return () => clearTimeout(timeout)
   }, [fetchWallet, fetchTxns])
 
   // Pie chart data from transactions
@@ -134,7 +143,7 @@ export default function Wallet() {
       setWallet(prev => ({ ...prev, balance: newBalance, total_withdrawn: (prev.total_withdrawn || 0) + amount }))
       setShowWithdraw(false)
       setWithdrawAmount('')
-      fetchTxns()
+      if (user?.id) fetchTxns(user.id)
     } catch { toast.error('Withdrawal failed') }
     setWithdrawing(false)
   }

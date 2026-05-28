@@ -51,15 +51,17 @@ export default function Certificates() {
   const [sharing, setSharing] = useState({});
 
   useEffect(() => {
-    if (!user) return;
+    const timeout = setTimeout(() => setLoading(false), 5000);
 
     async function load() {
-      setLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) { setCerts(SAMPLE_CERTS); setLoading(false); clearTimeout(timeout); return; }
       try {
+        setLoading(true);
         const { data, error } = await supabase
           .from('enrollments')
           .select('*, courses(*)')
-          .eq('user_id', user.id)
+          .eq('user_id', session.user.id)
           .eq('progress_percent', 100);
 
         if (error) throw error;
@@ -83,11 +85,13 @@ export default function Certificates() {
         setCerts(SAMPLE_CERTS);
       } finally {
         setLoading(false);
+        clearTimeout(timeout);
       }
     }
 
     load();
-  }, [user]);
+    return () => clearTimeout(timeout);
+  }, []); // runs once — session fetched inside
 
   async function shareToFeed(cert) {
     if (!user) return;

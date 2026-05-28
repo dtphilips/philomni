@@ -173,7 +173,9 @@ export default function Analytics() {
   const [sortDir, setSortDir]       = useState('desc')
 
   const load = useCallback(async () => {
-    if (!user?.id) return
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) { setLoading(false); return }
+    const userId = session.user.id
     setLoading(true)
 
     const safeQuery = (q) => q.catch(() => ({ data: null, count: 0, error: null }))
@@ -181,20 +183,20 @@ export default function Analytics() {
     const [postsRes, follRes, followingRes, notifRes, recentLikesRes, recentCommentsRes, recentFollowsRes] = await Promise.all([
       safeQuery(supabase.from('posts')
         .select('id, view_count, like_count, comment_count, repost_count, save_count, content, created_at, media_urls')
-        .eq('author_id', user.id)
+        .eq('author_id', userId)
         .order('created_at', { ascending: false })),
-      safeQuery(supabase.from('follows').select('id, created_at', { count: 'exact' }).eq('following_id', user.id)),
-      safeQuery(supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', user.id)),
-      safeQuery(supabase.from('notifications').select('*').eq('user_id', user.id)
+      safeQuery(supabase.from('follows').select('id, created_at', { count: 'exact' }).eq('following_id', userId)),
+      safeQuery(supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', userId)),
+      safeQuery(supabase.from('notifications').select('*').eq('user_id', userId)
         .order('created_at', { ascending: false }).limit(10)),
       safeQuery(supabase.from('likes').select('id, created_at, user_id, post_id, posts!inner(content, author_id, media_urls)')
-        .eq('posts.author_id', user.id)
+        .eq('posts.author_id', userId)
         .order('created_at', { ascending: false }).limit(5)),
       safeQuery(supabase.from('comments').select('id, created_at, content, user_id, post_id, posts!inner(content, author_id)')
-        .eq('posts.author_id', user.id)
+        .eq('posts.author_id', userId)
         .order('created_at', { ascending: false }).limit(5)),
       safeQuery(supabase.from('follows').select('id, created_at, follower_id, profiles:follower_id(username, avatar_url)')
-        .eq('following_id', user.id)
+        .eq('following_id', userId)
         .order('created_at', { ascending: false }).limit(5)),
     ])
 
@@ -335,13 +337,16 @@ export default function Analytics() {
     setLastUpdated(new Date())
     setLoading(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
+  }, []) // session fetched inside — no user dep needed
 
   // Wrap invocation so an unexpected throw never leaves the page in a loading state
   const loadSafe = useCallback(async () => {
+    const timeout = setTimeout(() => setLoading(false), 5000)
     try { await load() } catch (e) {
       console.error('[Analytics] load error:', e.message)
       setLoading(false)
+    } finally {
+      clearTimeout(timeout)
     }
   }, [load])
 

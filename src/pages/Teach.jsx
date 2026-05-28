@@ -65,10 +65,24 @@ export default function Teach() {
   const [form, setForm] = useState(emptyForm)
 
   useEffect(() => {
-    if (!user?.id) return
-    supabase.from('courses').select('*').eq('creator_id', user.id).order('created_at', { ascending: false })
-      .then(({ data }) => { setCourses(data || []); setLoading(false) })
-  }, [user?.id])
+    const timeout = setTimeout(() => setLoading(false), 5000)
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { setLoading(false); clearTimeout(timeout); return }
+      try {
+        const { data } = await supabase
+          .from('courses').select('*')
+          .eq('creator_id', session.user.id)
+          .order('created_at', { ascending: false })
+        setCourses(data || [])
+      } finally {
+        setLoading(false)
+        clearTimeout(timeout)
+      }
+    }
+    init()
+    return () => clearTimeout(timeout)
+  }, []) // runs once — session fetched inside
 
   const addModule = () => setForm(f => ({
     ...f,

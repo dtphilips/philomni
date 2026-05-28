@@ -29,18 +29,28 @@ export default function ConsultingOffer() {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   useEffect(() => {
-    if (!user?.id) return
-    Promise.all([
-      supabase.from('consulting_services').select('*').eq('provider_id', user.id).order('created_at', { ascending: false }),
-      supabase.from('consulting_bookings').select('*, users!consulting_bookings_client_id_fkey(full_name,avatar_url)').eq('provider_id', user.id).order('created_at', { ascending: false }),
-      supabase.from('consulting_reviews').select('*, users!consulting_reviews_user_id_fkey(full_name,avatar_url), consulting_services(title)').eq('consulting_services.provider_id', user.id),
-    ]).then(([s, b, r]) => {
-      setServices(s.data || [])
-      setBookings(b.data || [])
-      setReviews(r.data || [])
-      setLoading(false)
-    })
-  }, [user?.id])
+    const timeout = setTimeout(() => setLoading(false), 5000)
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { setLoading(false); clearTimeout(timeout); return }
+      try {
+        const uid = session.user.id
+        const [s, b, r] = await Promise.all([
+          supabase.from('consulting_services').select('*').eq('provider_id', uid).order('created_at', { ascending: false }),
+          supabase.from('consulting_bookings').select('*, users!consulting_bookings_client_id_fkey(full_name,avatar_url)').eq('provider_id', uid).order('created_at', { ascending: false }),
+          supabase.from('consulting_reviews').select('*, users!consulting_reviews_user_id_fkey(full_name,avatar_url), consulting_services(title)').eq('consulting_services.provider_id', uid),
+        ])
+        setServices(s.data || [])
+        setBookings(b.data || [])
+        setReviews(r.data || [])
+      } finally {
+        setLoading(false)
+        clearTimeout(timeout)
+      }
+    }
+    init()
+    return () => clearTimeout(timeout)
+  }, []) // runs once — session fetched inside
 
   const handleSave = async () => {
     if (!form.title.trim()) return toast.error('Title is required')
