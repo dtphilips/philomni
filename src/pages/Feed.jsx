@@ -15,6 +15,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import MediaEditor from '@/components/editor/MediaEditor'
 import { useMusic } from '../context/MusicContext'
 import SpotlightBanner from '../components/SpotlightBanner'
+import SpotlightBadge from '../components/SpotlightBadge'
 
 // ── In-feed Ad Card ───────────────────────────────────────────────────────────
 function AdCard({ ad, viewerId }) {
@@ -1185,7 +1186,12 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate }) {
           <div className="flex items-center gap-3">
             <Avatar src={post.author_avatar} name={post.author_name} size={11} />
             <div>
-              <p className="text-sm font-bold text-foreground leading-tight">{post.author_name ?? 'Creator'}</p>
+              <p className="text-sm font-bold text-foreground leading-tight flex items-center gap-1.5">
+                {post.author_name ?? 'Creator'}
+                {spotlightWinnerId && post.author_id === spotlightWinnerId && (
+                  <SpotlightBadge size="sm" />
+                )}
+              </p>
               {(post.author_role || post.author_headline) && (
                 <p className="text-xs text-primary/80 leading-tight mt-0.5">{post.author_role ?? post.author_headline}</p>
               )}
@@ -1973,11 +1979,24 @@ export default function Feed() {
   const [hasMore, setHasMore] = useState(true)
   const [feedAd, setFeedAd] = useState(null)
   const [feedError, setFeedError] = useState(null)
+  const [spotlightWinnerId, setSpotlightWinnerId] = useState(null)
   const sentinelRef = useRef()
   const pageRef = useRef(0)
 
   // Load a sponsored ad for injection
   useEffect(() => { fetchFeedAd().then(setFeedAd) }, [])
+
+  // Fetch current spotlight winner's user_id for badge display
+  useEffect(() => {
+    const currentMonth = new Date().toISOString().slice(0, 7)
+    supabase
+      .from('spotlight_winners')
+      .select('user_id')
+      .eq('month', currentMonth)
+      .eq('is_active', true)
+      .maybeSingle()
+      .then(({ data }) => { if (data?.user_id) setSpotlightWinnerId(data.user_id) })
+  }, [])
 
   const loadPosts = useCallback(async (pageNum) => {
     if (pageNum > 0) setLoadingMore(true)

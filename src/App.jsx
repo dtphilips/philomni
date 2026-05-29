@@ -297,6 +297,7 @@ export default function App() {
             {/* Spotlight */}
             <Route path="/spotlight"          element={<P page={SpotlightArchive} />} />
             <Route path="/spotlight/nominate" element={<P page={SpotlightNominate} />} />
+            <Route path="/spotlight/current"  element={<P page={SpotlightPage} />} />
             <Route path="/spotlight/:month"   element={<P page={SpotlightPage} />} />
             <Route path="/monetize"       element={<P page={CreatorMonetize} />} />
             <Route path="/advertise"      element={<P page={Advertise} />} />

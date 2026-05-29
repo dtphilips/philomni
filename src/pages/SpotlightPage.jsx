@@ -88,11 +88,17 @@ export default function SpotlightPage() {
     let cancelled = false
     async function load() {
       setLoading(true)
-      const { data: w } = await supabase
-        .from('spotlight_winners')
-        .select('*')
-        .eq('month', month)
-        .maybeSingle()
+
+      // 'current' resolves to the active winner for the current month
+      const resolvedMonth = month === 'current'
+        ? new Date().toISOString().slice(0, 7)
+        : month
+
+      const query = month === 'current'
+        ? supabase.from('spotlight_winners').select('*').eq('is_active', true).maybeSingle()
+        : supabase.from('spotlight_winners').select('*').eq('month', resolvedMonth).maybeSingle()
+
+      const { data: w } = await query
 
       if (!w || cancelled) { setLoading(false); return }
       setWinner(w)
