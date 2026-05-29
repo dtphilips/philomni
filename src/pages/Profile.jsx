@@ -7,9 +7,10 @@ import {
   Camera, Edit2, Loader2, MapPin, Globe, Share2, Settings,
   MessageSquare, UserPlus, UserMinus, MoreHorizontal, Grid, List,
   Briefcase, GraduationCap, Heart, MessageCircle, Eye, Play,
-  Plus, X, Check, Star,
+  Plus, X, Check, Star, Radio, Users,
 } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
+import GoLiveModal from '../components/GoLiveModal'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CONTENT_CATEGORIES = [
@@ -575,6 +576,8 @@ export default function Profile() {
   const [stats, setStats] = useState({ posts: 0, followers: 0, following: 0 })
   const [showEditModal, setShowEditModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [showGoLive, setShowGoLive] = useState(false)
+  const [activeLive, setActiveLive] = useState(null)
   const [isFollowing, setIsFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(null)
@@ -597,6 +600,14 @@ export default function Profile() {
         })
     }
   }, [userId, user, isOwnProfile])
+
+  // Check if this user is currently live
+  useEffect(() => {
+    const targetId = isOwnProfile ? user?.id : userId
+    if (!targetId) return
+    supabase.from('lives').select('*').eq('host_id', targetId).eq('status', 'live').maybeSingle()
+      .then(({ data }) => setActiveLive(data || null))
+  }, [userId, user?.id, isOwnProfile])
 
   // Load posts — try both column names
   useEffect(() => {
@@ -775,6 +786,13 @@ export default function Profile() {
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-sm font-medium hover:bg-muted transition-all">
                 <Edit2 className="w-3.5 h-3.5" /> Edit Profile
               </button>
+              <button
+                onClick={() => setShowGoLive(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-destructive text-white text-sm font-bold hover:bg-red-700 transition-all"
+              >
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                Go Live
+              </button>
               <button onClick={() => setShowShareModal(true)}
                 className="p-2 rounded-xl border border-border bg-card hover:bg-muted transition-all" title="Share">
                 <Share2 className="w-4 h-4" />
@@ -802,6 +820,29 @@ export default function Profile() {
           )}
         </div>
       </div>
+
+      {/* ── LIVE NOW banner ── */}
+      {activeLive && (
+        <button
+          onClick={() => navigate(`/live/${activeLive.id}`)}
+          className="w-full flex items-center gap-3 mb-4 px-4 py-3 rounded-2xl bg-destructive/10 border-2 border-destructive/40 hover:border-destructive transition-all group"
+        >
+          <div className="w-8 h-8 rounded-full bg-destructive flex items-center justify-center flex-shrink-0">
+            <Radio className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex-1 text-left">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+              <span className="text-sm font-bold text-destructive">🔴 LIVE NOW</span>
+            </div>
+            <p className="text-xs text-muted-foreground truncate">{activeLive.title}</p>
+          </div>
+          <div className="text-xs text-muted-foreground flex items-center gap-1">
+            <Users className="w-3 h-3" />
+            {activeLive.viewer_count || 0}
+          </div>
+        </button>
+      )}
 
       {/* ── NAME + BIO ── */}
       <div className="mb-4">
@@ -1002,6 +1043,7 @@ export default function Profile() {
       {/* ── MODALS ── */}
       {showEditModal && <EditProfileModal profileUser={du} onClose={() => setShowEditModal(false)} onSave={handleSaveProfile} />}
       {showShareModal && <ShareProfileModal profileUser={du} onClose={() => setShowShareModal(false)} />}
+      {showGoLive && <GoLiveModal onClose={() => setShowGoLive(false)} />}
     </div>
   )
 }

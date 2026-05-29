@@ -143,6 +143,12 @@ import Investors from './pages/Investors'
 import Onboarding from './pages/Onboarding'
 import OnboardingProfile from './pages/OnboardingProfile'
 
+// Live feature
+import LiveHost from './pages/LiveHost'
+import LiveViewer from './pages/LiveViewer'
+import LiveStart from './pages/LiveStart'
+import BuyCoins from './pages/BuyCoins'
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 })
@@ -322,6 +328,12 @@ export default function App() {
             {/* Onboarding */}
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/onboarding/profile" element={<OnboardingProfile />} />
+
+            {/* Live feature — host/viewer are full-screen (no sidebar layout) */}
+            <Route path="/live/start" element={<P page={LiveStart} />} />
+            <Route path="/live/:id/host" element={<LiveHost />} />
+            <Route path="/live/:id" element={<LiveViewer />} />
+            <Route path="/coins" element={<P page={BuyCoins} />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

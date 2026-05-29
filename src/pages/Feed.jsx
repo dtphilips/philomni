@@ -18,6 +18,8 @@ import SpotlightBanner from '../components/SpotlightBanner'
 import SpotlightBadge from '../components/SpotlightBadge'
 import SkeletonFeed from '../components/SkeletonFeed'
 import { fetchWithCache } from '../lib/queryCache'
+import LivesRow from '../components/LivesRow'
+import GoLiveModal from '../components/GoLiveModal'
 
 // ── In-feed Ad Card ───────────────────────────────────────────────────────────
 function AdCard({ ad, viewerId }) {
@@ -1982,6 +1984,7 @@ export default function Feed() {
   const [feedAd, setFeedAd] = useState(null)
   const [feedError, setFeedError] = useState(null)
   const [spotlightWinnerId, setSpotlightWinnerId] = useState(null)
+  const [showGoLive, setShowGoLive] = useState(false)
   const sentinelRef = useRef()
   const pageRef = useRef(0)
 
@@ -2064,13 +2067,31 @@ export default function Feed() {
         {/* Spotlight Banner */}
         <SpotlightBanner />
 
+        {/* Live streams row — only shown when lives exist */}
+        <LivesRow />
+
         {/* Stories */}
         <div className="bg-card border border-border/60 rounded-2xl p-4 mb-4 shadow-sm">
           <StoriesBar currentUser={user} />
         </div>
 
+        {/* Go Live button */}
+        <div className="bg-card border border-border/60 rounded-2xl px-4 py-3 mb-4 shadow-sm flex items-center gap-3">
+          <button
+            onClick={() => setShowGoLive(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-destructive text-white text-sm font-bold hover:bg-red-700 transition-colors shadow-sm"
+          >
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            🔴 Go Live
+          </button>
+          <p className="text-xs text-muted-foreground">Share your moment live with your audience</p>
+        </div>
+
         {/* Composer */}
         <PostComposer user={user} onCreated={handleCreated} />
+
+        {/* Go Live Modal */}
+        {showGoLive && <GoLiveModal onClose={() => setShowGoLive(false)} />}
 
         {/* Posts */}
         {feedError && (

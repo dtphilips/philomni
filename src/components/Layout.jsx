@@ -27,6 +27,7 @@ const CREATOR_NAV = [
       { to: '/',         icon: Home,       label: 'Feed' },
       { to: '/reels',    icon: Film,       label: 'Reels' },
       { to: '/stories',  icon: BookOpen,   label: 'Stories' },
+      { to: '/live/start', icon: Radio,    label: 'Go Live', badge: '🔴' },
     ],
   },
   {
@@ -152,6 +153,7 @@ const PRO_NAV = [
   {
     label: 'Build',
     items: [
+      { to: '/live/start', icon: Radio,    label: 'Go Live', badge: '🔴' },
       { to: '/rooms',      icon: Radio,    label: 'Rooms' },
       { to: '/meetings',   icon: Video,    label: 'Meetings' },
       { to: '/podcasts',   icon: Mic2,     label: 'Podcasts' },
