@@ -267,7 +267,7 @@ function LessonFeedback({ course, lesson, user }) {
     await supabase.from('lesson_feedback').upsert({
       course_id: course.id, lesson_id: lesson?.id,
       user_id: user?.id, helpful: type === 'helpful',
-    }).catch(() => {})
+    })
   }
 
   const pct = Math.round(helpfulCount / (helpfulCount + 4) * 100)
@@ -334,7 +334,7 @@ function LessonDiscussion({ course, lesson, user }) {
       course_id: course.id, lesson_id: lesson?.id,
       user_id: user?.id, user_name: post.user_name,
       content: post.content, type: post.type,
-    }).catch(() => {})
+    })
     setDiscussions(prev => [post, ...prev])
     setNewContent('')
     setSubmitting(false)
@@ -495,7 +495,7 @@ function RateCourseModal({ course, onClose, onRate }) {
     await supabase.from('course_reviews').upsert({
       course_id: course.id, user_id: user?.id,
       rating, review, created_at: new Date().toISOString(),
-    }).catch(() => {})
+    })
     onRate(rating)
     setDone(true)
     setSubmitting(false)

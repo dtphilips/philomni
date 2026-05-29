@@ -178,13 +178,15 @@ export default function Analytics() {
     const userId = session.user.id
     setLoading(true)
 
-    const safeQuery = (q) => q.catch(() => ({ data: null, count: 0, error: null }))
+    // Wrap in Promise.resolve so .catch() is called on a real Promise (not a supabase query builder)
+    const safeQuery = (q) => Promise.resolve(q).catch(() => ({ data: null, count: 0, error: null }))
 
     const [postsRes, follRes, followingRes, notifRes, recentLikesRes, recentCommentsRes, recentFollowsRes] = await Promise.all([
       safeQuery(supabase.from('posts')
         .select('id, view_count, like_count, comment_count, repost_count, save_count, content, created_at, media_urls')
         .eq('author_id', userId)
-        .order('created_at', { ascending: false })),
+        .order('created_at', { ascending: false })
+        .limit(20)),
       safeQuery(supabase.from('follows').select('id, created_at', { count: 'exact' }).eq('following_id', userId)),
       safeQuery(supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', userId)),
       safeQuery(supabase.from('notifications').select('*').eq('user_id', userId)

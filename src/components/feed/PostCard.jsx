@@ -265,7 +265,7 @@ export default function PostCard({ post, user, userLikes = [], userBookmarks = [
             trigger={
               <button
                 className="flex items-center justify-center gap-1.5 min-h-[44px] w-full rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                onClick={() => supabase.from('posts').update({ share_count: (post.share_count || 0) + 1 }).eq('id', post.id).catch(() => {})}
+                onClick={() => supabase.from('posts').update({ share_count: (post.share_count || 0) + 1 }).eq('id', post.id)}
               >
                 <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                 <span className="text-xs sm:text-sm">Share</span>

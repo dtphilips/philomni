@@ -1102,7 +1102,7 @@ function SpaceView({ space, onBack }) {
         file_type: file.name.split('.').pop(), uploader_id: null,
         uploaded_at: new Date().toISOString(),
       }
-      await supabase.from('meeting_files').insert(meta).catch(() => {})
+      await supabase.from('meeting_files').insert(meta)
       setFiles(prev => [...prev, { id: 'f' + Date.now(), name: file.name, size: file.size, type: meta.file_type, uploader: 'You', uploaded_at: meta.uploaded_at }])
     } catch (e) { console.error('[Meetings] space file upload:', e.message) }
     setUploading(false)

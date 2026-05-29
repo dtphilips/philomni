@@ -16,6 +16,8 @@ import MediaEditor from '@/components/editor/MediaEditor'
 import { useMusic } from '../context/MusicContext'
 import SpotlightBanner from '../components/SpotlightBanner'
 import SpotlightBadge from '../components/SpotlightBadge'
+import SkeletonFeed from '../components/SkeletonFeed'
+import { fetchWithCache } from '../lib/queryCache'
 
 // ── In-feed Ad Card ───────────────────────────────────────────────────────────
 function AdCard({ ad, viewerId }) {
@@ -1986,16 +1988,18 @@ export default function Feed() {
   // Load a sponsored ad for injection
   useEffect(() => { fetchFeedAd().then(setFeedAd) }, [])
 
-  // Fetch current spotlight winner's user_id for badge display
+  // Fetch current spotlight winner's user_id — cached 5 min, fetched once per session
   useEffect(() => {
     const currentMonth = new Date().toISOString().slice(0, 7)
-    supabase
-      .from('spotlight_winners')
-      .select('user_id')
-      .eq('month', currentMonth)
-      .eq('is_active', true)
-      .maybeSingle()
-      .then(({ data }) => { if (data?.user_id) setSpotlightWinnerId(data.user_id) })
+    fetchWithCache(`spotlight-winner-${currentMonth}`, async () => {
+      const { data } = await supabase
+        .from('spotlight_winners')
+        .select('user_id')
+        .eq('month', currentMonth)
+        .eq('is_active', true)
+        .maybeSingle()
+      return data?.user_id || null
+    }, 300_000).then(uid => { if (uid) setSpotlightWinnerId(uid) })
   }, [])
 
   const loadPosts = useCallback(async (pageNum) => {
@@ -2018,16 +2022,13 @@ export default function Feed() {
       `)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
-    console.log('Posts fetched:', data?.length, error)
     if (error) {
-      // Fallback: simple query without join
-      console.warn('Join query failed, trying simple query:', error.message)
+      // Fallback: simple query without join — only essential columns
       const { data: simpleData, error: simpleError } = await supabase
         .from('posts')
-        .select('*')
+        .select('id, content, created_at, image_url, video_url, likes_count, comments_count, author_id, author_name, author_avatar, author_role, visibility, repost_count, save_count, share_count, is_repost, reposted_by_name')
         .order('created_at', { ascending: false })
         .range(from, from + PAGE_SIZE - 1)
-      console.log('Simple posts:', simpleData?.length, simpleError)
       if (simpleError) {
         setFeedError(simpleError.message)
       } else if (simpleData) {
@@ -2099,24 +2100,7 @@ export default function Feed() {
           </div>
         )}
         {loading ? (
-          <div className="space-y-4">
-            {[1,2,3].map(i => (
-              <div key={i} className="bg-card border border-border/60 rounded-2xl p-4 animate-pulse">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-11 h-11 rounded-full bg-muted" />
-                  <div className="space-y-2 flex-1">
-                    <div className="h-3 bg-muted rounded w-1/3" />
-                    <div className="h-2.5 bg-muted rounded w-1/4" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="h-3 bg-muted rounded" />
-                  <div className="h-3 bg-muted rounded w-4/5" />
-                </div>
-                <div className="h-48 bg-muted rounded-xl mt-4" />
-              </div>
-            ))}
-          </div>
+          <SkeletonFeed count={3} />
         ) : posts.length === 0 ? (
           <div className="text-center py-20 bg-card border border-border/60 rounded-2xl">
             <div className="text-5xl mb-4">✨</div>

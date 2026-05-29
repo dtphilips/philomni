@@ -227,7 +227,7 @@ function JobQnA({ job }) {
       user_id: user?.id,
       user_name: q.user_name,
       question: q.question,
-    }).catch(() => {})
+    })
     setQuestions(prev => [q, ...prev])
     setNewQ('')
     setSubmitting(false)
@@ -1066,7 +1066,7 @@ function HiringPipeline() {
   const [sortByAi, setSortByAi] = useState(false)
 
   const moveApplicant = async (applicant, newStage) => {
-    await supabase.from('applications').update({ stage: newStage.toLowerCase() }).eq('id', applicant.id).catch(() => {})
+    await supabase.from('applications').update({ stage: newStage.toLowerCase() }).eq('id', applicant.id)
     setStageData(prev => {
       const next = {}
       STAGES.forEach(s => { next[s] = prev[s].filter(a => a.id !== applicant.id) })
@@ -1129,7 +1129,7 @@ Return ONLY the JSON array, nothing else.`
               ai_score: score.score,
               ai_recommendation: score.recommendation,
               ai_analysis: { strengths: score.strengths, concerns: score.concerns },
-            }).eq('id', appId).catch(() => {})
+            }).eq('id', appId)
           }
           setAiScores(scores)
           setShowAiResults(true)
@@ -1245,7 +1245,7 @@ Return ONLY the JSON array, nothing else.`
                             setShowSchedule(false)
                             // Auto-move from Applied to Reviewing when first opened
                             if (stage === 'Applied') {
-                              supabase.from('applications').update({ stage: 'reviewing', viewed_at: new Date().toISOString() }).eq('id', a.id).catch(() => {})
+                              supabase.from('applications').update({ stage: 'reviewing', viewed_at: new Date().toISOString() }).eq('id', a.id)
                               setStageData(prev => {
                                 const next = { ...prev }
                                 next['Applied'] = prev['Applied'].filter(x => x.id !== a.id)
@@ -1364,7 +1364,6 @@ Return ONLY the JSON array, nothing else.`
                   await supabase.from('applications')
                     .update({ stage: newStage.toLowerCase() })
                     .eq('id', selectedApplicant.id)
-                    .catch(() => {})
                   setStageData(prev => {
                     const next = {}
                     STAGES.forEach(s => {
@@ -1411,7 +1410,7 @@ Return ONLY the JSON array, nothing else.`
                         title: `Interview: ${selectedApplicant.name}`,
                         type: 'interview',
                         applicant_name: selectedApplicant.name,
-                      }).catch(() => {})
+                      })
                       setShowSchedule(false)
                       // Auto-move to Interview stage
                       setStageData(prev => {
@@ -1421,7 +1420,7 @@ Return ONLY the JSON array, nothing else.`
                         return next
                       })
                       setSelectedApplicant(prev => ({ ...prev, currentStage: 'Interview' }))
-                      await supabase.from('applications').update({ stage: 'interview' }).eq('id', selectedApplicant.id).catch(() => {})
+                      await supabase.from('applications').update({ stage: 'interview' }).eq('id', selectedApplicant.id)
                       alert('Interview scheduled! Candidate notification sent.')
                     }}
                   >
@@ -1435,7 +1434,7 @@ Return ONLY the JSON array, nothing else.`
             <div className="flex gap-3">
               <button
                 onClick={async () => {
-                  await supabase.from('applications').update({ stage: 'rejected' }).eq('id', selectedApplicant.id).catch(() => {})
+                  await supabase.from('applications').update({ stage: 'rejected' }).eq('id', selectedApplicant.id)
                   setStageData(prev => {
                     const next = { ...prev }
                     STAGES.forEach(s => { next[s] = prev[s].filter(a => a.id !== selectedApplicant.id) })

@@ -64,7 +64,7 @@ export default function EditProfile() {
   const removePosition = async (idx) => {
     const pos = workExperience[idx];
     if (pos.id && !String(pos.id).startsWith('new-')) {
-      await supabase.from('work_experience').delete().eq('id', pos.id).catch(() => {});
+      await supabase.from('work_experience').delete().eq('id', pos.id);
     }
     setWorkExperience(prev => prev.filter((_, i) => i !== idx));
   };
@@ -84,9 +84,9 @@ export default function EditProfile() {
         is_current: pos.is_current, description: pos.description || null,
       };
       if (String(pos.id).startsWith('new-')) {
-        await supabase.from('work_experience').insert(payload).catch(() => {});
+        await supabase.from('work_experience').insert(payload);
       } else {
-        await supabase.from('work_experience').update(payload).eq('id', pos.id).catch(() => {});
+        await supabase.from('work_experience').update(payload).eq('id', pos.id);
       }
     }
   };

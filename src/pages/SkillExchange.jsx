@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
+import { fetchWithCache } from '../lib/queryCache'
 import {
   Zap, Plus, X, Star, Search, MapPin, Clock, RefreshCw,
   Users, CheckCircle, ArrowRight, ChevronRight, Loader2,
@@ -680,11 +681,16 @@ export default function SkillExchange() {
     const loadAll = async () => {
       setLoading(true)
       try {
+        // Public lists cached 90 s — avoids refetch on every page visit
         const [offersRes, wantedRes] = await Promise.all([
-          supabase.from('skill_exchanges').select('*').order('created_at', { ascending: false }).limit(80)
-            .catch(() => ({ data: [] })),
-          supabase.from('wanted_skills').select('*').order('created_at', { ascending: false }).limit(20)
-            .catch(() => ({ data: [] })),
+          fetchWithCache('skill-exchanges', () =>
+            supabase.from('skill_exchanges').select('*').order('created_at', { ascending: false }).limit(20),
+            90_000,
+          ),
+          fetchWithCache('wanted-skills', () =>
+            supabase.from('wanted_skills').select('*').order('created_at', { ascending: false }).limit(20),
+            90_000,
+          ),
         ])
         if (offersRes.error) console.error('[SkillExchange] skill_exchanges:', offersRes.error.message)
         const dbOffers = offersRes.data ?? []
@@ -696,7 +702,6 @@ export default function SkillExchange() {
           const tradesRes = await supabase.from('trades').select('*')
             .or(`party_a_id.eq.${user.id},party_b_id.eq.${user.id}`)
             .order('created_at', { ascending: false }).limit(20)
-            .catch(() => ({ data: [] }))
           setMyTrades(tradesRes.data ?? [])
         }
         setWanted(wantedRes.data ?? [])

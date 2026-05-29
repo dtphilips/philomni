@@ -495,17 +495,22 @@ export default function Community() {
   const [leaderTab, setLeaderTab] = useState('active')
 
   useEffect(() => {
-    supabase.from('discussion_posts')
-      .select('*').order('created_at', { ascending: false }).limit(60)
-      .then(({ data, error }) => {
+    const load = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('discussion_posts')
+          .select('id, content, board, score, comment_count, is_pinned, user_id, user_name, user_avatar, created_at, category, tags')
+          .order('created_at', { ascending: false })
+          .limit(20)
         if (error) console.error('[Community] discussion_posts:', error.message)
         setPosts(data ?? [])
+      } catch (e) {
+        console.error('[Community] fetch failed:', e.message)
+      } finally {
         setLoading(false)
-      })
-      .catch(e => {
-        console.error('[Community] discussion_posts fetch failed:', e.message)
-        setLoading(false)
-      })
+      }
+    }
+    load()
   }, [])
 
   const displayPosts = useMemo(() => {
