@@ -34,6 +34,7 @@ const CREATOR_NAV = [
     items: [
       { to: '/match',        icon: Sparkles,      label: 'SmartMatch', badge: 'NEW' },
       { to: '/community',    icon: Users,         label: 'Community' },
+      { to: '/groups',       icon: Hash,   label: 'Groups', badge: '💬' },
       { to: '/messages',     icon: MessageSquare, label: 'Messages' },
       { to: '/rooms',        icon: Radio,         label: 'Rooms' },
       { to: '/meetings',     icon: Video,         label: 'Meetings' },
@@ -94,10 +95,11 @@ const PRO_NAV = [
   {
     label: 'Network',
     items: [
-      { to: '/pro-feed',  icon: Newspaper, label: 'Professional Feed' },
-      { to: '/match',     icon: Sparkles,  label: 'SmartMatch', badge: 'NEW' },
-      { to: '/community', icon: Users,     label: 'Community' },
-      { to: '/companies', icon: Building2, label: 'Companies' },
+      { to: '/pro-feed',  icon: Newspaper,    label: 'Professional Feed' },
+      { to: '/match',     icon: Sparkles,     label: 'SmartMatch', badge: 'NEW' },
+      { to: '/community', icon: Users,        label: 'Community' },
+      { to: '/groups',    icon: Hash,  label: 'Groups', badge: '💬' },
+      { to: '/companies', icon: Building2,    label: 'Companies' },
       { to: '/directory', icon: Globe,     label: 'Directory' },
     ],
   },

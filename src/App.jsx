@@ -24,6 +24,7 @@ import GlobalSearch from './pages/GlobalSearch'
 // Social / Community
 import Community from './pages/Community'
 import Groups from './pages/Groups'
+import GroupChat from './pages/GroupChat'
 import Discover from './pages/Discover'
 import Explore from './pages/Explore'
 import Directory from './pages/Directory'
@@ -186,6 +187,7 @@ export default function App() {
             {/* Social */}
             <Route path="/community" element={<P page={Community} />} />
             <Route path="/groups" element={<P page={Groups} />} />
+            <Route path="/groups/:id" element={<P page={GroupChat} />} />
             <Route path="/discover" element={<P page={Discover} />} />
             <Route path="/explore" element={<P page={Explore} />} />
             <Route path="/directory" element={<P page={Directory} />} />
