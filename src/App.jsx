@@ -1,6 +1,5 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { supabase } from './lib/supabase'
 import { AuthProvider } from './context/AuthContext'
 import { ModeProvider } from './context/ModeContext'
 import { SubscriptionProvider } from './context/SubscriptionContext'
@@ -167,15 +166,6 @@ function P({ page: Page }) {
 }
 
 export default function App() {
-  // Restore session on app load — confirms the stored session is valid
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        console.log('Session restored:', session.user.email)
-      }
-    })
-  }, [])
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
