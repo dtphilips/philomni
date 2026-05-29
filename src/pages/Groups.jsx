@@ -262,7 +262,7 @@ export default function Groups() {
   const load = useCallback(async () => {
     setLoading(true)
     // Load all active groups
-    const { data: allGroups } = await supabase.from('groups').select('*').eq('status', 'active').order('member_count', { ascending: false })
+    const { data: allGroups } = await supabase.from('groups').select('*').eq('status', 'active').order('member_count', { ascending: false }).limit(50)
     const gs = allGroups || []
     // Fill with samples if empty
     setGroups(gs.length ? gs : SAMPLE_GROUPS)

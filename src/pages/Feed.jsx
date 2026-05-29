@@ -1990,15 +1990,13 @@ export default function Feed() {
 
   // Fetch current spotlight winner's user_id — cached 5 min, fetched once per session
   useEffect(() => {
-    const currentMonth = new Date().toISOString().slice(0, 7)
-    fetchWithCache(`spotlight-winner-${currentMonth}`, async () => {
+    fetchWithCache(`spotlight-winner`, async () => {
       const { data } = await supabase
         .from('spotlight_winners')
-        .select('user_id')
-        .eq('month', currentMonth)
+        .select('*')
         .eq('is_active', true)
-        .maybeSingle()
-      return data?.user_id || null
+        .limit(1)
+      return data?.[0]?.user_id || null
     }, 300_000).then(uid => { if (uid) setSpotlightWinnerId(uid) })
   }, [])
 

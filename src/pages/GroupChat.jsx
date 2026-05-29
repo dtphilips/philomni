@@ -6,10 +6,11 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import {
   Send, Loader2, ArrowLeft, Users, Paperclip, Smile,
-  Mic, MicOff, X, MoreVertical, Reply, Copy, Trash2,
+  Mic, X, MoreVertical, Reply, Copy, Trash2,
   Download, Play, Pause, File as FileIcon, Image as ImageIcon,
   Video as VideoIcon, Settings, Plus, Lock, Globe,
   Crown, ShieldCheck, UserMinus, Edit3, Check, ChevronDown,
+  MessageSquare, AlertTriangle, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns'
 
@@ -309,30 +310,198 @@ function MessageBubble({ msg, isOwn, currentUserId, onReply, onDelete, onReact, 
   )
 }
 
-// ─── Edit Group Modal ─────────────────────────────────────────────────────────
+// ─── Group Settings Modal ─────────────────────────────────────────────────────
 
-function EditGroupModal({ group, onSaved, onClose }) {
+function Toggle({ value, onChange, label }) {
+  return (
+    <div className="flex items-center justify-between py-2.5">
+      <span className="text-sm text-foreground">{label}</span>
+      <button
+        onClick={() => onChange(!value)}
+        className={`w-11 h-6 rounded-full relative transition-colors flex-shrink-0 ${value ? 'bg-primary' : 'bg-muted-foreground/30'}`}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${value ? 'translate-x-5' : ''}`} />
+      </button>
+    </div>
+  )
+}
+
+function SectionHeader({ title }) {
+  return <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mt-4 mb-1 pb-1 border-b border-border">{title}</p>
+}
+
+function GroupSettingsModal({ group, myRole, onSaved, onClose, onDeleted }) {
+  const inp = 'w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
+  const isOwner = myRole === 'owner'
+
   const [name, setName] = useState(group.name)
   const [description, setDescription] = useState(group.description || '')
+  const [groupType, setGroupType] = useState(group.group_type || 'group')
+  const [isPrivate, setIsPrivate] = useState(!!group.is_private)
+  const [onlyAdminPost, setOnlyAdminPost] = useState(!!group.only_admin_can_post)
+  const [allowReactions, setAllowReactions] = useState(group.allow_reactions !== false)
+  const [allowFiles, setAllowFiles] = useState(group.allow_files !== false)
+  const [allowVoice, setAllowVoice] = useState(group.allow_voice !== false)
   const [saving, setSaving] = useState(false)
-  const inp = 'w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
-  const save = async () => {
-    setSaving(true)
-    await supabase.from('groups').update({ name: name.trim(), description: description.trim() }).eq('id', group.id)
-    onSaved({ ...group, name: name.trim(), description: description.trim() })
-    setSaving(false)
+  const [toast, setToast] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState(group.avatar_url || '')
+  const avatarInputRef = useRef(null)
+
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarUploading(true)
+    try {
+      const url = await uploadFile(file, 'group-avatars')
+      setAvatarUrl(url)
+    } catch (err) { console.error(err) }
+    setAvatarUploading(false)
   }
+
+  const save = async () => {
+    if (!name.trim()) return
+    setSaving(true)
+    const { error } = await supabase.from('groups').update({
+      name: name.trim(),
+      description: description.trim(),
+      group_type: groupType,
+      is_private: isPrivate,
+      only_admin_can_post: onlyAdminPost,
+      allow_reactions: allowReactions,
+      allow_files: allowFiles,
+      allow_voice: allowVoice,
+      avatar_url: avatarUrl || null,
+    }).eq('id', group.id)
+    setSaving(false)
+    if (!error) {
+      showToast('Group settings updated')
+      onSaved({
+        ...group,
+        name: name.trim(),
+        description: description.trim(),
+        group_type: groupType,
+        is_private: isPrivate,
+        only_admin_can_post: onlyAdminPost,
+        allow_reactions: allowReactions,
+        allow_files: allowFiles,
+        allow_voice: allowVoice,
+        avatar_url: avatarUrl || null,
+      })
+    }
+  }
+
+  const deleteGroup = async () => {
+    setDeleting(true)
+    await supabase.from('groups').update({ status: 'deleted' }).eq('id', group.id)
+    setDeleting(false)
+    onDeleted()
+  }
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="font-bold">Edit Group</h3>
+      <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+          <h3 className="font-bold text-base">Group Settings</h3>
           <button onClick={onClose}><X className="w-5 h-5 text-muted-foreground" /></button>
         </div>
-        <div className="p-5 space-y-3">
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
+
+          {/* ── General ── */}
+          <SectionHeader title="General" />
+
+          {/* Avatar */}
+          <div className="flex items-center gap-4 py-2">
+            <div
+              className="w-16 h-16 rounded-full overflow-hidden bg-primary flex items-center justify-center flex-shrink-0 cursor-pointer relative"
+              onClick={() => avatarInputRef.current?.click()}
+            >
+              {avatarUrl
+                ? <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                : <span className="text-white text-2xl font-bold">{(name || 'G')[0]}</span>
+              }
+              {avatarUploading && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                </div>
+              )}
+            </div>
+            <input ref={avatarInputRef} type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Group Avatar</p>
+              <p className="text-xs text-muted-foreground">Click to upload a new photo</p>
+            </div>
+          </div>
+
           <input className={inp} value={name} onChange={e => setName(e.target.value)} placeholder="Group name" />
-          <textarea className={`${inp} resize-none`} rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Description" />
-          <button onClick={save} disabled={saving || !name.trim()} className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">
+          <textarea className={`${inp} resize-none mt-2`} rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Description (optional)" />
+
+          {/* Group type */}
+          <div className="flex gap-2 mt-2">
+            {['group', 'channel'].map(t => (
+              <button
+                key={t}
+                onClick={() => setGroupType(t)}
+                className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-colors ${groupType === t ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
+              >
+                {t === 'group' ? '👥 Group' : '📢 Channel'}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Posting ── */}
+          <SectionHeader title="Posting" />
+          <Toggle value={onlyAdminPost} onChange={setOnlyAdminPost} label="Only admins can post" />
+          <Toggle value={allowReactions} onChange={setAllowReactions} label="Allow emoji reactions" />
+          <Toggle value={allowFiles} onChange={setAllowFiles} label="Allow file sharing" />
+          <Toggle value={allowVoice} onChange={setAllowVoice} label="Allow voice messages" />
+
+          {/* ── Members ── */}
+          <SectionHeader title="Members" />
+          <Toggle value={isPrivate} onChange={setIsPrivate} label="Private group (invite only)" />
+
+          {/* ── Danger Zone ── */}
+          {isOwner && (
+            <>
+              <SectionHeader title="Danger Zone" />
+              {!confirmDelete ? (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="w-full py-2.5 rounded-xl border border-destructive text-destructive text-sm font-semibold hover:bg-destructive/10 transition-colors flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Delete Group
+                </button>
+              ) : (
+                <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 space-y-3">
+                  <p className="text-sm text-destructive font-semibold text-center">Are you sure? This cannot be undone.</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirmDelete(false)} className="flex-1 py-2 rounded-xl border border-border text-sm font-semibold hover:bg-muted">Cancel</button>
+                    <button onClick={deleteGroup} disabled={deleting} className="flex-1 py-2 rounded-xl bg-destructive text-white text-sm font-semibold disabled:opacity-50">
+                      {deleting ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-border flex-shrink-0">
+          {toast && <p className="text-xs text-emerald-600 font-semibold text-center mb-2">{toast}</p>}
+          <button
+            onClick={save}
+            disabled={saving || !name.trim() || avatarUploading}
+            className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
+          >
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
@@ -727,6 +896,11 @@ export default function GroupChat() {
             <h1 className="font-bold text-sm truncate">{group.name}</h1>
             <p className="text-xs text-muted-foreground">{group.member_count} member{group.member_count !== 1 ? 's' : ''}{isChannel ? ' · Channel' : ''}</p>
           </div>
+          {isAdmin && (
+            <button onClick={() => setShowEditGroup(true)} className="text-muted-foreground hover:text-foreground" title="Group Settings">
+              <Settings className="w-5 h-5" />
+            </button>
+          )}
           <button onClick={() => setShowMembers(v => !v)} className={`text-muted-foreground hover:text-foreground ${showMembers ? 'text-primary' : ''}`}>
             <Users className="w-5 h-5" />
           </button>
@@ -803,12 +977,9 @@ export default function GroupChat() {
         {/* Input bar */}
         {isMember && (
           <div className="px-4 py-3 border-t border-border bg-card flex-shrink-0">
-            {!canPost && group.only_admin_can_post && (
-              <p className="text-xs text-muted-foreground text-center py-1">Only admins can post in this {isChannel ? 'channel' : 'group'}</p>
-            )}
-            {canPost && (
-              <div className="flex items-end gap-2">
-                {/* Left buttons */}
+            <div className="flex items-end gap-2">
+              {/* Left buttons — hidden when canPost is false */}
+              {canPost && (
                 <div className="relative flex-shrink-0">
                   <button onClick={() => { setShowAttach(p => !p); setShowEmojiPicker(false) }} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground">
                     <Paperclip className="w-5 h-5" />
@@ -827,26 +998,30 @@ export default function GroupChat() {
                     </div>
                   )}
                 </div>
+              )}
+              {canPost && (
                 <button onClick={() => { setShowEmojiPicker(p => !p); setShowAttach(false) }} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground text-xl flex-shrink-0">
                   😊
                 </button>
+              )}
 
-                {/* Text input */}
-                <div className="flex-1 relative">
-                  <textarea
-                    ref={inputRef}
-                    value={text}
-                    onChange={e => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-                    placeholder="Type a message…"
-                    rows={1}
-                    className="w-full resize-none bg-muted rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 max-h-[120px]"
-                    disabled={uploading || recording}
-                  />
-                </div>
+              {/* Text input — always visible but disabled when canPost is false */}
+              <div className="flex-1 relative">
+                <textarea
+                  ref={inputRef}
+                  value={text}
+                  onChange={e => { if (!canPost) return; setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+                  placeholder={canPost ? 'Type a message…' : 'Only admins can post in this group'}
+                  rows={1}
+                  className={`w-full resize-none bg-muted rounded-2xl px-4 py-2.5 text-sm focus:outline-none max-h-[120px] ${canPost ? 'focus:ring-2 focus:ring-primary/30' : 'cursor-not-allowed opacity-60 text-muted-foreground'}`}
+                  disabled={!canPost || uploading || recording}
+                />
+              </div>
 
-                {/* Right: voice or send */}
-                {text.trim() ? (
+              {/* Right: voice or send — hidden when canPost is false */}
+              {canPost && (
+                text.trim() ? (
                   <button onClick={sendMessage} disabled={sending} className="w-9 h-9 rounded-full bg-primary flex items-center justify-center flex-shrink-0 hover:bg-primary/90">
                     {sending ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Send className="w-4 h-4 text-white" />}
                   </button>
@@ -866,12 +1041,17 @@ export default function GroupChat() {
                       <Mic className="w-5 h-5" />
                     </button>
                   )
-                )}
-              </div>
+                )
+              )}
+            </div>
+
+            {/* Restricted posting notice */}
+            {!canPost && group.only_admin_can_post && (
+              <p className="text-xs text-muted-foreground text-center mt-2">Only admins can post in this {isChannel ? 'channel' : 'group'}</p>
             )}
 
             {/* Emoji picker (simple) */}
-            {showEmojiPicker && (
+            {showEmojiPicker && canPost && (
               <div className="mt-2 p-3 bg-card border border-border rounded-2xl shadow-xl grid grid-cols-8 gap-2">
                 {['😀','😂','😍','🥰','😎','😢','😡','🤔','😴','🥳','😅','🤣','😇','🙄','😤','🫠','👍','❤️','😮','🔥','🎉','💯','✨','🙌','👏','🤝','💪','🫶','❤️‍🔥','💕','🌟','🏆','🎵','🎶','🎤','🎬','📸','💡','🚀','⚡','🌍','🌈','🏖️','🍕','🍔','☕','🎂','🥑'].map(e => (
                   <button key={e} onClick={() => { setText(t => t + e); setShowEmojiPicker(false); inputRef.current?.focus() }} className="text-2xl hover:scale-125 transition-transform w-9 h-9 flex items-center justify-center rounded-lg hover:bg-muted">
@@ -892,12 +1072,14 @@ export default function GroupChat() {
         />
       </div>
 
-      {/* Edit group modal */}
+      {/* Group settings modal */}
       {showEditGroup && (
-        <EditGroupModal
+        <GroupSettingsModal
           group={group}
+          myRole={myRole}
           onSaved={updated => { setGroup(updated); setShowEditGroup(false) }}
           onClose={() => setShowEditGroup(false)}
+          onDeleted={() => navigate('/groups')}
         />
       )}
     </div>
