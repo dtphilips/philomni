@@ -1,8 +1,11 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 
+// Check for a stored session using the custom storageKey ('philomni-auth')
+// and the legacy default Supabase key format as a fallback.
 const hasStoredToken = () => {
   try {
+    if (localStorage.getItem('philomni-auth')) return true;
     return Object.keys(localStorage).some(
       k => k.startsWith('sb-') && k.endsWith('-auth-token')
     );
@@ -24,6 +27,7 @@ export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
 
   // If a token exists in localStorage, render immediately while auth resolves
+  // so there is no flash-redirect to /login on navigation or page refresh.
   if (loading && hasStoredToken()) return children;
 
   if (loading) return <Spinner />;
