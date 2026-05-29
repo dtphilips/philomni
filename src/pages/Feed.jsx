@@ -1906,7 +1906,7 @@ function RightSidebar() {
       {/* SmartMatch CTA */}
       <SmartMatchCTA />
 
-      <p className="text-xs text-muted-foreground/50 text-center pb-4">© 2025 Philomni</p>
+      <p className="text-xs text-muted-foreground/50 text-center pb-4">© 2026 Philomni</p>
     </div>
   )
 }
@@ -2023,10 +2023,10 @@ export default function Feed() {
       .order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
     if (error) {
-      // Fallback: simple query without join — only essential columns
+      // Fallback: simple query without join
       const { data: simpleData, error: simpleError } = await supabase
         .from('posts')
-        .select('id, content, created_at, image_url, video_url, likes_count, comments_count, author_id, author_name, author_avatar, author_role, visibility, repost_count, save_count, share_count, is_repost, reposted_by_name')
+        .select('*')
         .order('created_at', { ascending: false })
         .range(from, from + PAGE_SIZE - 1)
       if (simpleError) {

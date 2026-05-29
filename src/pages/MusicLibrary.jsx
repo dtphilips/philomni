@@ -9,7 +9,6 @@ import {
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useMusic } from '../context/MusicContext'
-import { fetchWithCache } from '../lib/queryCache'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -412,28 +411,20 @@ export default function MusicLibrary() {
   const [createPlaylistTrack, setCreatePlaylistTrack] = useState(null)
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
 
-  // ── Fetch tracks — public, cached 2 min, runs once on mount ─────────────
+  // ── Fetch tracks — public, runs once on mount ────────────────────────────
   const [tracksError, setTracksError] = useState(null)
   useEffect(() => {
     const fetchTracks = async () => {
-      try {
-        setLoading(true)
-        setTracksError(null)
-        const data = await fetchWithCache('music-tracks', async () => {
-          const { data, error } = await supabase
-            .from('music_tracks')
-            .select('id, title, artist, genre, duration, play_count, cover_url, audio_url, is_premium, created_at')
-            .order('created_at', { ascending: false })
-            .limit(50)
-          if (error) throw error
-          return data || []
-        }, 120_000)
-        setAllTracks(data)
-      } catch (err) {
-        setTracksError(err.message)
-      } finally {
-        setLoading(false)
-      }
+      setLoading(true)
+      setTracksError(null)
+      const { data, error } = await supabase
+        .from('music_tracks')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (error) setTracksError(error.message)
+      setAllTracks(data || [])
+      setLoading(false)
     }
     fetchTracks()
   }, []) // runs once — tracks are public, no auth needed

@@ -499,7 +499,7 @@ export default function Community() {
       try {
         const { data, error } = await supabase
           .from('discussion_posts')
-          .select('id, content, board, score, comment_count, is_pinned, user_id, user_name, user_avatar, created_at, category, tags')
+          .select('*')
           .order('created_at', { ascending: false })
           .limit(20)
         if (error) console.error('[Community] discussion_posts:', error.message)
