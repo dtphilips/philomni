@@ -1019,7 +1019,7 @@ function CommentSection({ postId, currentUser, onCommentAdded }) {
 
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
-function PostCard({ post, currentUser, onDelete, onRepost, onUpdate }) {
+function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWinnerId }) {
   const [liked, setLiked] = useState(false)
   const [saved, setSaved] = useState(false)
   const [likeCount, setLikeCount] = useState(post.like_count ?? 0)
@@ -2005,40 +2005,17 @@ export default function Feed() {
   const loadPosts = useCallback(async (pageNum) => {
     if (pageNum > 0) setLoadingMore(true)
     const from = pageNum * PAGE_SIZE
-    // Try join query first (with user profile data)
     const { data, error } = await supabase
       .from('posts')
-      .select(`
-        *,
-        users (
-          id,
-          full_name,
-          avatar_url,
-          username,
-          is_admin,
-          plan,
-          badge_type
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
     if (error) {
-      // Fallback: simple query without join
-      const { data: simpleData, error: simpleError } = await supabase
-        .from('posts')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(from, from + PAGE_SIZE - 1)
-      if (simpleError) {
-        setFeedError(simpleError.message)
-      } else if (simpleData) {
-        setPosts(prev => pageNum === 0 ? simpleData : [...prev, ...simpleData])
-        setHasMore(simpleData.length === PAGE_SIZE)
-      }
-    } else if (data) {
+      setFeedError(error.message)
+    } else {
       setFeedError(null)
-      setPosts(prev => pageNum === 0 ? data : [...prev, ...data])
-      setHasMore(data.length === PAGE_SIZE)
+      setPosts(prev => pageNum === 0 ? (data || []) : [...prev, ...(data || [])])
+      setHasMore((data || []).length === PAGE_SIZE)
     }
     setLoading(false)
     setLoadingMore(false)
@@ -2112,7 +2089,7 @@ export default function Feed() {
             <div className="space-y-4">
               {posts.map((post, i) => (
                 <React.Fragment key={post.id}>
-                  <PostCard post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} />
+                  <PostCard post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} spotlightWinnerId={spotlightWinnerId} />
                   {(i + 1) % 4 === 0 && i < posts.length - 1 && <ConnectionStoryCard />}
                   {(i + 1) % 8 === 0 && feedAd && (
                     <AdCard key={`ad-${i}`} ad={feedAd} viewerId={user?.id} />
