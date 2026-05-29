@@ -147,6 +147,7 @@ import OnboardingProfile from './pages/OnboardingProfile'
 import LiveHost from './pages/LiveHost'
 import LiveViewer from './pages/LiveViewer'
 import LiveStart from './pages/LiveStart'
+import LiveRecap from './pages/LiveRecap'
 import BuyCoins from './pages/BuyCoins'
 
 const queryClient = new QueryClient({
@@ -332,6 +333,7 @@ export default function App() {
             {/* Live feature — host/viewer are full-screen (no sidebar layout) */}
             <Route path="/live/start" element={<P page={LiveStart} />} />
             <Route path="/live/:id/host" element={<LiveHost />} />
+            <Route path="/live/:id/recap" element={<P page={LiveRecap} />} />
             <Route path="/live/:id" element={<LiveViewer />} />
             <Route path="/coins" element={<P page={BuyCoins} />} />
 

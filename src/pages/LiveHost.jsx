@@ -66,7 +66,6 @@ export default function LiveHost() {
   const [sending, setSending] = useState(false)
   const [ending, setEnding] = useState(false)
   const [showEndModal, setShowEndModal] = useState(false)
-  const [summary, setSummary] = useState(null)
   const [cameraOn, setCameraOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
   const [activeTab, setActiveTab] = useState('chat')  // 'chat' | 'gifters'
@@ -88,10 +87,36 @@ export default function LiveHost() {
       })
   }, [liveId, user?.id, navigate])
 
-  // ─── Load existing messages ───────────────────────────────────────────────
+  // ─── Load messages + dedicated realtime chat channel ─────────────────────
   useEffect(() => {
-    supabase.from('live_messages').select('*').eq('live_id', liveId).order('created_at').limit(100)
-      .then(({ data }) => setMessages(data || []))
+    const loadMessages = async () => {
+      const { data } = await supabase
+        .from('live_messages')
+        .select('*')
+        .eq('live_id', liveId)
+        .order('created_at', { ascending: true })
+        .limit(100)
+      setMessages(data || [])
+    }
+    loadMessages()
+
+    const channel = supabase
+      .channel('live-chat-' + liveId)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'live_messages',
+        filter: 'live_id=eq.' + liveId,
+      }, payload => {
+        setMessages(prev => {
+          if (prev.find(m => m.id === payload.new.id)) return prev
+          return [...prev, payload.new]
+        })
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
   }, [liveId])
 
   // ─── Load existing gifts ──────────────────────────────────────────────────
@@ -124,16 +149,9 @@ export default function LiveHost() {
     setMicOn(v => !v)
   }
 
-  // ─── Real-time subscriptions ──────────────────────────────────────────────
+  // ─── Real-time subscriptions for gifts + live state ──────────────────────
   useEffect(() => {
     const channel = supabase.channel(`live-host-${liveId}`)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'live_messages',
-        filter: `live_id=eq.${liveId}`,
-      }, payload => {
-        setMessages(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
-        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
-      })
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'live_gifts',
         filter: `live_id=eq.${liveId}`,
@@ -178,23 +196,14 @@ export default function LiveHost() {
   // ─── End live ─────────────────────────────────────────────────────────────
   const endLive = async () => {
     setEnding(true)
-    const endedAt = new Date().toISOString()
-    await supabase.from('lives').update({ status: 'ended', ended_at: endedAt }).eq('id', liveId)
-
-    // Build summary
-    const duration = live?.started_at
-      ? Math.round((Date.now() - new Date(live.started_at).getTime()) / 60000)
-      : 0
-    const totalCoins = gifts.reduce((s, g) => s + (g.total_coins || 0), 0)
-    const totalEarnings = (totalCoins / 100 * 0.70).toFixed(2)
-
+    await supabase.from('lives').update({
+      status: 'ended',
+      ended_at: new Date().toISOString(),
+    }).eq('id', liveId)
     streamRef.current?.getTracks().forEach(t => t.stop())
-    setSummary({ duration, peakViewers: live?.peak_viewers || 0, totalCoins, totalEarnings })
-    setShowEndModal(false)
     setEnding(false)
-
-    // Navigate after 5 seconds
-    setTimeout(() => navigate('/profile'), 5000)
+    setShowEndModal(false)
+    navigate(`/live/${liveId}/recap`)
   }
 
   // ─── Top Gifters ──────────────────────────────────────────────────────────
@@ -213,33 +222,6 @@ export default function LiveHost() {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    )
-  }
-
-  // ─── Summary screen ───────────────────────────────────────────────────────
-  if (summary) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="bg-card rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center">
-          <div className="text-5xl mb-4">🎬</div>
-          <h2 className="text-2xl font-bold mb-1">Live Ended!</h2>
-          <p className="text-muted-foreground text-sm mb-6">Great stream! Here's your recap:</p>
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            {[
-              { label: 'Duration', value: `${summary.duration}m` },
-              { label: 'Peak Viewers', value: summary.peakViewers.toLocaleString() },
-              { label: 'Total Gifts', value: `🪙 ${summary.totalCoins.toLocaleString()}` },
-              { label: 'Earnings', value: `$${summary.totalEarnings}` },
-            ].map(s => (
-              <div key={s.label} className="bg-muted rounded-xl p-3">
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-                <p className="font-bold text-lg">{s.value}</p>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">Returning to profile in 5 seconds…</p>
-        </div>
       </div>
     )
   }
@@ -340,13 +322,20 @@ export default function LiveHost() {
           <>
             <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
               {messages.map(msg => (
-                <div key={msg.id} className="flex gap-2">
-                  <div className="w-6 h-6 rounded-full bg-primary/40 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5">
-                    {(msg.sender_name || '?')[0].toUpperCase()}
-                  </div>
+                <div key={msg.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'flex-start' }}>
+                  <img
+                    src={msg.sender_avatar || '/default-avatar.png'}
+                    alt={msg.sender_name}
+                    style={{ width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover', background: '#6d28d9' }}
+                    onError={e => { e.currentTarget.style.display = 'none' }}
+                  />
                   <div>
-                    <span className="text-[10px] font-bold text-primary">{msg.sender_name} </span>
-                    <span className="text-xs text-white/80">{msg.content}</span>
+                    <span style={{ color: '#8b5cf6', fontSize: '12px', fontWeight: 'bold' }}>
+                      {msg.sender_name}
+                    </span>
+                    <p style={{ color: 'white', fontSize: '13px', margin: '2px 0 0', wordBreak: 'break-word' }}>
+                      {msg.content}
+                    </p>
                   </div>
                 </div>
               ))}

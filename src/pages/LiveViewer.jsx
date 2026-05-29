@@ -165,67 +165,84 @@ function GiftPanel({ live, user, onClose, onSent }) {
         </div>
       </div>
 
-      {toast && (
-        <div className="mb-3 text-center py-2 bg-emerald-500/20 rounded-xl text-emerald-400 text-sm font-semibold">
-          {toast}
-        </div>
-      )}
-
-      {/* Gift grid */}
-      <div className="grid grid-cols-5 gap-2 mb-4">
-        {GIFTS.map(gift => (
+      {/* Zero balance empty state */}
+      {balance === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <div className="text-5xl mb-3">🪙</div>
+          <p className="text-white font-bold text-base mb-1">You have no coins</p>
+          <p className="text-white/60 text-sm mb-6">Buy coins to send gifts to your favourite creators!</p>
           <button
-            key={gift.name}
-            onClick={() => setSelected(gift)}
-            className={`flex flex-col items-center p-2 rounded-xl border transition-all ${
-              selected.name === gift.name
-                ? 'border-amber-400 bg-amber-400/20 scale-105'
-                : 'border-white/10 bg-white/5 hover:bg-white/10'
-            }`}
+            onClick={() => navigate('/coins')}
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-base flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
           >
-            <span className="text-2xl leading-tight">{gift.emoji}</span>
-            <span className="text-[10px] text-white/70 mt-0.5 truncate w-full text-center">{gift.name}</span>
-            <div className="flex items-center gap-0.5 mt-0.5">
-              <span className="text-[9px] text-amber-400">🪙</span>
-              <span className="text-[10px] font-bold text-amber-400">{gift.coins}</span>
+            🪙 Buy Coins
+          </button>
+        </div>
+      ) : (
+        <>
+          {toast && (
+            <div className="mb-3 text-center py-2 bg-emerald-500/20 rounded-xl text-emerald-400 text-sm font-semibold">
+              {toast}
             </div>
-          </button>
-        ))}
-      </div>
+          )}
 
-      {/* Quantity + Send */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1 bg-white/10 rounded-xl overflow-hidden flex-shrink-0">
-          {QTY_OPTIONS.map(q => (
+          {/* Gift grid */}
+          <div className="grid grid-cols-5 gap-2 mb-4">
+            {GIFTS.map(gift => (
+              <button
+                key={gift.name}
+                onClick={() => setSelected(gift)}
+                className={`flex flex-col items-center p-2 rounded-xl border transition-all ${
+                  selected.name === gift.name
+                    ? 'border-amber-400 bg-amber-400/20 scale-105'
+                    : 'border-white/10 bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <span className="text-2xl leading-tight">{gift.emoji}</span>
+                <span className="text-[10px] text-white/70 mt-0.5 truncate w-full text-center">{gift.name}</span>
+                <div className="flex items-center gap-0.5 mt-0.5">
+                  <span className="text-[9px] text-amber-400">🪙</span>
+                  <span className="text-[10px] font-bold text-amber-400">{gift.coins}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Quantity + Send */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 bg-white/10 rounded-xl overflow-hidden flex-shrink-0">
+              {QTY_OPTIONS.map(q => (
+                <button
+                  key={q}
+                  onClick={() => setQty(q)}
+                  className={`px-3 py-2 text-sm font-bold transition-colors ${qty === q ? 'bg-primary text-white' : 'text-white/60 hover:text-white'}`}
+                >
+                  ×{q}
+                </button>
+              ))}
+            </div>
             <button
-              key={q}
-              onClick={() => setQty(q)}
-              className={`px-3 py-2 text-sm font-bold transition-colors ${qty === q ? 'bg-primary text-white' : 'text-white/60 hover:text-white'}`}
+              onClick={sendGift}
+              disabled={sending}
+              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90 transition-opacity"
             >
-              ×{q}
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Send {selected.emoji} {selected.name} — 🪙{totalCost.toLocaleString()}
             </button>
-          ))}
-        </div>
-        <button
-          onClick={sendGift}
-          disabled={sending}
-          className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90 transition-opacity"
-        >
-          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-          Send {selected.emoji} {selected.name} — 🪙{totalCost.toLocaleString()}
-        </button>
-      </div>
+          </div>
 
-      {/* Insufficient coins modal */}
-      {showInsufficientModal && (
-        <div className="mt-4 p-4 bg-destructive/20 border border-destructive/40 rounded-xl text-center">
-          <p className="text-white font-semibold mb-2">Not enough coins</p>
-          <p className="text-white/70 text-xs mb-3">You need {totalCost} coins but only have {balance}.</p>
-          <button onClick={() => navigate('/coins')} className="px-5 py-2 rounded-xl bg-primary text-white text-sm font-semibold">
-            Buy Coins
-          </button>
-          <button onClick={() => setShowInsufficientModal(false)} className="ml-3 text-xs text-white/60 hover:text-white">Cancel</button>
-        </div>
+          {/* Insufficient coins modal */}
+          {showInsufficientModal && (
+            <div className="mt-4 p-4 bg-destructive/20 border border-destructive/40 rounded-xl text-center">
+              <p className="text-white font-semibold mb-2">Not enough coins</p>
+              <p className="text-white/70 text-xs mb-3">You need {totalCost} coins but only have {balance}.</p>
+              <button onClick={() => navigate('/coins')} className="px-5 py-2 rounded-xl bg-primary text-white text-sm font-semibold">
+                Buy Coins
+              </button>
+              <button onClick={() => setShowInsufficientModal(false)} className="ml-3 text-xs text-white/60 hover:text-white">Cancel</button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
