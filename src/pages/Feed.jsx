@@ -2002,6 +2002,10 @@ export default function Feed() {
     }, 300_000).then(uid => { if (uid) setSpotlightWinnerId(uid) })
   }, [])
 
+  // Confirmed posts columns: id, content, media_urls, media_type, visibility,
+  // created_by, author_id, author_name, author_avatar, author_role,
+  // like_count, comment_count, share_count, likes_count, comments_count, shares_count,
+  // created_at, updated_at, music_track_id, music_track_meta
   const loadPosts = useCallback(async (pageNum) => {
     if (pageNum > 0) setLoadingMore(true)
     const from = pageNum * PAGE_SIZE

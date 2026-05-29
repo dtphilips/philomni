@@ -412,22 +412,20 @@ export default function MusicLibrary() {
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false)
 
   // ── Fetch tracks — public, runs once on mount ────────────────────────────
-  const [tracksError, setTracksError] = useState(null)
+  // Confirmed music_tracks columns: id, title, artist, album, genre, mood,
+  // duration_seconds, audio_url, cover_art_url, bpm, tags, is_premium,
+  // play_count, is_philomni_original, track_type, is_public, status, created_at
   useEffect(() => {
-    const fetchTracks = async () => {
-      setLoading(true)
-      setTracksError(null)
-      const { data, error } = await supabase
+    const load = async () => {
+      const { data } = await supabase
         .from('music_tracks')
         .select('*')
-        .order('created_at', { ascending: false })
         .limit(50)
-      if (error) setTracksError(error.message)
       setAllTracks(data || [])
       setLoading(false)
     }
-    fetchTracks()
-  }, []) // runs once — tracks are public, no auth needed
+    load()
+  }, [])
 
   // ── Fetch playlists — only when user is logged in ─────────────────────────
   useEffect(() => {
@@ -692,11 +690,6 @@ export default function MusicLibrary() {
 
         {/* Main content */}
         <div className="flex-1 min-w-0">
-          {tracksError && (
-            <div style={{ color: 'red', padding: '10px', background: '#fee', borderRadius: '8px', marginBottom: '12px', fontSize: '13px' }}>
-              Music library error: {tracksError}
-            </div>
-          )}
           {mainContent}
         </div>
       </div>
