@@ -20,6 +20,7 @@ import SkeletonFeed from '../components/SkeletonFeed'
 import { fetchWithCache } from '../lib/queryCache'
 import LivesRow from '../components/LivesRow'
 import GoLiveModal from '../components/GoLiveModal'
+import CelebrationsRow from '../components/celebrations/CelebrationsRow'
 
 // ── In-feed Ad Card ───────────────────────────────────────────────────────────
 function AdCard({ ad, viewerId }) {
@@ -2069,6 +2070,9 @@ export default function Feed() {
 
         {/* Live streams row — only shown when lives exist */}
         <LivesRow />
+
+        {/* Celebrations row — only shown when celebrations exist */}
+        <CelebrationsRow />
 
         {/* Stories */}
         <div className="bg-card border border-border/60 rounded-2xl p-4 mb-4 shadow-sm">

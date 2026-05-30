@@ -27,7 +27,8 @@ const CREATOR_NAV = [
       { to: '/',         icon: Home,       label: 'Feed' },
       { to: '/reels',    icon: Film,       label: 'Reels' },
       { to: '/stories',  icon: BookOpen,   label: 'Stories' },
-      { to: '/live/start', icon: Radio,    label: 'Go Live', badge: '🔴' },
+      { to: '/live/start',    icon: Radio,        label: 'Go Live',       badge: '🔴' },
+      { to: '/celebrations', icon: Sparkles,  label: 'Celebrations',  badge: '🎉' },
     ],
   },
   {
@@ -153,8 +154,9 @@ const PRO_NAV = [
   {
     label: 'Build',
     items: [
-      { to: '/live/start', icon: Radio,    label: 'Go Live', badge: '🔴' },
-      { to: '/rooms',      icon: Radio,    label: 'Rooms' },
+      { to: '/live/start',   icon: Radio,       label: 'Go Live',      badge: '🔴' },
+      { to: '/celebrations', icon: Sparkles, label: 'Celebrations', badge: '🎉' },
+      { to: '/rooms',        icon: Radio,       label: 'Rooms' },
       { to: '/meetings',   icon: Video,    label: 'Meetings' },
       { to: '/podcasts',   icon: Mic2,     label: 'Podcasts' },
     ],
@@ -355,13 +357,14 @@ export default function Layout({ children }) {
         {
           label: 'Admin',
           items: [
-            { to: '/admin',           icon: Shield,    label: 'Dashboard'          },
-            { to: '/admin/music',     icon: Music,     label: 'Music Management',  badge: '🎵' },
-            { to: '/admin/spotlight', icon: Award,     label: 'Spotlight',         badge: '⭐' },
-            { to: '/admin/badges',    icon: Award,     label: 'Badge Applications' },
-            { to: '/admin/monetize',  icon: DollarSign,label: 'Monetize Queue'     },
-            { to: '/admin/ads',       icon: Megaphone, label: 'Ad Review'          },
-            { to: '/admin/brands',    icon: Building2, label: 'Brand Inquiries'    },
+            { to: '/admin',                icon: Shield,       label: 'Dashboard'          },
+            { to: '/admin/celebrations',  icon: Sparkles,  label: 'Celebrations',      badge: '🎉' },
+            { to: '/admin/music',         icon: Music,        label: 'Music Management',  badge: '🎵' },
+            { to: '/admin/spotlight',     icon: Award,        label: 'Spotlight',         badge: '⭐' },
+            { to: '/admin/badges',        icon: Award,        label: 'Badge Applications' },
+            { to: '/admin/monetize',      icon: DollarSign,   label: 'Monetize Queue'     },
+            { to: '/admin/ads',           icon: Megaphone,    label: 'Ad Review'          },
+            { to: '/admin/brands',        icon: Building2,    label: 'Brand Inquiries'    },
           ],
         },
       ]

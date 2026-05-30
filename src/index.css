@@ -211,6 +211,38 @@
     100% { background-position: -200% 0; }
   }
 
+  /* ── Celebrations: animated gold shimmer border ─ */
+  .grand-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .grand-shimmer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(
+      90deg,
+      #f59e0b 0%,
+      #fcd34d 25%,
+      #fef9c3 50%,
+      #fcd34d 75%,
+      #f59e0b 100%
+    );
+    background-size: 300% 100%;
+    animation: goldShimmer 3s linear infinite;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+  }
+  @keyframes goldShimmer {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+
   /* ── Premium gradient backgrounds ──────────────── */
   .bg-premium-dark {
     background: linear-gradient(135deg, #07070f 0%, #0d0d1a 50%, #07070f 100%);

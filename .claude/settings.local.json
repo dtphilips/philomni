@@ -93,7 +93,11 @@
       "Bash(node -e \"const l = require\\('./node_modules/lucide-react/dist/cjs/lucide-react.js'\\); console.log\\(l.UserSquare2 ? 'exists' : 'NOT FOUND'\\); console.log\\(l.UsersRound ? 'UsersRound exists' : ''\\); console.log\\(l.MessagesSquare ? 'MessagesSquare exists' : ''\\); console.log\\(l.Group ? 'Group exists' : ''\\); console.log\\(l.AppWindow ? 'AppWindow exists' : ''\\)\")",
       "Bash(node -e \"const l = require\\('./node_modules/lucide-react/dist/cjs/lucide-react.js'\\); const icons = Object.keys\\(l\\); const m = icons.filter\\(k => k.toLowerCase\\(\\).includes\\('group'\\) || k.toLowerCase\\(\\).includes\\('users'\\) || k.toLowerCase\\(\\).includes\\('team'\\)\\); console.log\\(m.join\\('\\\\n'\\)\\)\")",
       "Bash(node -e \"const l = require\\('./node_modules/lucide-react/dist/cjs/lucide-react.js'\\); const icons = Object.keys\\(l\\).filter\\(k => typeof l[k] === 'function'\\); const m = icons.filter\\(k => /user|group|team|people/i.test\\(k\\)\\); console.log\\(m.slice\\(0,20\\).join\\('\\\\n'\\)\\)\")",
-      "Bash(node -e \"try { const l = require\\('./node_modules/lucide-react'\\); console.log\\(typeof l.Users, typeof l.Layers, typeof l.LayoutGrid\\); } catch\\(e\\) { console.log\\(e.message\\) }\")"
+      "Bash(node -e \"try { const l = require\\('./node_modules/lucide-react'\\); console.log\\(typeof l.Users, typeof l.Layers, typeof l.LayoutGrid\\); } catch\\(e\\) { console.log\\(e.message\\) }\")",
+      "Bash(grep -n \"alias\\\\|@\" vite.config.*)",
+      "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\('PartyPopper' in l, 'Party' in l, Object.keys\\(l\\).filter\\(k => k.toLowerCase\\(\\).includes\\('party'\\)\\)\\)\")",
+      "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\(Object.keys\\(l\\).filter\\(k => k.toLowerCase\\(\\).includes\\('gift'\\) || k.toLowerCase\\(\\).includes\\('star'\\) || k.toLowerCase\\(\\).includes\\('celebration'\\) || k.toLowerCase\\(\\).includes\\('sparkle'\\)\\)\\)\")",
+      "Bash(node -e \"const l = require\\('lucide-react'\\); const keys = Object.keys\\(l\\); console.log\\(keys.slice\\(0,30\\)\\); console.log\\('total:', keys.length\\)\")"
     ]
   }
 }

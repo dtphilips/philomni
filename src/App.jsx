@@ -149,6 +149,13 @@ import LiveStart from './pages/LiveStart'
 import LiveRecap from './pages/LiveRecap'
 import BuyCoins from './pages/BuyCoins'
 
+// Celebrations feature
+import Celebrations from './pages/Celebrations'
+import CelebrationCreate from './pages/CelebrationCreate'
+import CelebrationDetail from './pages/CelebrationDetail'
+import CelebrationSponsor from './pages/CelebrationSponsor'
+import AdminCelebrations from './pages/admin/AdminCelebrations'
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 })
@@ -326,6 +333,13 @@ export default function App() {
             <Route path="/live/:id/recap" element={<P page={LiveRecap} />} />
             <Route path="/live/:id" element={<LiveViewer />} />
             <Route path="/coins" element={<P page={BuyCoins} />} />
+
+            {/* Celebrations feature */}
+            <Route path="/celebrations" element={<P page={Celebrations} />} />
+            <Route path="/celebrations/create" element={<P page={CelebrationCreate} />} />
+            <Route path="/celebrations/sponsor" element={<P page={CelebrationSponsor} />} />
+            <Route path="/celebrations/:id" element={<P page={CelebrationDetail} />} />
+            <Route path="/admin/celebrations" element={<P page={AdminCelebrations} />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
