@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Loader2, Share2, ArrowLeft, Download } from 'lucide-react'
+import { Loader2, Share2, ArrowLeft, Download, ExternalLink, UserPlus } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import {
   getTypeInfo, getTierInfo, REACTIONS,
@@ -303,22 +303,126 @@ function WishesSection({ celebration, user }) {
   )
 }
 
+// ─── Who is celebrating section ──────────────────────────────────────────────
+function WhoIsCelebrating({ celebration, honoreeUser }) {
+  const copyInvite = () => {
+    const url = `${window.location.origin}/signup?ref=celebration&name=${encodeURIComponent(celebration.honoree_name)}`
+    navigator.clipboard.writeText(url)
+    alert('Invite link copied!')
+  }
+
+  return (
+    <div className="bg-card border border-border/60 rounded-2xl p-5 mb-4 shadow-sm">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4 text-center">Who is celebrating whom</p>
+      <div className="flex items-center justify-center gap-4">
+        {/* Creator card */}
+        <Link
+          to={`/profile/${celebration.creator_id}`}
+          className="flex flex-col items-center gap-2 group flex-1 max-w-[140px]"
+        >
+          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary/30 group-hover:border-primary transition-colors">
+            {celebration.creator_avatar
+              ? <img src={celebration.creator_avatar} alt="" className="w-full h-full object-cover" />
+              : <div className="w-full h-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xl">{celebration.creator_name?.[0] || '?'}</div>
+            }
+          </div>
+          <div className="text-center">
+            <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">{celebration.creator_name}</p>
+            <p className="text-[10px] text-muted-foreground">Celebrating</p>
+            <span className="text-[10px] text-primary flex items-center justify-center gap-0.5 mt-0.5"><ExternalLink className="w-2.5 h-2.5" />View Profile</span>
+          </div>
+        </Link>
+
+        {/* Middle */}
+        <div className="flex flex-col items-center gap-1 flex-shrink-0">
+          <span className="text-3xl">🎉</span>
+          <span className="text-[9px] text-muted-foreground font-medium">is celebrating</span>
+        </div>
+
+        {/* Honoree card */}
+        <div className="flex flex-col items-center gap-2 flex-1 max-w-[140px]">
+          {honoreeUser ? (
+            <Link
+              to={`/profile/${celebration.honoree_user_id}`}
+              className="flex flex-col items-center gap-2 group"
+            >
+              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-amber-400/60 group-hover:border-amber-400 transition-colors">
+                {honoreeUser.avatar_url
+                  ? <img src={honoreeUser.avatar_url} alt="" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full bg-amber-400/20 flex items-center justify-center text-amber-500 font-bold text-xl">{celebration.honoree_name?.[0]}</div>
+                }
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">{celebration.honoree_name}</p>
+                <p className="text-[10px] text-muted-foreground">Honoree</p>
+                <span className="text-[10px] text-primary flex items-center justify-center gap-0.5 mt-0.5"><ExternalLink className="w-2.5 h-2.5" />View Profile</span>
+              </div>
+            </Link>
+          ) : (
+            <>
+              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-border">
+                {celebration.honoree_photo_url
+                  ? <img src={celebration.honoree_photo_url} alt="" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground font-bold text-xl">{celebration.honoree_name?.[0] || '?'}</div>
+                }
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-bold text-foreground line-clamp-1">{celebration.honoree_name}</p>
+                <p className="text-[10px] text-muted-foreground">Honoree</p>
+                <button
+                  onClick={copyInvite}
+                  className="mt-1 text-[10px] text-primary flex items-center justify-center gap-0.5 hover:underline"
+                >
+                  <UserPlus className="w-2.5 h-2.5" /> Invite to Philomni
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Honoree profile snippet if on Philomni */}
+      {honoreeUser && (
+        <div className="mt-4 pt-4 border-t border-border/50">
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              {honoreeUser.headline && <p className="text-xs text-muted-foreground">{honoreeUser.headline}</p>}
+              {honoreeUser.bio && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{honoreeUser.bio}</p>}
+            </div>
+            <Link
+              to={`/profile/${celebration.honoree_user_id}`}
+              className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
+            >
+              View {celebration.honoree_name}'s Profile →
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function CelebrationDetail() {
   const { id } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [celebration, setCelebration] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [celebration, setCelebration]   = useState(null)
+  const [honoreeUser, setHonoreeUser]   = useState(null)
+  const [loading, setLoading]           = useState(true)
 
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase.from('celebrations').select('*').eq('id', id).single()
       setCelebration(data)
       setLoading(false)
-      // Increment view_count
       if (data) {
-        supabase.from('celebrations').update({ view_count: (data.view_count || 0) + 1 }).eq('id', id).then(() => null)
+        supabase.from('celebrations').update({ view_count: (data.view_count || 0) + 1 }).eq('id', id).catch(() => null)
+        // Load honoree profile if linked
+        if (data.honoree_user_id) {
+          supabase.from('users').select('id, full_name, avatar_url, headline, bio').eq('id', data.honoree_user_id).single()
+            .then(({ data: u }) => { if (u) setHonoreeUser(u) })
+        }
       }
     }
     load()
@@ -373,6 +477,9 @@ export default function CelebrationDetail() {
       <button onClick={() => navigate('/celebrations')} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 pt-2">
         <ArrowLeft className="w-4 h-4" /> Back to Celebrations
       </button>
+
+      {/* Who is celebrating whom */}
+      <WhoIsCelebrating celebration={celebration} honoreeUser={honoreeUser} />
 
       {/* Sponsor banner (sponsored tier) */}
       {celebration.sponsor_brand_name && (

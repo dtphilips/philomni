@@ -44,6 +44,20 @@ export default function CelebrationCard({ celebration, compact = false }) {
       onClick={() => navigate(`/celebrations/${celebration.id}`)}
       className={`bg-card border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group ${isGrand ? 'border-yellow-400/60 grand-shimmer col-span-2' : isFeatured ? 'border-amber-400/40' : 'border-border/60'}`}
     >
+      {/* Social proof header */}
+      {(celebration.creator_name) && (
+        <div className="flex items-center gap-2 px-4 pt-3 pb-0">
+          {celebration.creator_avatar
+            ? <img src={celebration.creator_avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+            : <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-[9px] font-bold">{celebration.creator_name[0]}</div>
+          }
+          <span className="text-[11px] text-muted-foreground">
+            <span className="font-semibold text-foreground">{celebration.creator_name}</span>
+            {' '}is celebrating{' '}
+            <span className="font-semibold text-foreground">{celebration.honoree_name}</span>
+          </span>
+        </div>
+      )}
       {/* Grand: full width hero */}
       {isGrand ? (
         <div className="relative h-48 overflow-hidden">

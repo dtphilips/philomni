@@ -1,23 +1,43 @@
-import React, { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Loader2, ArrowLeft, ArrowRight, Check, Upload, ChevronLeft } from 'lucide-react'
+import { Loader2, ArrowLeft, ArrowRight, Check, Upload, ChevronLeft, Search, X } from 'lucide-react'
 import {
-  CELEBRATION_TYPES, TIERS, RELATIONSHIPS,
-  getExpiresAt, makeShareableCode,
+  CELEBRATION_TYPES, TIERS, RELATIONSHIPS, getExpiresAt,
 } from '../lib/celebrations'
 
 const STEPS = ['Who', 'Message', 'Tier', 'Preview']
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const generateCode = () =>
+  Math.random().toString(36).substring(2, 10).toUpperCase()
+
+// ── Upload honoree photo to existing bucket ───────────────────────────────────
+async function uploadPhoto(file) {
+  const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+  const { error } = await supabase.storage
+    .from('philomni-music')
+    .upload(`celebrations/${fileName}`, file, { contentType: file.type, upsert: true })
+  if (error) {
+    console.error('Photo upload error:', error)
+    return null
+  }
+  const { data: { publicUrl } } = supabase.storage
+    .from('philomni-music')
+    .getPublicUrl(`celebrations/${fileName}`)
+  return publicUrl
+}
+
+// ── Step indicator ─────────────────────────────────────────────────────────────
 function StepIndicator({ current }) {
   return (
-    <div className="flex items-center justify-center gap-0 mb-8">
+    <div className="flex items-center justify-center mb-8">
       {STEPS.map((s, i) => (
         <React.Fragment key={s}>
-          <div className={`flex flex-col items-center ${i > 0 ? 'ml-0' : ''}`}>
+          <div className="flex flex-col items-center">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-              i < current ? 'bg-primary text-primary-foreground' :
+              i < current  ? 'bg-primary text-primary-foreground' :
               i === current ? 'bg-primary text-primary-foreground ring-4 ring-primary/30' :
               'bg-muted text-muted-foreground'
             }`}>
@@ -26,7 +46,7 @@ function StepIndicator({ current }) {
             <span className={`text-[10px] mt-1 font-medium ${i === current ? 'text-primary' : 'text-muted-foreground'}`}>{s}</span>
           </div>
           {i < STEPS.length - 1 && (
-            <div className={`h-px flex-1 mx-2 mb-3 transition-colors ${i < current ? 'bg-primary' : 'bg-muted'}`} style={{ width: 32 }} />
+            <div className={`h-px mx-2 mb-3 transition-colors ${i < current ? 'bg-primary' : 'bg-muted'}`} style={{ width: 28 }} />
           )}
         </React.Fragment>
       ))}
@@ -34,16 +54,17 @@ function StepIndicator({ current }) {
   )
 }
 
+// ── Tier card ─────────────────────────────────────────────────────────────────
 function TierCard({ tier, selected, onSelect }) {
   const t = TIERS[tier]
   return (
     <button
       onClick={() => onSelect(tier)}
-      className={`flex-1 min-w-[140px] rounded-2xl border p-4 text-left transition-all relative ${
+      className={`relative flex-1 min-w-[130px] rounded-2xl border p-4 text-left transition-all ${
         selected === tier
           ? 'border-primary bg-primary/10 ring-2 ring-primary'
           : 'border-border/60 bg-card hover:border-primary/40'
-      } ${t.popular ? 'shadow-lg' : ''}`}
+      }`}
     >
       {t.popular && (
         <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full whitespace-nowrap">MOST POPULAR</span>
@@ -70,110 +91,229 @@ function TierCard({ tier, selected, onSelect }) {
   )
 }
 
+// ── Honoree user search ───────────────────────────────────────────────────────
+function HonoreeSearch({ honoreeName, onSelectUser, onClear, selectedUser }) {
+  const [results, setResults] = useState([])
+  const [searching, setSearching] = useState(false)
+  const debounceRef = useRef(null)
+
+  useEffect(() => {
+    if (!honoreeName || honoreeName.length < 2) { setResults([]); return }
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true)
+      const { data } = await supabase
+        .from('users')
+        .select('id, full_name, avatar_url, headline, role')
+        .ilike('full_name', `%${honoreeName}%`)
+        .limit(5)
+      setResults(data || [])
+      setSearching(false)
+    }, 400)
+    return () => clearTimeout(debounceRef.current)
+  }, [honoreeName])
+
+  if (selectedUser) {
+    return (
+      <div className="flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-xl p-3">
+        <div className="w-10 h-10 rounded-full overflow-hidden bg-primary/20 flex-shrink-0">
+          {selectedUser.avatar_url
+            ? <img src={selectedUser.avatar_url} alt="" className="w-full h-full object-cover" />
+            : <div className="w-full h-full flex items-center justify-center text-primary font-bold text-sm">{selectedUser.full_name?.[0]}</div>
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground">{selectedUser.full_name}</p>
+          <p className="text-xs text-primary">✓ Linked to Philomni profile</p>
+        </div>
+        <button onClick={onClear} className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    )
+  }
+
+  if (!honoreeName || honoreeName.length < 2) return null
+
+  return (
+    <div className="mt-2">
+      <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+        <Search className="w-3 h-3" /> Is <strong>{honoreeName}</strong> on Philomni?
+      </p>
+      {searching && <div className="text-xs text-muted-foreground py-2">Searching...</div>}
+      {!searching && results.length > 0 && (
+        <div className="space-y-1.5">
+          {results.map(u => (
+            <button
+              key={u.id}
+              onClick={() => onSelectUser(u)}
+              className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-muted hover:bg-muted/80 transition-colors text-left"
+            >
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-primary/20 flex-shrink-0">
+                {u.avatar_url
+                  ? <img src={u.avatar_url} alt="" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center text-primary text-xs font-bold">{u.full_name?.[0]}</div>
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">{u.full_name}</p>
+                {u.headline && <p className="text-xs text-muted-foreground truncate">{u.headline}</p>}
+              </div>
+              <span className="text-xs text-primary font-medium">Select →</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {!searching && results.length === 0 && honoreeName.length >= 2 && (
+        <p className="text-xs text-muted-foreground py-1">Not found — that's OK, continue without linking</p>
+      )}
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export default function CelebrationCreate() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [step, setStep] = useState(0)
+  const [step, setStep]           = useState(0)
   const [submitting, setSubmitting] = useState(false)
-  const photoInputRef = useRef(null)
-  const mediaInputRef = useRef(null)
+  const photoInputRef             = useRef(null)
   const [photoUploading, setPhotoUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
 
-  // Form state
   const [form, setForm] = useState({
     honoree_name:       '',
     honoree_photo_url:  '',
+    honoree_user_id:    null,
+    honoree_user:       null,   // full user object for display only
+    honoree_email:      '',
     celebration_type:   '',
     relationship:       '',
     title:              '',
     message:            '',
-    media_url:          '',
     tier:               'basic',
   })
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
-  // Step validation
   const canAdvance = () => {
-    if (step === 0) return form.honoree_name.trim() && form.celebration_type
-    if (step === 1) return form.title.trim() && form.message.trim()
+    if (step === 0) return form.honoree_name.trim().length > 0 && !!form.celebration_type
+    if (step === 1) return form.title.trim().length > 0 && form.message.trim().length > 0
     if (step === 2) return !!form.tier
     return true
   }
 
-  // Upload honoree photo
+  // Photo upload using existing philomni-music bucket
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file || !user) return
     setPhotoUploading(true)
-    const ext  = file.name.split('.').pop()
-    const path = `celebrations/${user.id}/${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('media').upload(path, file, { upsert: true })
-    if (!error) {
-      const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(path)
-      set('honoree_photo_url', publicUrl)
-    }
+    setUploadProgress(30)
+    const url = await uploadPhoto(file)
+    setUploadProgress(100)
+    if (url) set('honoree_photo_url', url)
+    setTimeout(() => setUploadProgress(0), 600)
     setPhotoUploading(false)
   }
 
-  // Publish
+  const handleSelectHonoreeUser = (u) => {
+    set('honoree_user_id', u.id)
+    set('honoree_user', u)
+    // If they have an avatar, use it as honoree photo
+    if (u.avatar_url) set('honoree_photo_url', u.avatar_url)
+  }
+
+  const handleClearHonoreeUser = () => {
+    set('honoree_user_id', null)
+    set('honoree_user', null)
+    // Don't clear photo_url — they may have uploaded one
+  }
+
+  // ── Publish ────────────────────────────────────────────────────────────────
   const publish = async () => {
     if (!user) return
     setSubmitting(true)
     try {
-      const tier = TIERS[form.tier]
+      const tier    = TIERS[form.tier]
       const payload = {
-        creator_id:       user.id,
-        creator_name:     user.full_name || user.email,
-        creator_avatar:   user.avatar_url || null,
-        honoree_name:     form.honoree_name.trim(),
-        honoree_photo_url:form.honoree_photo_url || null,
-        celebration_type: form.celebration_type,
-        relationship:     form.relationship || null,
-        title:            form.title.trim(),
-        message:          form.message.trim(),
-        media_url:        form.media_url || null,
-        tier:             form.tier,
-        tier_price:       tier.price,
-        payment_status:   tier.price === 0 ? 'free' : 'pending',
-        shareable_code:   makeShareableCode(),
-        status:           'active',
-        is_pinned:        form.tier === 'featured' || form.tier === 'grand' || form.tier === 'sponsored',
-        expires_at:       getExpiresAt(form.tier),
+        creator_id:        user.id,
+        honoree_name:      form.honoree_name.trim(),
+        honoree_photo_url: form.honoree_photo_url || null,
+        honoree_user_id:   form.honoree_user_id || null,
+        honoree_email:     form.honoree_email.trim() || null,
+        celebration_type:  form.celebration_type,
+        title:             form.title.trim(),
+        message:           form.message.trim(),
+        tier:              form.tier,
+        amount_paid:       tier.price,
+        status:            'active',
+        expires_at:        getExpiresAt(form.tier),
+        shareable_code:    generateCode(),
+        is_sponsored:      false,
       }
-      const { data, error } = await supabase.from('celebrations').insert(payload).select().single()
-      if (error) throw error
 
-      // Send platform notification for Grand / Sponsored
+      const { data, error } = await supabase
+        .from('celebrations')
+        .insert(payload)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('CELEBRATION INSERT ERROR:', JSON.stringify(error))
+        alert(`Error: ${error.message}\nDetails: ${error.details || '—'}\nHint: ${error.hint || '—'}`)
+        return
+      }
+
+      // ── Notify honoree if they're a Philomni user ────────────────────────
+      if (form.honoree_user_id) {
+        await supabase.from('notifications').insert({
+          user_id:    form.honoree_user_id,
+          type:       'celebration',
+          title:      '🎉 Someone celebrated you!',
+          message:    `${user.full_name || 'Someone'} created a celebration for you! ${form.title.trim()}`,
+          link:       `/celebrations/${data.id}`,
+          created_at: new Date().toISOString(),
+          is_read:    false,
+        }).then(({ error: ne }) => {
+          if (ne) console.warn('Notification insert failed (non-fatal):', ne.message)
+        })
+      }
+
+      // ── Platform-wide notification for Grand / Sponsored ────────────────
       if (form.tier === 'grand' || form.tier === 'sponsored') {
         await supabase.from('notifications').insert({
-          type:    'grand_celebration',
-          title:   `🎉 Grand Celebration!`,
-          message: `${form.title} — Join the celebration`,
-          link:    `/celebrations/${data.id}`,
-          is_global: true,
+          type:       'grand_celebration',
+          title:      '🎉 Grand Celebration!',
+          message:    `${form.title.trim()} — Join the celebration`,
+          link:       `/celebrations/${data.id}`,
+          is_global:  true,
           created_at: new Date().toISOString(),
-        }).catch(() => null) // Non-fatal
+        }).catch(() => null)
       }
 
       navigate(`/celebrations/${data.id}`)
     } catch (err) {
-      console.error(err)
-      alert('Failed to publish. Please try again.')
+      console.error('Unexpected publish error:', err)
+      alert(`Unexpected error: ${err.message}`)
     } finally {
       setSubmitting(false)
     }
   }
 
-  const typeInfo = CELEBRATION_TYPES.find(t => t.type === form.celebration_type)
-  const tierInfo = TIERS[form.tier]
-  const maxMessage = form.tier === 'basic' ? 500 : 1000
+  const typeInfo  = CELEBRATION_TYPES.find(t => t.type === form.celebration_type)
+  const tierInfo  = TIERS[form.tier]
+  const maxMsg    = form.tier === 'basic' ? 500 : 1000
+
+  const photoSrc  = form.honoree_photo_url
 
   return (
     <div className="max-w-2xl mx-auto pb-20">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6 pt-2">
-        <button onClick={() => step > 0 ? setStep(s => s - 1) : navigate('/celebrations')} className="p-2 rounded-xl hover:bg-muted transition-colors">
+        <button
+          onClick={() => step > 0 ? setStep(s => s - 1) : navigate('/celebrations')}
+          className="p-2 rounded-xl hover:bg-muted transition-colors"
+        >
           <ChevronLeft className="w-5 h-5" />
         </button>
         <div>
@@ -184,9 +324,10 @@ export default function CelebrationCreate() {
 
       <StepIndicator current={step} />
 
-      {/* ── STEP 0: WHO ── */}
+      {/* ─── STEP 0: WHO ──────────────────────────────────────────────────── */}
       {step === 0 && (
         <div className="space-y-6">
+          {/* Honoree name */}
           <div>
             <label className="text-sm font-semibold text-foreground mb-2 block">Who are we celebrating? *</label>
             <input
@@ -196,26 +337,57 @@ export default function CelebrationCreate() {
               className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary"
               maxLength={80}
             />
+            {/* Philomni user search */}
+            {!form.honoree_user_id && (
+              <HonoreeSearch
+                honoreeName={form.honoree_name}
+                onSelectUser={handleSelectHonoreeUser}
+                onClear={handleClearHonoreeUser}
+                selectedUser={form.honoree_user}
+              />
+            )}
+            {form.honoree_user && (
+              <HonoreeSearch
+                honoreeName=""
+                onSelectUser={handleSelectHonoreeUser}
+                onClear={handleClearHonoreeUser}
+                selectedUser={form.honoree_user}
+              />
+            )}
           </div>
 
-          {/* Photo upload */}
+          {/* Photo upload (only if not auto-filled from user profile) */}
           <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Their photo</label>
+            <label className="text-sm font-semibold text-foreground mb-2 block">
+              Their photo
+              {form.honoree_user_id && <span className="text-xs text-primary ml-2">(auto-filled from profile)</span>}
+            </label>
             <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-            {form.honoree_photo_url ? (
+            {photoSrc ? (
               <div className="relative w-24 h-24">
-                <img src={form.honoree_photo_url} alt="" className="w-24 h-24 rounded-full object-cover border-2 border-primary" />
-                <button onClick={() => set('honoree_photo_url', '')} className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-destructive text-white text-xs flex items-center justify-center">×</button>
+                <img src={photoSrc} alt="" className="w-24 h-24 rounded-full object-cover border-2 border-primary" />
+                {!form.honoree_user_id && (
+                  <button
+                    onClick={() => set('honoree_photo_url', '')}
+                    className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-destructive text-white text-xs flex items-center justify-center"
+                  >×</button>
+                )}
               </div>
             ) : (
-              <button onClick={() => photoInputRef.current?.click()} disabled={photoUploading}
-                className="w-24 h-24 rounded-full border-2 border-dashed border-border hover:border-primary flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors">
-                {photoUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Upload className="w-5 h-5" /><span className="text-[10px]">Upload</span></>}
+              <button
+                onClick={() => photoInputRef.current?.click()}
+                disabled={photoUploading}
+                className="w-24 h-24 rounded-full border-2 border-dashed border-border hover:border-primary flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors"
+              >
+                {photoUploading
+                  ? <><Loader2 className="w-5 h-5 animate-spin" /><span className="text-[9px]">{uploadProgress}%</span></>
+                  : <><Upload className="w-5 h-5" /><span className="text-[10px]">Upload</span></>
+                }
               </button>
             )}
           </div>
 
-          {/* Type selector */}
+          {/* Celebration type */}
           <div>
             <label className="text-sm font-semibold text-foreground mb-3 block">Type of celebration *</label>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -255,10 +427,25 @@ export default function CelebrationCreate() {
               ))}
             </div>
           </div>
+
+          {/* Honoree email */}
+          <div>
+            <label className="text-sm font-semibold text-foreground mb-1.5 block">
+              Honoree's email <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <input
+              type="email"
+              value={form.honoree_email}
+              onChange={e => set('honoree_email', e.target.value)}
+              placeholder="their@email.com"
+              className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary"
+            />
+            <p className="text-xs text-muted-foreground mt-1">We'll send them a link to their celebration 🎉</p>
+          </div>
         </div>
       )}
 
-      {/* ── STEP 1: MESSAGE ── */}
+      {/* ─── STEP 1: MESSAGE ──────────────────────────────────────────────── */}
       {step === 1 && (
         <div className="space-y-5">
           <div>
@@ -277,13 +464,13 @@ export default function CelebrationCreate() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-semibold text-foreground">Your heartfelt message *</label>
-              <span className={`text-xs ${form.message.length > maxMessage * 0.9 ? 'text-amber-500' : 'text-muted-foreground'}`}>
-                {form.message.length}/{maxMessage}
+              <span className={`text-xs ${form.message.length > maxMsg * 0.9 ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                {form.message.length}/{maxMsg}
               </span>
             </div>
             <textarea
               value={form.message}
-              onChange={e => set('message', e.target.value.slice(0, maxMessage))}
+              onChange={e => set('message', e.target.value.slice(0, maxMsg))}
               placeholder="Write your message here... 🎉"
               rows={6}
               className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary resize-none"
@@ -295,7 +482,7 @@ export default function CelebrationCreate() {
         </div>
       )}
 
-      {/* ── STEP 2: TIER ── */}
+      {/* ─── STEP 2: TIER ─────────────────────────────────────────────────── */}
       {step === 2 && (
         <div>
           <h2 className="text-base font-bold text-foreground mb-4">Choose your tier</h2>
@@ -307,16 +494,16 @@ export default function CelebrationCreate() {
         </div>
       )}
 
-      {/* ── STEP 3: PREVIEW & PAY ── */}
+      {/* ─── STEP 3: PREVIEW & PAY ────────────────────────────────────────── */}
       {step === 3 && (
         <div className="space-y-6">
           <h2 className="text-base font-bold text-foreground">Preview</h2>
 
           {/* Preview card */}
           <div className={`rounded-2xl border overflow-hidden shadow-lg ${form.tier === 'grand' || form.tier === 'sponsored' ? 'border-yellow-400/60' : 'border-border/60'}`}>
-            {form.honoree_photo_url ? (
+            {photoSrc ? (
               <div className="relative h-48 overflow-hidden">
-                <img src={form.honoree_photo_url} alt="" className="w-full h-full object-cover" />
+                <img src={photoSrc} alt="" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                 <div className="absolute bottom-4 left-4 right-4">
                   <p className="text-white text-xl font-black">{form.title || 'Your title here'}</p>
@@ -335,12 +522,16 @@ export default function CelebrationCreate() {
               </div>
               <p className="font-bold text-foreground mb-1">{form.title || 'Your title'}</p>
               <p className="text-sm text-muted-foreground line-clamp-3">{form.message || 'Your message...'}</p>
-              <p className="text-xs text-muted-foreground mt-2">Celebrating: <span className="font-medium text-foreground">{form.honoree_name}</span></p>
-              <p className="text-xs text-muted-foreground">Posted by: <span className="font-medium text-foreground">{user?.full_name}</span></p>
+              <div className="mt-3 pt-3 border-t border-border/50 space-y-1">
+                <p className="text-xs text-muted-foreground">Celebrating: <span className="font-medium text-foreground">{form.honoree_name}</span>
+                  {form.honoree_user && <span className="text-primary ml-1">• Philomni user</span>}
+                </p>
+                <p className="text-xs text-muted-foreground">Posted by: <span className="font-medium text-foreground">{user?.full_name}</span></p>
+              </div>
             </div>
           </div>
 
-          {/* Payment section */}
+          {/* Payment */}
           <div className="bg-card border border-border/60 rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -353,7 +544,17 @@ export default function CelebrationCreate() {
             </div>
             {tierInfo.price > 0 && (
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 mb-4 text-xs text-amber-600 dark:text-amber-400">
-                💳 Payment processing coming soon. Your celebration will be saved as pending and published once payment is set up.
+                💳 Payment processing coming soon. Your celebration will be published immediately.
+              </div>
+            )}
+            {form.honoree_email && (
+              <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4 text-xs text-primary">
+                📧 A notification will be sent to {form.honoree_email}
+              </div>
+            )}
+            {form.honoree_user_id && (
+              <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4 text-xs text-primary">
+                🔔 {form.honoree_user?.full_name} will be notified on Philomni
               </div>
             )}
             <button
@@ -369,10 +570,13 @@ export default function CelebrationCreate() {
         </div>
       )}
 
-      {/* Navigation buttons */}
+      {/* Navigation */}
       <div className="flex gap-3 mt-8">
         {step > 0 && (
-          <button onClick={() => setStep(s => s - 1)} className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition-colors flex items-center justify-center gap-2">
+          <button
+            onClick={() => setStep(s => s - 1)}
+            className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition-colors flex items-center justify-center gap-2"
+          >
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
         )}

@@ -559,6 +559,78 @@ function ShareProfileModal({ profileUser, onClose }) {
   )
 }
 
+// ─── Celebrations Wall (tab on profile) ──────────────────────────────────────
+function CelebrationsWall({ userId, isOwnProfile }) {
+  const navigate = useNavigate()
+  const [celebrations, setCelebrations] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    if (!userId) return
+    setLoading(true)
+    supabase
+      .from('celebrations')
+      .select('*')
+      .eq('honoree_user_id', userId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(30)
+      .then(({ data }) => {
+        setCelebrations(data || [])
+        setLoading(false)
+      })
+  }, [userId])
+
+  if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+
+  if (celebrations.length === 0) return (
+    <div className="text-center py-14 text-muted-foreground">
+      <p className="text-4xl mb-3">🎉</p>
+      <p className="font-medium">No celebrations yet</p>
+      <p className="text-sm mt-1 opacity-60">Celebrations people create for this person will appear here</p>
+      <button onClick={() => navigate('/celebrations/create')} className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90">
+        Create a Celebration
+      </button>
+    </div>
+  )
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">Celebrations this person has received from the community</p>
+      {celebrations.map(c => (
+        <div
+          key={c.id}
+          onClick={() => navigate(`/celebrations/${c.id}`)}
+          className="bg-card border border-border/60 rounded-2xl p-4 cursor-pointer hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-start gap-3">
+            {c.creator_avatar ? (
+              <img src={c.creator_avatar} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
+                {(c.creator_name || '?')[0]}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                <span className="text-xs font-semibold text-foreground">{c.creator_name}</span>
+                <span className="text-xs text-muted-foreground">created a celebration</span>
+              </div>
+              <p className="font-bold text-foreground text-sm">{c.title}</p>
+              <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{c.message}</p>
+              <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                <span>💬 {c.wish_count || 0} wishes</span>
+                <span>{new Date(c.created_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <span className="text-lg flex-shrink-0">{c.celebration_type === 'birthday' ? '🎂' : c.celebration_type === 'memorial' ? '🕊️' : c.celebration_type === 'achievement' ? '🏆' : '🎉'}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Main Profile Component ───────────────────────────────────────────────────
 export default function Profile() {
   const { user, refreshProfile } = useAuth()
@@ -727,6 +799,7 @@ export default function Profile() {
 
   const du = profileUser || user
   const initials = (du?.full_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+  const targetId = isOwnProfile ? user?.id : userId
 
   const videoPosts = posts.filter(p => p.post_type === 'video' || (p.media_urls || []).some(u => /\.(mp4|mov|webm)/i.test(u)))
   const photoPosts = posts.filter(p => (p.media_urls?.length > 0 || p.image_url) && p.post_type !== 'video')
@@ -737,6 +810,7 @@ export default function Profile() {
     { key: 'photos', label: '📸 Photos', count: photoPosts.length },
     ...(isOwnProfile ? [{ key: 'saved', label: '🔖 Saved' }] : []),
     ...(mode === 'pro' ? [{ key: 'professional', label: '💼 Professional' }] : []),
+    { key: 'celebrations', label: '🎉 Celebrations' },
     { key: 'store', label: '🏪 Store' },
     { key: 'about', label: 'ℹ️ About' },
   ]
@@ -996,6 +1070,11 @@ export default function Profile() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── CELEBRATIONS TAB ── */}
+      {activeTab === 'celebrations' && (
+        <CelebrationsWall userId={targetId} isOwnProfile={isOwnProfile} />
       )}
 
       {/* ── STORE TAB ── */}
