@@ -416,15 +416,29 @@ export default function MusicLibrary() {
   // duration_seconds, audio_url, cover_art_url, bpm, tags, is_premium,
   // play_count, is_philomni_original, track_type, is_public, status, created_at
   useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase
-        .from('music_tracks')
-        .select('*')
-        .limit(50)
-      setAllTracks(data || [])
-      setLoading(false)
+    const fetchTracks = async () => {
+      try {
+        setLoading(true)
+        const { data, error } = await supabase
+          .from('music_tracks')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50)
+
+        if (error) {
+          console.error('Music error:', error)
+          setAllTracks([])
+        } else {
+          setAllTracks(data || [])
+        }
+      } catch (err) {
+        console.error('Music catch:', err)
+        setAllTracks([])
+      } finally {
+        setLoading(false)
+      }
     }
-    load()
+    fetchTracks()
   }, [])
 
   // ── Fetch playlists — only when user is logged in ─────────────────────────

@@ -2290,26 +2290,32 @@ export default function Feed() {
   // created_by, author_id, author_name, author_avatar, author_role,
   // like_count, comment_count, share_count, likes_count, comments_count, shares_count,
   // created_at, updated_at, music_track_id, music_track_meta
-  const loadPosts = useCallback(async (pageNum) => {
-    if (pageNum > 0) setLoadingMore(true)
-    const from = pageNum * PAGE_SIZE
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .range(from, from + PAGE_SIZE - 1)
-    if (error) {
-      setFeedError(error.message)
-    } else {
-      setFeedError(null)
-      setPosts(prev => pageNum === 0 ? (data || []) : [...prev, ...(data || [])])
-      setHasMore((data || []).length === PAGE_SIZE)
-    }
-    setLoading(false)
-    setLoadingMore(false)
-  }, [])
+  const fetchPosts = async () => {
+    try {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10)
 
-  useEffect(() => { loadPosts(0) }, [loadPosts])
+      if (error) {
+        console.error('Feed error:', error)
+        setPosts([])
+      } else {
+        setPosts(data || [])
+      }
+    } catch (err) {
+      console.error('Feed catch:', err)
+      setPosts([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchPosts()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Infinite scroll
   useEffect(() => {
@@ -2318,12 +2324,12 @@ export default function Feed() {
     const observer = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
         pageRef.current += 1
-        loadPosts(pageRef.current)
+        fetchPosts()
       }
     }, { threshold: 0.1 })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasMore, loadingMore, loading, loadPosts])
+  }, [hasMore, loadingMore, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Real-time new posts
   useEffect(() => {
