@@ -2254,6 +2254,7 @@ export default function Meetings() {
   const [leftCollapsed, setLeftCollapsed] = useState({
     upcoming: false, spaces: false, direct: false, past: true
   })
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true)
 
   useEffect(() => {
     if (!user?.id) return
@@ -2357,21 +2358,31 @@ export default function Meetings() {
 
   return (
     <div className="absolute inset-0 flex overflow-hidden bg-background">
-      <LeftPanel
-        meetings={meetings}
-        pastMeetings={pastMeetings}
-        spaces={spaces}
-        contacts={DIRECT_CONTACTS}
-        collapsed={leftCollapsed}
-        onToggle={(key) => setLeftCollapsed(prev => ({ ...prev, [key]: !prev[key] }))}
-        onSelectMeeting={setSelectedMeeting}
-        onSelectPast={setSelectedPast}
-        onSelectSpace={setSelectedSpace}
-        onJoin={(m) => { activeMeetingStartRef.current = new Date(); setActiveMeeting(m) }}
-        onNewMeeting={() => setShowSchedule(true)}
-        onNewSpace={() => setShowCreateSpace(true)}
-        selectedId={selectedMeeting?.id || selectedPast?.id || selectedSpace?.id}
-      />
+      {/* Left panel with collapse toggle */}
+      <div className="relative flex-shrink-0 transition-all duration-300 overflow-hidden" style={{ width: leftPanelOpen ? 240 : 0 }}>
+        <LeftPanel
+          meetings={meetings}
+          pastMeetings={pastMeetings}
+          spaces={spaces}
+          contacts={DIRECT_CONTACTS}
+          collapsed={leftCollapsed}
+          onToggle={(key) => setLeftCollapsed(prev => ({ ...prev, [key]: !prev[key] }))}
+          onSelectMeeting={setSelectedMeeting}
+          onSelectPast={setSelectedPast}
+          onSelectSpace={setSelectedSpace}
+          onJoin={(m) => { activeMeetingStartRef.current = new Date(); setActiveMeeting(m) }}
+          onNewMeeting={() => setShowSchedule(true)}
+          onNewSpace={() => setShowCreateSpace(true)}
+          selectedId={selectedMeeting?.id || selectedPast?.id || selectedSpace?.id}
+        />
+        <button
+          onClick={() => setLeftPanelOpen(v => !v)}
+          className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-20 bg-card border border-border border-l-0 rounded-r-lg px-1 py-3 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          title={leftPanelOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+        >
+          {leftPanelOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+        </button>
+      </div>
       <div className="flex-1 overflow-y-auto border-l border-r border-border">
         {centerContent}
       </div>

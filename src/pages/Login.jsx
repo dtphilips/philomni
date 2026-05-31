@@ -1,33 +1,75 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 
 export default function Login() {
-  const { signIn, signUp } = useAuth()
-  const navigate = useNavigate()
   const [mode, setMode] = useState('signin') // signin | signup
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  // 8-second safety timeout — never let the button hang indefinitely
+  useEffect(() => {
+    if (!loading) return
+    const timer = setTimeout(() => {
+      setLoading(false)
+      setError('Login is taking too long. Please try again.')
+    }, 8000)
+    return () => clearTimeout(timer)
+  }, [loading])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
+
     try {
       if (mode === 'signin') {
-        const { error } = await signIn(email, password)
-        if (error) { setError(error.message); return }
-        navigate('/')
+        const { data, error: signInErr } = await supabase.auth.signInWithPassword({
+          email:    email.trim(),
+          password: password,
+        })
+
+        if (signInErr) {
+          setError(signInErr.message)
+          setLoading(false)
+          return
+        }
+
+        if (data?.session) {
+          // Force full page reload — guarantees fresh session state
+          window.location.href = '/'
+          // Don't call setLoading(false) here; the page is navigating away
+          return
+        }
+
+        // Shouldn't normally reach here
+        setError('Something went wrong. Please try again.')
+        setLoading(false)
       } else {
-        if (!fullName.trim()) { setError('Full name is required'); return }
-        const { error } = await signUp(email, password, fullName)
-        if (error) { setError(error.message); return }
-        setError('Check your email to confirm your account.')
+        // Sign-up
+        if (!fullName.trim()) {
+          setError('Full name is required')
+          setLoading(false)
+          return
+        }
+
+        const { error: signUpErr } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: fullName } },
+        })
+
+        if (signUpErr) {
+          setError(signUpErr.message)
+        } else {
+          setError('Check your email to confirm your account.')
+        }
+        setLoading(false)
       }
-    } finally {
+    } catch (err) {
+      setError('Login failed. Please try again.')
       setLoading(false)
     }
   }
@@ -110,7 +152,7 @@ export default function Login() {
               disabled={loading}
               className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
             >
-              {loading ? 'Loading…' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+              {loading ? 'Signing in…' : mode === 'signin' ? 'Sign In' : 'Create Account'}
             </button>
           </form>
         </div>

@@ -1134,7 +1134,7 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent }) {
 
   return (
     <div ref={ref}
-      className="absolute bottom-12 left-0 z-50 bg-card border border-border rounded-2xl shadow-2xl w-72 overflow-hidden"
+      className="absolute bottom-full left-0 z-50 mb-2 bg-card border border-border rounded-2xl shadow-2xl w-72 overflow-hidden"
       onClick={e => e.stopPropagation()}
     >
       {/* Header */}

@@ -461,8 +461,12 @@ export default function Layout({ children }) {
         </div>
       )}
 
-      {/* Floating Philo AI drawer — visible on all pages */}
-      <PhiloDrawer />
+      {/* Floating Philo AI drawer — hidden on live/rooms/meetings pages */}
+      {!location.pathname.startsWith('/live') &&
+       !location.pathname.startsWith('/rooms') &&
+       !location.pathname.startsWith('/meetings') && (
+        <PhiloDrawer />
+      )}
 
       {/* Floating music player — persists across routes */}
       <FloatingMusicPlayer />

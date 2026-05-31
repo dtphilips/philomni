@@ -69,15 +69,16 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  // ── Boot ──────────────────────────────────────────────────────────────────
+  // ── Boot — resolves loading state as fast as possible ─────────────────────
+  // Profile is NOT awaited here; it loads lazily in the effect below.
+  // This guarantees loading=false fires in milliseconds, not seconds.
   useEffect(() => {
     document.documentElement.classList.add('dark')
     if (DEV_MODE) return
 
     let mounted = true
 
-    // Nuclear fallback — if loading is STILL true after 5 s, force it off.
-    // This catches any edge case where all other paths somehow miss setLoading(false).
+    // Nuclear fallback — forces loading=false after 5 s no matter what
     const nuclear = setTimeout(() => {
       console.warn('[Auth] 5 s nuclear timer fired — forcing loading=false')
       if (mounted) setLoading(false)
@@ -93,21 +94,13 @@ export const AuthProvider = ({ children }) => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!mounted) return
-
         setSession(session)
         setUser(session?.user ?? null)
-
-        if (session?.user) {
-          // Profile fetch races a 3 s timeout — loading will NEVER hang on a slow DB
-          const prof = await withTimeout(fetchProfile(session.user), 3000)
-          if (mounted) setProfile(prof)
-        } else {
-          setProfile(null)
-        }
+        if (!session?.user) setProfile(null)
       } catch (err) {
         console.error('[Auth] initAuth error:', err.message)
       } finally {
-        done()
+        done()  // ← always fires; profile loads separately
       }
     }
 
@@ -115,26 +108,17 @@ export const AuthProvider = ({ children }) => {
 
     // ── Live auth state changes ────────────────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         console.log('Auth event:', event)
         if (!mounted) return
-
         try {
           setSession(session)
           setUser(session?.user ?? null)
-
-          if (session?.user) {
-            // Same 3 s timeout — won't block
-            const prof = await withTimeout(fetchProfile(session.user), 3000)
-            if (mounted) setProfile(prof)
-          } else {
-            setProfile(null)
-          }
+          if (!session?.user) setProfile(null)
         } catch (err) {
           console.error('[Auth] onAuthStateChange error:', err.message)
         } finally {
-          // ALWAYS clears loading, no matter what happened above
-          done()
+          done()  // ← always fires; profile loads separately
         }
       }
     )
@@ -145,6 +129,16 @@ export const AuthProvider = ({ children }) => {
       subscription.unsubscribe()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Lazy profile loader — runs after user is known, never blocks loading ──
+  useEffect(() => {
+    if (DEV_MODE) return
+    if (!user?.id) { setProfile(null); return }
+    withTimeout(fetchProfile(user), 3000)
+      .then(prof => setProfile(prof))
+      .catch(() => setProfile(null))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   // ── Auth actions ──────────────────────────────────────────────────────────
   const signIn = async (email, password) => {
