@@ -1,6 +1,22 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
+// ── PublicRoute — redirects authenticated users away from login/signup ────────
+export function PublicRoute({ children }) {
+  const { user, loading } = useAuth()
+
+  // While auth is resolving, render nothing (avoids flash of login page)
+  if (loading) return null
+
+  // Already logged in → go to feed
+  if (user) {
+    window.location.href = '/'
+    return null
+  }
+
+  return children
+}
+
 const Spinner = () => (
   <div style={{
     display: 'flex',

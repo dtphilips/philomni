@@ -5,7 +5,7 @@ import { ModeProvider } from './context/ModeContext'
 import { SubscriptionProvider } from './context/SubscriptionContext'
 import { MusicProvider } from './context/MusicContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import ProtectedRoute from './components/ProtectedRoute'
+import ProtectedRoute, { PublicRoute } from './components/ProtectedRoute'
 import Layout from './components/Layout'
 
 // Auth pages
@@ -181,9 +181,9 @@ export default function App() {
       <ModeProvider>
         <BrowserRouter>
           <Routes>
-            {/* Public */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
+            {/* Public — wrapped in PublicRoute so authenticated users skip to feed */}
+            <Route path="/login"  element={<PublicRoute><Login /></PublicRoute>} />
+            <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
             <Route path="/partners" element={<Partners />} />
             <Route path="/shared/video/:id" element={<SharedVideoView />} />
             <Route path="/shared/project/:id" element={<SharedProjectView />} />

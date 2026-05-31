@@ -9,6 +9,29 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // ── Auto-redirect if user already has a valid session ─────────────────────
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        console.log('[Login] Existing session found, redirecting…')
+        window.location.href = '/'
+      }
+    }
+    checkExistingSession()
+  }, [])
+
+  // ── Redirect on any auth state change while on this page ──────────────────
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[Login] auth event:', event)
+      if (session?.user) {
+        window.location.href = '/'
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   // 8-second safety timeout — never let the button hang indefinitely
   useEffect(() => {
     if (!loading) return

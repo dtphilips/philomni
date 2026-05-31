@@ -96,7 +96,15 @@ export const AuthProvider = ({ children }) => {
         if (!mounted) return
         setSession(session)
         setUser(session?.user ?? null)
-        if (!session?.user) setProfile(null)
+        if (!session?.user) {
+          setProfile(null)
+        } else if (window.location.pathname === '/login' ||
+                   window.location.pathname === '/signup') {
+          // Already authenticated but on an auth page — bounce to feed immediately
+          console.log('[Auth] Session exists on auth page, redirecting to feed…')
+          window.location.href = '/'
+          return
+        }
       } catch (err) {
         console.error('[Auth] initAuth error:', err.message)
       } finally {
@@ -165,7 +173,13 @@ export const AuthProvider = ({ children }) => {
       // Clear all storage
       localStorage.clear()
       sessionStorage.clear()
-      // Sign out from Supabase (non-blocking for UI)
+      // Clear all cookies (belt-and-suspenders for any Supabase auth cookies)
+      document.cookie.split(';').forEach(cookie => {
+        document.cookie = cookie
+          .replace(/^ +/, '')
+          .replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/')
+      })
+      // Sign out from Supabase
       await supabase.auth.signOut()
     } catch (err) {
       console.error('[Auth] signOut error:', err.message)
