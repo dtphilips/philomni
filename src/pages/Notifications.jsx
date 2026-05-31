@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchNotifications } from '../lib/queries';
 import { useAuth } from '../context/AuthContext';
 import { Bell, Heart, MessageCircle, UserPlus, Briefcase, BookOpen, Settings, CheckCheck, Trash2, Loader2, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -65,14 +66,8 @@ export default function Notifications() {
       const uid = session.user.id;
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', uid)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (error) throw error;
+        // Uses centralized fetchNotifications from src/lib/queries.js
+        const data = await fetchNotifications(uid, 50);
         setNotifications(data && data.length > 0 ? data : SAMPLE_NOTIFICATIONS);
       } catch {
         setNotifications(SAMPLE_NOTIFICATIONS);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { fetchJobs } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import { useSubscription } from '../context/SubscriptionContext'
@@ -1469,6 +1470,8 @@ export default function Jobs() {
   const { canUse, incrementUsage } = useSubscription()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('browse')
+  const [jobs, setJobs] = useState(SAMPLE_JOBS)
+  const [jobsLoading, setJobsLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
   const [remoteOnly, setRemoteOnly] = useState(false)
@@ -1480,6 +1483,20 @@ export default function Jobs() {
 
   const JOB_TYPES = ['All', 'Full-time', 'Part-time', 'Contract', 'Freelance']
 
+  // 5-second safety net
+  useEffect(() => {
+    const timer = setTimeout(() => setJobsLoading(false), 5000)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Uses centralized fetchJobs from src/lib/queries.js; falls back to SAMPLE_JOBS
+  useEffect(() => {
+    setJobsLoading(true)
+    fetchJobs(20)
+      .then(data => { if (data.length) setJobs(data) })
+      .finally(() => setJobsLoading(false))
+  }, [])
+
   useEffect(() => {
     async function loadSaved() {
       if (!user) return
@@ -1490,7 +1507,7 @@ export default function Jobs() {
   }, [user])
 
   const filteredJobs = useMemo(() => {
-    return SAMPLE_JOBS.filter(job => {
+    return jobs.filter(job => {
       const q = searchQuery.toLowerCase()
       const matchesSearch = !q || job.title.toLowerCase().includes(q) || job.company.toLowerCase().includes(q) || job.tags.some(t => t.toLowerCase().includes(q))
       const matchesType = typeFilter === 'All' || job.type === typeFilter
@@ -1499,7 +1516,7 @@ export default function Jobs() {
     })
   }, [searchQuery, typeFilter, remoteOnly])
 
-  const savedJobsList = useMemo(() => SAMPLE_JOBS.filter(j => savedJobs.has(j.id)), [savedJobs])
+  const savedJobsList = useMemo(() => jobs.filter(j => savedJobs.has(j.id)), [jobs, savedJobs])
 
   async function toggleSave(jobId) {
     const next = new Set(savedJobs)

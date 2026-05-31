@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { fetchSkillOffers } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import { fetchWithCache } from '../lib/queryCache'
@@ -677,25 +678,28 @@ export default function SkillExchange() {
   }
 
   // Load all data
+  // 5-second safety net
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(timer)
+  }, [])
+
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true)
       try {
-        // Public lists cached 90 s — avoids refetch on every page visit
-        const [offersRes, wantedRes] = await Promise.all([
-          fetchWithCache('skill-exchanges', () =>
-            supabase.from('skill_exchanges').select('*').order('created_at', { ascending: false }).limit(20),
-            90_000,
-          ),
+        // Uses centralized fetchSkillOffers from src/lib/queries.js
+        const [dbOffers, wantedRes] = await Promise.all([
+          fetchSkillOffers(20),
           fetchWithCache('wanted-skills', () =>
             supabase.from('wanted_skills').select('*').order('created_at', { ascending: false }).limit(20),
             90_000,
           ),
         ])
-        if (offersRes.error) console.error('[SkillExchange] skill_exchanges:', offersRes.error.message)
-        const dbOffers = offersRes.data ?? []
-        const dbIds    = new Set(dbOffers.map(o => o.id))
-        const merged   = [...dbOffers, ...SAMPLES.filter(s => !dbIds.has(s.id))]
+        const dbIds  = new Set(dbOffers.map(o => o.id))
+        const merged = dbOffers.length
+          ? [...dbOffers, ...SAMPLES.filter(s => !dbIds.has(s.id))]
+          : SAMPLES
         setOffers(merged)
         if (user?.id) {
           setMyOffers(merged.filter(o => o.user_id === user.id))

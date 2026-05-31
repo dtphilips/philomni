@@ -7,6 +7,7 @@ import {
   MoreHorizontal, Check, ChevronRight,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { fetchAllTracks } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useMusic } from '../context/MusicContext'
 
@@ -415,30 +416,19 @@ export default function MusicLibrary() {
   // Confirmed music_tracks columns: id, title, artist, album, genre, mood,
   // duration_seconds, audio_url, cover_art_url, bpm, tags, is_premium,
   // play_count, is_philomni_original, track_type, is_public, status, created_at
+  // 5-second safety net
   useEffect(() => {
-    const fetchTracks = async () => {
-      try {
-        setLoading(true)
-        const { data, error } = await supabase
-          .from('music_tracks')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(50)
+    const timer = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(timer)
+  }, [])
 
-        if (error) {
-          console.error('Music error:', error)
-          setAllTracks([])
-        } else {
-          setAllTracks(data || [])
-        }
-      } catch (err) {
-        console.error('Music catch:', err)
-        setAllTracks([])
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchTracks()
+  // Uses centralized fetchAllTracks from src/lib/queries.js
+  useEffect(() => {
+    setLoading(true)
+    fetchAllTracks(50)
+      .then(data => setAllTracks(data))
+      .catch(() => setAllTracks([]))
+      .finally(() => setLoading(false))
   }, [])
 
   // ── Fetch playlists — only when user is logged in ─────────────────────────

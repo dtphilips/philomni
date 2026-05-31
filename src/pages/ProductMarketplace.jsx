@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { fetchDigitalProducts } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
 import { addToWallet } from '../lib/wallet'
@@ -71,32 +72,30 @@ export default function ProductMarketplace() {
   const [category,  setCategory]  = useState('All')
   const [buying,    setBuying]    = useState(null) // product being confirmed
 
+  // 5-second safety net
   useEffect(() => {
-    const fetch = async () => {
-      setLoading(true)
-      let q = supabase
-        .from('digital_products')
-        .select('*, users!digital_products_seller_id_fkey(id,full_name,avatar_url)')
-        .eq('is_published', true)
-        .order('created_at', { ascending: false })
+    const timer = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(timer)
+  }, [])
 
-      if (category !== 'All') q = q.eq('category', category)
-      if (search) q = q.ilike('title', `%${search}%`)
+  // Uses centralized fetchDigitalProducts from src/lib/queries.js; filters client-side
+  useEffect(() => {
+    setLoading(true)
+    fetchDigitalProducts(100)
+      .then(data => {
+        let result = data
+        if (category !== 'All') result = result.filter(p => p.category === category)
+        if (search) result = result.filter(p => (p.title || '').toLowerCase().includes(search.toLowerCase()))
+        setProducts(result)
+      })
+      .finally(() => setLoading(false))
 
-      const { data } = await q
-      setProducts(data || [])
-
-      if (user?.id) {
-        const { data: p } = await supabase
-          .from('product_purchases')
-          .select('product_id')
-          .eq('buyer_id', user.id)
-        setPurchases(new Set(p?.map(x => x.product_id) || []))
-      }
-      setLoading(false)
+    // User purchases (user-specific, kept inline)
+    if (user?.id) {
+      supabase.from('product_purchases').select('product_id').eq('buyer_id', user.id)
+        .then(({ data: p }) => setPurchases(new Set(p?.map(x => x.product_id) || [])))
     }
-    fetch()
-  }, [user?.id, search, category])
+  }, [user?.id, search, category]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBuy = async (product) => {
     if (!user?.id) return toast.error('Sign in to purchase')

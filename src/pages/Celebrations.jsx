@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { fetchCelebrations } from '../lib/queries'
 import { Loader2, Plus } from 'lucide-react'
 import { CELEBRATION_TYPES, getTypeInfo } from '../lib/celebrations'
 import CelebrationCard from '../components/celebrations/CelebrationCard'
@@ -17,25 +18,22 @@ export default function Celebrations() {
   const [loading, setLoading]           = useState(true)
   const [filter, setFilter]             = useState('all')
 
+  // 5-second safety net
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(timer)
+  }, [])
+
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const [{ data: cels }, { data: spons }] = await Promise.all([
-        supabase
-          .from('celebrations')
-          .select('*')
-          .eq('status', 'active')
-          .gte('expires_at', new Date().toISOString())
-          .order('is_pinned', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(60),
-        supabase
-          .from('celebration_sponsors')
-          .select('*')
-          .eq('status', 'active'),
+      // Uses centralized fetchCelebrations from src/lib/queries.js
+      const [cels, sponsRes] = await Promise.all([
+        fetchCelebrations(60),
+        supabase.from('celebration_sponsors').select('*').eq('status', 'active'),
       ])
-      setCelebrations(cels || [])
-      setSponsors(spons || [])
+      setCelebrations(cels)
+      setSponsors(sponsRes.data || [])
       setLoading(false)
     }
     load()

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchRooms } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import { useSubscription } from '../context/SubscriptionContext'
@@ -644,26 +645,30 @@ export default function Rooms() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [toast, setToast] = useState(null)
 
+  // 5-second safety net
   useEffect(() => {
-    async function loadRooms() {
-      setLoading(true)
-      try {
-        const [liveRes, upcomingRes, endedRes] = await Promise.all([
-          supabase.from('rooms').select('*').eq('status', 'live').order('viewer_count', { ascending: false }),
-          supabase.from('rooms').select('*').eq('status', 'upcoming').order('scheduled_at', { ascending: true }),
-          supabase.from('rooms').select('*').eq('status', 'ended').order('ended_at', { ascending: false }).limit(10),
-        ])
-        setLiveRooms(liveRes.data?.length ? liveRes.data : SAMPLE_LIVE_ROOMS)
-        setUpcomingRooms(upcomingRes.data?.length ? upcomingRes.data : SAMPLE_UPCOMING_ROOMS)
-        setEndedRooms(endedRes.data?.length ? endedRes.data : SAMPLE_ENDED_ROOMS)
-      } catch (_) {
+    const timer = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Uses centralized fetchRooms from src/lib/queries.js; splits by status client-side
+  useEffect(() => {
+    setLoading(true)
+    fetchRooms(50)
+      .then(rooms => {
+        const live     = rooms.filter(r => r.status === 'live')
+        const upcoming = rooms.filter(r => r.status === 'upcoming')
+        const ended    = rooms.filter(r => r.status === 'ended')
+        setLiveRooms(live.length ? live : SAMPLE_LIVE_ROOMS)
+        setUpcomingRooms(upcoming.length ? upcoming : SAMPLE_UPCOMING_ROOMS)
+        setEndedRooms(ended.length ? ended : SAMPLE_ENDED_ROOMS)
+      })
+      .catch(() => {
         setLiveRooms(SAMPLE_LIVE_ROOMS)
         setUpcomingRooms(SAMPLE_UPCOMING_ROOMS)
         setEndedRooms(SAMPLE_ENDED_ROOMS)
-      }
-      setLoading(false)
-    }
-    loadRooms()
+      })
+      .finally(() => setLoading(false))
   }, [])
 
   function showToast(msg) {

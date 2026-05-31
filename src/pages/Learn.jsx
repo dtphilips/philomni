@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { fetchCourses } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
 import {
@@ -70,34 +71,34 @@ export default function Learn() {
   const [search,      setSearch]      = useState('')
   const [category,    setCategory]    = useState('All')
 
+  // 5-second safety net
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      let q = supabase
-        .from('courses')
-        .select('*, users!courses_creator_id_fkey(id,full_name,avatar_url)')
-        .eq('is_published', true)
-        .order('created_at', { ascending: false })
+    const timer = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(timer)
+  }, [])
 
-      if (category !== 'All') q = q.eq('category', category)
-      if (search) q = q.ilike('title', `%${search}%`)
+  // Uses centralized fetchCourses from src/lib/queries.js; filters client-side
+  useEffect(() => {
+    setLoading(true)
+    fetchCourses(100)
+      .then(data => {
+        let result = data
+        if (category !== 'All') result = result.filter(c => c.category === category)
+        if (search) result = result.filter(c => (c.title || '').toLowerCase().includes(search.toLowerCase()))
+        setCourses(result)
+      })
+      .finally(() => setLoading(false))
 
-      const { data } = await q
-      setCourses(data || [])
-
-      if (user?.id) {
-        const { data: enr } = await supabase
-          .from('course_enrollments')
-          .select('course_id, progress, completed')
-          .eq('user_id', user.id)
-        const map = {}
-        enr?.forEach(e => { map[e.course_id] = e })
-        setEnrollments(map)
-      }
-      setLoading(false)
+    // User enrollments (user-specific, kept inline)
+    if (user?.id) {
+      supabase.from('course_enrollments').select('course_id, progress, completed').eq('user_id', user.id)
+        .then(({ data: enr }) => {
+          const map = {}
+          enr?.forEach(e => { map[e.course_id] = e })
+          setEnrollments(map)
+        })
     }
-    fetchData()
-  }, [user?.id, search, category])
+  }, [user?.id, search, category]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="max-w-5xl mx-auto py-6 px-4 space-y-6">

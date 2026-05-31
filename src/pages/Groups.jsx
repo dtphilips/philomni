@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { fetchGroups } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import {
   Users, Plus, Search, Lock, Globe, Hash, Loader2,
@@ -261,19 +262,23 @@ export default function Groups() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    // Load all active groups
-    const { data: allGroups } = await supabase.from('groups').select('*').eq('status', 'active').order('member_count', { ascending: false }).limit(50)
-    const gs = allGroups || []
-    // Fill with samples if empty
+    // Uses centralized fetchGroups from src/lib/queries.js
+    const gs = await fetchGroups(50)
     setGroups(gs.length ? gs : SAMPLE_GROUPS)
 
-    // Load user memberships
+    // Load user memberships (user-specific, kept inline)
     if (user?.id) {
       const { data: memberships } = await supabase.from('group_members').select('group_id').eq('user_id', user.id)
       setMyGroupIds(new Set((memberships || []).map(m => m.group_id)))
     }
     setLoading(false)
   }, [user?.id])
+
+  // 5-second safety net
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(timer)
+  }, [])
 
   useEffect(() => { load() }, [load])
 

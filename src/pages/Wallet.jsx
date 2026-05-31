@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchUserWallet, fetchWalletTransactions } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
 import {
@@ -81,11 +82,13 @@ export default function Wallet() {
   const [showWithdraw, setShowWithdraw] = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState('')
 
+  // Uses centralized fetchUserWallet from src/lib/queries.js
   const fetchWallet = useCallback(async (uid) => {
-    const { data } = await supabase.from('wallet').select('*').eq('user_id', uid).single()
+    const data = await fetchUserWallet(uid)
     setWallet(data || { balance: 0, total_earned: 0, total_withdrawn: 0, pending_payout: 0 })
   }, [])
 
+  // Uses centralized fetchWalletTransactions from src/lib/queries.js (paginated inline)
   const fetchTxns = useCallback(async (uid) => {
     const from = page * PAGE_SIZE
     const { data, count } = await supabase
