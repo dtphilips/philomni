@@ -139,6 +139,32 @@ const PLATFORMS = [
   { name: 'Instagram', icon: '📸', color: '#E1306C', getUrl: () => `https://www.instagram.com/` },
 ]
 
+// ─── Gifts ───────────────────────────────────────────────────────────────────
+
+const GIFTS = [
+  { id: 'rose',     emoji: '🌹', name: 'Rose',     cost: 1    },
+  { id: 'heart',    emoji: '❤️', name: 'Heart',    cost: 5    },
+  { id: 'star',     emoji: '⭐', name: 'Star',     cost: 10   },
+  { id: 'fire',     emoji: '🔥', name: 'Fire',     cost: 20   },
+  { id: 'crown',    emoji: '👑', name: 'Crown',    cost: 50   },
+  { id: 'diamond',  emoji: '💎', name: 'Diamond',  cost: 100  },
+  { id: 'rocket',   emoji: '🚀', name: 'Rocket',   cost: 200  },
+  { id: 'galaxy',   emoji: '🌌', name: 'Galaxy',   cost: 500  },
+  { id: 'philomni', emoji: '✨', name: 'Philomni', cost: 1000 },
+  { id: 'legend',   emoji: '🏆', name: 'Legend',   cost: 5000 },
+]
+
+function parseMediaUrls(raw) {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : [parsed]
+  } catch {
+    return typeof raw === 'string' ? [raw] : []
+  }
+}
+
 async function uploadToStorage(file) {
   const ext = file.name.split('.').pop() || 'bin'
   const path = `posts/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`
@@ -397,7 +423,8 @@ function ShareModal({ post, currentUser, onClose }) {
 
 // ─── Media Display ────────────────────────────────────────────────────────────
 
-function MediaDisplay({ urls, type }) {
+function MediaDisplay({ urls: rawUrls, type }) {
+  const urls = parseMediaUrls(rawUrls)
   if (!urls?.length) return null
   const single = urls.length === 1
 
@@ -1020,6 +1047,167 @@ function CommentSection({ postId, currentUser, onCommentAdded }) {
   )
 }
 
+// ─── Gift Panel (post gift picker popup) ─────────────────────────────────────
+
+function GiftPanel({ post, currentUser, onClose, onGiftSent }) {
+  const navigate = useNavigate()
+  const [balance, setBalance] = useState(null)
+  const [sending, setSending] = useState(null)
+  const [error, setError] = useState('')
+  const ref = useRef()
+
+  useEffect(() => {
+    if (!currentUser?.id) return
+    supabase.from('users').select('coin_balance').eq('id', currentUser.id).single()
+      .then(({ data }) => setBalance(data?.coin_balance ?? 0))
+  }, [currentUser?.id])
+
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [onClose])
+
+  const PANEL_GIFTS = GIFTS.slice(0, 6)
+
+  const handleSend = async (gift) => {
+    if (!currentUser) return
+    if (balance < gift.cost) {
+      setError(`Need ${(gift.cost - balance).toLocaleString()} more coins`)
+      return
+    }
+    setSending(gift.id)
+    setError('')
+    try {
+      const creatorId = post.created_by || post.author_id
+      const usdValue        = gift.cost / 100
+      const creatorEarnings = usdValue * 0.70
+
+      // Deduct coins from sender
+      await supabase.from('users')
+        .update({ coin_balance: balance - gift.cost })
+        .eq('id', currentUser.id)
+
+      // Insert gift record
+      await supabase.from('post_gifts').insert({
+        post_id:          post.id,
+        sender_id:        currentUser.id,
+        creator_id:       creatorId,
+        gift_id:          gift.id,
+        gift_name:        gift.name,
+        gift_emoji:       gift.emoji,
+        coin_cost:        gift.cost,
+        usd_value:        usdValue,
+        creator_earnings: creatorEarnings,
+      })
+
+      // Add earnings to creator wallet
+      if (creatorId) {
+        const { data: cData } = await supabase
+          .from('users').select('wallet_balance').eq('id', creatorId).single()
+        if (cData) {
+          await supabase.from('users')
+            .update({ wallet_balance: (cData.wallet_balance || 0) + creatorEarnings })
+            .eq('id', creatorId)
+        }
+        // In-app notification
+        await supabase.from('notifications').insert({
+          user_id:    creatorId,
+          type:       'gift',
+          title:      `${currentUser.full_name || 'Someone'} sent you a ${gift.emoji} ${gift.name}!`,
+          body:       'on your post',
+          data:       { post_id: post.id, gift_emoji: gift.emoji, gift_name: gift.name },
+          is_read:    false,
+          created_at: new Date().toISOString(),
+        })
+      }
+
+      setBalance(b => b - gift.cost)
+      onGiftSent(gift)
+      onClose()
+    } catch (err) {
+      console.error('[GiftPanel] send error:', err)
+      setError(err.message)
+    }
+    setSending(null)
+  }
+
+  return (
+    <div ref={ref}
+      className="absolute bottom-12 left-0 z-50 bg-card border border-border rounded-2xl shadow-2xl w-72 overflow-hidden"
+      onClick={e => e.stopPropagation()}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
+        <p className="text-sm font-bold text-foreground">Send a Gift</p>
+        <span className="flex items-center gap-1 text-xs text-amber-500 font-bold">
+          🪙 {balance === null ? '…' : balance.toLocaleString()}
+        </span>
+      </div>
+
+      {balance === 0 ? (
+        <div className="px-4 py-5 text-center">
+          <div className="text-3xl mb-2">🪙</div>
+          <p className="text-sm font-semibold text-foreground mb-1">No coins yet</p>
+          <p className="text-xs text-muted-foreground mb-3">Buy coins to show love to creators</p>
+          <button
+            onClick={() => navigate('/coins')}
+            className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors"
+          >
+            🪙 Buy Coins
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-2 p-3">
+            {PANEL_GIFTS.map(gift => {
+              const canAfford = balance === null || balance >= gift.cost
+              return (
+                <button
+                  key={gift.id}
+                  onClick={() => handleSend(gift)}
+                  disabled={sending !== null || !canAfford}
+                  className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all ${
+                    !canAfford
+                      ? 'opacity-40 cursor-not-allowed border-border/30 bg-muted/20'
+                      : 'border-border/50 hover:border-primary/60 hover:bg-primary/5 active:scale-95'
+                  }`}
+                >
+                  {sending === gift.id
+                    ? <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    : <span className="text-xl">{gift.emoji}</span>
+                  }
+                  <span className="text-[10px] font-medium text-foreground leading-tight">{gift.name}</span>
+                  <span className="text-[10px] font-bold text-amber-500">🪙 {gift.cost}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {error && (
+            <p className="px-4 pb-2 text-xs text-destructive text-center font-medium">{error}</p>
+          )}
+
+          <div className="flex items-center justify-between px-4 pb-3 pt-1 border-t border-border/30">
+            <button
+              onClick={() => navigate('/coins')}
+              className="text-xs text-primary font-semibold hover:underline"
+            >
+              Buy Coins
+            </button>
+            <button
+              onClick={() => navigate('/coins')}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              More Gifts →
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
 function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWinnerId }) {
@@ -1032,6 +1220,10 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
   const [showMenu, setShowMenu] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [reposting, setReposting] = useState(false)
+  const [showGiftPanel, setShowGiftPanel] = useState(false)
+  const [giftAnimation, setGiftAnimation] = useState(null)
+  const [giftCount, setGiftCount] = useState(0)
+  const [giftSummary, setGiftSummary] = useState([])
   // View counting
   const cardRef = useRef()
   const viewedRef = useRef(false)
@@ -1046,6 +1238,43 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
   const [editSaving, setEditSaving] = useState(false)
   const menuRef = useRef()
   const isOwner = currentUser?.id === post.author_id
+
+  // Load gift summary for this post
+  useEffect(() => {
+    supabase
+      .from('post_gifts')
+      .select('gift_emoji, gift_name, coin_cost')
+      .eq('post_id', post.id)
+      .then(({ data }) => {
+        if (!data?.length) return
+        setGiftCount(data.length)
+        const agg = {}
+        data.forEach(g => {
+          const k = g.gift_name
+          if (!agg[k]) agg[k] = { emoji: g.gift_emoji, name: g.gift_name, count: 0, total: 0 }
+          agg[k].count++
+          agg[k].total += g.coin_cost
+        })
+        setGiftSummary(
+          Object.values(agg).sort((a, b) => b.total - a.total).slice(0, 3)
+        )
+      })
+  }, [post.id])
+
+  const handleGiftSent = (gift) => {
+    setGiftAnimation({ emoji: gift.emoji, name: gift.name })
+    setTimeout(() => setGiftAnimation(null), 2500)
+    setGiftCount(c => c + 1)
+    setGiftSummary(prev => {
+      const found = prev.find(g => g.name === gift.name)
+      if (found) {
+        return prev.map(g => g.name === gift.name ? { ...g, count: g.count + 1, total: g.total + gift.cost } : g)
+      }
+      return [...prev, { emoji: gift.emoji, name: gift.name, count: 1, total: gift.cost }]
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 3)
+    })
+  }
 
   useEffect(() => {
     const fn = e => { if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false) }
@@ -1245,6 +1474,20 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
           </div>
         )}
 
+        {/* Gift summary — gifts received on this post */}
+        {giftSummary.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap px-4 pb-2">
+            {giftSummary.map(g => (
+              <span key={g.name} className="flex items-center gap-1 text-xs bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full">
+                {g.emoji} {g.name} × {g.count}
+              </span>
+            ))}
+            <span className="text-xs text-muted-foreground">
+              🪙 {giftSummary.reduce((a, c) => a + c.total, 0).toLocaleString()} coins
+            </span>
+          </div>
+        )}
+
         {/* Media */}
         <MediaDisplay urls={post.media_urls} type={post.media_type} />
 
@@ -1311,6 +1554,29 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
             <span className="text-base">↗️</span>
             <span>Share</span>
           </button>
+          {/* Gift button */}
+          <div className="relative flex-1">
+            <button
+              onClick={() => setShowGiftPanel(v => !v)}
+              className={`w-full flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold rounded-xl transition-all ${
+                showGiftPanel
+                  ? 'text-amber-500 bg-amber-500/10'
+                  : 'text-muted-foreground hover:text-amber-500 hover:bg-amber-500/5'
+              }`}
+            >
+              <span className="text-base">🎁</span>
+              <span>Gift</span>
+              {giftCount > 0 && <span className="text-xs opacity-70">{fmtCount(giftCount)}</span>}
+            </button>
+            {showGiftPanel && currentUser && (
+              <GiftPanel
+                post={post}
+                currentUser={currentUser}
+                onClose={() => setShowGiftPanel(false)}
+                onGiftSent={handleGiftSent}
+              />
+            )}
+          </div>
           <button onClick={handleSave}
             className={`flex items-center justify-center p-2.5 rounded-xl transition-all ${saved ? 'text-amber-400' : 'text-muted-foreground hover:text-amber-400 hover:bg-amber-400/5'}`}>
             <Bookmark className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />
@@ -1406,6 +1672,19 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
       })()}
 
       {showShare && <ShareModal post={post} currentUser={currentUser} onClose={() => setShowShare(false)} />}
+
+      {/* Gift animation — floats up from the post */}
+      {giftAnimation && (
+        <div
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[400] flex flex-col items-center gap-2 pointer-events-none"
+          style={{ animation: 'giftFloat 2.5s ease-out forwards' }}
+        >
+          <span className="text-6xl drop-shadow-2xl">{giftAnimation.emoji}</span>
+          <span className="text-sm font-bold text-white bg-black/70 backdrop-blur-sm px-4 py-2 rounded-full shadow-xl">
+            You sent a {giftAnimation.name}! 🎉
+          </span>
+        </div>
+      )}
 
       {/* Edit Post Modal */}
       {showEditModal && (
@@ -1588,17 +1867,20 @@ function PostComposer({ user, onCreated }) {
     try {
       const mediaUrls = []
       for (const { file } of mediaFiles) mediaUrls.push(await uploadToStorage(file))
+      const mediaType    = mediaFiles[0]?.type ?? 'none'
+      const isVideoPost  = mediaType === 'video'
       const { data, error: err } = await supabase.from('posts').insert({
         content: html,
-        author_id: user.id,
-        author_name: user.full_name ?? user.email,
+        created_by:   user.id,
+        author_id:    user.id,
+        author_name:  user.full_name ?? user.email,
         author_avatar: user.avatar_url ?? null,
-        author_role: user.role ?? null,
+        author_role:   user.role ?? null,
         media_urls: mediaUrls.length > 0 ? mediaUrls : null,
-        media_type: mediaFiles[0]?.type ?? 'none',
+        media_type: mediaType,
         like_count: 0, comment_count: 0, repost_count: 0,
         visibility: audience,
-        feed_type: feedType,
+        feed_type: isVideoPost ? 'reel' : feedType,
         created_at: new Date().toISOString(),
         music_track_id: selectedTrack?.id || null,
         music_track_meta: selectedTrack

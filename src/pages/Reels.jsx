@@ -54,6 +54,22 @@ function formatCount(n) {
   return String(n)
 }
 
+function parseMediaUrls(raw) {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : [parsed]
+  } catch {
+    return typeof raw === 'string' ? [raw] : []
+  }
+}
+
+function getVideoUrl(reel) {
+  const urls = parseMediaUrls(reel.media_urls)
+  return urls[0] ?? reel.video_url ?? null
+}
+
 // ─── Comments Drawer ──────────────────────────────────────────────────────────
 function CommentsDrawer({ reel, onClose }) {
   const [comments, setComments] = useState([])
@@ -153,11 +169,15 @@ function UploadModal({ onClose, onUploaded }) {
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(up.path)
       await supabase.from('posts').insert({
-        content: caption,
-        media_type: 'video',
-        media_urls: [publicUrl],
-        author_id: user.id,
-        created_at: new Date().toISOString(),
+        content:      caption,
+        media_type:   'video',
+        feed_type:    'reel',
+        media_urls:   [publicUrl],
+        created_by:   user.id,
+        author_id:    user.id,
+        author_name:  user.full_name ?? user.email ?? 'Creator',
+        author_avatar: user.avatar_url ?? null,
+        created_at:   new Date().toISOString(),
       })
       onUploaded()
       onClose()
@@ -260,8 +280,8 @@ function ReelSlide({ reel, index, isMuted, onMuteToggle, videoRefsCallback, onAc
     navigator.clipboard.writeText(`${window.location.origin}/reels/${reel.id}`).catch(() => {})
   }
 
-  const videoSrc = reel.media_urls?.[0] ?? reel.video_url ?? null
-  const authorName = reel.author_name ?? reel.users?.full_name ?? 'Creator'
+  const videoSrc   = getVideoUrl(reel)
+  const authorName  = reel.author_name  ?? reel.users?.full_name  ?? 'Creator'
   const authorAvatar = reel.author_avatar ?? reel.users?.avatar_url ?? null
 
   return (
@@ -281,6 +301,8 @@ function ReelSlide({ reel, index, isMuted, onMuteToggle, videoRefsCallback, onAc
           preload="metadata"
           data-index={index}
           onClick={handleVideoClick}
+          onError={e => console.warn('[Reels] video error', videoSrc, e)}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
         />
       ) : (
         <div

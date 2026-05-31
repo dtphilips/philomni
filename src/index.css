@@ -243,6 +243,12 @@
     100% { background-position: -100% 0; }
   }
 
+  @keyframes giftFloat {
+    0%   { opacity: 1;   transform: translateY(0)   scale(1); }
+    60%  { opacity: 1;   transform: translateY(-80px) scale(1.15); }
+    100% { opacity: 0;   transform: translateY(-140px) scale(0.9); }
+  }
+
   /* ── Premium gradient backgrounds ──────────────── */
   .bg-premium-dark {
     background: linear-gradient(135deg, #07070f 0%, #0d0d1a 50%, #07070f 100%);
