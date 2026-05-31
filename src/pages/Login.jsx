@@ -1,98 +1,53 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
-  const [mode, setMode] = useState('signin') // signin | signup
-  const [email, setEmail] = useState('')
+  const [mode, setMode]       = useState('signin') // signin | signup
+  const [email, setEmail]     = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError]     = useState('')
   const [loading, setLoading] = useState(false)
 
-  // ── Auto-redirect if user already has a valid session ─────────────────────
-  useEffect(() => {
-    const checkExistingSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        console.log('[Login] Existing session found, redirecting…')
-        window.location.href = '/'
-      }
-    }
-    checkExistingSession()
-  }, [])
-
-  // ── Redirect on any auth state change while on this page ──────────────────
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[Login] auth event:', event)
-      if (session?.user) {
-        window.location.href = '/'
-      }
-    })
-    return () => subscription.unsubscribe()
-  }, [])
-
-  // 8-second safety timeout — never let the button hang indefinitely
-  useEffect(() => {
-    if (!loading) return
-    const timer = setTimeout(() => {
-      setLoading(false)
-      setError('Login is taking too long. Please try again.')
-    }, 8000)
-    return () => clearTimeout(timer)
-  }, [loading])
-
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
-    setError('')
     setLoading(true)
+    setError('')
 
-    try {
-      if (mode === 'signin') {
-        const { data, error: signInErr } = await supabase.auth.signInWithPassword({
-          email:    email.trim(),
-          password: password,
-        })
+    if (mode === 'signin') {
+      const { data, error: signInErr } = await supabase.auth.signInWithPassword({
+        email:    email.trim(),
+        password: password,
+      })
 
-        if (signInErr) {
-          setError(signInErr.message)
-          setLoading(false)
-          return
-        }
-
-        if (data?.session) {
-          // Force full page reload — guarantees fresh session state
-          window.location.href = '/'
-          // Don't call setLoading(false) here; the page is navigating away
-          return
-        }
-
-        // Shouldn't normally reach here
-        setError('Something went wrong. Please try again.')
+      if (signInErr) {
+        setError(signInErr.message)
         setLoading(false)
-      } else {
-        // Sign-up
-        if (!fullName.trim()) {
-          setError('Full name is required')
-          setLoading(false)
-          return
-        }
-
-        const { error: signUpErr } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { full_name: fullName } },
-        })
-
-        if (signUpErr) {
-          setError(signUpErr.message)
-        } else {
-          setError('Check your email to confirm your account.')
-        }
-        setLoading(false)
+        return
       }
-    } catch (err) {
-      setError('Login failed. Please try again.')
+
+      if (data.session) {
+        window.location.href = '/'
+      }
+    } else {
+      // Sign-up
+      if (!fullName.trim()) {
+        setError('Full name is required')
+        setLoading(false)
+        return
+      }
+
+      const { error: signUpErr } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullName } },
+      })
+
+      if (signUpErr) {
+        setError(signUpErr.message)
+      } else {
+        setError('Check your email to confirm your account.')
+      }
       setLoading(false)
     }
   }
@@ -124,7 +79,7 @@ export default function Login() {
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
             {mode === 'signup' && (
               <div>
                 <label className="text-sm font-medium text-foreground block mb-1.5">Full Name</label>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { fetchDigitalProducts } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
 import { addToWallet } from '../lib/wallet'
@@ -72,30 +71,21 @@ export default function ProductMarketplace() {
   const [category,  setCategory]  = useState('All')
   const [buying,    setBuying]    = useState(null) // product being confirmed
 
-  // 5-second safety net
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 5000)
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Uses centralized fetchDigitalProducts from src/lib/queries.js; filters client-side
   useEffect(() => {
     setLoading(true)
-    fetchDigitalProducts(100)
-      .then(data => {
-        let result = data
-        if (category !== 'All') result = result.filter(p => p.category === category)
-        if (search) result = result.filter(p => (p.title || '').toLowerCase().includes(search.toLowerCase()))
-        setProducts(result)
-      })
-      .finally(() => setLoading(false))
-
-    // User purchases (user-specific, kept inline)
+    supabase.from('digital_products')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => { setProducts(data || []); setLoading(false) })
+      .catch(() => setLoading(false))
     if (user?.id) {
       supabase.from('product_purchases').select('product_id').eq('buyer_id', user.id)
         .then(({ data: p }) => setPurchases(new Set(p?.map(x => x.product_id) || [])))
     }
-  }, [user?.id, search, category]) // eslint-disable-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(t)
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBuy = async (product) => {
     if (!user?.id) return toast.error('Sign in to purchase')

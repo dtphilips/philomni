@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { fetchUserAnalytics } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import {
@@ -341,11 +340,6 @@ export default function Analytics() {
     setLoading(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // session fetched inside — no user dep needed
-
-  // Also fetch creator_metrics via centralized query (src/lib/queries.js)
-  useEffect(() => {
-    if (user?.id) fetchUserAnalytics(user.id) // supplemental — result currently unused but loads via central query
-  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wrap invocation so an unexpected throw never leaves the page in a loading state
   const loadSafe = useCallback(async () => {

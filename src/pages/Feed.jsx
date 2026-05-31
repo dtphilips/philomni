@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { fetchFeedPosts } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import { formatDistanceToNow } from 'date-fns'
@@ -2291,23 +2290,20 @@ export default function Feed() {
   // created_by, author_id, author_name, author_avatar, author_role,
   // like_count, comment_count, share_count, likes_count, comments_count, shares_count,
   // created_at, updated_at, music_track_id, music_track_meta
-  // ── 5-second safety net — never spin forever ──────────────────────────────
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 5000)
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Uses centralized fetchFeedPosts from src/lib/queries.js
   const fetchPosts = () => {
     setLoading(true)
-    fetchFeedPosts(10)
-      .then(data => setPosts(data))
-      .catch(err => { console.error('Feed catch:', err); setPosts([]) })
-      .finally(() => setLoading(false))
+    supabase.from('posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data }) => { setPosts(data || []); setLoading(false) })
+      .catch(() => setLoading(false))
   }
 
   useEffect(() => {
     fetchPosts()
+    const t = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(t)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Infinite scroll

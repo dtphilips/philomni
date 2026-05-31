@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { fetchRooms } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import { useSubscription } from '../context/SubscriptionContext'
@@ -645,30 +644,30 @@ export default function Rooms() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [toast, setToast] = useState(null)
 
-  // 5-second safety net
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 5000)
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Uses centralized fetchRooms from src/lib/queries.js; splits by status client-side
   useEffect(() => {
     setLoading(true)
-    fetchRooms(50)
-      .then(rooms => {
+    supabase.from('rooms')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        const rooms    = data || []
         const live     = rooms.filter(r => r.status === 'live')
         const upcoming = rooms.filter(r => r.status === 'upcoming')
         const ended    = rooms.filter(r => r.status === 'ended')
         setLiveRooms(live.length ? live : SAMPLE_LIVE_ROOMS)
         setUpcomingRooms(upcoming.length ? upcoming : SAMPLE_UPCOMING_ROOMS)
         setEndedRooms(ended.length ? ended : SAMPLE_ENDED_ROOMS)
+        setLoading(false)
       })
       .catch(() => {
         setLiveRooms(SAMPLE_LIVE_ROOMS)
         setUpcomingRooms(SAMPLE_UPCOMING_ROOMS)
         setEndedRooms(SAMPLE_ENDED_ROOMS)
+        setLoading(false)
       })
-      .finally(() => setLoading(false))
+    const t = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(t)
   }, [])
 
   function showToast(msg) {

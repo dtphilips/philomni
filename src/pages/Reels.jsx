@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { fetchReels as fetchReelsQuery } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import {
   Heart, MessageCircle, Share2, Music, Plus, Volume2, VolumeX,
@@ -432,19 +431,17 @@ export default function Reels() {
     videoRefsMap.current[index] = ref
   }, [])
 
-  // 5-second safety net
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 5000)
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Fetch reels via centralized query (src/lib/queries.js)
   useEffect(() => {
     setLoading(true)
-    fetchReelsQuery(20)
-      .then(data => setReels(data.length > 0 ? data : SAMPLE_REELS))
-      .catch(() => setReels(SAMPLE_REELS))
-      .finally(() => setLoading(false))
+    supabase.from('posts')
+      .select('*')
+      .eq('media_type', 'video')
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data }) => { setReels(data?.length ? data : SAMPLE_REELS); setLoading(false) })
+      .catch(() => { setReels(SAMPLE_REELS); setLoading(false) })
+    const t = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(t)
   }, [])
 
   // Intersection Observer — play the visible video, pause others

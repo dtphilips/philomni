@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { fetchJobs } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import { useSubscription } from '../context/SubscriptionContext'
@@ -1471,7 +1470,6 @@ export default function Jobs() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('browse')
   const [jobs, setJobs] = useState(SAMPLE_JOBS)
-  const [jobsLoading, setJobsLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
   const [remoteOnly, setRemoteOnly] = useState(false)
@@ -1483,18 +1481,13 @@ export default function Jobs() {
 
   const JOB_TYPES = ['All', 'Full-time', 'Part-time', 'Contract', 'Freelance']
 
-  // 5-second safety net
   useEffect(() => {
-    const timer = setTimeout(() => setJobsLoading(false), 5000)
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Uses centralized fetchJobs from src/lib/queries.js; falls back to SAMPLE_JOBS
-  useEffect(() => {
-    setJobsLoading(true)
-    fetchJobs(20)
-      .then(data => { if (data.length) setJobs(data) })
-      .finally(() => setJobsLoading(false))
+    supabase.from('jobs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data }) => { if (data?.length) setJobs(data) })
+      .catch(() => {}) // keep SAMPLE_JOBS on error
   }, [])
 
   useEffect(() => {

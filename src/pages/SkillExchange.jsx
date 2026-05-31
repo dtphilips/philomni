@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { fetchSkillOffers } from '../lib/queries'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import { fetchWithCache } from '../lib/queryCache'
@@ -678,28 +677,23 @@ export default function SkillExchange() {
   }
 
   // Load all data
-  // 5-second safety net
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 5000)
-    return () => clearTimeout(timer)
-  }, [])
-
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true)
       try {
-        // Uses centralized fetchSkillOffers from src/lib/queries.js
-        const [dbOffers, wantedRes] = await Promise.all([
-          fetchSkillOffers(20),
+        const [offersRes, wantedRes] = await Promise.all([
+          fetchWithCache('skill-exchanges', () =>
+            supabase.from('skill_exchanges').select('*').order('created_at', { ascending: false }).limit(20),
+            90_000,
+          ),
           fetchWithCache('wanted-skills', () =>
             supabase.from('wanted_skills').select('*').order('created_at', { ascending: false }).limit(20),
             90_000,
           ),
         ])
-        const dbIds  = new Set(dbOffers.map(o => o.id))
-        const merged = dbOffers.length
-          ? [...dbOffers, ...SAMPLES.filter(s => !dbIds.has(s.id))]
-          : SAMPLES
+        const dbOffers = offersRes.data ?? []
+        const dbIds    = new Set(dbOffers.map(o => o.id))
+        const merged   = [...dbOffers, ...SAMPLES.filter(s => !dbIds.has(s.id))]
         setOffers(merged)
         if (user?.id) {
           setMyOffers(merged.filter(o => o.user_id === user.id))
@@ -716,6 +710,8 @@ export default function SkillExchange() {
       setLoading(false)
     }
     loadAll()
+    const t = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(t)
   }, [user?.id])
 
   const filteredOffers = useMemo(() => {
