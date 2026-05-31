@@ -181,6 +181,9 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    headers: {
+      'Cache-Control': 'no-store',
+    },
     // Increase the header size limit for the underlying http server.
     // This value is passed as maxHeaderSize to Node's http.createServer.
     hmr: {
@@ -193,6 +196,9 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
           ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs'],
