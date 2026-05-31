@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useEffect } from 'react'
+import { supabase } from './lib/supabase'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ModeProvider } from './context/ModeContext'
@@ -173,6 +174,23 @@ function P({ page: Page }) {
 }
 
 export default function App() {
+  useEffect(() => {
+    const testConnection = async () => {
+      console.log('=== SUPABASE CONNECTION TEST ===')
+      console.log('URL:', import.meta.env.VITE_SUPABASE_URL)
+      console.log('Key exists:', !!import.meta.env.VITE_SUPABASE_ANON_KEY)
+
+      const { data, error } = await supabase
+        .from('posts')
+        .select('count')
+        .limit(1)
+
+      console.log('Test query result:', data, error)
+      console.log('================================')
+    }
+    testConnection()
+  }, [])
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
