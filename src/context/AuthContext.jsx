@@ -9,40 +9,42 @@ export const AuthProvider = ({ children }) => {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    // Get initial session — simple and fast
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
+  const loadProfile = async (userId) => {
+    console.log('[Auth] Loading profile for:', userId)
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single()
+    console.log('[Auth] Profile result:', data, error)
+    if (data) {
+      setProfile(data)
+      console.log('[Auth] Profile set:', data.full_name, 'plan:', data.plan)
+    }
+  }
 
-      // Load profile after — non-blocking
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        supabase.from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => setProfile(data))
+        setUser(session.user)
+        loadProfile(session.user.id)
       }
+      setLoading(false)
     })
 
-    // Listen for changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[Auth] event:', event)
       setUser(session?.user ?? null)
       setLoading(false)
-
       if (session?.user) {
-        supabase.from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => setProfile(data))
+        loadProfile(session.user.id)
       } else {
         setProfile(null)
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const signOut = async () => {
     localStorage.clear()
@@ -60,15 +62,7 @@ export const AuthProvider = ({ children }) => {
       isAdmin:  profile?.is_admin === true,
       isPro:    profile?.plan === 'pro' || profile?.plan === 'promax' || profile?.is_admin === true,
       isProMax: profile?.plan === 'promax' || profile?.is_admin === true,
-      refreshProfile: () => {
-        if (user) {
-          supabase.from('users')
-            .select('*')
-            .eq('id', user.id)
-            .single()
-            .then(({ data }) => setProfile(data))
-        }
-      },
+      refreshProfile: () => { if (user) loadProfile(user.id) },
     }}>
       {children}
     </AuthContext.Provider>

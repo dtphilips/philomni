@@ -2296,8 +2296,12 @@ export default function Feed() {
       .select('*')
       .order('created_at', { ascending: false })
       .limit(20)
-      .then(({ data }) => { setPosts(data || []); setLoading(false) })
-      .catch(() => setLoading(false))
+      .then(({ data, error }) => {
+        console.log('ALL POSTS:', data?.length, error)
+        setPosts(data || [])
+        setLoading(false)
+      })
+      .catch((err) => { console.error('Feed fetch error:', err); setLoading(false) })
   }
 
   useEffect(() => {

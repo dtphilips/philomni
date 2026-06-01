@@ -241,13 +241,13 @@ function Sidebar({ user, mode, navSections, onModeSwitch, onSignOut, onNav }) {
           className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted transition-colors mb-1"
         >
           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0 overflow-hidden">
-            {user?.avatar_url
-              ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
-              : (user?.full_name?.[0] ?? '?')}
+            {profile?.avatar_url
+              ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+              : ((profile?.full_name || user?.email)?.[0]?.toUpperCase() ?? '?')}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{user?.full_name ?? 'Creator'}</p>
-            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            <p className="text-sm font-medium text-foreground truncate">{profile?.full_name || user?.email || 'User'}</p>
+            <p className="text-xs text-muted-foreground truncate">{profile?.plan || 'free'}</p>
           </div>
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
         </NavLink>
@@ -315,7 +315,7 @@ function ModeSwitcher({ mode, onSwitch }) {
 }
 
 export default function Layout({ children }) {
-  const { user, signOut } = useAuth()
+  const { user, profile, signOut } = useAuth()
   const { mode, switchTo, toast } = useMode()
   const navigate = useNavigate()
   const location = useLocation()
