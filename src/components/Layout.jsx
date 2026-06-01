@@ -207,7 +207,7 @@ function SectionHeader({ label }) {
 }
 
 // ─── Sidebar (defined outside Layout to prevent re-creation on every render) ─
-function Sidebar({ user, mode, navSections, onModeSwitch, onSignOut, onNav }) {
+function Sidebar({ user, profile, mode, navSections, onModeSwitch, onSignOut, onNav }) {
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
@@ -378,6 +378,7 @@ export default function Layout({ children }) {
       <aside className="hidden lg:flex flex-col w-60 border-r border-border bg-card flex-shrink-0">
         <Sidebar
           user={user}
+          profile={profile}
           mode={mode}
           navSections={navSections}
           onModeSwitch={handleModeSwitch}
@@ -398,6 +399,7 @@ export default function Layout({ children }) {
             </button>
             <Sidebar
               user={user}
+              profile={profile}
               mode={mode}
               navSections={navSections}
               onModeSwitch={handleModeSwitch}
