@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
+// ⚠️ CRITICAL: Never use window.location.replace() or window.location.href after login.
+// Always use React Router navigate() — hard reloads destroy the in-memory Supabase session
+// before it persists to localStorage, causing auth to fail silently on reload.
+// The useEffect watching `user` handles all post-login navigation automatically.
 export default function Login() {
   const [mode, setMode]       = useState('signin') // signin | signup
   // Read returnUrl from query string so ProtectedRoute can send users back

@@ -7,6 +7,12 @@ const ADMIN_EMAILS = ['dtphilips1992@gmail.com']
 const AuthContext = createContext({})
 export const useAuth = () => useContext(AuthContext)
 
+// ⚠️ CRITICAL AUTH NOTES — read before modifying:
+// 1. autoRefreshToken: false in supabase.js is intentional — prevents PostgREST query lock
+// 2. Manual token refresh is handled by scheduleTokenRefresh() — do not remove it
+// 3. fetchProfile uses profileFetchedFor ref to prevent duplicate fetches
+// 4. setLoading(false) must only be called AFTER fetchProfile completes (in finally block)
+// 5. Never add window.location calls anywhere in the auth flow
 export const AuthProvider = ({ children }) => {
   const [user,    setUser]    = useState(null)
   const [profile, setProfile] = useState(null)
