@@ -2297,7 +2297,10 @@ export default function Feed() {
       .order('created_at', { ascending: false })
       .limit(20)
       .then(({ data, error }) => {
-        console.log('ALL POSTS:', data?.length, error)
+        console.log('FEED FETCH RESULT:')
+        console.log('- Count:', data?.length)
+        console.log('- Error:', error)
+        console.log('- First post:', data?.[0])
         setPosts(data || [])
         setLoading(false)
       })

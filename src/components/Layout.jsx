@@ -353,7 +353,7 @@ export default function Layout({ children }) {
   const handleSignOut = () => signOut() // signOut in AuthContext clears storage + hard redirects
 
   const baseNav = mode === 'creator' ? CREATOR_NAV : PRO_NAV
-  const navSections = user?.is_admin
+  const navSections = profile?.is_admin === true
     ? [
         ...baseNav,
         {
