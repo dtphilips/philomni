@@ -2292,25 +2292,23 @@ export default function Feed() {
   // created_at, updated_at, music_track_id, music_track_meta
   const fetchPosts = () => {
     setLoading(true)
-    supabase.from('posts')
+    const t = setTimeout(() => setLoading(false), 5000)
+    supabase
+      .from('posts')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(20)
+      .limit(50)
       .then(({ data, error }) => {
-        console.log('FEED FETCH RESULT:')
-        console.log('- Count:', data?.length)
-        console.log('- Error:', error)
-        console.log('- First post:', data?.[0])
+        clearTimeout(t)
+        console.log('FEED FETCH RESULT:', data?.length, error?.message)
         setPosts(data || [])
         setLoading(false)
       })
-      .catch((err) => { console.error('Feed fetch error:', err); setLoading(false) })
+      .catch(err => { clearTimeout(t); console.error('Feed fetch error:', err); setLoading(false) })
   }
 
   useEffect(() => {
     fetchPosts()
-    const t = setTimeout(() => setLoading(false), 5000)
-    return () => clearTimeout(t)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Infinite scroll

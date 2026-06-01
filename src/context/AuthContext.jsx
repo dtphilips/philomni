@@ -5,44 +5,57 @@ const AuthContext = createContext({})
 export const useAuth = () => useContext(AuthContext)
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser]       = useState(null)
+  const [user,    setUser]    = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const fetchProfile = (userId) => {
-    supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single()
-      .then(({ data, error }) => {
-        console.log('PROFILE LOADED:', data?.full_name, 'plan:', data?.plan, 'admin:', data?.is_admin, 'error:', error?.message)
-        if (data) setProfile(data)   // Only update if we actually got data — never overwrite with null
-      })
-      .catch(err => console.error('Profile fetch error:', err))
+  const fetchProfile = async (userId) => {
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      console.log('PROFILE LOADED:', data?.full_name, 'plan:', data?.plan, 'admin:', data?.is_admin)
+      if (data) setProfile(data)
+    } catch (e) {
+      console.error('Profile fetch error:', e)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
-    // Initial session check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-      if (session?.user?.id) fetchProfile(session.user.id)
-    })
+    // Absolute fallback — never block the app longer than 5s
+    const timeout = setTimeout(() => setLoading(false), 5000)
 
-    // Auth state changes (login / logout / token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[Auth] event:', event)
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        clearTimeout(timeout)
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          fetchProfile(session.user.id)   // setLoading(false) happens in finally
+        } else {
+          setLoading(false)
+        }
+      })
+      .catch(err => {
+        console.error('getSession error:', err)
+        clearTimeout(timeout)
+        setLoading(false)
+      })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
-      setLoading(false)
-      if (session?.user?.id) {
+      if (session?.user) {
         fetchProfile(session.user.id)
       } else {
-        setProfile(null)  // Only clear profile on explicit sign-out
+        setProfile(null)
+        setLoading(false)
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const signOut = async () => {
