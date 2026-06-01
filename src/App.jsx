@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react'
-import { useAuth } from './context/AuthContext'
 import { supabase } from './lib/supabase'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
@@ -179,33 +178,6 @@ function PL({ page: Page }) {
   return <Layout><Page /></Layout>
 }
 
-// Global loading gate — shows spinner while AuthContext resolves session
-// Sits inside AuthProvider so it can read the loading state
-function AppShell({ children }) {
-  const { loading } = useAuth()
-  if (loading) {
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100vh', background: '#0a0a0a',
-        flexDirection: 'column', gap: '16px',
-      }}>
-        <div style={{
-          width: '48px', height: '48px',
-          border: '3px solid #1a1a2e',
-          borderTop: '3px solid #8b5cf6',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-        }} />
-        <p style={{ color: '#8b5cf6', fontSize: '14px', fontFamily: 'sans-serif', margin: 0 }}>
-          Loading Philomni...
-        </p>
-        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-      </div>
-    )
-  }
-  return children
-}
 
 export default function App() {
   useEffect(() => {
@@ -228,7 +200,6 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-      <AppShell>
       <SubscriptionProvider>
       <MusicProvider>
       <ModeProvider>
@@ -400,7 +371,6 @@ export default function App() {
       </ModeProvider>
       </MusicProvider>
       </SubscriptionProvider>
-      </AppShell>
       </AuthProvider>
     </QueryClientProvider>
   )

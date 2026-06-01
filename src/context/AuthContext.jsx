@@ -26,22 +26,21 @@ export const AuthProvider = ({ children }) => {
   }
 
   useEffect(() => {
-    // Absolute fallback — never block the app longer than 5s
+    // Absolute fallback — fires after 5 s regardless of network state.
+    // NOT cleared on getSession success so it always covers fetchProfile too.
     const timeout = setTimeout(() => setLoading(false), 5000)
 
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
-        clearTimeout(timeout)
         setUser(session?.user ?? null)
         if (session?.user) {
-          fetchProfile(session.user.id)   // setLoading(false) happens in finally
+          fetchProfile(session.user.id) // setLoading(false) in finally
         } else {
           setLoading(false)
         }
       })
       .catch(err => {
         console.error('getSession error:', err)
-        clearTimeout(timeout)
         setLoading(false)
       })
 
@@ -55,6 +54,7 @@ export const AuthProvider = ({ children }) => {
       }
     })
 
+    // Only cancel the timeout on unmount — never cancel it early
     return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
