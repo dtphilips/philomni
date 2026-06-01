@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
@@ -8,62 +8,57 @@ export const AuthProvider = ({ children }) => {
   const [user,    setUser]    = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const fetchingRef = useRef(false)
 
   const fetchProfile = async (userId) => {
+    if (fetchingRef.current) return
+    fetchingRef.current = true
     try {
-      // Use maybeSingle() — returns null (not an error) when 0 rows found
+      console.log('fetchProfile start for:', userId)
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .maybeSingle()
+
       if (error) {
-        console.error('fetchProfile error:', error.message, '| code:', error.code)
+        console.error('fetchProfile error:', error.message, error.code)
       } else if (data) {
-        console.log('Profile loaded:', data.full_name, '| plan:', data.plan, '| admin:', data.is_admin)
+        console.log('Profile loaded:', data.full_name, '| plan:', data.plan)
         setProfile(data)
       } else {
-        console.warn('fetchProfile: no row in public.users for auth id', userId)
+        console.warn('No profile row found for:', userId)
       }
     } catch (e) {
-      console.error('fetchProfile unexpected error:', e)
+      console.error('fetchProfile exception:', e)
     } finally {
+      fetchingRef.current = false
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    // Absolute fallback — fires after 5 s regardless of network state.
-    // NOT cleared on getSession success so it always covers fetchProfile too.
-    const timeout = setTimeout(() => setLoading(false), 5000)
+    const timeout = setTimeout(() => setLoading(false), 8000)
 
-    supabase.auth.getSession()
-      .then(({ data: { session } }) => {
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          fetchProfile(session.user.id) // setLoading(false) in finally
-        } else {
-          setLoading(false)
-        }
-      })
-      .catch(err => {
-        console.error('getSession error:', err)
-        setLoading(false)
-      })
+    // ONLY use onAuthStateChange — remove getSession() race condition
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth event:', event, '| user:', session?.user?.id ?? 'none')
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
       if (session?.user) {
+        setUser(session.user)
         fetchProfile(session.user.id)
       } else {
+        setUser(null)
         setProfile(null)
         setLoading(false)
       }
     })
 
-    // Only cancel the timeout on unmount — never cancel it early
-    return () => { subscription.unsubscribe(); clearTimeout(timeout) }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
+  }, [])
 
   const signOut = async () => {
     localStorage.clear()
@@ -72,8 +67,6 @@ export const AuthProvider = ({ children }) => {
     window.location.replace('/login')
   }
 
-  // Merge profile data into user so that user.full_name, user.avatar_url,
-  // user.plan, user.is_admin etc. all work across the codebase without changes.
   const mergedUser = user
     ? { ...user, ...(profile ?? {}) }
     : null
@@ -85,7 +78,7 @@ export const AuthProvider = ({ children }) => {
       loading,
       signOut,
       isAdmin:  profile?.is_admin === true,
-      isPro:    profile?.plan === 'pro' || profile?.plan === 'promax' || profile?.is_admin === true,
+      isPro:    ['pro','promax'].includes(profile?.plan) || profile?.is_admin === true,
       isProMax: profile?.plan === 'promax' || profile?.is_admin === true,
       refreshProfile: () => { if (user?.id) fetchProfile(user.id) },
     }}>
