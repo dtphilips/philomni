@@ -1,15 +1,27 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
   const [mode, setMode]       = useState('signin') // signin | signup
   // Read returnUrl from query string so ProtectedRoute can send users back
   const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/'
+  const navigate = useNavigate()
+  const { user } = useAuth()
   const [email, setEmail]     = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [error, setError]     = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Once AuthContext detects the session (via onAuthStateChange) and sets user,
+  // navigate to returnUrl with React Router — no hard reload needed.
+  useEffect(() => {
+    if (user) {
+      navigate(returnUrl, { replace: true })
+    }
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -28,12 +40,10 @@ export default function Login() {
         return
       }
 
-      if (data.session) {
-        // Wait for Supabase to finish persisting the session to localStorage
-        // before reloading — otherwise getSession() on the new page finds nothing
-        await new Promise(resolve => setTimeout(resolve, 800))
-        window.location.replace(returnUrl)
-      }
+      // Do NOT redirect here — let the useEffect above handle it.
+      // AuthContext detects the session via onAuthStateChange and sets user,
+      // which triggers the useEffect navigation.
+      setLoading(false)
     } else {
       // Sign-up
       if (!fullName.trim()) {
