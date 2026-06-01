@@ -16,8 +16,9 @@ export const AuthProvider = ({ children }) => {
         .select('*')
         .eq('id', userId)
         .single()
-      console.log('PROFILE LOADED:', data?.full_name, 'plan:', data?.plan, 'admin:', data?.is_admin)
+      console.log('Profile loaded:', data?.full_name, '| plan:', data?.plan, '| admin:', data?.is_admin, '| id:', data?.id)
       if (data) setProfile(data)
+      else console.warn('fetchProfile: no row found for userId', userId)
     } catch (e) {
       console.error('Profile fetch error:', e)
     } finally {

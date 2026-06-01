@@ -1416,13 +1416,13 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
           </div>
         )}
 
-        {/* Header */}
+        {/* Header — use enriched post.author if available, fall back to denormalized fields */}
         <div className="flex items-start justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-3">
-            <Avatar src={post.author_avatar} name={post.author_name} size={11} />
+            <Avatar src={post.author?.avatar_url || post.author_avatar} name={post.author?.full_name || post.author_name} size={11} />
             <div>
               <p className="text-sm font-bold text-foreground leading-tight flex items-center gap-1.5">
-                {post.author_name ?? 'Creator'}
+                {post.author?.full_name || post.author_name || 'Creator'}
                 {spotlightWinnerId && post.author_id === spotlightWinnerId && (
                   <SpotlightBadge size="sm" />
                 )}
@@ -2295,28 +2295,56 @@ export default function Feed() {
   // created_by, author_id, author_name, author_avatar, author_role,
   // like_count, comment_count, share_count, likes_count, comments_count, shares_count,
   // created_at, updated_at, music_track_id, music_track_meta
-  const fetchPosts = () => {
+  const FEED_LIMIT = 50
+
+  const fetchPosts = async () => {
     setLoading(true)
-    const t = setTimeout(() => setLoading(false), 5000)
-    supabase
-      .from('posts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data, error }) => {
-        clearTimeout(t)
-        console.log('FEED FETCH RESULT:', data?.length, error?.message)
-        setPosts(data || [])
-        setLoading(false)
-      })
-      .catch(err => { clearTimeout(t); console.error('Feed fetch error:', err); setLoading(false) })
+    try {
+      // FIX 1: simple select — no join, no relationship queries
+      const { data: rawPosts, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(FEED_LIMIT)
+
+      if (error) throw error
+      console.log('FEED FETCH RESULT:', rawPosts?.length, error?.message)
+
+      const fetched = rawPosts || []
+
+      // FIX: stop infinite scroll when we've seen all posts
+      if (fetched.length < FEED_LIMIT) setHasMore(false)
+
+      // FIX 2: enrich posts with fresh profile data (separate query, no join)
+      let enriched = fetched
+      const userIds = [...new Set(fetched.map(p => p.created_by || p.author_id).filter(Boolean))]
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('users')
+          .select('id, full_name, avatar_url, plan')
+          .in('id', userIds)
+        if (profiles?.length) {
+          enriched = fetched.map(post => ({
+            ...post,
+            author: profiles.find(p => p.id === (post.created_by || post.author_id)) || null,
+          }))
+        }
+      }
+
+      setPosts(enriched)
+    } catch (err) {
+      console.error('Feed fetch error:', err)
+      setFeedError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
     fetchPosts()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Infinite scroll
+  // Infinite scroll — only fires when hasMore=true AND not currently loading
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
@@ -2407,7 +2435,9 @@ export default function Feed() {
             <div className="space-y-4">
               {posts.map((post, i) => (
                 <React.Fragment key={post.id}>
-                  <PostCard post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} spotlightWinnerId={spotlightWinnerId} />
+                  <ErrorBoundary fallback={null}>
+                    <PostCard post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} spotlightWinnerId={spotlightWinnerId} />
+                  </ErrorBoundary>
                   {(i + 1) % 4 === 0 && i < posts.length - 1 && <ConnectionStoryCard />}
                   {(i + 1) % 8 === 0 && feedAd && (
                     <AdCard key={`ad-${i}`} ad={feedAd} viewerId={user?.id} />
