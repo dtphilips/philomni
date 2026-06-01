@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { lazy, Suspense, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
@@ -9,158 +9,169 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 
-// Auth pages
-import Login from './pages/Login'
-import Signup from './pages/Signup'
+// ─── Lazy-loaded pages — each becomes its own JS chunk ────────────────────────
+// Auth
+const Login    = lazy(() => import('./pages/Login'))
+const Signup   = lazy(() => import('./pages/Signup'))
 
-// Core pages
-import Feed from './pages/Feed'
-import ProFeed from './pages/ProFeed'
-import Profile from './pages/Profile'
-import EditProfile from './pages/EditProfile'
-import Settings from './pages/Settings'
-import Notifications from './pages/Notifications'
-import GlobalSearch from './pages/GlobalSearch'
+// Core
+const Feed             = lazy(() => import('./pages/Feed'))
+const ProFeed          = lazy(() => import('./pages/ProFeed'))
+const Profile          = lazy(() => import('./pages/Profile'))
+const EditProfile      = lazy(() => import('./pages/EditProfile'))
+const Settings         = lazy(() => import('./pages/Settings'))
+const Notifications    = lazy(() => import('./pages/Notifications'))
+const GlobalSearch     = lazy(() => import('./pages/GlobalSearch'))
 
-// Social / Community
-import Community from './pages/Community'
-import Groups from './pages/Groups'
-import GroupChat from './pages/GroupChat'
-import Discover from './pages/Discover'
-import Explore from './pages/Explore'
-import Directory from './pages/Directory'
-import Creators from './pages/Creators'
-import CollaborationFeed from './pages/CollaborationFeed'
+// Social
+const Community         = lazy(() => import('./pages/Community'))
+const Groups            = lazy(() => import('./pages/Groups'))
+const GroupChat         = lazy(() => import('./pages/GroupChat'))
+const Discover          = lazy(() => import('./pages/Discover'))
+const Explore           = lazy(() => import('./pages/Explore'))
+const Directory         = lazy(() => import('./pages/Directory'))
+const Creators          = lazy(() => import('./pages/Creators'))
+const CollaborationFeed = lazy(() => import('./pages/CollaborationFeed'))
 
 // Messaging
-import Messages from './pages/Messages'
-import VideoMessages from './pages/VideoMessages'
+const Messages      = lazy(() => import('./pages/Messages'))
+const VideoMessages  = lazy(() => import('./pages/VideoMessages'))
 
-// Content creation
-import Reels from './pages/Reels'
-import Stories from './pages/Stories'
-import Drafts from './pages/Drafts'
-import ContentCalendar from './pages/ContentCalendar'
+// Content
+const Reels           = lazy(() => import('./pages/Reels'))
+const Stories         = lazy(() => import('./pages/Stories'))
+const Drafts          = lazy(() => import('./pages/Drafts'))
+const ContentCalendar = lazy(() => import('./pages/ContentCalendar'))
 
 // Studios
-import AudioStudio from './pages/AudioStudio'
-import CreativeStudio from './pages/CreativeStudio'
-import CreatorStudio from './pages/CreatorStudio'
-import VideoStudio from './pages/VideoStudio'
-import PodcastStudio from './pages/PodcastStudio'
-import CollaborativeStudio from './pages/CollaborativeStudio'
-import UGCCreatorSuite from './pages/UGCCreatorSuite'
-import BusinessContentSuite from './pages/BusinessContentSuite'
+const AudioStudio         = lazy(() => import('./pages/AudioStudio'))
+const CreativeStudio      = lazy(() => import('./pages/CreativeStudio'))
+const CreatorStudio       = lazy(() => import('./pages/CreatorStudio'))
+const VideoStudio         = lazy(() => import('./pages/VideoStudio'))
+const PodcastStudio       = lazy(() => import('./pages/PodcastStudio'))
+const CollaborativeStudio = lazy(() => import('./pages/CollaborativeStudio'))
+const UGCCreatorSuite     = lazy(() => import('./pages/UGCCreatorSuite'))
+const BusinessContentSuite = lazy(() => import('./pages/BusinessContentSuite'))
 
 // Media
-import MusicLibrary from './pages/MusicLibrary'
-import Podcasts from './pages/Podcasts'
-import VideoCaptions from './pages/VideoCaptions'
-import VideoAnalyticsDashboard from './pages/VideoAnalyticsDashboard'
+const MusicLibrary           = lazy(() => import('./pages/MusicLibrary'))
+const Podcasts               = lazy(() => import('./pages/Podcasts'))
+const VideoCaptions          = lazy(() => import('./pages/VideoCaptions'))
+const VideoAnalyticsDashboard = lazy(() => import('./pages/VideoAnalyticsDashboard'))
 
 // Analytics & AI
-import Analytics from './pages/Analytics'
-import ContentSuite from './pages/ContentSuite'
-import ContentPerformance from './pages/ContentPerformance'
-import CreatorAnalytics from './pages/CreatorAnalytics'
-import AITools from './pages/AITools'
-import WorkflowAutomation from './pages/WorkflowAutomation'
+const Analytics          = lazy(() => import('./pages/Analytics'))
+const ContentSuite       = lazy(() => import('./pages/ContentSuite'))
+const ContentPerformance = lazy(() => import('./pages/ContentPerformance'))
+const CreatorAnalytics   = lazy(() => import('./pages/CreatorAnalytics'))
+const AITools            = lazy(() => import('./pages/AITools'))
+const WorkflowAutomation = lazy(() => import('./pages/WorkflowAutomation'))
 
-// New major sections
-import Jobs from './pages/Jobs'
-import Learning from './pages/Learning'
-import Certificates from './pages/Certificates'
-import CreatorStore from './pages/CreatorStore'
+// Jobs, Learning, Store
+const Jobs         = lazy(() => import('./pages/Jobs'))
+const Learning     = lazy(() => import('./pages/Learning'))
+const Certificates = lazy(() => import('./pages/Certificates'))
+const CreatorStore = lazy(() => import('./pages/CreatorStore'))
 
 // Professional Network
-import Companies from './pages/Companies'
-import CompanyProfile from './pages/CompanyProfile'
-import CreateCompany from './pages/CreateCompany'
-import CompanyDashboard from './pages/CompanyDashboard'
+const Companies        = lazy(() => import('./pages/Companies'))
+const CompanyProfile   = lazy(() => import('./pages/CompanyProfile'))
+const CreateCompany    = lazy(() => import('./pages/CreateCompany'))
+const CompanyDashboard = lazy(() => import('./pages/CompanyDashboard'))
 
 // Marketplace & Commerce
-import MyOrders from './pages/MyOrders'
-import OrderPage from './pages/OrderPage'
-import CourseViewer from './pages/CourseViewer'
-import SellerStorefront from './pages/SellerStorefront'
-import CreatorMarket from './pages/CreatorMarket'
-import CreatorMarketplace from './pages/CreatorMarketplace'
-import Marketplace from './pages/Marketplace'
-import VideoMarketplace from './pages/VideoMarketplace'
-import TemplateMarketplace from './pages/TemplateMarketplace'
-import SkillExchange from './pages/SkillExchange'
-import Monetization from './pages/Monetization'
-import Upgrade from './pages/Upgrade'
-import Billing from './pages/Billing'
-import Pricing from './pages/Pricing'
+const MyOrders            = lazy(() => import('./pages/MyOrders'))
+const OrderPage           = lazy(() => import('./pages/OrderPage'))
+const CourseViewer        = lazy(() => import('./pages/CourseViewer'))
+const SellerStorefront    = lazy(() => import('./pages/SellerStorefront'))
+const CreatorMarket       = lazy(() => import('./pages/CreatorMarket'))
+const CreatorMarketplace  = lazy(() => import('./pages/CreatorMarketplace'))
+const Marketplace         = lazy(() => import('./pages/Marketplace'))
+const VideoMarketplace    = lazy(() => import('./pages/VideoMarketplace'))
+const TemplateMarketplace = lazy(() => import('./pages/TemplateMarketplace'))
+const SkillExchange       = lazy(() => import('./pages/SkillExchange'))
+const Monetization        = lazy(() => import('./pages/Monetization'))
+const Upgrade             = lazy(() => import('./pages/Upgrade'))
+const Billing             = lazy(() => import('./pages/Billing'))
+const Pricing             = lazy(() => import('./pages/Pricing'))
 
 // SmartMatch
-import SmartMatch from './pages/SmartMatch'
+const SmartMatch = lazy(() => import('./pages/SmartMatch'))
 
 // Philo AI
-import PhilomniAI from './pages/PhilomniAI'
+const PhilomniAI = lazy(() => import('./pages/PhilomniAI'))
 
-// Business tools
-import PitchVault from './pages/PitchVault'
-import BookingCalendar from './pages/BookingCalendar'
-import Meetings from './pages/Meetings'
-import Rooms from './pages/Rooms'
-import ProjectMatcher from './pages/ProjectMatcher'
-import SharedProjectView from './pages/SharedProjectView'
-import SharedVideoView from './pages/SharedVideoView'
-import PostVideoEditorPage from './pages/PostVideoEditorPage'
-import QualityReview from './pages/QualityReview'
-import Gamification from './pages/Gamification'
-import Admin from './pages/Admin'
-import AdminBadges from './pages/admin/AdminBadges'
-import AdminMonetize from './pages/admin/AdminMonetize'
-import AdminAds from './pages/admin/AdminAds'
-import AdminBrands from './pages/admin/AdminBrands'
-import AdminMusic from './pages/admin/AdminMusic'
-import AdminSpotlight from './pages/admin/AdminSpotlight'
-import ArtistProfile from './pages/ArtistProfile'
-import SpotlightArchive from './pages/SpotlightArchive'
-import SpotlightPage from './pages/SpotlightPage'
-import SpotlightNominate from './pages/SpotlightNominate'
-import PlaylistPage from './pages/PlaylistPage'
-import Partners from './pages/Partners'
-import VerifyBadge from './pages/VerifyBadge'
-import CreatorMonetize from './pages/CreatorMonetize'
-import Advertise from './pages/Advertise'
-import MyAds from './pages/MyAds'
+// Business
+const PitchVault         = lazy(() => import('./pages/PitchVault'))
+const BookingCalendar    = lazy(() => import('./pages/BookingCalendar'))
+const Meetings           = lazy(() => import('./pages/Meetings'))
+const Rooms              = lazy(() => import('./pages/Rooms'))
+const ProjectMatcher     = lazy(() => import('./pages/ProjectMatcher'))
+const SharedProjectView  = lazy(() => import('./pages/SharedProjectView'))
+const SharedVideoView    = lazy(() => import('./pages/SharedVideoView'))
+const PostVideoEditorPage = lazy(() => import('./pages/PostVideoEditorPage'))
+const QualityReview      = lazy(() => import('./pages/QualityReview'))
+const Gamification       = lazy(() => import('./pages/Gamification'))
+
+// Admin
+const Admin             = lazy(() => import('./pages/Admin'))
+const AdminBadges       = lazy(() => import('./pages/admin/AdminBadges'))
+const AdminMonetize     = lazy(() => import('./pages/admin/AdminMonetize'))
+const AdminAds          = lazy(() => import('./pages/admin/AdminAds'))
+const AdminBrands       = lazy(() => import('./pages/admin/AdminBrands'))
+const AdminMusic        = lazy(() => import('./pages/admin/AdminMusic'))
+const AdminSpotlight    = lazy(() => import('./pages/admin/AdminSpotlight'))
+const AdminCelebrations = lazy(() => import('./pages/admin/AdminCelebrations'))
+
+// Spotlight
+const SpotlightArchive  = lazy(() => import('./pages/SpotlightArchive'))
+const SpotlightPage     = lazy(() => import('./pages/SpotlightPage'))
+const SpotlightNominate = lazy(() => import('./pages/SpotlightNominate'))
+
+// Misc
+const ArtistProfile   = lazy(() => import('./pages/ArtistProfile'))
+const PlaylistPage    = lazy(() => import('./pages/PlaylistPage'))
+const Partners        = lazy(() => import('./pages/Partners'))
+const VerifyBadge     = lazy(() => import('./pages/VerifyBadge'))
+const CreatorMonetize = lazy(() => import('./pages/CreatorMonetize'))
+const Advertise       = lazy(() => import('./pages/Advertise'))
+const MyAds           = lazy(() => import('./pages/MyAds'))
+
 // Creator Economy
-import Wallet from './pages/Wallet'
-import Learn from './pages/Learn'
-import CourseDetail from './pages/CourseDetail'
-import CourseWatch from './pages/CourseWatch'
-import Teach from './pages/Teach'
-import ProductMarketplace from './pages/ProductMarketplace'
-import Sell from './pages/Sell'
-import Consulting from './pages/Consulting'
-import ConsultingOffer from './pages/ConsultingOffer'
-import Investors from './pages/Investors'
+const Wallet         = lazy(() => import('./pages/Wallet'))
+const Learn          = lazy(() => import('./pages/Learn'))
+const CourseDetail   = lazy(() => import('./pages/CourseDetail'))
+const CourseWatch    = lazy(() => import('./pages/CourseWatch'))
+const Teach          = lazy(() => import('./pages/Teach'))
+const ProductMarketplace = lazy(() => import('./pages/ProductMarketplace'))
+const Sell           = lazy(() => import('./pages/Sell'))
+const Consulting     = lazy(() => import('./pages/Consulting'))
+const ConsultingOffer = lazy(() => import('./pages/ConsultingOffer'))
+const Investors      = lazy(() => import('./pages/Investors'))
 
-import Onboarding from './pages/Onboarding'
-import OnboardingProfile from './pages/OnboardingProfile'
+// Onboarding
+const Onboarding        = lazy(() => import('./pages/Onboarding'))
+const OnboardingProfile = lazy(() => import('./pages/OnboardingProfile'))
 
-// Live feature
-import LiveHost from './pages/LiveHost'
-import LiveViewer from './pages/LiveViewer'
-import LiveStart from './pages/LiveStart'
-import LiveRecap from './pages/LiveRecap'
-import BuyCoins from './pages/BuyCoins'
+// Live
+const LiveHost   = lazy(() => import('./pages/LiveHost'))
+const LiveViewer = lazy(() => import('./pages/LiveViewer'))
+const LiveStart  = lazy(() => import('./pages/LiveStart'))
+const LiveRecap  = lazy(() => import('./pages/LiveRecap'))
+const BuyCoins   = lazy(() => import('./pages/BuyCoins'))
 
-// Celebrations feature
-import Celebrations from './pages/Celebrations'
-import CelebrationCreate from './pages/CelebrationCreate'
-import CelebrationDetail from './pages/CelebrationDetail'
-import CelebrationSponsor from './pages/CelebrationSponsor'
-import AdminCelebrations from './pages/admin/AdminCelebrations'
+// Celebrations
+const Celebrations       = lazy(() => import('./pages/Celebrations'))
+const CelebrationCreate  = lazy(() => import('./pages/CelebrationCreate'))
+const CelebrationDetail  = lazy(() => import('./pages/CelebrationDetail'))
+const CelebrationSponsor = lazy(() => import('./pages/CelebrationSponsor'))
 
+// ─── Query client ─────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 })
 
+// ─── Route wrappers ───────────────────────────────────────────────────────────
 function ProtectedLayout({ children }) {
   return (
     <ProtectedRoute>
@@ -178,19 +189,33 @@ function PL({ page: Page }) {
   return <Layout><Page /></Layout>
 }
 
+// ─── Page loading fallback ────────────────────────────────────────────────────
+function PageLoader() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '60vh', flexDirection: 'column', gap: '12px',
+    }}>
+      <div style={{
+        width: '32px', height: '32px',
+        border: '3px solid #1a1a2e',
+        borderTop: '3px solid #8b5cf6',
+        borderRadius: '50%',
+        animation: 'spin 0.8s linear infinite',
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  )
+}
 
+// ─── App ─────────────────────────────────────────────────────────────────────
 export default function App() {
   useEffect(() => {
     const testConnection = async () => {
       console.log('=== SUPABASE CONNECTION TEST ===')
       console.log('URL:', import.meta.env.VITE_SUPABASE_URL)
       console.log('Key exists:', !!import.meta.env.VITE_SUPABASE_ANON_KEY)
-
-      const { data, error } = await supabase
-        .from('posts')
-        .select('count')
-        .limit(1)
-
+      const { data, error } = await supabase.from('posts').select('count').limit(1)
       console.log('Test query result:', data, error)
       console.log('================================')
     }
@@ -204,169 +229,174 @@ export default function App() {
       <MusicProvider>
       <ModeProvider>
         <BrowserRouter>
-          <Routes>
-            {/* Public */}
-            <Route path="/login"  element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/partners" element={<Partners />} />
-            <Route path="/shared/video/:id" element={<SharedVideoView />} />
-            <Route path="/shared/project/:id" element={<SharedProjectView />} />
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              {/* Public */}
+              <Route path="/login"  element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/partners" element={<Partners />} />
+              <Route path="/shared/video/:id" element={<SharedVideoView />} />
+              <Route path="/shared/project/:id" element={<SharedProjectView />} />
 
-            {/* Core */}
-            <Route path="/" element={<PL page={Feed} />} />
-            <Route path="/pro-feed" element={<PL page={ProFeed} />} />
-            <Route path="/profile" element={<P page={Profile} />} />
-            <Route path="/profile/:userId" element={<P page={Profile} />} />
-            <Route path="/edit-profile" element={<P page={EditProfile} />} />
-            <Route path="/settings" element={<P page={Settings} />} />
-            <Route path="/notifications" element={<P page={Notifications} />} />
-            <Route path="/search" element={<P page={GlobalSearch} />} />
+              {/* Core */}
+              <Route path="/" element={<PL page={Feed} />} />
+              <Route path="/pro-feed" element={<PL page={ProFeed} />} />
+              <Route path="/profile" element={<P page={Profile} />} />
+              <Route path="/profile/:userId" element={<P page={Profile} />} />
+              <Route path="/edit-profile" element={<P page={EditProfile} />} />
+              <Route path="/settings" element={<P page={Settings} />} />
+              <Route path="/notifications" element={<P page={Notifications} />} />
+              <Route path="/search" element={<P page={GlobalSearch} />} />
 
-            {/* Social */}
-            <Route path="/community" element={<PL page={Community} />} />
-            <Route path="/groups" element={<PL page={Groups} />} />
-            <Route path="/groups/:id" element={<PL page={GroupChat} />} />
-            <Route path="/discover" element={<PL page={Discover} />} />
-            <Route path="/explore" element={<PL page={Explore} />} />
-            <Route path="/directory" element={<PL page={Directory} />} />
-            <Route path="/creators" element={<PL page={Creators} />} />
-            <Route path="/collab-feed" element={<PL page={CollaborationFeed} />} />
+              {/* Social */}
+              <Route path="/community" element={<PL page={Community} />} />
+              <Route path="/groups" element={<PL page={Groups} />} />
+              <Route path="/groups/:id" element={<PL page={GroupChat} />} />
+              <Route path="/discover" element={<PL page={Discover} />} />
+              <Route path="/explore" element={<PL page={Explore} />} />
+              <Route path="/directory" element={<PL page={Directory} />} />
+              <Route path="/creators" element={<PL page={Creators} />} />
+              <Route path="/collab-feed" element={<PL page={CollaborationFeed} />} />
 
-            {/* Messaging */}
-            <Route path="/messages" element={<P page={Messages} />} />
-            <Route path="/video-messages" element={<P page={VideoMessages} />} />
+              {/* Messaging */}
+              <Route path="/messages" element={<P page={Messages} />} />
+              <Route path="/video-messages" element={<P page={VideoMessages} />} />
 
-            {/* Content */}
-            <Route path="/reels" element={<PL page={Reels} />} />
-            <Route path="/stories" element={<P page={Stories} />} />
-            <Route path="/drafts" element={<P page={Drafts} />} />
-            <Route path="/content-calendar" element={<P page={ContentCalendar} />} />
+              {/* Content */}
+              <Route path="/reels" element={<PL page={Reels} />} />
+              <Route path="/stories" element={<P page={Stories} />} />
+              <Route path="/drafts" element={<P page={Drafts} />} />
+              <Route path="/content-calendar" element={<P page={ContentCalendar} />} />
 
-            {/* Studios */}
-            <Route path="/audio-studio" element={<P page={AudioStudio} />} />
-            <Route path="/creative-studio" element={<P page={CreativeStudio} />} />
-            <Route path="/creator-studio" element={<P page={CreatorStudio} />} />
-            <Route path="/video-studio" element={<P page={VideoStudio} />} />
-            <Route path="/podcast-studio" element={<P page={PodcastStudio} />} />
-            <Route path="/collab-studio" element={<P page={CollaborativeStudio} />} />
-            <Route path="/ugc-suite" element={<P page={UGCCreatorSuite} />} />
-            <Route path="/business-content" element={<P page={BusinessContentSuite} />} />
+              {/* Studios */}
+              <Route path="/audio-studio" element={<P page={AudioStudio} />} />
+              <Route path="/creative-studio" element={<P page={CreativeStudio} />} />
+              <Route path="/creator-studio" element={<P page={CreatorStudio} />} />
+              <Route path="/video-studio" element={<P page={VideoStudio} />} />
+              <Route path="/podcast-studio" element={<P page={PodcastStudio} />} />
+              <Route path="/collab-studio" element={<P page={CollaborativeStudio} />} />
+              <Route path="/ugc-suite" element={<P page={UGCCreatorSuite} />} />
+              <Route path="/business-content" element={<P page={BusinessContentSuite} />} />
 
-            {/* Media */}
-            <Route path="/music-library" element={<PL page={MusicLibrary} />} />
-            <Route path="/music"         element={<PL page={MusicLibrary} />} />
-            <Route path="/podcasts" element={<P page={Podcasts} />} />
-            <Route path="/video-captions/:draftId" element={<P page={VideoCaptions} />} />
-            <Route path="/video-analytics/:draftId" element={<P page={VideoAnalyticsDashboard} />} />
+              {/* Media */}
+              <Route path="/music-library" element={<PL page={MusicLibrary} />} />
+              <Route path="/music"         element={<PL page={MusicLibrary} />} />
+              <Route path="/podcasts" element={<P page={Podcasts} />} />
+              <Route path="/video-captions/:draftId" element={<P page={VideoCaptions} />} />
+              <Route path="/video-analytics/:draftId" element={<P page={VideoAnalyticsDashboard} />} />
 
-            {/* Analytics & AI */}
-            <Route path="/analytics" element={<P page={Analytics} />} />
-            <Route path="/content" element={<P page={ContentSuite} />} />
-            <Route path="/content-performance" element={<P page={ContentPerformance} />} />
-            <Route path="/creator-analytics" element={<P page={CreatorAnalytics} />} />
-            <Route path="/ai-tools" element={<P page={AITools} />} />
-            <Route path="/workflows" element={<P page={WorkflowAutomation} />} />
+              {/* Analytics & AI */}
+              <Route path="/analytics" element={<P page={Analytics} />} />
+              <Route path="/content" element={<P page={ContentSuite} />} />
+              <Route path="/content-performance" element={<P page={ContentPerformance} />} />
+              <Route path="/creator-analytics" element={<P page={CreatorAnalytics} />} />
+              <Route path="/ai-tools" element={<P page={AITools} />} />
+              <Route path="/workflows" element={<P page={WorkflowAutomation} />} />
 
-            {/* Jobs, Learning, Store */}
-            <Route path="/jobs" element={<PL page={Jobs} />} />
-            <Route path="/learning" element={<PL page={Learning} />} />
-            <Route path="/learning/certificates" element={<P page={Certificates} />} />
-            <Route path="/store" element={<PL page={CreatorStore} />} />
+              {/* Jobs, Learning, Store */}
+              <Route path="/jobs" element={<PL page={Jobs} />} />
+              <Route path="/learning" element={<PL page={Learning} />} />
+              <Route path="/learning/certificates" element={<P page={Certificates} />} />
+              <Route path="/store" element={<PL page={CreatorStore} />} />
 
-            {/* Professional Network */}
-            <Route path="/companies" element={<P page={Companies} />} />
-            <Route path="/company/create" element={<P page={CreateCompany} />} />
-            <Route path="/company/dashboard" element={<P page={CompanyDashboard} />} />
-            <Route path="/company/:id" element={<P page={CompanyProfile} />} />
-            <Route path="/stores" element={<P page={CreatorStore} />} />
-            <Route path="/store/dashboard" element={<P page={CreatorStore} />} />
-            <Route path="/store/:username" element={<P page={CreatorStore} />} />
+              {/* Professional Network */}
+              <Route path="/companies" element={<P page={Companies} />} />
+              <Route path="/company/create" element={<P page={CreateCompany} />} />
+              <Route path="/company/dashboard" element={<P page={CompanyDashboard} />} />
+              <Route path="/company/:id" element={<P page={CompanyProfile} />} />
+              <Route path="/stores" element={<P page={CreatorStore} />} />
+              <Route path="/store/dashboard" element={<P page={CreatorStore} />} />
+              <Route path="/store/:username" element={<P page={CreatorStore} />} />
 
-            {/* Marketplace */}
-            <Route path="/my-orders" element={<P page={MyOrders} />} />
-            <Route path="/orders/:id" element={<P page={OrderPage} />} />
-            <Route path="/course/:id" element={<PL page={CourseViewer} />} />
-            <Route path="/seller/:sellerId" element={<PL page={SellerStorefront} />} />
-            <Route path="/marketplace" element={<PL page={ProductMarketplace} />} />
-            <Route path="/creator-marketplace" element={<PL page={CreatorMarketplace} />} />
-            <Route path="/shop" element={<PL page={Marketplace} />} />
-            <Route path="/video-marketplace" element={<PL page={VideoMarketplace} />} />
-            <Route path="/templates" element={<PL page={TemplateMarketplace} />} />
-            <Route path="/skills" element={<PL page={SkillExchange} />} />
-            {/* /monetize is now handled by the CreatorMonetize route added below */}
-            <Route path="/upgrade"  element={<P page={Upgrade} />} />
-            <Route path="/billing"  element={<P page={Billing} />} />
-            <Route path="/pricing"  element={<P page={Pricing} />} />
+              {/* Marketplace */}
+              <Route path="/my-orders" element={<P page={MyOrders} />} />
+              <Route path="/orders/:id" element={<P page={OrderPage} />} />
+              <Route path="/course/:id" element={<PL page={CourseViewer} />} />
+              <Route path="/seller/:sellerId" element={<PL page={SellerStorefront} />} />
+              <Route path="/marketplace" element={<PL page={ProductMarketplace} />} />
+              <Route path="/creator-marketplace" element={<PL page={CreatorMarketplace} />} />
+              <Route path="/shop" element={<PL page={Marketplace} />} />
+              <Route path="/video-marketplace" element={<PL page={VideoMarketplace} />} />
+              <Route path="/templates" element={<PL page={TemplateMarketplace} />} />
+              <Route path="/skills" element={<PL page={SkillExchange} />} />
+              <Route path="/upgrade"  element={<P page={Upgrade} />} />
+              <Route path="/billing"  element={<P page={Billing} />} />
+              <Route path="/pricing"  element={<P page={Pricing} />} />
 
-            {/* Creator Economy */}
-            <Route path="/wallet"             element={<P page={Wallet} />} />
-            <Route path="/learn"              element={<PL page={Learn} />} />
-            <Route path="/learn/:courseId"    element={<PL page={CourseDetail} />} />
-            <Route path="/learn/:courseId/watch" element={<P page={CourseWatch} />} />
-            <Route path="/teach"              element={<P page={Teach} />} />
-            <Route path="/sell"               element={<P page={Sell} />} />
-            <Route path="/consulting"         element={<P page={Consulting} />} />
-            <Route path="/consulting/offer"   element={<P page={ConsultingOffer} />} />
-            <Route path="/investors"          element={<P page={Investors} />} />
+              {/* Creator Economy */}
+              <Route path="/wallet"                element={<P page={Wallet} />} />
+              <Route path="/learn"                 element={<PL page={Learn} />} />
+              <Route path="/learn/:courseId"       element={<PL page={CourseDetail} />} />
+              <Route path="/learn/:courseId/watch" element={<P page={CourseWatch} />} />
+              <Route path="/teach"                 element={<P page={Teach} />} />
+              <Route path="/sell"                  element={<P page={Sell} />} />
+              <Route path="/consulting"            element={<P page={Consulting} />} />
+              <Route path="/consulting/offer"      element={<P page={ConsultingOffer} />} />
+              <Route path="/investors"             element={<P page={Investors} />} />
 
-            {/* SmartMatch */}
-            <Route path="/match"      element={<P page={SmartMatch} />} />
-            <Route path="/smartmatch" element={<P page={SmartMatch} />} />
+              {/* SmartMatch */}
+              <Route path="/match"      element={<P page={SmartMatch} />} />
+              <Route path="/smartmatch" element={<P page={SmartMatch} />} />
 
-            {/* Philo AI */}
-            <Route path="/ai" element={<P page={PhilomniAI} />} />
+              {/* Philo AI */}
+              <Route path="/ai" element={<P page={PhilomniAI} />} />
 
-            {/* Business */}
-            <Route path="/pitch-vault" element={<P page={PitchVault} />} />
-            <Route path="/bookings" element={<P page={BookingCalendar} />} />
-            <Route path="/meetings" element={<P page={Meetings} />} />
-            <Route path="/rooms" element={<PL page={Rooms} />} />
-            <Route path="/project-matcher" element={<P page={ProjectMatcher} />} />
-            <Route path="/quality-review/:draftId" element={<P page={QualityReview} />} />
-            <Route path="/video-editor/:id" element={<P page={PostVideoEditorPage} />} />
-            <Route path="/gamification" element={<P page={Gamification} />} />
-            <Route path="/admin" element={<P page={Admin} />} />
-            <Route path="/admin/badges"   element={<P page={AdminBadges} />} />
-            <Route path="/admin/monetize" element={<P page={AdminMonetize} />} />
-            <Route path="/admin/ads"      element={<P page={AdminAds} />} />
-            <Route path="/admin/brands"   element={<P page={AdminBrands} />} />
-            <Route path="/admin/music"      element={<P page={AdminMusic} />} />
-            <Route path="/admin/spotlight" element={<P page={AdminSpotlight} />} />
-            <Route path="/verify-badge"    element={<P page={VerifyBadge} />} />
+              {/* Business */}
+              <Route path="/pitch-vault"                element={<P page={PitchVault} />} />
+              <Route path="/bookings"                   element={<P page={BookingCalendar} />} />
+              <Route path="/meetings"                   element={<P page={Meetings} />} />
+              <Route path="/rooms"                      element={<PL page={Rooms} />} />
+              <Route path="/project-matcher"            element={<P page={ProjectMatcher} />} />
+              <Route path="/quality-review/:draftId"   element={<P page={QualityReview} />} />
+              <Route path="/video-editor/:id"          element={<P page={PostVideoEditorPage} />} />
+              <Route path="/gamification"               element={<P page={Gamification} />} />
 
-            {/* Spotlight */}
-            <Route path="/spotlight"          element={<PL page={SpotlightArchive} />} />
-            <Route path="/spotlight/nominate" element={<PL page={SpotlightNominate} />} />
-            <Route path="/spotlight/current"  element={<PL page={SpotlightPage} />} />
-            <Route path="/spotlight/:month"   element={<PL page={SpotlightPage} />} />
-            <Route path="/monetize"       element={<P page={CreatorMonetize} />} />
-            <Route path="/advertise"      element={<P page={Advertise} />} />
-            <Route path="/my-ads"         element={<P page={MyAds} />} />
+              {/* Admin */}
+              <Route path="/admin"                element={<P page={Admin} />} />
+              <Route path="/admin/badges"         element={<P page={AdminBadges} />} />
+              <Route path="/admin/monetize"       element={<P page={AdminMonetize} />} />
+              <Route path="/admin/ads"            element={<P page={AdminAds} />} />
+              <Route path="/admin/brands"         element={<P page={AdminBrands} />} />
+              <Route path="/admin/music"          element={<P page={AdminMusic} />} />
+              <Route path="/admin/spotlight"      element={<P page={AdminSpotlight} />} />
+              <Route path="/admin/celebrations"   element={<P page={AdminCelebrations} />} />
+              <Route path="/verify-badge"         element={<P page={VerifyBadge} />} />
 
-            {/* Music - Artist & Playlist pages */}
-            <Route path="/artist/:userId"   element={<PL page={ArtistProfile} />} />
-            <Route path="/playlist/:id"     element={<PL page={PlaylistPage} />} />
+              {/* Spotlight */}
+              <Route path="/spotlight"           element={<PL page={SpotlightArchive} />} />
+              <Route path="/spotlight/nominate"  element={<PL page={SpotlightNominate} />} />
+              <Route path="/spotlight/current"   element={<PL page={SpotlightPage} />} />
+              <Route path="/spotlight/:month"    element={<PL page={SpotlightPage} />} />
 
-            {/* Onboarding */}
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/onboarding/profile" element={<OnboardingProfile />} />
+              {/* Monetize / Ads */}
+              <Route path="/monetize"  element={<P page={CreatorMonetize} />} />
+              <Route path="/advertise" element={<P page={Advertise} />} />
+              <Route path="/my-ads"    element={<P page={MyAds} />} />
 
-            {/* Live feature — host/viewer are full-screen (no sidebar layout) */}
-            <Route path="/live/start" element={<P page={LiveStart} />} />
-            <Route path="/live/:id/host" element={<LiveHost />} />
-            <Route path="/live/:id/recap" element={<P page={LiveRecap} />} />
-            <Route path="/live/:id" element={<LiveViewer />} />
-            <Route path="/coins" element={<P page={BuyCoins} />} />
+              {/* Music — Artist & Playlist */}
+              <Route path="/artist/:userId" element={<PL page={ArtistProfile} />} />
+              <Route path="/playlist/:id"   element={<PL page={PlaylistPage} />} />
 
-            {/* Celebrations feature */}
-            <Route path="/celebrations" element={<PL page={Celebrations} />} />
-            <Route path="/celebrations/create" element={<P page={CelebrationCreate} />} />
-            <Route path="/celebrations/sponsor" element={<P page={CelebrationSponsor} />} />
-            <Route path="/celebrations/:id" element={<PL page={CelebrationDetail} />} />
-            <Route path="/admin/celebrations" element={<P page={AdminCelebrations} />} />
+              {/* Onboarding */}
+              <Route path="/onboarding"         element={<Onboarding />} />
+              <Route path="/onboarding/profile" element={<OnboardingProfile />} />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              {/* Live — full-screen, no sidebar */}
+              <Route path="/live/start"     element={<P page={LiveStart} />} />
+              <Route path="/live/:id/host"  element={<LiveHost />} />
+              <Route path="/live/:id/recap" element={<P page={LiveRecap} />} />
+              <Route path="/live/:id"       element={<LiveViewer />} />
+              <Route path="/coins"          element={<P page={BuyCoins} />} />
+
+              {/* Celebrations */}
+              <Route path="/celebrations"          element={<PL page={Celebrations} />} />
+              <Route path="/celebrations/create"   element={<P page={CelebrationCreate} />} />
+              <Route path="/celebrations/sponsor"  element={<P page={CelebrationSponsor} />} />
+              <Route path="/celebrations/:id"      element={<PL page={CelebrationDetail} />} />
+
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </ModeProvider>
       </MusicProvider>
