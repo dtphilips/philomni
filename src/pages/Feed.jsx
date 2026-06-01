@@ -1873,9 +1873,9 @@ function PostComposer({ user, onCreated }) {
         content: html,
         created_by:   user.id,
         author_id:    user.id,
-        author_name:  user.full_name ?? user.email,
-        author_avatar: user.avatar_url ?? null,
-        author_role:   user.role ?? null,
+        author_name:  profile?.full_name ?? user.email,
+        author_avatar: profile?.avatar_url ?? null,
+        author_role:   profile?.plan ?? null,
         media_urls: mediaUrls.length > 0 ? mediaUrls : null,
         media_type: mediaType,
         like_count: 0, comment_count: 0, repost_count: 0,
@@ -1913,12 +1913,12 @@ function PostComposer({ user, onCreated }) {
   return (
     <div className="bg-card border border-border/60 rounded-2xl overflow-visible shadow-sm mb-4">
       <div className="p-4 flex gap-3">
-        <Avatar src={user?.avatar_url} name={user?.full_name} size={11} />
+        <Avatar src={profile?.avatar_url} name={profile?.full_name || user?.email} size={11} />
         <div className="flex-1 min-w-0">
           {!expanded ? (
             <div onClick={() => { setExpanded(true); setTimeout(() => editorRef.current?.focus(), 50) }}
               className="min-h-[44px] bg-muted hover:bg-muted/80 rounded-2xl px-4 py-3 text-sm text-muted-foreground cursor-text select-none flex items-center transition-colors">
-              What's on your mind, {user?.full_name?.split(' ')[0] ?? 'Creator'}?
+              What's on your mind, {profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'}?
             </div>
           ) : (
             <>
@@ -2258,7 +2258,7 @@ function ConnectionStoryCard() {
 // ─── Main Feed ────────────────────────────────────────────────────────────────
 
 export default function Feed() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { mode } = useMode()
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
