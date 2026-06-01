@@ -11,16 +11,22 @@ export const AuthProvider = ({ children }) => {
 
   const fetchProfile = async (userId) => {
     try {
-      const { data } = await supabase
+      // Use maybeSingle() — returns null (not an error) when 0 rows found
+      const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single()
-      console.log('Profile loaded:', data?.full_name, '| plan:', data?.plan, '| admin:', data?.is_admin, '| id:', data?.id)
-      if (data) setProfile(data)
-      else console.warn('fetchProfile: no row found for userId', userId)
+        .maybeSingle()
+      if (error) {
+        console.error('fetchProfile error:', error.message, '| code:', error.code)
+      } else if (data) {
+        console.log('Profile loaded:', data.full_name, '| plan:', data.plan, '| admin:', data.is_admin)
+        setProfile(data)
+      } else {
+        console.warn('fetchProfile: no row in public.users for auth id', userId)
+      }
     } catch (e) {
-      console.error('Profile fetch error:', e)
+      console.error('fetchProfile unexpected error:', e)
     } finally {
       setLoading(false)
     }

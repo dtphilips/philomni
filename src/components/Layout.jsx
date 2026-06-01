@@ -207,7 +207,7 @@ function SectionHeader({ label }) {
 }
 
 // ─── Sidebar (defined outside Layout to prevent re-creation on every render) ─
-function Sidebar({ user, profile, mode, navSections, onModeSwitch, onSignOut, onNav }) {
+function Sidebar({ user, profile, authLoading, mode, navSections, onModeSwitch, onSignOut, onNav }) {
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
@@ -235,7 +235,16 @@ function Sidebar({ user, profile, mode, navSections, onModeSwitch, onSignOut, on
 
       {/* User footer */}
       <div className="p-3 border-t border-border flex-shrink-0">
-        {user ? (
+        {authLoading ? (
+          /* Shimmer while auth/profile is resolving — prevents email/Free flash */
+          <div className="flex items-center gap-3 px-2 py-2 animate-pulse">
+            <div className="w-8 h-8 rounded-full bg-muted flex-shrink-0" />
+            <div className="flex-1 space-y-1.5">
+              <div className="h-3 bg-muted rounded w-24" />
+              <div className="h-2.5 bg-muted rounded w-16" />
+            </div>
+          </div>
+        ) : user ? (
           <>
             <NavLink
               to="/profile"
@@ -251,19 +260,18 @@ function Sidebar({ user, profile, mode, navSections, onModeSwitch, onSignOut, on
                 <p className="text-sm font-medium text-foreground truncate">
                   {profile?.full_name || user?.full_name || user?.email || 'User'}
                 </p>
-                <p className={`text-[10px] font-semibold truncate ${
-                  (profile?.is_admin ?? user?.is_admin) || (profile?.plan ?? user?.plan) === 'promax'
-                    ? 'text-yellow-400'
-                    : (profile?.plan ?? user?.plan) === 'pro'
-                      ? 'text-purple-400'
-                      : 'text-muted-foreground'
-                }`}>
-                  {(profile?.is_admin ?? user?.is_admin) || (profile?.plan ?? user?.plan) === 'promax'
-                    ? 'Pro Max'
-                    : (profile?.plan ?? user?.plan) === 'pro'
-                      ? 'Pro'
-                      : 'Free'}
-                </p>
+                {/* Plan badge — derive from profile first, then merged user */}
+                {(() => {
+                  const isAdmin = profile?.is_admin ?? user?.is_admin
+                  const plan    = profile?.plan    ?? user?.plan
+                  const label   = isAdmin || plan === 'promax' ? 'Pro Max'
+                                : plan === 'pro'               ? 'Pro'
+                                :                               'Free'
+                  const color   = isAdmin || plan === 'promax' ? 'text-yellow-400'
+                                : plan === 'pro'               ? 'text-purple-400'
+                                :                               'text-muted-foreground'
+                  return <p className={`text-[10px] font-semibold truncate ${color}`}>{label}</p>
+                })()}
               </div>
               <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
             </NavLink>
@@ -342,7 +350,7 @@ function ModeSwitcher({ mode, onSwitch }) {
 }
 
 export default function Layout({ children }) {
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, loading: authLoading, signOut } = useAuth()
   const { mode, switchTo, toast } = useMode()
   const navigate = useNavigate()
   const location = useLocation()
@@ -406,6 +414,7 @@ export default function Layout({ children }) {
         <Sidebar
           user={user}
           profile={profile}
+          authLoading={authLoading}
           mode={mode}
           navSections={navSections}
           onModeSwitch={handleModeSwitch}
@@ -427,6 +436,7 @@ export default function Layout({ children }) {
             <Sidebar
               user={user}
               profile={profile}
+              authLoading={authLoading}
               mode={mode}
               navSections={navSections}
               onModeSwitch={handleModeSwitch}

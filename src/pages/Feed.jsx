@@ -2300,7 +2300,7 @@ export default function Feed() {
   const fetchPosts = async () => {
     setLoading(true)
     try {
-      // FIX 1: simple select — no join, no relationship queries
+      // Step 1: fetch posts — plain select, no join
       const { data: rawPosts, error } = await supabase
         .from('posts')
         .select('*')
@@ -2308,14 +2308,11 @@ export default function Feed() {
         .limit(FEED_LIMIT)
 
       if (error) throw error
-      console.log('FEED FETCH RESULT:', rawPosts?.length, error?.message)
-
       const fetched = rawPosts || []
+      console.log('FEED FETCH RESULT:', fetched.length, 'posts')
 
-      // FIX: stop infinite scroll when we've seen all posts
-      if (fetched.length < FEED_LIMIT) setHasMore(false)
-
-      // FIX 2: enrich posts with fresh profile data (separate query, no join)
+      // Step 2: enrich with author profiles (separate query — no FK join needed)
+      // posts.created_by is null on legacy rows; fall back to author_id
       let enriched = fetched
       const userIds = [...new Set(fetched.map(p => p.created_by || p.author_id).filter(Boolean))]
       if (userIds.length > 0) {
@@ -2326,12 +2323,16 @@ export default function Feed() {
         if (profiles?.length) {
           enriched = fetched.map(post => ({
             ...post,
-            author: profiles.find(p => p.id === (post.created_by || post.author_id)) || null,
+            // post.author takes priority; falls back to stored author_name/avatar
+            author: profiles.find(p => p.id === (post.created_by || post.author_id)) ?? null,
           }))
         }
       }
 
+      // Apply ALL state updates after the last await so React batches them in one render
       setPosts(enriched)
+      if (fetched.length < FEED_LIMIT) setHasMore(false)
+
     } catch (err) {
       console.error('Feed fetch error:', err)
       setFeedError(err.message)
