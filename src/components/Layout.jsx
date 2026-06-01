@@ -5,7 +5,7 @@ import { useMode } from '../context/ModeContext'
 import {
   Home, Users, Radio, Mic2, Wand2, BarChart2, MessageSquare,
   Music, Palette, Library, Briefcase, Globe, Zap, ShoppingBag,
-  Video, LogOut, Menu, X, ChevronRight, Bell, Package,
+  Video, LogOut, LogIn, Menu, X, ChevronRight, Bell, Package,
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
   Newspaper, Award, Target, ClipboardList, Hash, Sparkles, DollarSign,
   Wallet, TrendingUp, BookMarked, Megaphone, Shield,
@@ -235,43 +235,56 @@ function Sidebar({ user, profile, mode, navSections, onModeSwitch, onSignOut, on
 
       {/* User footer */}
       <div className="p-3 border-t border-border flex-shrink-0">
-        <NavLink
-          to="/profile"
-          onClick={onNav}
-          className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted transition-colors mb-1"
-        >
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0 overflow-hidden">
-            {profile?.avatar_url
-              ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-              : ((profile?.full_name || user?.email)?.[0]?.toUpperCase() ?? '?')}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{profile?.full_name || user?.email || 'User'}</p>
-            {user && (
-              <p className={`text-[10px] font-semibold truncate ${
-                profile?.is_admin || profile?.plan === 'promax'
-                  ? 'text-yellow-400'
-                  : profile?.plan === 'pro'
-                    ? 'text-purple-400'
-                    : 'text-muted-foreground'
-              }`}>
-                {profile?.is_admin || profile?.plan === 'promax'
-                  ? 'Pro Max'
-                  : profile?.plan === 'pro'
-                    ? 'Pro'
-                    : 'Free'}
-              </p>
-            )}
-          </div>
-          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-        </NavLink>
-        <button
-          onClick={onSignOut}
-          className="w-full flex items-center gap-3 px-2 py-2 rounded-xl text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          Sign out
-        </button>
+        {user ? (
+          <>
+            <NavLink
+              to="/profile"
+              onClick={onNav}
+              className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted transition-colors mb-1"
+            >
+              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0 overflow-hidden">
+                {(profile?.avatar_url || user?.avatar_url)
+                  ? <img src={profile?.avatar_url || user?.avatar_url} alt="" className="w-full h-full object-cover" />
+                  : ((profile?.full_name || user?.full_name || user?.email)?.[0]?.toUpperCase() ?? '?')}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {profile?.full_name || user?.full_name || user?.email || 'User'}
+                </p>
+                <p className={`text-[10px] font-semibold truncate ${
+                  (profile?.is_admin ?? user?.is_admin) || (profile?.plan ?? user?.plan) === 'promax'
+                    ? 'text-yellow-400'
+                    : (profile?.plan ?? user?.plan) === 'pro'
+                      ? 'text-purple-400'
+                      : 'text-muted-foreground'
+                }`}>
+                  {(profile?.is_admin ?? user?.is_admin) || (profile?.plan ?? user?.plan) === 'promax'
+                    ? 'Pro Max'
+                    : (profile?.plan ?? user?.plan) === 'pro'
+                      ? 'Pro'
+                      : 'Free'}
+                </p>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            </NavLink>
+            <button
+              onClick={onSignOut}
+              className="w-full flex items-center gap-3 px-2 py-2 rounded-xl text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out
+            </button>
+          </>
+        ) : (
+          <NavLink
+            to="/login"
+            onClick={onNav}
+            className="w-full flex items-center gap-3 px-2 py-2 rounded-xl text-sm text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+          >
+            <LogIn className="w-4 h-4" />
+            Sign in
+          </NavLink>
+        )}
 
         {/* Company footer links */}
         <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-x-3 gap-y-1 px-1">
