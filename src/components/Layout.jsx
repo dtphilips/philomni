@@ -5,13 +5,14 @@ import { useMode } from '../context/ModeContext'
 import {
   Home, Users, Radio, Mic2, Wand2, BarChart2, MessageSquare,
   Music, Palette, Library, Briefcase, Globe, Zap, ShoppingBag,
-  Video, LogOut, LogIn, Menu, X, ChevronRight, Bell, Package,
+  Video, LogOut, LogIn, Menu, X, ChevronRight, ChevronLeft, Bell, Package,
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
   Newspaper, Award, Target, ClipboardList, Hash, Sparkles, DollarSign,
   Wallet, TrendingUp, BookMarked, Megaphone, Shield,
 } from 'lucide-react'
 import PhiloDrawer from './PhiloDrawer'
 import FloatingMusicPlayer from './FloatingMusicPlayer'
+import { useMusic } from '../context/MusicContext'
 
 // ─── Creator Mode Navigation ──────────────────────────────────────────────────
 const CREATOR_NAV = [
@@ -173,14 +174,17 @@ const PRO_NAV = [
   },
 ]
 
-function NavItem({ to, icon: Icon, label, badge, onClick }) {
+function NavItem({ to, icon: Icon, label, badge, onClick, collapsed }) {
   return (
     <NavLink
       to={to}
       onClick={onClick}
       end={to === '/'}
+      title={collapsed ? label : undefined}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+        `flex items-center gap-3 py-2 rounded-xl text-sm font-medium transition-all ${
+          collapsed ? 'justify-center px-0' : 'px-3'
+        } ${
           isActive
             ? 'bg-primary/15 text-primary'
             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -188,8 +192,8 @@ function NavItem({ to, icon: Icon, label, badge, onClick }) {
       }
     >
       <Icon className="w-4 h-4 flex-shrink-0" />
-      <span className="truncate flex-1">{label}</span>
-      {badge && (
+      {!collapsed && <span className="truncate flex-1">{label}</span>}
+      {!collapsed && badge && (
         <span className="text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full leading-none flex-shrink-0">
           {badge}
         </span>
@@ -198,7 +202,11 @@ function NavItem({ to, icon: Icon, label, badge, onClick }) {
   )
 }
 
-function SectionHeader({ label }) {
+function SectionHeader({ label, collapsed }) {
+  if (collapsed) {
+    // Thin divider stands in for the section label when collapsed
+    return <div className="my-2 mx-2 border-t border-border/40" />
+  }
   return (
     <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
       {label}
@@ -207,26 +215,59 @@ function SectionHeader({ label }) {
 }
 
 // ─── Sidebar (defined outside Layout to prevent re-creation on every render) ─
-function Sidebar({ user, profile, authLoading, mode, navSections, onModeSwitch, onSignOut, onNav }) {
+// collapsed         — desktop icon-only mode (mobile is always expanded)
+// onToggleCollapse  — desktop: collapse/expand toggle
+// onClose           — mobile: close the overlay (X button). undefined on desktop.
+function Sidebar({ user, profile, authLoading, mode, navSections, onModeSwitch, onSignOut, onNav, collapsed, onToggleCollapse, onClose }) {
+  const planBadge = (() => {
+    const isAdmin = profile?.is_admin ?? user?.is_admin
+    const plan    = profile?.plan    ?? user?.plan
+    const label   = isAdmin || plan === 'promax' ? 'Pro Max' : plan === 'pro' ? 'Pro' : 'Free'
+    const color   = isAdmin || plan === 'promax' ? 'text-yellow-400' : plan === 'pro' ? 'text-purple-400' : 'text-muted-foreground'
+    return { label, color }
+  })()
+
+  const displayName = profile?.full_name || user?.full_name || user?.email || 'User'
+  const avatarUrl   = profile?.avatar_url || user?.avatar_url
+  const avatarInner = avatarUrl
+    ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+    : (displayName?.[0]?.toUpperCase() ?? '?')
+
   return (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border flex-shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-sm">P</div>
-        <span className="font-bold text-foreground text-lg">Philomni</span>
+      {/* Logo + toggle/close */}
+      <div className={`border-b border-border flex-shrink-0 ${
+        collapsed ? 'flex flex-col items-center gap-1.5 py-3' : 'flex items-center gap-2.5 px-4 py-4'
+      }`}>
+        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">P</div>
+        {!collapsed && <span className="font-bold text-foreground text-lg flex-1">Philomni</span>}
+        {onClose ? (
+          /* Mobile: X close button */
+          <button onClick={onClose} title="Close menu" aria-label="Close menu"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+            <X className="w-4 h-4" />
+          </button>
+        ) : (
+          /* Desktop: collapse/expand toggle */
+          <button onClick={onToggleCollapse} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+        )}
       </div>
 
       {/* Mode switcher */}
-      <ModeSwitcher mode={mode} onSwitch={onModeSwitch} />
+      <ModeSwitcher mode={mode} onSwitch={onModeSwitch} collapsed={collapsed} />
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0">
+      <nav className={`flex-1 overflow-y-auto py-2 space-y-0 ${collapsed ? 'px-2' : 'px-3'}`}>
         {navSections.map((section) => (
           <div key={section.label}>
-            <SectionHeader label={section.label} />
+            <SectionHeader label={section.label} collapsed={collapsed} />
             <div className="space-y-0.5">
               {section.items.map((item) => (
-                <NavItem key={item.to + item.label} {...item} onClick={onNav} />
+                <NavItem key={item.to + item.label} {...item} onClick={onNav} collapsed={collapsed} />
               ))}
             </div>
           </div>
@@ -234,91 +275,113 @@ function Sidebar({ user, profile, authLoading, mode, navSections, onModeSwitch, 
       </nav>
 
       {/* User footer */}
-      <div className="p-3 border-t border-border flex-shrink-0">
+      <div className={`border-t border-border flex-shrink-0 ${collapsed ? 'p-2' : 'p-3'}`}>
         {authLoading ? (
-          /* Shimmer while auth/profile is resolving — prevents email/Free flash */
-          <div className="flex items-center gap-3 px-2 py-2 animate-pulse">
-            <div className="w-8 h-8 rounded-full bg-muted flex-shrink-0" />
-            <div className="flex-1 space-y-1.5">
-              <div className="h-3 bg-muted rounded w-24" />
-              <div className="h-2.5 bg-muted rounded w-16" />
+          collapsed ? (
+            <div className="w-8 h-8 rounded-full bg-muted animate-pulse mx-auto" />
+          ) : (
+            <div className="flex items-center gap-3 px-2 py-2 animate-pulse">
+              <div className="w-8 h-8 rounded-full bg-muted flex-shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 bg-muted rounded w-24" />
+                <div className="h-2.5 bg-muted rounded w-16" />
+              </div>
             </div>
-          </div>
+          )
         ) : user ? (
-          <>
-            <NavLink
-              to="/profile"
-              onClick={onNav}
-              className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted transition-colors mb-1"
-            >
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0 overflow-hidden">
-                {(profile?.avatar_url || user?.avatar_url)
-                  ? <img src={profile?.avatar_url || user?.avatar_url} alt="" className="w-full h-full object-cover" />
-                  : ((profile?.full_name || user?.full_name || user?.email)?.[0]?.toUpperCase() ?? '?')}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {profile?.full_name || user?.full_name || user?.email || 'User'}
-                </p>
-                {/* Plan badge — derive from profile first, then merged user */}
-                {(() => {
-                  const isAdmin = profile?.is_admin ?? user?.is_admin
-                  const plan    = profile?.plan    ?? user?.plan
-                  const label   = isAdmin || plan === 'promax' ? 'Pro Max'
-                                : plan === 'pro'               ? 'Pro'
-                                :                               'Free'
-                  const color   = isAdmin || plan === 'promax' ? 'text-yellow-400'
-                                : plan === 'pro'               ? 'text-purple-400'
-                                :                               'text-muted-foreground'
-                  return <p className={`text-[10px] font-semibold truncate ${color}`}>{label}</p>
-                })()}
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-            </NavLink>
-            <button
-              onClick={onSignOut}
-              className="w-full flex items-center gap-3 px-2 py-2 rounded-xl text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              Sign out
-            </button>
-          </>
+          collapsed ? (
+            /* Collapsed: avatar + sign-out icon, stacked & centered */
+            <div className="flex flex-col items-center gap-2">
+              <NavLink to="/profile" onClick={onNav} title={`${displayName} · ${planBadge.label}`}
+                className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm overflow-hidden hover:ring-2 hover:ring-primary/40 transition-all">
+                {avatarInner}
+              </NavLink>
+              <button onClick={onSignOut} title="Sign out"
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <NavLink to="/profile" onClick={onNav}
+                className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted transition-colors mb-1">
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0 overflow-hidden">
+                  {avatarInner}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+                  <p className={`text-[10px] font-semibold truncate ${planBadge.color}`}>{planBadge.label}</p>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+              </NavLink>
+              <button onClick={onSignOut}
+                className="w-full flex items-center gap-3 px-2 py-2 rounded-xl text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                <LogOut className="w-4 h-4" />
+                Sign out
+              </button>
+            </>
+          )
         ) : (
-          <NavLink
-            to="/login"
-            onClick={onNav}
-            className="w-full flex items-center gap-3 px-2 py-2 rounded-xl text-sm text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-          >
+          <NavLink to="/login" onClick={onNav} title={collapsed ? 'Sign in' : undefined}
+            className={`w-full flex items-center gap-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors ${
+              collapsed ? 'justify-center px-0' : 'px-2'
+            }`}>
             <LogIn className="w-4 h-4" />
-            Sign in
+            {!collapsed && 'Sign in'}
           </NavLink>
         )}
 
-        {/* Company footer links */}
-        <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-x-3 gap-y-1 px-1">
-          {[
-            { to: '/partners', label: 'Advertise' },
-            { to: '/settings', label: 'About' },
-            { to: '/settings', label: 'Privacy' },
-            { to: '/settings', label: 'Terms' },
-          ].map(link => (
-            <NavLink
-              key={link.label}
-              to={link.to}
-              onClick={onNav}
-              className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-            >
-              {link.label}
-            </NavLink>
-          ))}
-        </div>
+        {/* Company footer links — hidden when collapsed */}
+        {!collapsed && (
+          <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-x-3 gap-y-1 px-1">
+            {[
+              { to: '/partners', label: 'Advertise' },
+              { to: '/settings', label: 'About' },
+              { to: '/settings', label: 'Privacy' },
+              { to: '/settings', label: 'Terms' },
+            ].map(link => (
+              <NavLink
+                key={link.label}
+                to={link.to}
+                onClick={onNav}
+                className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              >
+                {link.label}
+              </NavLink>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function ModeSwitcher({ mode, onSwitch }) {
+function ModeSwitcher({ mode, onSwitch, collapsed }) {
   const isCreator = mode === 'creator'
+  if (collapsed) {
+    return (
+      <div className="px-2 py-3 border-b border-border flex flex-col items-center gap-1.5">
+        <button
+          onClick={() => onSwitch('creator')}
+          title="Creator mode"
+          className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm transition-all ${
+            isCreator ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'
+          }`}
+        >
+          🎨
+        </button>
+        <button
+          onClick={() => onSwitch('pro')}
+          title="Pro mode"
+          className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm transition-all ${
+            !isCreator ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'
+          }`}
+        >
+          💼
+        </button>
+      </div>
+    )
+  }
   return (
     <div className="px-3 py-3 border-b border-border">
       <div className="flex items-center bg-muted rounded-full p-1 gap-1">
@@ -352,10 +415,26 @@ function ModeSwitcher({ mode, onSwitch }) {
 export default function Layout({ children }) {
   const { user, profile, loading: authLoading, signOut } = useAuth()
   const { mode, switchTo, toast } = useMode()
+  const { currentTrack } = useMusic()
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [transition, setTransition] = useState(null) // { to: 'pro'|'creator', phase: 'in'|'out' }
+
+  // Collapsible sidebar (desktop) — persisted across refreshes
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('sidebar-collapsed') === 'true'
+  )
+  const toggleCollapse = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem('sidebar-collapsed', String(next))
+      return next
+    })
+  }
+
+  // Player is visible when a track is loaded — used to pad content + lift Philo button
+  const playerVisible = !!currentTrack
 
   // FIX 9: Mode switch with full-screen transition overlay
   const handleModeSwitch = (newMode) => {
@@ -410,7 +489,9 @@ export default function Layout({ children }) {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-60 border-r border-border bg-card flex-shrink-0">
+      <aside className={`hidden lg:flex flex-col border-r border-border bg-card flex-shrink-0 transition-[width] duration-200 ${
+        sidebarCollapsed ? 'w-14' : 'w-60'
+      }`}>
         <Sidebar
           user={user}
           profile={profile}
@@ -419,20 +500,16 @@ export default function Layout({ children }) {
           navSections={navSections}
           onModeSwitch={handleModeSwitch}
           onSignOut={handleSignOut}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={toggleCollapse}
         />
       </aside>
 
-      {/* Mobile sidebar overlay */}
+      {/* Mobile sidebar overlay — tap backdrop OR header X to close */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)} />
           <aside className="absolute left-0 top-0 bottom-0 w-72 bg-card border-r border-border flex flex-col">
-            <button
-              onClick={() => setMobileOpen(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-muted z-10"
-            >
-              <X className="w-5 h-5" />
-            </button>
             <Sidebar
               user={user}
               profile={profile}
@@ -442,6 +519,7 @@ export default function Layout({ children }) {
               onModeSwitch={handleModeSwitch}
               onSignOut={handleSignOut}
               onNav={() => setMobileOpen(false)}
+              onClose={() => setMobileOpen(false)}
             />
           </aside>
         </div>
@@ -458,9 +536,10 @@ export default function Layout({ children }) {
           <div className="w-9" />
         </header>
 
-        {/* Page content */}
+        {/* Page content — extra bottom padding when the music player is visible
+            so the last items are never hidden behind the 72px player bar */}
         <main className="flex-1 overflow-y-auto relative">
-          <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className={`max-w-4xl mx-auto px-4 py-6 ${playerVisible ? 'pb-28' : ''}`}>
             {children}
           </div>
 

@@ -135,8 +135,11 @@ export default function FloatingMusicPlayer() {
       {/* Queue Panel */}
       {showQueue && <QueuePanel onClose={toggleQueue} />}
 
-      {/* Player Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-[100] bg-card/98 backdrop-blur-md border-t border-border shadow-2xl">
+      {/* Player Bar — safe-area padding keeps controls above the iPhone home bar */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-[100] bg-card/98 backdrop-blur-md border-t border-border shadow-2xl"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         <div className="flex items-center h-[72px] px-4 gap-2">
 
           {/* ── LEFT: Cover + Title + Artist + Heart ─────────────────── */}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Send, X, ExternalLink, Plus } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
+import { useMusic } from '../context/MusicContext'
 
 const PHILO_MINI_PROMPT = `You are Philo, Philomni's AI assistant. You are warm, encouraging, and expert in creator economy, content creation, careers, and business. You speak like a smart friend, not a corporate bot. Be helpful and specific. Keep responses concise since this is a mini chat window — aim for 2-4 sentences unless more detail is truly needed.`
 
@@ -17,7 +18,9 @@ function buildMiniSystem(user, mode) {
 export default function PhiloDrawer() {
   const { user } = useAuth()
   const { mode } = useMode()
+  const { currentTrack } = useMusic()
   const navigate = useNavigate()
+  const playerVisible = !!currentTrack // music player occupies the bottom 72px
 
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([])
@@ -103,7 +106,9 @@ export default function PhiloDrawer() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-violet-700 text-white shadow-2xl hover:scale-110 active:scale-95 transition-transform flex items-center justify-center"
+          className={`fixed right-6 z-[110] w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-violet-700 text-white shadow-2xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center ${
+            playerVisible ? 'bottom-[88px]' : 'bottom-6'
+          }`}
           title="Ask Philo"
           aria-label="Open Philo AI assistant"
         >
@@ -112,10 +117,17 @@ export default function PhiloDrawer() {
       )}
 
       {/* ── Mini chat drawer ─────────────────────────────────────────────── */}
+      {/* Mobile: full-screen (with notch/home-bar safe areas).
+          Desktop: floating card, lifted above the music player when it's visible.
+          z-[60] keeps it below the player (z-100) so the player stays visible at
+          the bottom and the input is padded up above it on mobile. */}
       {open && (
         <div
-          className="fixed bottom-6 right-6 z-50 flex flex-col bg-card border border-border rounded-2xl shadow-2xl overflow-hidden w-80 sm:w-96"
-          style={{ height: '460px' }}
+          className={`fixed z-[60] flex flex-col bg-card overflow-hidden shadow-2xl
+            inset-0 w-full h-full
+            sm:inset-auto sm:right-6 sm:w-96 sm:h-[460px] sm:rounded-2xl sm:border sm:border-border
+            ${playerVisible ? 'sm:bottom-[88px]' : 'sm:bottom-6'}`}
+          style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
           {/* Header */}
           <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border bg-gradient-to-r from-purple-900/30 to-violet-900/30 flex-shrink-0">
@@ -225,8 +237,14 @@ export default function PhiloDrawer() {
             )}
           </div>
 
-          {/* Input */}
-          <div className="flex-shrink-0 px-3 pb-3 pt-2 border-t border-border">
+          {/* Input — on mobile, lift above the music player + home bar so the
+              send button is always tappable. Desktop resets to normal padding
+              since the whole drawer already floats above the player. */}
+          <div className={`flex-shrink-0 px-3 pt-2 border-t border-border sm:pb-3 ${
+            playerVisible
+              ? 'pb-[calc(72px+env(safe-area-inset-bottom)+0.75rem)]'
+              : 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]'
+          }`}>
             <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-2">
               <input
                 ref={inputRef}
