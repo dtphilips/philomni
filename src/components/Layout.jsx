@@ -247,7 +247,21 @@ function Sidebar({ user, profile, mode, navSections, onModeSwitch, onSignOut, on
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground truncate">{profile?.full_name || user?.email || 'User'}</p>
-            <p className="text-xs text-muted-foreground truncate">{profile?.plan || 'free'}</p>
+            {user && (
+              <p className={`text-[10px] font-semibold truncate ${
+                profile?.is_admin || profile?.plan === 'promax'
+                  ? 'text-yellow-400'
+                  : profile?.plan === 'pro'
+                    ? 'text-purple-400'
+                    : 'text-muted-foreground'
+              }`}>
+                {profile?.is_admin || profile?.plan === 'promax'
+                  ? 'Pro Max'
+                  : profile?.plan === 'pro'
+                    ? 'Pro'
+                    : 'Free'}
+              </p>
+            )}
           </div>
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
         </NavLink>

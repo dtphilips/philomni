@@ -173,6 +173,11 @@ function P({ page: Page }) {
   return <ProtectedLayout><Page /></ProtectedLayout>
 }
 
+// Public pages — show Layout (sidebar) but do NOT require login
+function PL({ page: Page }) {
+  return <Layout><Page /></Layout>
+}
+
 export default function App() {
   useEffect(() => {
     const testConnection = async () => {
@@ -207,8 +212,8 @@ export default function App() {
             <Route path="/shared/project/:id" element={<SharedProjectView />} />
 
             {/* Core */}
-            <Route path="/" element={<P page={Feed} />} />
-            <Route path="/pro-feed" element={<P page={ProFeed} />} />
+            <Route path="/" element={<PL page={Feed} />} />
+            <Route path="/pro-feed" element={<PL page={ProFeed} />} />
             <Route path="/profile" element={<P page={Profile} />} />
             <Route path="/profile/:userId" element={<P page={Profile} />} />
             <Route path="/edit-profile" element={<P page={EditProfile} />} />
@@ -217,21 +222,21 @@ export default function App() {
             <Route path="/search" element={<P page={GlobalSearch} />} />
 
             {/* Social */}
-            <Route path="/community" element={<P page={Community} />} />
-            <Route path="/groups" element={<P page={Groups} />} />
-            <Route path="/groups/:id" element={<P page={GroupChat} />} />
-            <Route path="/discover" element={<P page={Discover} />} />
-            <Route path="/explore" element={<P page={Explore} />} />
-            <Route path="/directory" element={<P page={Directory} />} />
-            <Route path="/creators" element={<P page={Creators} />} />
-            <Route path="/collab-feed" element={<P page={CollaborationFeed} />} />
+            <Route path="/community" element={<PL page={Community} />} />
+            <Route path="/groups" element={<PL page={Groups} />} />
+            <Route path="/groups/:id" element={<PL page={GroupChat} />} />
+            <Route path="/discover" element={<PL page={Discover} />} />
+            <Route path="/explore" element={<PL page={Explore} />} />
+            <Route path="/directory" element={<PL page={Directory} />} />
+            <Route path="/creators" element={<PL page={Creators} />} />
+            <Route path="/collab-feed" element={<PL page={CollaborationFeed} />} />
 
             {/* Messaging */}
             <Route path="/messages" element={<P page={Messages} />} />
             <Route path="/video-messages" element={<P page={VideoMessages} />} />
 
             {/* Content */}
-            <Route path="/reels" element={<P page={Reels} />} />
+            <Route path="/reels" element={<PL page={Reels} />} />
             <Route path="/stories" element={<P page={Stories} />} />
             <Route path="/drafts" element={<P page={Drafts} />} />
             <Route path="/content-calendar" element={<P page={ContentCalendar} />} />
@@ -247,8 +252,8 @@ export default function App() {
             <Route path="/business-content" element={<P page={BusinessContentSuite} />} />
 
             {/* Media */}
-            <Route path="/music-library" element={<P page={MusicLibrary} />} />
-            <Route path="/music"         element={<P page={MusicLibrary} />} />
+            <Route path="/music-library" element={<PL page={MusicLibrary} />} />
+            <Route path="/music"         element={<PL page={MusicLibrary} />} />
             <Route path="/podcasts" element={<P page={Podcasts} />} />
             <Route path="/video-captions/:draftId" element={<P page={VideoCaptions} />} />
             <Route path="/video-analytics/:draftId" element={<P page={VideoAnalyticsDashboard} />} />
@@ -262,10 +267,10 @@ export default function App() {
             <Route path="/workflows" element={<P page={WorkflowAutomation} />} />
 
             {/* Jobs, Learning, Store */}
-            <Route path="/jobs" element={<P page={Jobs} />} />
-            <Route path="/learning" element={<P page={Learning} />} />
+            <Route path="/jobs" element={<PL page={Jobs} />} />
+            <Route path="/learning" element={<PL page={Learning} />} />
             <Route path="/learning/certificates" element={<P page={Certificates} />} />
-            <Route path="/store" element={<P page={CreatorStore} />} />
+            <Route path="/store" element={<PL page={CreatorStore} />} />
 
             {/* Professional Network */}
             <Route path="/companies" element={<P page={Companies} />} />
@@ -279,14 +284,14 @@ export default function App() {
             {/* Marketplace */}
             <Route path="/my-orders" element={<P page={MyOrders} />} />
             <Route path="/orders/:id" element={<P page={OrderPage} />} />
-            <Route path="/course/:id" element={<P page={CourseViewer} />} />
-            <Route path="/seller/:sellerId" element={<P page={SellerStorefront} />} />
-            <Route path="/marketplace" element={<P page={ProductMarketplace} />} />
-            <Route path="/creator-marketplace" element={<P page={CreatorMarketplace} />} />
-            <Route path="/shop" element={<P page={Marketplace} />} />
-            <Route path="/video-marketplace" element={<P page={VideoMarketplace} />} />
-            <Route path="/templates" element={<P page={TemplateMarketplace} />} />
-            <Route path="/skills" element={<P page={SkillExchange} />} />
+            <Route path="/course/:id" element={<PL page={CourseViewer} />} />
+            <Route path="/seller/:sellerId" element={<PL page={SellerStorefront} />} />
+            <Route path="/marketplace" element={<PL page={ProductMarketplace} />} />
+            <Route path="/creator-marketplace" element={<PL page={CreatorMarketplace} />} />
+            <Route path="/shop" element={<PL page={Marketplace} />} />
+            <Route path="/video-marketplace" element={<PL page={VideoMarketplace} />} />
+            <Route path="/templates" element={<PL page={TemplateMarketplace} />} />
+            <Route path="/skills" element={<PL page={SkillExchange} />} />
             {/* /monetize is now handled by the CreatorMonetize route added below */}
             <Route path="/upgrade"  element={<P page={Upgrade} />} />
             <Route path="/billing"  element={<P page={Billing} />} />
@@ -294,8 +299,8 @@ export default function App() {
 
             {/* Creator Economy */}
             <Route path="/wallet"             element={<P page={Wallet} />} />
-            <Route path="/learn"              element={<P page={Learn} />} />
-            <Route path="/learn/:courseId"    element={<P page={CourseDetail} />} />
+            <Route path="/learn"              element={<PL page={Learn} />} />
+            <Route path="/learn/:courseId"    element={<PL page={CourseDetail} />} />
             <Route path="/learn/:courseId/watch" element={<P page={CourseWatch} />} />
             <Route path="/teach"              element={<P page={Teach} />} />
             <Route path="/sell"               element={<P page={Sell} />} />
@@ -314,7 +319,7 @@ export default function App() {
             <Route path="/pitch-vault" element={<P page={PitchVault} />} />
             <Route path="/bookings" element={<P page={BookingCalendar} />} />
             <Route path="/meetings" element={<P page={Meetings} />} />
-            <Route path="/rooms" element={<P page={Rooms} />} />
+            <Route path="/rooms" element={<PL page={Rooms} />} />
             <Route path="/project-matcher" element={<P page={ProjectMatcher} />} />
             <Route path="/quality-review/:draftId" element={<P page={QualityReview} />} />
             <Route path="/video-editor/:id" element={<P page={PostVideoEditorPage} />} />
@@ -329,17 +334,17 @@ export default function App() {
             <Route path="/verify-badge"    element={<P page={VerifyBadge} />} />
 
             {/* Spotlight */}
-            <Route path="/spotlight"          element={<P page={SpotlightArchive} />} />
-            <Route path="/spotlight/nominate" element={<P page={SpotlightNominate} />} />
-            <Route path="/spotlight/current"  element={<P page={SpotlightPage} />} />
-            <Route path="/spotlight/:month"   element={<P page={SpotlightPage} />} />
+            <Route path="/spotlight"          element={<PL page={SpotlightArchive} />} />
+            <Route path="/spotlight/nominate" element={<PL page={SpotlightNominate} />} />
+            <Route path="/spotlight/current"  element={<PL page={SpotlightPage} />} />
+            <Route path="/spotlight/:month"   element={<PL page={SpotlightPage} />} />
             <Route path="/monetize"       element={<P page={CreatorMonetize} />} />
             <Route path="/advertise"      element={<P page={Advertise} />} />
             <Route path="/my-ads"         element={<P page={MyAds} />} />
 
             {/* Music - Artist & Playlist pages */}
-            <Route path="/artist/:userId"   element={<P page={ArtistProfile} />} />
-            <Route path="/playlist/:id"     element={<P page={PlaylistPage} />} />
+            <Route path="/artist/:userId"   element={<PL page={ArtistProfile} />} />
+            <Route path="/playlist/:id"     element={<PL page={PlaylistPage} />} />
 
             {/* Onboarding */}
             <Route path="/onboarding" element={<Onboarding />} />
@@ -353,10 +358,10 @@ export default function App() {
             <Route path="/coins" element={<P page={BuyCoins} />} />
 
             {/* Celebrations feature */}
-            <Route path="/celebrations" element={<P page={Celebrations} />} />
+            <Route path="/celebrations" element={<PL page={Celebrations} />} />
             <Route path="/celebrations/create" element={<P page={CelebrationCreate} />} />
             <Route path="/celebrations/sponsor" element={<P page={CelebrationSponsor} />} />
-            <Route path="/celebrations/:id" element={<P page={CelebrationDetail} />} />
+            <Route path="/celebrations/:id" element={<PL page={CelebrationDetail} />} />
             <Route path="/admin/celebrations" element={<P page={AdminCelebrations} />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
