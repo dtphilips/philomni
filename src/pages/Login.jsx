@@ -29,6 +29,9 @@ export default function Login() {
       }
 
       if (data.session) {
+        // Wait for Supabase to finish persisting the session to localStorage
+        // before reloading — otherwise getSession() on the new page finds nothing
+        await new Promise(resolve => setTimeout(resolve, 800))
         window.location.replace(returnUrl)
       }
     } else {
