@@ -17,7 +17,7 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: false,
       storageKey: 'philomni-auth',
-      detectSessionInUrl: false,
+      detectSessionInUrl: true,
     },
   }
 )
