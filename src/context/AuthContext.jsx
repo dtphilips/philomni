@@ -1,193 +1,93 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
-
 export const useAuth = () => useContext(AuthContext)
 
-// Hardcoded admin emails — always get is_admin=true and plan=promax
-const ADMIN_EMAILS = ['dtphilips1992@gmail.com']
-
-// DEV_MODE bypass: set VITE_DEV_MODE=true in .env.local only
-const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true' && import.meta.env.DEV
-const DEV_USER = DEV_MODE ? {
-  id: 'dev-user-id',
-  email: 'dev@philomni.app',
-  full_name: 'Dami Dev',
-  avatar_url: null,
-  role: 'creator',
-  plan: 'promax',
-  is_admin: true,
-} : null
-
 export const AuthProvider = ({ children }) => {
-  const [user, setUser]       = useState(DEV_USER)
-  const [session, setSession] = useState(null)
-  const [profile, setProfile] = useState(DEV_USER)
-  const [loading, setLoading] = useState(DEV_MODE ? false : true)
+  const [user, setUser] = useState(null)
+  const [profile, setProfile] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const fetchingRef = useRef(false)
 
-  // ─── Fetch / auto-create profile row ────────────────────────────────────────
-  const fetchProfile = async (authUser) => {
-    if (!authUser) return null
-
-    const { data } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', authUser.id)
-      .single()
-
-    if (data) return data
-
-    // Auto-create profile on very first login
-    const newProfile = {
-      id:         authUser.id,
-      email:      authUser.email,
-      full_name:  authUser.user_metadata?.full_name || authUser.email.split('@')[0],
-      avatar_url: authUser.user_metadata?.avatar_url || null,
-      role:       'creator',
-      plan:       'free',
-      created_at: new Date().toISOString(),
+  const fetchProfile = async (userId) => {
+    if (fetchingRef.current) return
+    fetchingRef.current = true
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle()
+      if (data) setProfile(data)
+    } catch (e) {
+      console.error('fetchProfile error:', e)
+    } finally {
+      fetchingRef.current = false
+      setLoading(false)
     }
-    const { data: created } = await supabase
-      .from('users')
-      .insert(newProfile)
-      .select()
-      .single()
-    return created || newProfile
   }
 
-  // ─── Boot auth ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Apply dark mode globally
-    document.documentElement.classList.add('dark')
+    // Hard stop after 3 seconds NO MATTER WHAT
+    const hardStop = setTimeout(() => {
+      console.warn('Auth hard stop triggered')
+      setLoading(false)
+    }, 3000)
 
-    if (DEV_MODE) return
-
-    let mounted = true
-
-    const initAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-
-        if (!mounted) return
-
-        setSession(session)
-        setUser(session?.user ?? null)
-
-        if (session?.user) {
-          const prof = await fetchProfile(session.user)
-          if (mounted) setProfile(prof)
-        } else {
-          setProfile(null)
-        }
-      } catch (err) {
-        console.error('[Auth] init error:', err)
-      } finally {
-        if (mounted) setLoading(false)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user)
+        fetchProfile(session.user.id)
+      } else {
+        setUser(null)
+        setProfile(null)
+        setLoading(false)
       }
-    }
+    })
 
-    initAuth()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth event:', event)
-        if (!mounted) return
-
-        setSession(session)
-        setUser(session?.user ?? null)
-
-        if (session?.user) {
-          const prof = await fetchProfile(session.user)
-          if (mounted) setProfile(prof)
-        } else {
-          setProfile(null)
-        }
-
-        if (mounted) setLoading(false)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        setProfile(null)
+        setLoading(false)
+        return
       }
-    )
+      if (session?.user) {
+        setUser(session.user)
+        fetchProfile(session.user.id)
+      }
+    })
 
     return () => {
-      mounted = false
       subscription.unsubscribe()
+      clearTimeout(hardStop)
     }
   }, [])
 
-  // ─── Auth actions ─────────────────────────────────────────────────────────────
-  const signIn = async (email, password) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error }
-  }
-
-  const signUp = async (email, password, fullName) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
-    })
-    return { error }
-  }
-
   const signOut = async () => {
-    await supabase.auth.signOut()
     setUser(null)
-    setSession(null)
     setProfile(null)
+    setLoading(false)
     localStorage.clear()
-    window.location.href = '/login'
+    sessionStorage.clear()
+    await supabase.auth.signOut()
+    window.location.replace('/login')
   }
 
-  const refreshProfile = async () => {
-    if (!user) return
-    const prof = await fetchProfile(user)
-    setProfile(prof)
-  }
-
-  // ─── Computed values ──────────────────────────────────────────────────────────
-  const isHardcodedAdmin = user
-    ? ADMIN_EMAILS.includes((user.email || '').toLowerCase())
-    : false
-
-  // Merge auth user + DB profile into one object pages can consume
-  const fullUser = user
-    ? profile
-      ? {
-          ...user,
-          ...profile,
-          is_admin: profile.is_admin === true || isHardcodedAdmin,
-          plan: (profile.is_admin === true || isHardcodedAdmin) ? 'promax' : (profile.plan || 'free'),
-        }
-      : {
-          // Profile not loaded yet — serve basic auth data so app doesn't redirect to /login
-          id:         user.id,
-          email:      user.email,
-          full_name:  user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-          avatar_url: user.user_metadata?.avatar_url || null,
-          role:       'creator',
-          plan:       isHardcodedAdmin ? 'promax' : 'free',
-          is_admin:   isHardcodedAdmin,
-        }
-    : null
-
-  const effectivePlan = fullUser?.plan || 'free'
-
-  const value = {
-    user:    fullUser,
-    session,
-    loading,
-    profile,
-    signIn,
-    signUp,
-    signOut,
-    refreshProfile,
-    isAdmin:  fullUser?.is_admin === true,
-    isPro:    effectivePlan === 'pro' || effectivePlan === 'promax' || fullUser?.is_admin === true,
-    isProMax: effectivePlan === 'promax' || fullUser?.is_admin === true,
-  }
+  const mergedUser = user ? { ...user, ...(profile ?? {}) } : null
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{
+      user: mergedUser,
+      profile,
+      loading,
+      signOut,
+      isAdmin: profile?.is_admin === true || user?.email === 'dtphilips1992@gmail.com',
+      isPro: ['pro','promax'].includes(profile?.plan) || profile?.is_admin === true,
+      isProMax: profile?.plan === 'promax' || profile?.is_admin === true,
+      refreshProfile: () => { if (user?.id) fetchProfile(user.id) },
+    }}>
       {children}
     </AuthContext.Provider>
   )
