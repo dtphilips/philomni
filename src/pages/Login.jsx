@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 
 export default function Login() {
   const [mode, setMode]       = useState('signin') // signin | signup
+  // Read returnUrl from query string so ProtectedRoute can send users back
+  const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/'
   const [email, setEmail]     = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
@@ -27,7 +29,7 @@ export default function Login() {
       }
 
       if (data.session) {
-        window.location.href = '/'
+        window.location.replace(returnUrl)
       }
     } else {
       // Sign-up

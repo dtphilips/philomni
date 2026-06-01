@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+// Known admin emails — guarantee isAdmin=true + pro display before DB loads
+const ADMIN_EMAILS = ['dtphilips1992@gmail.com']
+
 const AuthContext = createContext({})
 export const useAuth = () => useContext(AuthContext)
 
@@ -8,116 +11,158 @@ export const AuthProvider = ({ children }) => {
   const [user,    setUser]    = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const fetchingRef = useRef(false)
+  const profileFetchedFor = useRef(null) // track which userId we last fetched for
+  const refreshTimerRef   = useRef(null)
 
+  // ── Profile fetch (background, never blocks UI) ───────────────────────────
   const fetchProfile = async (userId) => {
-    if (fetchingRef.current) return
-    fetchingRef.current = true
+    if (!userId || profileFetchedFor.current === userId) return
+    profileFetchedFor.current = userId
     try {
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .maybeSingle()
-      if (error) console.error('fetchProfile DB error:', error.message)
-      else if (data) {
-        console.log('Profile loaded:', data.full_name, '| plan:', data.plan, '| admin:', data.is_admin)
+      if (error) {
+        console.error('[Auth] fetchProfile error:', error.message, '|', error.code)
+        profileFetchedFor.current = null // allow retry
+      } else if (data) {
+        console.log('[Auth] profile loaded:', data.full_name, '| plan:', data.plan, '| admin:', data.is_admin)
         setProfile(data)
       } else {
-        console.warn('fetchProfile: no row for', userId)
+        console.warn('[Auth] no public.users row for', userId)
       }
     } catch (e) {
-      // AbortError means the 8s fetch timeout fired (supabase.js fetchWithTimeout)
-      console.error('fetchProfile error:', e.name, e.message)
-    } finally {
-      fetchingRef.current = false
-      setLoading(false)
+      console.error('[Auth] fetchProfile threw:', e.message)
+      profileFetchedFor.current = null
     }
   }
 
-  useEffect(() => {
-    // Hard stop at 10 s — matches the 8s fetch timeout + 2s buffer.
-    // Prevents the spinner from showing forever if the Supabase token
-    // refresh or query hangs (e.g. first load after a long absence).
-    const hardStop = setTimeout(() => {
-      console.warn('Auth hard stop triggered (10s)')
-      setLoading(false)
-    }, 10000)
+  // ── Manual token refresh (called on a timer, avoids autoRefreshToken lock) ─
+  const scheduleTokenRefresh = (session) => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+    if (!session?.expires_at) return
 
-    // getSession reads the stored session from localStorage synchronously
-    // (no network call). Use it to set user immediately so the UI unblocks.
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) console.error('getSession error:', error.message)
-      if (session?.user) {
-        setUser(session.user)
-        fetchProfile(session.user.id)
-      } else {
-        setLoading(false)
+    const expiresAt  = session.expires_at * 1000          // convert to ms
+    const refreshAt  = expiresAt - 5 * 60 * 1000          // 5 min before expiry
+    const delayMs    = Math.max(refreshAt - Date.now(), 0)
+
+    refreshTimerRef.current = setTimeout(async () => {
+      console.log('[Auth] refreshing session token...')
+      const { data, error } = await supabase.auth.refreshSession()
+      if (error) {
+        console.error('[Auth] token refresh failed:', error.message)
+        // Refresh failed — sign out gracefully rather than silently fail
+        handleSignOut()
+      } else if (data.session) {
+        console.log('[Auth] token refreshed OK')
+        scheduleTokenRefresh(data.session)
       }
-    }).catch(err => {
-      console.error('getSession threw:', err)
-      setLoading(false)
-    })
+    }, delayMs)
+  }
 
-    // onAuthStateChange keeps the user state in sync after sign-in/out/refresh
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    // 3-second absolute cap — if getSession somehow hangs, unblock the UI
+    const cap = setTimeout(() => setLoading(false), 3000)
+
+    supabase.auth.getSession()
+      .then(({ data: { session }, error }) => {
+        clearTimeout(cap)
+        if (error) {
+          console.error('[Auth] getSession error:', error.message)
+          setLoading(false)
+          return
+        }
+        if (session?.user) {
+          // Check if the access token is expired
+          const now       = Math.floor(Date.now() / 1000)
+          const expiresAt = session.expires_at ?? 0
+          if (expiresAt > 0 && now > expiresAt) {
+            // Token expired — sign out silently instead of making bad queries
+            console.warn('[Auth] stored token is expired, signing out')
+            supabase.auth.signOut()
+            setLoading(false)
+            return
+          }
+          setUser(session.user)
+          setLoading(false)          // ← unblock UI immediately, profile loads next
+          fetchProfile(session.user.id)
+          scheduleTokenRefresh(session)
+        } else {
+          setLoading(false)
+        }
+      })
+      .catch(err => {
+        clearTimeout(cap)
+        console.error('[Auth] getSession threw:', err)
+        setLoading(false)
+      })
+
+    // onAuthStateChange covers sign-in / sign-out / token refresh events
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth event:', event, '| user:', session?.user?.email ?? 'none')
+      console.log('[Auth] event:', event, '| user:', session?.user?.email ?? 'none')
 
       if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
-        setLoading(false)
+        profileFetchedFor.current = null
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
         return
       }
-      if (event === 'TOKEN_REFRESHED') {
-        // Token refreshed — re-fetch profile in case plan/admin changed
-        if (session?.user && !fetchingRef.current) {
-          fetchingRef.current = false // allow re-fetch
-          fetchProfile(session.user.id)
-        }
-        return
-      }
-      if (session?.user) {
-        setUser(session.user)
-        // Only call fetchProfile if getSession hasn't already started it
-        if (!fetchingRef.current && !profile) {
-          fetchProfile(session.user.id)
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session?.user) {
+          setUser(session.user)
+          if (event === 'TOKEN_REFRESHED') scheduleTokenRefresh(session)
+          // Only fetch profile if we don't already have it for this user
+          if (profileFetchedFor.current !== session.user.id) {
+            fetchProfile(session.user.id)
+          }
         }
       }
     })
 
     return () => {
+      clearTimeout(cap)
       subscription.unsubscribe()
-      clearTimeout(hardStop)
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const signOut = async () => {
+  // ── Sign out ──────────────────────────────────────────────────────────────
+  const handleSignOut = async () => {
     setUser(null)
     setProfile(null)
-    setLoading(false)
+    profileFetchedFor.current = null
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     localStorage.clear()
     sessionStorage.clear()
     await supabase.auth.signOut()
     window.location.replace('/login')
   }
 
-  // Merge profile into auth user so user.full_name / user.plan / user.is_admin
-  // work everywhere without changes to 80+ components.
+  // ── Merged user (profile fields overlaid on auth user) ───────────────────
   const mergedUser = user ? { ...user, ...(profile ?? {}) } : null
+
+  // isAdmin: use DB value if available, fall back to hardcoded list
+  const isAdmin = profile?.is_admin === true ||
+    ADMIN_EMAILS.includes((user?.email ?? '').toLowerCase())
 
   return (
     <AuthContext.Provider value={{
-      user: mergedUser,
+      user:    mergedUser,
       profile,
       loading,
-      signOut,
-      // isAdmin: hardcoded fallback for the known admin email so the admin
-      // nav shows immediately, before profile loads from the DB.
-      isAdmin:  profile?.is_admin === true || mergedUser?.email === 'dtphilips1992@gmail.com',
-      isPro:    ['pro', 'promax'].includes(profile?.plan) || profile?.is_admin === true,
-      isProMax: profile?.plan === 'promax' || profile?.is_admin === true,
-      refreshProfile: () => { fetchingRef.current = false; if (user?.id) fetchProfile(user.id) },
+      signOut: handleSignOut,
+      isAdmin,
+      isPro:    isAdmin || ['pro', 'promax'].includes(profile?.plan),
+      isProMax: isAdmin || profile?.plan === 'promax',
+      refreshProfile: () => {
+        profileFetchedFor.current = null
+        if (user?.id) fetchProfile(user.id)
+      },
     }}>
       {children}
     </AuthContext.Provider>

@@ -2299,15 +2299,8 @@ export default function Feed() {
 
   const fetchPosts = async () => {
     setLoading(true)
-    // Safety net: if Supabase hangs (e.g. token refresh in progress),
-    // stop the skeleton after 8s instead of spinning forever.
-    const safetyTimer = setTimeout(() => {
-      console.warn('Feed fetch safety timeout fired')
-      setLoading(false)
-      setHasMore(false)
-    }, 8000)
     try {
-      // Step 1: fetch posts — plain select, no join
+      // Fetch posts — same query for everyone (no user_id filter on main feed)
       const { data: rawPosts, error } = await supabase
         .from('posts')
         .select('*')
@@ -2316,10 +2309,10 @@ export default function Feed() {
 
       if (error) throw error
       const fetched = rawPosts || []
-      console.log('FEED FETCH RESULT:', fetched.length, 'posts')
+      console.log('[Feed] fetched', fetched.length, 'posts')
 
-      // Step 2: enrich with author profiles (separate query — no FK join needed)
-      // posts.created_by is null on legacy rows; fall back to author_id
+      // Enrich with fresh author profiles (separate query, no FK join)
+      // Legacy posts have created_by=null; fall back to author_id
       let enriched = fetched
       const userIds = [...new Set(fetched.map(p => p.created_by || p.author_id).filter(Boolean))]
       if (userIds.length > 0) {
@@ -2330,21 +2323,18 @@ export default function Feed() {
         if (profiles?.length) {
           enriched = fetched.map(post => ({
             ...post,
-            // post.author takes priority; falls back to stored author_name/avatar
             author: profiles.find(p => p.id === (post.created_by || post.author_id)) ?? null,
           }))
         }
       }
 
-      // Apply ALL state updates after the last await so React batches them in one render
       setPosts(enriched)
       if (fetched.length < FEED_LIMIT) setHasMore(false)
 
     } catch (err) {
-      console.error('Feed fetch error:', err.name, err.message)
+      console.error('[Feed] fetchPosts error:', err.message)
       setFeedError(err.message)
     } finally {
-      clearTimeout(safetyTimer)
       setLoading(false)
     }
   }
