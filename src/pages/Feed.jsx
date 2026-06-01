@@ -21,6 +21,7 @@ import { fetchWithCache } from '../lib/queryCache'
 import LivesRow from '../components/LivesRow'
 import GoLiveModal from '../components/GoLiveModal'
 import CelebrationsRow from '../components/celebrations/CelebrationsRow'
+import ErrorBoundary from '../components/ErrorBoundary'
 
 // ── In-feed Ad Card ───────────────────────────────────────────────────────────
 function AdCard({ ad, viewerId }) {
@@ -1801,6 +1802,9 @@ function PostComposer({ user, onCreated }) {
     return () => document.removeEventListener('mousedown', fn)
   }, [])
 
+  // Don't render composer if user is not logged in
+  if (!user) return null
+
   const execCmd = (cmd) => { editorRef.current?.focus(); document.execCommand(cmd, false, null) }
 
   const insertEmoji = useCallback((emoji) => {
@@ -2374,8 +2378,12 @@ export default function Feed() {
           <p className="text-xs text-muted-foreground">Share your moment live with your audience</p>
         </div>
 
-        {/* Composer */}
-        <PostComposer user={user} onCreated={handleCreated} />
+        {/* Composer — wrapped in ErrorBoundary so a crash here never blanks the feed */}
+        {user && (
+          <ErrorBoundary fallback={null}>
+            <PostComposer user={user} onCreated={handleCreated} />
+          </ErrorBoundary>
+        )}
 
         {/* Go Live Modal */}
         {showGoLive && <GoLiveModal onClose={() => setShowGoLive(false)} />}
