@@ -1763,6 +1763,7 @@ const AUDIENCE_OPTIONS = [
 ]
 
 function PostComposer({ user, onCreated }) {
+  const { profile } = useAuth()
   const { mode } = useMode()
   const { selectedTrack, clearSelectedTrack } = useMusic()
   const editorRef = useRef()

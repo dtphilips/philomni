@@ -65,9 +65,15 @@ export const AuthProvider = ({ children }) => {
     window.location.replace('/login')
   }
 
+  // Merge profile data into user so that user.full_name, user.avatar_url,
+  // user.plan, user.is_admin etc. all work across the codebase without changes.
+  const mergedUser = user
+    ? { ...user, ...(profile ?? {}) }
+    : null
+
   return (
     <AuthContext.Provider value={{
-      user,
+      user: mergedUser,
       profile,
       loading,
       signOut,
