@@ -2299,6 +2299,13 @@ export default function Feed() {
 
   const fetchPosts = async () => {
     setLoading(true)
+    // Safety net: if Supabase hangs (e.g. token refresh in progress),
+    // stop the skeleton after 8s instead of spinning forever.
+    const safetyTimer = setTimeout(() => {
+      console.warn('Feed fetch safety timeout fired')
+      setLoading(false)
+      setHasMore(false)
+    }, 8000)
     try {
       // Step 1: fetch posts — plain select, no join
       const { data: rawPosts, error } = await supabase
@@ -2334,9 +2341,10 @@ export default function Feed() {
       if (fetched.length < FEED_LIMIT) setHasMore(false)
 
     } catch (err) {
-      console.error('Feed fetch error:', err)
+      console.error('Feed fetch error:', err.name, err.message)
       setFeedError(err.message)
     } finally {
+      clearTimeout(safetyTimer)
       setLoading(false)
     }
   }
