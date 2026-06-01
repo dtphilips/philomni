@@ -36,6 +36,10 @@ export const AuthProvider = ({ children }) => {
     } catch (e) {
       console.error('[Auth] fetchProfile threw:', e.message)
       profileFetchedFor.current = null
+    } finally {
+      // Stop loading only AFTER profile is set (or failed) — so the sidebar
+      // never renders with profile=null showing "Free"/email.
+      setLoading(false)
     }
   }
 
@@ -87,8 +91,7 @@ export const AuthProvider = ({ children }) => {
             return
           }
           setUser(session.user)
-          setLoading(false)          // ← unblock UI immediately, profile loads next
-          fetchProfile(session.user.id)
+          fetchProfile(session.user.id)  // its finally block calls setLoading(false) once profile is set
           scheduleTokenRefresh(session)
         } else {
           setLoading(false)
