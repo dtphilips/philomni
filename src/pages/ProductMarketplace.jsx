@@ -26,6 +26,24 @@ const PRICE_FILTERS = [
   { label: '$100+',     value: '100+' },
 ]
 
+const TYPE_FILTERS = [
+  { label: 'All Types',         value: 'all' },
+  { label: 'Physical Products', value: 'physical' },
+  { label: 'Digital Products',  value: 'digital' },
+  { label: 'Courses',           value: 'courses' },
+  { label: 'Templates',         value: 'templates' },
+]
+
+const matchesType = (p, t) => {
+  switch (t) {
+    case 'physical':  return p.is_digital === false
+    case 'digital':   return p.is_digital === true
+    case 'courses':   return (p.category || '').toLowerCase().includes('course')
+    case 'templates': return (p.category || '').toLowerCase().includes('template')
+    default:          return true
+  }
+}
+
 const PLATFORM_FEE_RATE = 0.10
 
 const matchesPrice = (price, bucket) => {
@@ -54,6 +72,7 @@ export default function ProductMarketplace() {
   const [search,   setSearch]   = useState('')
   const [category, setCategory] = useState('All')
   const [price,    setPrice]    = useState('all')
+  const [type,     setType]     = useState('all')
 
   const [buying,  setBuying]  = useState(null) // product in buy-confirm modal
 
@@ -86,11 +105,12 @@ export default function ProductMarketplace() {
   }, [user?.id])
 
   const filtered = useMemo(() => products.filter(p => {
+    if (!matchesType(p, type)) return false
     if (category !== 'All' && p.category !== category) return false
     if (!matchesPrice(p.price, price)) return false
     if (search.trim() && !p.title?.toLowerCase().includes(search.trim().toLowerCase())) return false
     return true
-  }), [products, category, price, search])
+  }), [products, type, category, price, search])
 
   // ── Buy Now ──────────────────────────────────────────────────────────────
   const confirmBuy = async (product) => {
@@ -172,6 +192,18 @@ export default function ProductMarketplace() {
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search products…"
           className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+      </div>
+
+      {/* Type filter */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {TYPE_FILTERS.map(t => (
+          <button key={t.value} onClick={() => setType(t.value)}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+              type === t.value ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}>
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* Category pills */}

@@ -24,7 +24,8 @@ export default function Sell() {
 
   useEffect(() => {
     if (!user?.id) return
-    supabase.from('digital_products').select('*').eq('seller_id', user.id).order('created_at', { ascending: false })
+    // Digital products now live in shop_products (is_digital = true)
+    supabase.from('shop_products').select('*').eq('seller_id', user.id).eq('is_digital', true).order('created_at', { ascending: false })
       .then(({ data }) => { setProducts(data || []); setLoading(false) })
   }, [user?.id])
 
@@ -35,21 +36,24 @@ export default function Sell() {
     setSaving(true)
 
     try {
+      // Digital products are now just shop_products with is_digital = true
       const data = {
         seller_id:    user.id,
         title:        form.title.trim(),
         description:  form.description,
         category:     form.category,
         price:        parseFloat(form.price),
-        thumbnail_url: form.thumbnail_url,
+        images:       form.thumbnail_url ? [form.thumbnail_url] : null,
         file_url:     form.file_url.trim(),
-        is_published: publish,
+        is_digital:   true,
+        allow_affiliates: true, // default on; seller can change in Seller Dashboard
+        is_active:    publish,
       }
 
       if (editId) {
-        await supabase.from('digital_products').update(data).eq('id', editId)
+        await supabase.from('shop_products').update(data).eq('id', editId)
       } else {
-        await supabase.from('digital_products').insert(data)
+        await supabase.from('shop_products').insert(data)
       }
 
       toast.success(publish ? '🎉 Product listed!' : 'Product saved as draft!')
@@ -57,7 +61,7 @@ export default function Sell() {
       setEditId(null)
       setTab('my-products')
 
-      const { data: updated } = await supabase.from('digital_products').select('*').eq('seller_id', user.id).order('created_at', { ascending: false })
+      const { data: updated } = await supabase.from('shop_products').select('*').eq('seller_id', user.id).eq('is_digital', true).order('created_at', { ascending: false })
       setProducts(updated || [])
     } catch (err) {
       toast.error(err.message || 'Failed to save')
@@ -66,15 +70,15 @@ export default function Sell() {
   }
 
   const togglePublish = async (product) => {
-    const newVal = !product.is_published
-    await supabase.from('digital_products').update({ is_published: newVal }).eq('id', product.id)
-    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_published: newVal } : p))
+    const newVal = !product.is_active
+    await supabase.from('shop_products').update({ is_active: newVal }).eq('id', product.id)
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_active: newVal } : p))
     toast.success(newVal ? 'Product listed!' : 'Product unlisted')
   }
 
   const deleteProduct = async (id) => {
     if (!window.confirm('Delete this product?')) return
-    await supabase.from('digital_products').delete().eq('id', id)
+    await supabase.from('shop_products').delete().eq('id', id)
     setProducts(prev => prev.filter(p => p.id !== id))
     toast.success('Product deleted')
   }
@@ -85,7 +89,7 @@ export default function Sell() {
       description:  product.description || '',
       category:     product.category || 'Templates',
       price:        product.price?.toString() || '',
-      thumbnail_url: product.thumbnail_url || '',
+      thumbnail_url: product.images?.[0] || '',
       file_url:     product.file_url || '',
     })
     setEditId(product.id)
@@ -143,19 +147,19 @@ export default function Sell() {
             {products.map(p => (
               <div key={p.id} className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
                 <div className="w-14 h-10 rounded-lg bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center text-xl">
-                  {p.thumbnail_url ? <img src={p.thumbnail_url} className="w-full h-full object-cover" alt="" /> : '📁'}
+                  {p.images?.[0] ? <img src={p.images[0]} className="w-full h-full object-cover" alt="" /> : '📁'}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground truncate">{p.title}</p>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                     <span>${Number(p.price).toFixed(2)}</span>
-                    <span className="flex items-center gap-1"><Download className="w-3 h-3" />{p.total_sales} sales</span>
+                    <span className="flex items-center gap-1"><Download className="w-3 h-3" />{p.total_sales || 0} sales</span>
                     <span className="text-green-400">${((p.total_revenue||0)*0.85).toFixed(2)} earned</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <button onClick={() => togglePublish(p)} className={`p-1.5 rounded-lg ${p.is_published ? 'text-green-400 bg-green-400/10' : 'text-muted-foreground bg-muted'}`}>
-                    {p.is_published ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  <button onClick={() => togglePublish(p)} className={`p-1.5 rounded-lg ${p.is_active ? 'text-green-400 bg-green-400/10' : 'text-muted-foreground bg-muted'}`}>
+                    {p.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                   </button>
                   <button onClick={() => startEdit(p)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary bg-muted">
                     <Edit3 className="w-4 h-4" />
