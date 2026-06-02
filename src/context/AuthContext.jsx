@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 
 // Known admin emails — guarantee isAdmin=true + pro display before DB loads
@@ -8,31 +8,37 @@ const AuthContext = createContext({})
 export const useAuth = () => useContext(AuthContext)
 
 // ⚠️ CRITICAL AUTH NOTES — read before modifying:
-// 1. autoRefreshToken: true in supabase.js — Supabase auto-refreshes the token.
-//    (If signed-in queries hang on load, add a no-op lock — see supabase.js note.)
-// 2. fetchProfile uses profileFetchedFor ref to prevent duplicate fetches
-// 3. setLoading(false) must only be called AFTER fetchProfile completes (in finally block)
-// 4. Never add window.location calls anywhere in the auth flow (except signOut)
+// 1. supabase.js: autoRefreshToken:false + no-op `lock`. Do NOT change — the lock
+//    prevents the cross-tab Navigator Lock deadlock that hung every query on a
+//    signed-in refresh.
+// 2. setUserStable keeps the SAME user reference when the id is unchanged.
+//    Supabase RE-EMITS SIGNED_IN on tab refocus; changing the ref triggered an
+//    app-wide re-render/re-fetch storm (every page reset / flashed loading).
+//    Do not replace it with a plain setUser(session.user).
+// 3. The context value AND mergedUser are memoized so consumers don't re-render
+//    on every provider render. Keep the useMemo wrappers.
+// 4. fetchProfile only runs when we don't already hold this user's profile.
+// 5. Never add window.location calls in the auth flow (except signOut).
 export const AuthProvider = ({ children }) => {
   const [user,    setUser]    = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const profileFetchedFor = useRef(null) // track which userId we last fetched for
-  const profileRef        = useRef(null) // mirror of profile state for stable reads in listeners
+  const profileFetchedFor = useRef(null) // which userId we last fetched for
+  const profileRef        = useRef(null) // mirror of profile for stable reads in listeners
+
+  // Update user only when it actually changes — keeps a stable reference across
+  // the duplicate SIGNED_IN events Supabase fires on tab refocus.
+  const setUserStable = (nextUser) => {
+    setUser(prev => (prev?.id === nextUser?.id ? prev : nextUser))
+  }
 
   // ── Profile fetch (background, never blocks UI) ───────────────────────────
   const fetchProfile = async (userId) => {
     if (!userId || profileFetchedFor.current === userId) return
     profileFetchedFor.current = userId
-    console.log('[Auth] fetchProfile called for:', userId)
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => {
-      controller.abort()
-      console.error('[Auth] fetchProfile TIMED OUT after 5s')
-      setLoading(false)
-    }, 5000)
-
+    const timeoutId = setTimeout(() => { controller.abort(); setLoading(false) }, 5000)
     try {
       const { data, error } = await supabase
         .from('users')
@@ -40,115 +46,72 @@ export const AuthProvider = ({ children }) => {
         .eq('id', userId)
         .abortSignal(controller.signal)
         .maybeSingle()
-
       clearTimeout(timeoutId)
 
       if (error) {
-        console.error('[Auth Profile ERROR]', error)
-        console.error('[Auth] fetchProfile error:', error.message, error.code, error.hint)
+        console.error('fetchProfile error:', error.message, error.code)
         profileFetchedFor.current = null // allow retry
       } else if (data) {
-        console.log('[Auth Profile]', data.full_name, data.plan)
-        console.log('[Auth] profile loaded:', data.full_name, '| plan:', data.plan, '| admin:', data.is_admin)
         setProfile(data)
         profileRef.current = data
-      } else {
-        console.warn('[Auth] No profile row found for:', userId)
       }
     } catch (e) {
       clearTimeout(timeoutId)
-      if (e.name === 'AbortError') {
-        console.error('[Auth] fetchProfile aborted - query hung')
-      } else {
-        console.error('[Auth] fetchProfile exception:', e.message)
-      }
+      console.error('fetchProfile failed:', e.message)
       profileFetchedFor.current = null
     } finally {
-      // Stop loading only AFTER profile is set (or failed) — so the sidebar
-      // never renders with profile=null showing "Free"/email.
       setLoading(false)
     }
   }
 
   // ── Boot ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    console.log('[Auth Boot] starting')
-    // 3-second absolute cap — if getSession somehow hangs, unblock the UI
     const cap = setTimeout(() => setLoading(false), 3000)
 
     supabase.auth.getSession()
       .then(({ data: { session }, error }) => {
         clearTimeout(cap)
-        console.log('[Auth getSession] session:', session?.user?.email ?? 'NO SESSION')
-        if (error) {
-          console.error('[Auth] getSession error:', error.message)
-          setLoading(false)
-          return
-        }
+        if (error) { console.error('getSession error:', error.message); setLoading(false); return }
         if (session?.user) {
-          // Check if the access token is expired
           const now       = Math.floor(Date.now() / 1000)
           const expiresAt = session.expires_at ?? 0
           if (expiresAt > 0 && now > expiresAt) {
-            // Token expired — sign out silently instead of making bad queries
-            console.warn('[Auth] stored token is expired, signing out')
-            supabase.auth.signOut()
-            setLoading(false)
-            return
+            supabase.auth.signOut(); setLoading(false); return
           }
-          setUser(session.user)
-          fetchProfile(session.user.id)  // its finally block calls setLoading(false) once profile is set
+          setUserStable(session.user)
+          fetchProfile(session.user.id)
         } else {
           setLoading(false)
         }
       })
-      .catch(err => {
-        clearTimeout(cap)
-        console.error('[Auth] getSession threw:', err)
-        setLoading(false)
-      })
+      .catch(err => { clearTimeout(cap); console.error('getSession threw:', err); setLoading(false) })
 
-    // onAuthStateChange covers sign-in / sign-out / token refresh events
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[Auth Event]', event, session?.user?.email ?? 'NO SESSION')
-
       if (event === 'SIGNED_OUT') {
-        console.log('[Auth] setUser(null) called here')
         setUser(null)
-        console.log('[Auth] setProfile(null) called here')
         setProfile(null)
         profileRef.current = null
         profileFetchedFor.current = null
         return
       }
-
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
-          setUser(session.user)
-          // Only fetch if we don't already have this user's profile. On tab
-          // refocus SIGNED_IN fires again — re-fetching here is redundant and
-          // the duplicate query was timing out. Keep the loaded profile instead.
+          setUserStable(session.user) // stable ref — no re-render storm on tab refocus
+          // Only fetch if we don't already hold this user's profile
           if (!profileRef.current || profileRef.current.id !== session.user.id) {
             profileFetchedFor.current = null
             fetchProfile(session.user.id)
-          } else {
-            console.log('[Auth] SIGNED_IN skipped fetchProfile - already loaded')
           }
         }
       }
     })
 
-    return () => {
-      clearTimeout(cap)
-      subscription.unsubscribe()
-    }
+    return () => { clearTimeout(cap); subscription.unsubscribe() }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sign out ──────────────────────────────────────────────────────────────
   const handleSignOut = async () => {
-    console.log('[Auth] setUser(null) called here')
     setUser(null)
-    console.log('[Auth] setProfile(null) called here')
     setProfile(null)
     profileRef.current = null
     profileFetchedFor.current = null
@@ -158,27 +121,35 @@ export const AuthProvider = ({ children }) => {
     window.location.replace('/login')
   }
 
-  // ── Merged user (profile fields overlaid on auth user) ───────────────────
-  const mergedUser = user ? { ...user, ...(profile ?? {}) } : null
+  // Merged user (profile fields overlaid on auth user) — memoized so the
+  // reference is stable when user/profile haven't changed.
+  const mergedUser = useMemo(
+    () => (user ? { ...user, ...(profile ?? {}) } : null),
+    [user, profile]
+  )
 
-  // isAdmin: use DB value if available, fall back to hardcoded list
-  const isAdmin = profile?.is_admin === true ||
+  const isAdmin = (profile?.is_admin === true) ||
     ADMIN_EMAILS.includes((user?.email ?? '').toLowerCase())
 
+  // Memoized context value — only changes when the real values change, so
+  // consumers don't re-render (and re-fetch) on every provider render.
+  const contextValue = useMemo(() => ({
+    user: mergedUser,
+    profile,
+    loading,
+    signOut: handleSignOut,
+    isAdmin,
+    isPro:    isAdmin || ['pro', 'promax'].includes(profile?.plan),
+    isProMax: isAdmin || profile?.plan === 'promax',
+    refreshProfile: () => {
+      profileFetchedFor.current = null
+      profileRef.current = null
+      if (user?.id) fetchProfile(user.id)
+    },
+  }), [mergedUser, profile, loading, isAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <AuthContext.Provider value={{
-      user:    mergedUser,
-      profile,
-      loading,
-      signOut: handleSignOut,
-      isAdmin,
-      isPro:    isAdmin || ['pro', 'promax'].includes(profile?.plan),
-      isProMax: isAdmin || profile?.plan === 'promax',
-      refreshProfile: () => {
-        profileFetchedFor.current = null
-        if (user?.id) fetchProfile(user.id)
-      },
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   )

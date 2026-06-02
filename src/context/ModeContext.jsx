@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react'
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react'
 
 const ModeContext = createContext(null)
 
@@ -26,8 +26,13 @@ export function ModeProvider({ children }) {
     setTimeout(() => setToast(null), 1500)
   }, [mode])
 
+  const value = useMemo(
+    () => ({ mode, toggleMode, switchTo, toast }),
+    [mode, toggleMode, switchTo, toast]
+  )
+
   return (
-    <ModeContext.Provider value={{ mode, toggleMode, switchTo, toast }}>
+    <ModeContext.Provider value={value}>
       {children}
     </ModeContext.Provider>
   )
