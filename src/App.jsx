@@ -173,7 +173,19 @@ const CelebrationSponsor = lazy(() => import('./pages/CelebrationSponsor'))
 
 // ─── Query client ─────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+      // CRITICAL: do NOT refetch every query when the tab regains focus or the
+      // network reconnects. With this on (the default), switching back to the
+      // Philomni tab refetched every useQuery (who-to-follow, trending, stories,
+      // notifications, chat…) and — under the single app-wide <Suspense> — could
+      // remount the whole route subtree, resetting pages to skeletons.
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  },
 })
 
 // ─── Route wrappers ───────────────────────────────────────────────────────────
