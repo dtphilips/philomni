@@ -207,28 +207,21 @@ function PageLoader() {
   )
 }
 
-// ─── Route wrappers ───────────────────────────────────────────────────────────
-// Each page gets its OWN Suspense boundary so a lazy-load only replaces that
-// page's content — never unmounts the whole route tree (Layout, sidebar, etc.).
-function ProtectedLayout({ children }) {
-  return (
-    <ProtectedRoute>
-      <Layout>
-        <Suspense fallback={<PageLoader />}>{children}</Suspense>
-      </Layout>
-    </ProtectedRoute>
-  )
-}
-
-function P({ page: Page }) {
-  return <ProtectedLayout><Page /></ProtectedLayout>
-}
-
-// Public pages — show Layout (sidebar) but do NOT require login
-function PL({ page: Page }) {
+// ─── Route wrapper ────────────────────────────────────────────────────────────
+// ALL layout routes use the same R component so React never swaps the Layout
+// instance — navigating between auth-required and public pages keeps Layout
+// (sidebar, bottom nav, player) fully mounted at all times.
+// auth=true  → ProtectedRoute guards the page (redirects to /login if signed out)
+// auth=false → page renders for everyone (Login prompt shown inline if needed)
+function R({ page: Page, auth = false }) {
   return (
     <Layout>
-      <Suspense fallback={<PageLoader />}><Page /></Suspense>
+      <Suspense fallback={<PageLoader />}>
+        {auth
+          ? <ProtectedRoute><Page /></ProtectedRoute>
+          : <Page />
+        }
+      </Suspense>
     </Layout>
   )
 }
@@ -245,7 +238,7 @@ export default function App() {
           {/* Outer Suspense catches the very first bundle evaluation only */}
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              {/* Public */}
+              {/* Public — no Layout */}
               <Route path="/login"  element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/partners" element={<Partners />} />
@@ -253,167 +246,167 @@ export default function App() {
               <Route path="/shared/project/:id" element={<SharedProjectView />} />
 
               {/* Core */}
-              <Route path="/" element={<PL page={Feed} />} />
-              <Route path="/pro-feed" element={<PL page={ProFeed} />} />
-              <Route path="/profile" element={<P page={Profile} />} />
-              <Route path="/profile/:userId" element={<P page={Profile} />} />
-              <Route path="/edit-profile" element={<P page={EditProfile} />} />
-              <Route path="/settings" element={<P page={Settings} />} />
-              <Route path="/notifications" element={<P page={Notifications} />} />
-              <Route path="/search" element={<P page={GlobalSearch} />} />
+              <Route path="/" element={<R page={Feed} />} />
+              <Route path="/pro-feed" element={<R page={ProFeed} />} />
+              <Route path="/profile" element={<R page={Profile} auth />} />
+              <Route path="/profile/:userId" element={<R page={Profile} auth />} />
+              <Route path="/edit-profile" element={<R page={EditProfile} auth />} />
+              <Route path="/settings" element={<R page={Settings} auth />} />
+              <Route path="/notifications" element={<R page={Notifications} auth />} />
+              <Route path="/search" element={<R page={GlobalSearch} auth />} />
 
               {/* Social */}
-              <Route path="/community" element={<PL page={Community} />} />
-              <Route path="/groups" element={<PL page={Groups} />} />
-              <Route path="/groups/:id" element={<PL page={GroupChat} />} />
-              <Route path="/discover" element={<PL page={Discover} />} />
-              <Route path="/explore" element={<PL page={Explore} />} />
-              <Route path="/directory" element={<PL page={Directory} />} />
-              <Route path="/creators" element={<PL page={Creators} />} />
-              <Route path="/collab-feed" element={<PL page={CollaborationFeed} />} />
+              <Route path="/community" element={<R page={Community} />} />
+              <Route path="/groups" element={<R page={Groups} />} />
+              <Route path="/groups/:id" element={<R page={GroupChat} />} />
+              <Route path="/discover" element={<R page={Discover} />} />
+              <Route path="/explore" element={<R page={Explore} />} />
+              <Route path="/directory" element={<R page={Directory} />} />
+              <Route path="/creators" element={<R page={Creators} />} />
+              <Route path="/collab-feed" element={<R page={CollaborationFeed} />} />
 
               {/* Messaging */}
-              <Route path="/messages" element={<P page={Messages} />} />
-              <Route path="/video-messages" element={<P page={VideoMessages} />} />
+              <Route path="/messages" element={<R page={Messages} auth />} />
+              <Route path="/video-messages" element={<R page={VideoMessages} auth />} />
 
               {/* Content */}
-              <Route path="/reels" element={<PL page={Reels} />} />
-              <Route path="/stories" element={<P page={Stories} />} />
-              <Route path="/drafts" element={<P page={Drafts} />} />
-              <Route path="/content-calendar" element={<P page={ContentCalendar} />} />
+              <Route path="/reels" element={<R page={Reels} />} />
+              <Route path="/stories" element={<R page={Stories} auth />} />
+              <Route path="/drafts" element={<R page={Drafts} auth />} />
+              <Route path="/content-calendar" element={<R page={ContentCalendar} auth />} />
 
               {/* Studios */}
-              <Route path="/audio-studio" element={<P page={AudioStudio} />} />
-              <Route path="/creative-studio" element={<P page={CreativeStudio} />} />
-              <Route path="/creator-studio" element={<P page={CreatorStudio} />} />
-              <Route path="/video-studio" element={<P page={VideoStudio} />} />
-              <Route path="/podcast-studio" element={<P page={PodcastStudio} />} />
-              <Route path="/collab-studio" element={<P page={CollaborativeStudio} />} />
-              <Route path="/ugc-suite" element={<P page={UGCCreatorSuite} />} />
-              <Route path="/business-content" element={<P page={BusinessContentSuite} />} />
+              <Route path="/audio-studio" element={<R page={AudioStudio} auth />} />
+              <Route path="/creative-studio" element={<R page={CreativeStudio} auth />} />
+              <Route path="/creator-studio" element={<R page={CreatorStudio} auth />} />
+              <Route path="/video-studio" element={<R page={VideoStudio} auth />} />
+              <Route path="/podcast-studio" element={<R page={PodcastStudio} auth />} />
+              <Route path="/collab-studio" element={<R page={CollaborativeStudio} auth />} />
+              <Route path="/ugc-suite" element={<R page={UGCCreatorSuite} auth />} />
+              <Route path="/business-content" element={<R page={BusinessContentSuite} auth />} />
 
               {/* Media */}
-              <Route path="/music-library" element={<PL page={MusicLibrary} />} />
-              <Route path="/music"         element={<PL page={MusicLibrary} />} />
-              <Route path="/podcasts" element={<P page={Podcasts} />} />
-              <Route path="/video-captions/:draftId" element={<P page={VideoCaptions} />} />
-              <Route path="/video-analytics/:draftId" element={<P page={VideoAnalyticsDashboard} />} />
+              <Route path="/music-library" element={<R page={MusicLibrary} />} />
+              <Route path="/music"         element={<R page={MusicLibrary} />} />
+              <Route path="/podcasts" element={<R page={Podcasts} auth />} />
+              <Route path="/video-captions/:draftId" element={<R page={VideoCaptions} auth />} />
+              <Route path="/video-analytics/:draftId" element={<R page={VideoAnalyticsDashboard} auth />} />
 
               {/* Analytics & AI */}
-              <Route path="/analytics" element={<P page={Analytics} />} />
-              <Route path="/content" element={<P page={ContentSuite} />} />
-              <Route path="/content-performance" element={<P page={ContentPerformance} />} />
-              <Route path="/creator-analytics" element={<P page={CreatorAnalytics} />} />
-              <Route path="/ai-tools" element={<P page={AITools} />} />
-              <Route path="/workflows" element={<P page={WorkflowAutomation} />} />
+              <Route path="/analytics" element={<R page={Analytics} auth />} />
+              <Route path="/content" element={<R page={ContentSuite} auth />} />
+              <Route path="/content-performance" element={<R page={ContentPerformance} auth />} />
+              <Route path="/creator-analytics" element={<R page={CreatorAnalytics} auth />} />
+              <Route path="/ai-tools" element={<R page={AITools} auth />} />
+              <Route path="/workflows" element={<R page={WorkflowAutomation} auth />} />
 
               {/* Jobs, Learning, Store */}
-              <Route path="/jobs" element={<PL page={Jobs} />} />
-              <Route path="/learning" element={<PL page={Learning} />} />
-              <Route path="/learning/certificates" element={<P page={Certificates} />} />
-              <Route path="/store" element={<PL page={CreatorStore} />} />
+              <Route path="/jobs" element={<R page={Jobs} />} />
+              <Route path="/learning" element={<R page={Learning} />} />
+              <Route path="/learning/certificates" element={<R page={Certificates} auth />} />
+              <Route path="/store" element={<R page={CreatorStore} />} />
 
               {/* Professional Network */}
-              <Route path="/companies" element={<P page={Companies} />} />
-              <Route path="/company/create" element={<P page={CreateCompany} />} />
-              <Route path="/company/dashboard" element={<P page={CompanyDashboard} />} />
-              <Route path="/company/:id" element={<P page={CompanyProfile} />} />
-              <Route path="/stores" element={<P page={CreatorStore} />} />
-              <Route path="/store/dashboard" element={<P page={CreatorStore} />} />
-              <Route path="/store/:username" element={<P page={CreatorStore} />} />
+              <Route path="/companies" element={<R page={Companies} auth />} />
+              <Route path="/company/create" element={<R page={CreateCompany} auth />} />
+              <Route path="/company/dashboard" element={<R page={CompanyDashboard} auth />} />
+              <Route path="/company/:id" element={<R page={CompanyProfile} auth />} />
+              <Route path="/stores" element={<R page={CreatorStore} auth />} />
+              <Route path="/store/dashboard" element={<R page={CreatorStore} auth />} />
+              <Route path="/store/:username" element={<R page={CreatorStore} auth />} />
 
               {/* Marketplace */}
-              <Route path="/my-orders" element={<P page={MyOrders} />} />
-              <Route path="/orders/:id" element={<P page={OrderPage} />} />
-              <Route path="/course/:id" element={<PL page={CourseViewer} />} />
-              <Route path="/seller/:sellerId" element={<PL page={SellerStorefront} />} />
+              <Route path="/my-orders" element={<R page={MyOrders} auth />} />
+              <Route path="/orders/:id" element={<R page={OrderPage} auth />} />
+              <Route path="/course/:id" element={<R page={CourseViewer} />} />
+              <Route path="/seller/:sellerId" element={<R page={SellerStorefront} />} />
               <Route path="/marketplace" element={<Navigate to="/shop" replace />} />
               <Route path="/creator-marketplace" element={<Navigate to="/shop" replace />} />
-              <Route path="/shop" element={<PL page={ProductMarketplace} />} />
-              <Route path="/jobs-board" element={<PL page={Marketplace} />} />
-              <Route path="/product/:id" element={<PL page={ProductDetail} />} />
-              <Route path="/video-marketplace" element={<PL page={VideoMarketplace} />} />
-              <Route path="/templates" element={<PL page={TemplateMarketplace} />} />
-              <Route path="/skills" element={<PL page={SkillExchange} />} />
-              <Route path="/upgrade"  element={<P page={Upgrade} />} />
-              <Route path="/billing"  element={<P page={Billing} />} />
-              <Route path="/pricing"  element={<P page={Pricing} />} />
+              <Route path="/shop" element={<R page={ProductMarketplace} />} />
+              <Route path="/jobs-board" element={<R page={Marketplace} />} />
+              <Route path="/product/:id" element={<R page={ProductDetail} />} />
+              <Route path="/video-marketplace" element={<R page={VideoMarketplace} />} />
+              <Route path="/templates" element={<R page={TemplateMarketplace} />} />
+              <Route path="/skills" element={<R page={SkillExchange} />} />
+              <Route path="/upgrade"  element={<R page={Upgrade} auth />} />
+              <Route path="/billing"  element={<R page={Billing} auth />} />
+              <Route path="/pricing"  element={<R page={Pricing} />} />
 
               {/* Creator Economy */}
-              <Route path="/wallet"                element={<P page={Wallet} />} />
-              <Route path="/learn"                 element={<PL page={Learn} />} />
-              <Route path="/learn/:courseId"       element={<PL page={CourseDetail} />} />
-              <Route path="/learn/:courseId/watch" element={<P page={CourseWatch} />} />
-              <Route path="/teach"                 element={<P page={Teach} />} />
-              <Route path="/sell"                  element={<P page={Sell} />} />
-              <Route path="/consulting"            element={<P page={Consulting} />} />
-              <Route path="/consulting/offer"      element={<P page={ConsultingOffer} />} />
-              <Route path="/investors"             element={<P page={Investors} />} />
+              <Route path="/wallet"                element={<R page={Wallet} auth />} />
+              <Route path="/learn"                 element={<R page={Learn} />} />
+              <Route path="/learn/:courseId"       element={<R page={CourseDetail} />} />
+              <Route path="/learn/:courseId/watch" element={<R page={CourseWatch} auth />} />
+              <Route path="/teach"                 element={<R page={Teach} auth />} />
+              <Route path="/sell"                  element={<R page={Sell} auth />} />
+              <Route path="/consulting"            element={<R page={Consulting} auth />} />
+              <Route path="/consulting/offer"      element={<R page={ConsultingOffer} auth />} />
+              <Route path="/investors"             element={<R page={Investors} auth />} />
 
               {/* SmartMatch */}
-              <Route path="/match"      element={<P page={SmartMatch} />} />
-              <Route path="/smartmatch" element={<P page={SmartMatch} />} />
+              <Route path="/match"      element={<R page={SmartMatch} auth />} />
+              <Route path="/smartmatch" element={<R page={SmartMatch} auth />} />
 
               {/* Philo AI */}
-              <Route path="/ai" element={<P page={PhilomniAI} />} />
+              <Route path="/ai" element={<R page={PhilomniAI} auth />} />
 
               {/* Business */}
-              <Route path="/pitch-vault"                element={<P page={PitchVault} />} />
-              <Route path="/bookings"                   element={<P page={BookingCalendar} />} />
-              <Route path="/meetings"                   element={<P page={Meetings} />} />
-              <Route path="/rooms"                      element={<PL page={Rooms} />} />
-              <Route path="/project-matcher"            element={<P page={ProjectMatcher} />} />
-              <Route path="/quality-review/:draftId"   element={<P page={QualityReview} />} />
-              <Route path="/video-editor/:id"          element={<P page={PostVideoEditorPage} />} />
-              <Route path="/gamification"               element={<P page={Gamification} />} />
+              <Route path="/pitch-vault"              element={<R page={PitchVault} auth />} />
+              <Route path="/bookings"                 element={<R page={BookingCalendar} auth />} />
+              <Route path="/meetings"                 element={<R page={Meetings} auth />} />
+              <Route path="/rooms"                    element={<R page={Rooms} />} />
+              <Route path="/project-matcher"          element={<R page={ProjectMatcher} auth />} />
+              <Route path="/quality-review/:draftId"  element={<R page={QualityReview} auth />} />
+              <Route path="/video-editor/:id"         element={<R page={PostVideoEditorPage} auth />} />
+              <Route path="/gamification"             element={<R page={Gamification} auth />} />
 
               {/* Admin */}
-              <Route path="/admin"                element={<P page={Admin} />} />
-              <Route path="/admin/badges"         element={<P page={AdminBadges} />} />
-              <Route path="/admin/monetize"       element={<P page={AdminMonetize} />} />
-              <Route path="/admin/ads"            element={<P page={AdminAds} />} />
-              <Route path="/admin/brands"         element={<P page={AdminBrands} />} />
-              <Route path="/admin/music"          element={<P page={AdminMusic} />} />
-              <Route path="/admin/spotlight"      element={<P page={AdminSpotlight} />} />
-              <Route path="/admin/celebrations"   element={<P page={AdminCelebrations} />} />
-              <Route path="/verify-badge"         element={<P page={VerifyBadge} />} />
+              <Route path="/admin"               element={<R page={Admin} auth />} />
+              <Route path="/admin/badges"        element={<R page={AdminBadges} auth />} />
+              <Route path="/admin/monetize"      element={<R page={AdminMonetize} auth />} />
+              <Route path="/admin/ads"           element={<R page={AdminAds} auth />} />
+              <Route path="/admin/brands"        element={<R page={AdminBrands} auth />} />
+              <Route path="/admin/music"         element={<R page={AdminMusic} auth />} />
+              <Route path="/admin/spotlight"     element={<R page={AdminSpotlight} auth />} />
+              <Route path="/admin/celebrations"  element={<R page={AdminCelebrations} auth />} />
+              <Route path="/verify-badge"        element={<R page={VerifyBadge} auth />} />
 
               {/* Spotlight */}
-              <Route path="/spotlight"           element={<PL page={SpotlightArchive} />} />
-              <Route path="/spotlight/nominate"  element={<PL page={SpotlightNominate} />} />
-              <Route path="/spotlight/current"   element={<PL page={SpotlightPage} />} />
-              <Route path="/spotlight/:month"    element={<PL page={SpotlightPage} />} />
+              <Route path="/spotlight"           element={<R page={SpotlightArchive} />} />
+              <Route path="/spotlight/nominate"  element={<R page={SpotlightNominate} />} />
+              <Route path="/spotlight/current"   element={<R page={SpotlightPage} />} />
+              <Route path="/spotlight/:month"    element={<R page={SpotlightPage} />} />
 
               {/* Monetize / Ads */}
-              <Route path="/monetize"  element={<P page={CreatorMonetize} />} />
-              <Route path="/advertise" element={<P page={Advertise} />} />
-              <Route path="/my-ads"    element={<P page={MyAds} />} />
+              <Route path="/monetize"  element={<R page={CreatorMonetize} auth />} />
+              <Route path="/advertise" element={<R page={Advertise} auth />} />
+              <Route path="/my-ads"    element={<R page={MyAds} auth />} />
 
-              {/* Philomni Shop — affiliate marketplace (public to browse, auth to promote/sell) */}
-              <Route path="/affiliate"           element={<PL page={AffiliateMarketplace} />} />
-              <Route path="/seller-dashboard"    element={<P page={SellerDashboard} />} />
-              <Route path="/affiliate-earnings"  element={<P page={AffiliateEarnings} />} />
+              {/* Philomni Shop */}
+              <Route path="/affiliate"          element={<R page={AffiliateMarketplace} />} />
+              <Route path="/seller-dashboard"   element={<R page={SellerDashboard} auth />} />
+              <Route path="/affiliate-earnings" element={<R page={AffiliateEarnings} auth />} />
 
               {/* Music — Artist & Playlist */}
-              <Route path="/artist/:userId" element={<PL page={ArtistProfile} />} />
-              <Route path="/playlist/:id"   element={<PL page={PlaylistPage} />} />
+              <Route path="/artist/:userId" element={<R page={ArtistProfile} />} />
+              <Route path="/playlist/:id"   element={<R page={PlaylistPage} />} />
 
-              {/* Onboarding */}
+              {/* Onboarding — no Layout */}
               <Route path="/onboarding"         element={<Onboarding />} />
               <Route path="/onboarding/profile" element={<OnboardingProfile />} />
 
               {/* Live — full-screen, no sidebar */}
-              <Route path="/live/start"     element={<P page={LiveStart} />} />
+              <Route path="/live/start"     element={<R page={LiveStart} auth />} />
               <Route path="/live/:id/host"  element={<LiveHost />} />
-              <Route path="/live/:id/recap" element={<P page={LiveRecap} />} />
+              <Route path="/live/:id/recap" element={<R page={LiveRecap} auth />} />
               <Route path="/live/:id"       element={<LiveViewer />} />
-              <Route path="/coins"          element={<P page={BuyCoins} />} />
+              <Route path="/coins"          element={<R page={BuyCoins} auth />} />
 
               {/* Celebrations */}
-              <Route path="/celebrations"          element={<PL page={Celebrations} />} />
-              <Route path="/celebrations/create"   element={<P page={CelebrationCreate} />} />
-              <Route path="/celebrations/sponsor"  element={<P page={CelebrationSponsor} />} />
-              <Route path="/celebrations/:id"      element={<PL page={CelebrationDetail} />} />
+              <Route path="/celebrations"         element={<R page={Celebrations} />} />
+              <Route path="/celebrations/create"  element={<R page={CelebrationCreate} auth />} />
+              <Route path="/celebrations/sponsor" element={<R page={CelebrationSponsor} auth />} />
+              <Route path="/celebrations/:id"     element={<R page={CelebrationDetail} />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

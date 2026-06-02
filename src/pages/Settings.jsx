@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useOutletContext, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 
 import { useAuth } from '@/context/AuthContext';
@@ -85,7 +85,7 @@ function Card({ children, className = '' }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Settings() {
-  const { user, setUser } = useOutletContext() ?? {};
+  const { user } = useAuth();
   const { logout } = useAuth();
   const [activeSection, setActiveSection] = useState('account');
   const [saving, setSaving] = useState(false);

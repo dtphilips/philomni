@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -131,7 +130,7 @@ function MiniCalendar({ bookings, selectedDate, onSelect }) {
 }
 
 export default function BookingCalendar() {
-  const { user } = useOutletContext();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [showSettings, setShowSettings] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());

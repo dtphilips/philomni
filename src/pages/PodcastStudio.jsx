@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -425,7 +424,7 @@ function PodcastCard({ podcast, currentUser, onManage }) {
 }
 
 export default function PodcastStudio() {
-  const { user } = useOutletContext();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [showNewPodcast, setShowNewPodcast] = useState(false);
   const [managingPodcast, setManagingPodcast] = useState(null);

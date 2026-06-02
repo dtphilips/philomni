@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useOutletContext } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Search, BadgeCheck, Music, MapPin, Users, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom';
 
 export default function Creators() {
-  const { user } = useOutletContext();
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
 
   const { data: creators = [], isLoading } = useQuery({

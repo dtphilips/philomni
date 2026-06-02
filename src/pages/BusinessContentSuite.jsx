@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -391,7 +391,7 @@ function ContentPlanner({ user }) {
 
 // ─── Main Page ────────────────────────────────────────────────────
 export default function BusinessContentSuite() {
-  const { user } = useOutletContext();
+  const { user } = useAuth();
 
   return (
     <div className="max-w-3xl mx-auto">

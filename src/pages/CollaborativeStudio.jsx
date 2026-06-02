@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
-import { useOutletContext, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,7 @@ import InviteCollaboratorModal from '@/components/workspace/InviteCollaboratorMo
 import TaskBoard from '@/components/workspace/TaskBoard';
 
 export default function CollaborativeStudio() {
-  const { user: currentUser } = useOutletContext();
+  const { user: currentUser } = useAuth();
   const { workspaceId } = useParams();
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
   const [showInvite, setShowInvite] = useState(false);

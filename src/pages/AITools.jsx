@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -316,10 +316,7 @@ function VideoGeneratorSection({ tool, onClose }) {
 }
 
 export default function AITools() {
-  let user = null;
-  try {
-    ({ user } = useOutletContext() || {});
-  } catch {}
+  const { user } = useAuth();
 
   const isPro = user?.plan === 'pro';
   const [activeTool, setActiveTool] = useState(null);

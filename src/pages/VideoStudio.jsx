@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useOutletContext } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,7 +11,7 @@ import ShareVideoButton from '@/components/video/ShareVideoButton';
 import VideoEditor from '@/components/video/VideoEditor';
 
 export default function VideoStudio() {
-  const { user } = useOutletContext();
+  const { user } = useAuth();
 
   // Text-to-video state
   const [activeTab, setActiveTab] = useState('text-to-video');

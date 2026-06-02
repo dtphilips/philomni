@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,7 +14,7 @@ import ShareButton from '@/components/feed/ShareButton';
 export default function SharedVideoView() {
   const { videoId } = useParams();
   const navigate = useNavigate();
-  const { user } = useOutletContext();
+  const { user } = useAuth();
 
   const [video, setVideo] = useState(null);
   const [loading, setLoading] = useState(true);

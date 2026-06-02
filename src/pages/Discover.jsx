@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useOutletContext } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import { computeCollaboratorScore, getMatchReasons } from '@/lib/collaboratorMat
 import CollaboratorCard from '@/components/discover/CollaboratorCard';
 
 export default function Discover() {
-  const { user } = useOutletContext();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [tab, setTab] = useState('foryou');
 
