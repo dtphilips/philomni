@@ -13,6 +13,15 @@ export const supabase = createClient(
       autoRefreshToken: false,
       storageKey: 'philomni-auth',
       detectSessionInUrl: true,
+      // No-op lock — THE fix for the signed-in-refresh hang. Supabase normally
+      // acquires a navigator.locks lock ("lock:philomni-auth") in getSession()
+      // to read a STORED session. navigator.locks are shared across all tabs of
+      // the same origin, so with multiple tabs open the lock gets contended and
+      // getSession() deadlocks — hanging EVERY Supabase call (getSession, profile,
+      // feed). Symptom: signed-out loads work, but a signed-in refresh shows only
+      // [Auth Boot]+SIGNED_IN, feed stuck on skeletons, sidebar reverts to "Free".
+      // Replacing the lock with a pass-through removes the cross-tab deadlock.
+      lock: (_name, _acquireTimeout, fn) => fn(),
     },
   }
 )

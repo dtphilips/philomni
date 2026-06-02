@@ -24,26 +24,44 @@ export const AuthProvider = ({ children }) => {
   const fetchProfile = async (userId) => {
     if (!userId || profileFetchedFor.current === userId) return
     profileFetchedFor.current = userId
+    console.log('[Auth] fetchProfile called for:', userId)
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => {
+      controller.abort()
+      console.error('[Auth] fetchProfile TIMED OUT after 5s')
+      setLoading(false)
+    }, 5000)
+
     try {
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
+        .abortSignal(controller.signal)
         .maybeSingle()
+
+      clearTimeout(timeoutId)
+
       if (error) {
         console.error('[Auth Profile ERROR]', error)
-        console.error('[Auth] fetchProfile error:', error.message, '|', error.code)
+        console.error('[Auth] fetchProfile error:', error.message, error.code, error.hint)
         profileFetchedFor.current = null // allow retry
       } else if (data) {
-        console.log('[Auth Profile]', data?.full_name, data?.plan)
+        console.log('[Auth Profile]', data.full_name, data.plan)
         console.log('[Auth] profile loaded:', data.full_name, '| plan:', data.plan, '| admin:', data.is_admin)
         setProfile(data)
         profileRef.current = data
       } else {
-        console.warn('[Auth] no public.users row for', userId)
+        console.warn('[Auth] No profile row found for:', userId)
       }
     } catch (e) {
-      console.error('[Auth] fetchProfile threw:', e.message)
+      clearTimeout(timeoutId)
+      if (e.name === 'AbortError') {
+        console.error('[Auth] fetchProfile aborted - query hung')
+      } else {
+        console.error('[Auth] fetchProfile exception:', e.message)
+      }
       profileFetchedFor.current = null
     } finally {
       // Stop loading only AFTER profile is set (or failed) — so the sidebar
