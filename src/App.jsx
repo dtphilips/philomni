@@ -306,8 +306,8 @@ export default function App() {
               <Route path="/orders/:id" element={<P page={OrderPage} />} />
               <Route path="/course/:id" element={<PL page={CourseViewer} />} />
               <Route path="/seller/:sellerId" element={<PL page={SellerStorefront} />} />
-              <Route path="/marketplace" element={<PL page={ProductMarketplace} />} />
-              <Route path="/creator-marketplace" element={<PL page={CreatorMarketplace} />} />
+              <Route path="/marketplace" element={<Navigate to="/shop" replace />} />
+              <Route path="/creator-marketplace" element={<Navigate to="/shop" replace />} />
               <Route path="/shop" element={<PL page={ProductMarketplace} />} />
               <Route path="/jobs-board" element={<PL page={Marketplace} />} />
               <Route path="/product/:id" element={<PL page={ProductDetail} />} />
