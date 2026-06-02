@@ -8,17 +8,16 @@ const AuthContext = createContext({})
 export const useAuth = () => useContext(AuthContext)
 
 // ⚠️ CRITICAL AUTH NOTES — read before modifying:
-// 1. autoRefreshToken: false in supabase.js is intentional — prevents PostgREST query lock
-// 2. Manual token refresh is handled by scheduleTokenRefresh() — do not remove it
-// 3. fetchProfile uses profileFetchedFor ref to prevent duplicate fetches
-// 4. setLoading(false) must only be called AFTER fetchProfile completes (in finally block)
-// 5. Never add window.location calls anywhere in the auth flow
+// 1. autoRefreshToken: true in supabase.js — Supabase auto-refreshes the token.
+//    (If signed-in queries hang on load, add a no-op lock — see supabase.js note.)
+// 2. fetchProfile uses profileFetchedFor ref to prevent duplicate fetches
+// 3. setLoading(false) must only be called AFTER fetchProfile completes (in finally block)
+// 4. Never add window.location calls anywhere in the auth flow (except signOut)
 export const AuthProvider = ({ children }) => {
   const [user,    setUser]    = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const profileFetchedFor = useRef(null) // track which userId we last fetched for
-  const refreshTimerRef   = useRef(null)
   const profileRef        = useRef(null) // mirror of profile state for stable reads in listeners
 
   // ── Profile fetch (background, never blocks UI) ───────────────────────────
@@ -51,37 +50,6 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  // ── Manual token refresh (called on a timer, avoids autoRefreshToken lock) ─
-  const scheduleTokenRefresh = (session) => {
-    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-    if (!session?.expires_at) return
-
-    const expiresAt  = session.expires_at * 1000          // convert to ms
-    const refreshAt  = expiresAt - 20 * 60 * 1000         // refresh 20 min before expiry (big buffer)
-    const delayMs    = Math.max(refreshAt - Date.now(), 0)
-
-    refreshTimerRef.current = setTimeout(async () => {
-      console.log('[Auth] refreshing session token...')
-      const { data, error } = await supabase.auth.refreshSession()
-      if (error) {
-        console.error('[Auth] token refresh failed:', error.message)
-        // Before signing out, double-check with getSession — the refresh call can
-        // transiently fail while the stored session is still perfectly valid.
-        const { data: sessionData } = await supabase.auth.getSession()
-        if (sessionData?.session) {
-          console.log('[Auth] session still valid after failed refresh — rescheduling')
-          scheduleTokenRefresh(sessionData.session)
-          return
-        }
-        // Truly expired — sign out
-        handleSignOut()
-      } else if (data.session) {
-        console.log('[Auth] token refreshed OK')
-        scheduleTokenRefresh(data.session)
-      }
-    }, delayMs)
-  }
-
   // ── Boot ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     // 3-second absolute cap — if getSession somehow hangs, unblock the UI
@@ -108,7 +76,6 @@ export const AuthProvider = ({ children }) => {
           }
           setUser(session.user)
           fetchProfile(session.user.id)  // its finally block calls setLoading(false) once profile is set
-          scheduleTokenRefresh(session)
         } else {
           setLoading(false)
         }
@@ -128,14 +95,12 @@ export const AuthProvider = ({ children }) => {
         setProfile(null)
         profileRef.current = null
         profileFetchedFor.current = null
-        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
         return
       }
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
           setUser(session.user)
-          if (event === 'TOKEN_REFRESHED') scheduleTokenRefresh(session)
           // Only fetch profile if we don't already have it for this user
           if (profileFetchedFor.current !== session.user.id) {
             fetchProfile(session.user.id)
@@ -155,7 +120,6 @@ export const AuthProvider = ({ children }) => {
           profileFetchedFor.current = null
           fetchProfile(session.user.id)
         }
-        scheduleTokenRefresh(session) // re-arm the refresh timer with fresh expiry
       } else {
         // Session expired while hidden — clear state cleanly
         setUser(null)
@@ -169,7 +133,6 @@ export const AuthProvider = ({ children }) => {
     return () => {
       clearTimeout(cap)
       subscription.unsubscribe()
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -180,7 +143,6 @@ export const AuthProvider = ({ children }) => {
     setProfile(null)
     profileRef.current = null
     profileFetchedFor.current = null
-    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     localStorage.clear()
     sessionStorage.clear()
     await supabase.auth.signOut()
