@@ -31,9 +31,11 @@ export const AuthProvider = ({ children }) => {
         .eq('id', userId)
         .maybeSingle()
       if (error) {
+        console.error('[Auth Profile ERROR]', error)
         console.error('[Auth] fetchProfile error:', error.message, '|', error.code)
         profileFetchedFor.current = null // allow retry
       } else if (data) {
+        console.log('[Auth Profile]', data?.full_name, data?.plan)
         console.log('[Auth] profile loaded:', data.full_name, '| plan:', data.plan, '| admin:', data.is_admin)
         setProfile(data)
         profileRef.current = data
@@ -52,12 +54,14 @@ export const AuthProvider = ({ children }) => {
 
   // ── Boot ──────────────────────────────────────────────────────────────────
   useEffect(() => {
+    console.log('[Auth Boot] starting')
     // 3-second absolute cap — if getSession somehow hangs, unblock the UI
     const cap = setTimeout(() => setLoading(false), 3000)
 
     supabase.auth.getSession()
       .then(({ data: { session }, error }) => {
         clearTimeout(cap)
+        console.log('[Auth getSession] session:', session?.user?.email ?? 'NO SESSION')
         if (error) {
           console.error('[Auth] getSession error:', error.message)
           setLoading(false)
@@ -88,10 +92,12 @@ export const AuthProvider = ({ children }) => {
 
     // onAuthStateChange covers sign-in / sign-out / token refresh events
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[Auth] event:', event, '| user:', session?.user?.email ?? 'none')
+      console.log('[Auth Event]', event, session?.user?.email ?? 'NO SESSION')
 
       if (event === 'SIGNED_OUT') {
+        console.log('[Auth] setUser(null) called here')
         setUser(null)
+        console.log('[Auth] setProfile(null) called here')
         setProfile(null)
         profileRef.current = null
         profileFetchedFor.current = null
@@ -117,7 +123,9 @@ export const AuthProvider = ({ children }) => {
 
   // ── Sign out ──────────────────────────────────────────────────────────────
   const handleSignOut = async () => {
+    console.log('[Auth] setUser(null) called here')
     setUser(null)
+    console.log('[Auth] setProfile(null) called here')
     setProfile(null)
     profileRef.current = null
     profileFetchedFor.current = null
