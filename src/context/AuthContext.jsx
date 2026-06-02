@@ -125,8 +125,15 @@ export const AuthProvider = ({ children }) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
           setUser(session.user)
-          profileFetchedFor.current = null  // always re-fetch on sign in (fixes profile disappearing on tab refocus)
-          fetchProfile(session.user.id)
+          // Only fetch if we don't already have this user's profile. On tab
+          // refocus SIGNED_IN fires again — re-fetching here is redundant and
+          // the duplicate query was timing out. Keep the loaded profile instead.
+          if (!profileRef.current || profileRef.current.id !== session.user.id) {
+            profileFetchedFor.current = null
+            fetchProfile(session.user.id)
+          } else {
+            console.log('[Auth] SIGNED_IN skipped fetchProfile - already loaded')
+          }
         }
       }
     })
