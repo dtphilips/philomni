@@ -2339,6 +2339,19 @@ export default function Feed() {
   const sentinelRef = useRef()
   const pageRef = useRef(0)
 
+  // ── TEMP DIAGNOSTIC: catch what remounts the Feed on tab switch ─────────────
+  useEffect(() => {
+    console.log('%c[MOUNT] Feed', 'color:#0f0', new Date().toLocaleTimeString())
+    const onVis = () =>
+      console.log('%c[VIS] visibility=' + document.visibilityState + ' path=' + window.location.pathname,
+        'color:#fa0', new Date().toLocaleTimeString())
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      console.log('%c[UNMOUNT] Feed', 'color:#f00', new Date().toLocaleTimeString())
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
+
   // Load a sponsored ad for injection
   useEffect(() => { fetchFeedAd().then(setFeedAd) }, [])
 
