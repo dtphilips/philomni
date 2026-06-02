@@ -19,6 +19,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const profileFetchedFor = useRef(null) // track which userId we last fetched for
   const refreshTimerRef   = useRef(null)
+  const profileRef        = useRef(null) // mirror of profile state for stable reads in listeners
 
   // ── Profile fetch (background, never blocks UI) ───────────────────────────
   const fetchProfile = async (userId) => {
@@ -36,6 +37,7 @@ export const AuthProvider = ({ children }) => {
       } else if (data) {
         console.log('[Auth] profile loaded:', data.full_name, '| plan:', data.plan, '| admin:', data.is_admin)
         setProfile(data)
+        profileRef.current = data
       } else {
         console.warn('[Auth] no public.users row for', userId)
       }
@@ -55,7 +57,7 @@ export const AuthProvider = ({ children }) => {
     if (!session?.expires_at) return
 
     const expiresAt  = session.expires_at * 1000          // convert to ms
-    const refreshAt  = expiresAt - 5 * 60 * 1000          // 5 min before expiry
+    const refreshAt  = expiresAt - 20 * 60 * 1000         // refresh 20 min before expiry (big buffer)
     const delayMs    = Math.max(refreshAt - Date.now(), 0)
 
     refreshTimerRef.current = setTimeout(async () => {
@@ -63,7 +65,15 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase.auth.refreshSession()
       if (error) {
         console.error('[Auth] token refresh failed:', error.message)
-        // Refresh failed — sign out gracefully rather than silently fail
+        // Before signing out, double-check with getSession — the refresh call can
+        // transiently fail while the stored session is still perfectly valid.
+        const { data: sessionData } = await supabase.auth.getSession()
+        if (sessionData?.session) {
+          console.log('[Auth] session still valid after failed refresh — rescheduling')
+          scheduleTokenRefresh(sessionData.session)
+          return
+        }
+        // Truly expired — sign out
         handleSignOut()
       } else if (data.session) {
         console.log('[Auth] token refreshed OK')
@@ -116,6 +126,7 @@ export const AuthProvider = ({ children }) => {
       if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
+        profileRef.current = null
         profileFetchedFor.current = null
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
         return
@@ -133,10 +144,33 @@ export const AuthProvider = ({ children }) => {
       }
     })
 
+    // When the user returns to the tab after being away, re-validate the session.
+    // Catches the case where the token expired while the tab was hidden.
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible') return
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        // Session still valid — re-fetch profile if we lost it
+        if (!profileRef.current) {
+          profileFetchedFor.current = null
+          fetchProfile(session.user.id)
+        }
+        scheduleTokenRefresh(session) // re-arm the refresh timer with fresh expiry
+      } else {
+        // Session expired while hidden — clear state cleanly
+        setUser(null)
+        setProfile(null)
+        profileRef.current = null
+        profileFetchedFor.current = null
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       clearTimeout(cap)
       subscription.unsubscribe()
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -144,6 +178,7 @@ export const AuthProvider = ({ children }) => {
   const handleSignOut = async () => {
     setUser(null)
     setProfile(null)
+    profileRef.current = null
     profileFetchedFor.current = null
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     localStorage.clear()

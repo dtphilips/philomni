@@ -7,12 +7,46 @@ import {
   Loader2, ShoppingCart, Users, Gift, Upload, Check, XCircle, TrendingUp,
 } from 'lucide-react'
 
-const CATEGORIES = ['Courses', 'Templates', 'Apparel', 'Music', 'Software', 'eBooks', 'Other']
-const PLATFORM_FEE = 0.10 // 10% platform fee on seller payout
+const CATEGORIES = [
+  'All',
+  'Fashion & Clothing',
+  'Shoes & Footwear',
+  'Bags & Purses',
+  'Jewelry & Accessories',
+  'Beauty & Skincare',
+  'Hair & Wigs',
+  'Nails & Nail Art',
+  'Health & Wellness',
+  'Fitness & Sports',
+  'Home & Kitchen',
+  'Home Decor',
+  'Bedding & Bath',
+  'Baby & Kids',
+  'Toys & Games',
+  'Food & Snacks',
+  'Drinks & Beverages',
+  'Pet Supplies',
+  'Electronics & Gadgets',
+  'Phone Accessories',
+  'Laptops & Computers',
+  'Books & Stationery',
+  'Art & Craft Supplies',
+  'Music & Instruments',
+  'Automotive',
+  'Garden & Outdoor',
+  'Travel & Luggage',
+  'Adult 18+',
+  'Digital Products',
+  'Courses & Education',
+  'Software & Tools',
+  'Other',
+]
+// A product is assigned exactly one category — 'All' is a filter-only concept
+const PRODUCT_CATEGORIES = CATEGORIES.filter(c => c !== 'All')
 
 const EMPTY = {
   title: '', description: '', price: '', commission_rate: 15,
-  category: 'Courses', images: [], inventory_count: 100,
+  category: 'Digital Products', images: [], inventory_count: 100,
   is_digital: true, sample_available: false, sample_limit: 10,
 }
 
@@ -225,12 +259,19 @@ export default function SellerDashboard() {
                     placeholder="49.00"
                     className="w-full px-3 py-2 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
-                <div>
+                <div className="sm:col-span-2">
                   <label className="block text-xs text-muted-foreground mb-1.5">Category</label>
-                  <select value={form.category} onChange={e => set('category', e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-muted border border-border text-sm focus:outline-none">
-                    {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                  </select>
+                  {/* Horizontal scrollable pill list (TikTok Shop style) — pick one */}
+                  <div className="flex gap-2 overflow-x-auto pb-1.5 -mx-0.5 px-0.5">
+                    {PRODUCT_CATEGORIES.map(c => (
+                      <button key={c} type="button" onClick={() => set('category', c)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                          form.category === c ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}>
+                        {c}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Commission slider */}
