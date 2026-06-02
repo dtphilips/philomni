@@ -425,12 +425,6 @@ export default function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [transition, setTransition] = useState(null) // { to: 'pro'|'creator', phase: 'in'|'out' }
 
-  // ── TEMP DIAGNOSTIC: does Layout remount on tab switch? ────────────────────
-  useEffect(() => {
-    console.log('%c[MOUNT] Layout', 'color:#08f', new Date().toLocaleTimeString())
-    return () => console.log('%c[UNMOUNT] Layout', 'color:#f80', new Date().toLocaleTimeString())
-  }, [])
-
   // Collapsible sidebar (desktop) — persisted across refreshes
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('sidebar-collapsed') === 'true'

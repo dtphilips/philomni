@@ -188,24 +188,6 @@ const queryClient = new QueryClient({
   },
 })
 
-// ─── Route wrappers ───────────────────────────────────────────────────────────
-function ProtectedLayout({ children }) {
-  return (
-    <ProtectedRoute>
-      <Layout>{children}</Layout>
-    </ProtectedRoute>
-  )
-}
-
-function P({ page: Page }) {
-  return <ProtectedLayout><Page /></ProtectedLayout>
-}
-
-// Public pages — show Layout (sidebar) but do NOT require login
-function PL({ page: Page }) {
-  return <Layout><Page /></Layout>
-}
-
 // ─── Page loading fallback ────────────────────────────────────────────────────
 function PageLoader() {
   return (
@@ -225,6 +207,32 @@ function PageLoader() {
   )
 }
 
+// ─── Route wrappers ───────────────────────────────────────────────────────────
+// Each page gets its OWN Suspense boundary so a lazy-load only replaces that
+// page's content — never unmounts the whole route tree (Layout, sidebar, etc.).
+function ProtectedLayout({ children }) {
+  return (
+    <ProtectedRoute>
+      <Layout>
+        <Suspense fallback={<PageLoader />}>{children}</Suspense>
+      </Layout>
+    </ProtectedRoute>
+  )
+}
+
+function P({ page: Page }) {
+  return <ProtectedLayout><Page /></ProtectedLayout>
+}
+
+// Public pages — show Layout (sidebar) but do NOT require login
+function PL({ page: Page }) {
+  return (
+    <Layout>
+      <Suspense fallback={<PageLoader />}><Page /></Suspense>
+    </Layout>
+  )
+}
+
 // ─── App ─────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
@@ -234,6 +242,7 @@ export default function App() {
       <MusicProvider>
       <ModeProvider>
         <BrowserRouter>
+          {/* Outer Suspense catches the very first bundle evaluation only */}
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Public */}

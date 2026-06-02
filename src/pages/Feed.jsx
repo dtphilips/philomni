@@ -2338,19 +2338,7 @@ export default function Feed() {
   const [showGoLive, setShowGoLive] = useState(false)
   const sentinelRef = useRef()
   const pageRef = useRef(0)
-
-  // ── TEMP DIAGNOSTIC: catch what remounts the Feed on tab switch ─────────────
-  useEffect(() => {
-    console.log('%c[MOUNT] Feed', 'color:#0f0', new Date().toLocaleTimeString())
-    const onVis = () =>
-      console.log('%c[VIS] visibility=' + document.visibilityState + ' path=' + window.location.pathname,
-        'color:#fa0', new Date().toLocaleTimeString())
-    document.addEventListener('visibilitychange', onVis)
-    return () => {
-      console.log('%c[UNMOUNT] Feed', 'color:#f00', new Date().toLocaleTimeString())
-      document.removeEventListener('visibilitychange', onVis)
-    }
-  }, [])
+  const loadingRef = useRef(true) // mirrors `loading` for use inside callbacks without re-creating observers
 
   // Load a sponsored ad for injection
   useEffect(() => { fetchFeedAd().then(setFeedAd) }, [])
@@ -2374,6 +2362,7 @@ export default function Feed() {
   const FEED_LIMIT = 50
 
   const fetchPosts = async () => {
+    loadingRef.current = true
     setLoading(true)
     try {
       // Fetch posts — same query for everyone (no user_id filter on main feed)
@@ -2385,7 +2374,6 @@ export default function Feed() {
 
       if (error) throw error
       const fetched = rawPosts || []
-      console.log('[Feed] fetched', fetched.length, 'posts')
 
       // Enrich with fresh author profiles (separate query, no FK join)
       // Legacy posts have created_by=null; fall back to author_id
@@ -2411,6 +2399,7 @@ export default function Feed() {
       console.error('[Feed] fetchPosts error:', err.message)
       setFeedError(err.message)
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
   }
@@ -2419,19 +2408,19 @@ export default function Feed() {
     fetchPosts()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Infinite scroll — only fires when hasMore=true AND not currently loading
+  // Infinite scroll — re-creates only when hasMore changes; reads loading via ref to avoid loop
   useEffect(() => {
     const el = sentinelRef.current
-    if (!el) return
+    if (!el || !hasMore) return
     const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+      if (entries[0].isIntersecting && !loadingRef.current) {
         pageRef.current += 1
         fetchPosts()
       }
     }, { threshold: 0.1 })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasMore, loadingMore, loading]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasMore]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Real-time new posts
   useEffect(() => {
