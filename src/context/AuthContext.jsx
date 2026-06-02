@@ -107,10 +107,8 @@ export const AuthProvider = ({ children }) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
           setUser(session.user)
-          // Only fetch profile if we don't already have it for this user
-          if (profileFetchedFor.current !== session.user.id) {
-            fetchProfile(session.user.id)
-          }
+          profileFetchedFor.current = null  // always re-fetch on sign in (fixes profile disappearing on tab refocus)
+          fetchProfile(session.user.id)
         }
       }
     })
