@@ -47,7 +47,7 @@ const PRODUCT_CATEGORIES = CATEGORIES.filter(c => c !== 'All')
 const EMPTY = {
   title: '', description: '', price: '', commission_rate: 15,
   category: 'Digital Products', images: [], inventory_count: 100,
-  is_digital: true, sample_available: false, sample_limit: 10,
+  is_digital: true, allow_affiliates: false, sample_available: false, sample_limit: 10,
 }
 
 export default function SellerDashboard() {
@@ -133,6 +133,7 @@ export default function SellerDashboard() {
         images: form.images,
         inventory_count: parseInt(form.inventory_count) || 0,
         is_digital: form.is_digital,
+        allow_affiliates: form.allow_affiliates,
         sample_available: form.sample_available,
         sample_limit: form.sample_available ? (parseInt(form.sample_limit) || 0) : 0,
       }
@@ -160,9 +161,10 @@ export default function SellerDashboard() {
   const startEdit = (p) => {
     setForm({
       title: p.title, description: p.description || '', price: String(p.price),
-      commission_rate: Number(p.commission_rate), category: p.category || 'Courses',
+      commission_rate: Number(p.commission_rate), category: p.category || 'Digital Products',
       images: p.images || [], inventory_count: p.inventory_count ?? 100,
-      is_digital: p.is_digital, sample_available: p.sample_available, sample_limit: p.sample_limit ?? 10,
+      is_digital: p.is_digital, allow_affiliates: p.allow_affiliates ?? false,
+      sample_available: p.sample_available, sample_limit: p.sample_limit ?? 10,
     })
     setEditId(p.id); setShowForm(true)
   }
@@ -274,17 +276,6 @@ export default function SellerDashboard() {
                   </div>
                 </div>
 
-                {/* Commission slider */}
-                <div className="sm:col-span-2">
-                  <label className="block text-xs text-muted-foreground mb-1.5">
-                    Affiliate commission: <span className="text-primary font-semibold">{form.commission_rate}%</span>
-                    <span className="text-muted-foreground"> · creators earn ${((parseFloat(form.price)||0) * form.commission_rate/100).toFixed(2)}/sale</span>
-                  </label>
-                  <input type="range" min="5" max="50" step="1" value={form.commission_rate}
-                    onChange={e => set('commission_rate', Number(e.target.value))}
-                    className="w-full accent-primary cursor-pointer" />
-                </div>
-
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1.5">Inventory</label>
                   <input type="number" min="0" value={form.inventory_count} onChange={e => set('inventory_count', e.target.value)}
@@ -315,14 +306,73 @@ export default function SellerDashboard() {
                   </div>
                 </div>
 
-                {/* Samples */}
+                {/* Selling options — what do you want to do with this product? */}
                 <div className="sm:col-span-2 space-y-2">
-                  <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-                    <input type="checkbox" checked={form.sample_available} onChange={e => set('sample_available', e.target.checked)} className="accent-amber-500 w-4 h-4" />
-                    <Gift className="w-4 h-4 text-amber-500" /> Offer free samples to creators
-                  </label>
+                  <label className="block text-xs font-semibold text-foreground mb-1">How do you want to sell this? <span className="text-muted-foreground font-normal">(pick any)</span></label>
+
+                  {/* Sell Only — implied when neither other option is on */}
+                  <button type="button"
+                    onClick={() => { set('allow_affiliates', false); set('sample_available', false) }}
+                    className={`w-full text-left flex items-start gap-3 p-3 rounded-xl border transition-colors ${
+                      !form.allow_affiliates && !form.sample_available ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
+                    }`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${!form.allow_affiliates && !form.sample_available ? 'bg-primary/15' : 'bg-muted'}`}>
+                      <DollarSign className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Sell Only</p>
+                      <p className="text-xs text-muted-foreground">I just want to sell my product directly to buyers.</p>
+                    </div>
+                  </button>
+
+                  {/* Allow Affiliates */}
+                  <button type="button"
+                    onClick={() => set('allow_affiliates', !form.allow_affiliates)}
+                    className={`w-full text-left flex items-start gap-3 p-3 rounded-xl border transition-colors ${
+                      form.allow_affiliates ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
+                    }`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${form.allow_affiliates ? 'bg-primary/15' : 'bg-muted'}`}>
+                      <Users className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        Allow Affiliates
+                        {form.allow_affiliates && <Check className="w-3.5 h-3.5 text-primary" />}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Creators can promote my product and earn a commission per sale.</p>
+                    </div>
+                  </button>
+                  {form.allow_affiliates && (
+                    <div className="pl-3 pb-1">
+                      <label className="block text-xs text-muted-foreground mb-1.5">
+                        Commission: <span className="text-primary font-semibold">{form.commission_rate}%</span>
+                        <span> · creators earn ${((parseFloat(form.price)||0) * form.commission_rate/100).toFixed(2)}/sale</span>
+                      </label>
+                      <input type="range" min="5" max="50" step="1" value={form.commission_rate}
+                        onChange={e => set('commission_rate', Number(e.target.value))}
+                        className="w-full accent-primary cursor-pointer" />
+                    </div>
+                  )}
+
+                  {/* Offer Samples */}
+                  <button type="button"
+                    onClick={() => set('sample_available', !form.sample_available)}
+                    className={`w-full text-left flex items-start gap-3 p-3 rounded-xl border transition-colors ${
+                      form.sample_available ? 'border-amber-500 bg-amber-500/5' : 'border-border hover:bg-muted/50'
+                    }`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${form.sample_available ? 'bg-amber-500/15' : 'bg-muted'}`}>
+                      <Gift className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        Offer Samples
+                        {form.sample_available && <Check className="w-3.5 h-3.5 text-amber-500" />}
+                      </p>
+                      <p className="text-xs text-muted-foreground">I&apos;ll send free samples to creators to review and promote.</p>
+                    </div>
+                  </button>
                   {form.sample_available && (
-                    <div className="pl-6">
+                    <div className="pl-3">
                       <label className="block text-xs text-muted-foreground mb-1.5">Sample limit (total free units)</label>
                       <input type="number" min="0" value={form.sample_limit} onChange={e => set('sample_limit', e.target.value)}
                         className="w-32 px-3 py-2 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />

@@ -163,6 +163,7 @@ const BuyCoins   = lazy(() => import('./pages/BuyCoins'))
 const AffiliateMarketplace = lazy(() => import('./pages/AffiliateMarketplace'))
 const SellerDashboard      = lazy(() => import('./pages/SellerDashboard'))
 const AffiliateEarnings    = lazy(() => import('./pages/AffiliateEarnings'))
+const ProductDetail        = lazy(() => import('./pages/ProductDetail'))
 
 // Celebrations
 const Celebrations       = lazy(() => import('./pages/Celebrations'))
@@ -307,7 +308,9 @@ export default function App() {
               <Route path="/seller/:sellerId" element={<PL page={SellerStorefront} />} />
               <Route path="/marketplace" element={<PL page={ProductMarketplace} />} />
               <Route path="/creator-marketplace" element={<PL page={CreatorMarketplace} />} />
-              <Route path="/shop" element={<PL page={Marketplace} />} />
+              <Route path="/shop" element={<PL page={ProductMarketplace} />} />
+              <Route path="/jobs-board" element={<PL page={Marketplace} />} />
+              <Route path="/product/:id" element={<PL page={ProductDetail} />} />
               <Route path="/video-marketplace" element={<PL page={VideoMarketplace} />} />
               <Route path="/templates" element={<PL page={TemplateMarketplace} />} />
               <Route path="/skills" element={<PL page={SkillExchange} />} />

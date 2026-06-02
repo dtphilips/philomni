@@ -82,6 +82,7 @@ const CREATOR_NAV = [
   {
     label: 'Marketplace',
     items: [
+      { to: '/shop',            icon: ShoppingBag, label: 'Shop', badge: '🛍️' },
       { to: '/marketplace',     icon: ShoppingBag, label: 'Digital Products' },
       { to: '/learn',           icon: BookOpen,    label: 'Courses' },
       { to: '/consulting',      icon: Users,       label: 'Consulting' },
@@ -129,6 +130,7 @@ const PRO_NAV = [
   {
     label: 'Marketplace',
     items: [
+      { to: '/shop',            icon: ShoppingBag, label: 'Shop', badge: '🛍️' },
       { to: '/marketplace',     icon: ShoppingBag, label: 'Digital Products' },
       { to: '/sell',            icon: Package,     label: 'Sell Products' },
       { to: '/consulting',      icon: Briefcase,   label: 'Find Consultants' },
