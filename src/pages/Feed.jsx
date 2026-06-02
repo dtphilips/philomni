@@ -9,7 +9,7 @@ import {
   Bookmark, Repeat2, Eye, MapPin, Globe, Users, Lock, Flag,
   Copy, BookOpen, MessageSquare,
   UserPlus, Hash, Calendar, ChevronRight, Edit3, Film, Sparkles, ArrowRight,
-  ExternalLink, Megaphone,
+  ExternalLink, Megaphone, ShoppingBag, Tag,
 } from 'lucide-react'
 import { useNavigate, Link } from 'react-router-dom'
 import MediaEditor from '@/components/editor/MediaEditor'
@@ -22,6 +22,8 @@ import LivesRow from '../components/LivesRow'
 import GoLiveModal from '../components/GoLiveModal'
 import CelebrationsRow from '../components/celebrations/CelebrationsRow'
 import ErrorBoundary from '../components/ErrorBoundary'
+import ProductTagPicker from '../components/shop/ProductTagPicker'
+import TaggedProductsDrawer from '../components/shop/TaggedProductsDrawer'
 
 // ── In-feed Ad Card ───────────────────────────────────────────────────────────
 function AdCard({ ad, viewerId }) {
@@ -1225,6 +1227,8 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
   const [giftAnimation, setGiftAnimation] = useState(null)
   const [giftCount, setGiftCount] = useState(0)
   const [giftSummary, setGiftSummary] = useState([])
+  const [showShop, setShowShop] = useState(false) // tagged-products drawer
+  const taggedProducts = Array.isArray(post.tagged_products) ? post.tagged_products : []
   // View counting
   const cardRef = useRef()
   const viewedRef = useRef(false)
@@ -1492,6 +1496,26 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
         {/* Media */}
         <MediaDisplay urls={post.media_urls} type={post.media_type} />
 
+        {/* Tagged products — Shop this post */}
+        {taggedProducts.length > 0 && (
+          <button
+            onClick={() => setShowShop(true)}
+            className="flex items-center gap-2 w-full px-4 py-2.5 bg-primary/8 border-t border-primary/15 hover:bg-primary/12 transition-colors text-left"
+          >
+            <ShoppingBag className="w-4 h-4 text-primary flex-shrink-0" />
+            <span className="text-xs font-semibold text-primary">
+              Shop this post · {taggedProducts.length} product{taggedProducts.length !== 1 ? 's' : ''}
+            </span>
+            <span className="ml-auto flex -space-x-2">
+              {taggedProducts.slice(0, 3).map((t, i) => (
+                <span key={i} className="w-6 h-6 rounded-full border border-card bg-muted overflow-hidden flex items-center justify-center text-[10px]">
+                  {t.image ? <img src={t.image} className="w-full h-full object-cover" alt="" /> : '🛍️'}
+                </span>
+              ))}
+            </span>
+          </button>
+        )}
+
         {/* Music credit bar */}
         {post.music_track_meta && (
           <a
@@ -1674,6 +1698,9 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
 
       {showShare && <ShareModal post={post} currentUser={currentUser} onClose={() => setShowShare(false)} />}
 
+      {/* Tagged products drawer — Buy Now flow */}
+      {showShop && <TaggedProductsDrawer tags={taggedProducts} onClose={() => setShowShop(false)} />}
+
       {/* Gift animation — floats up from the post */}
       {giftAnimation && (
         <div
@@ -1781,6 +1808,8 @@ function PostComposer({ user, onCreated }) {
   const [feedType, setFeedType] = useState(mode === 'pro' ? 'pro' : 'creator')
   const [showFeedPicker, setShowFeedPicker] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [taggedProducts, setTaggedProducts] = useState([]) // shop product tags
+  const [showProductPicker, setShowProductPicker] = useState(false)
   const audienceRef = useRef()
   const feedPickerRef = useRef()
 
@@ -1859,6 +1888,7 @@ function PostComposer({ user, onCreated }) {
     setExpanded(false)
     setError('')
     setShowEmoji(false)
+    setTaggedProducts([])
     clearSelectedTrack()
   }
 
@@ -1891,6 +1921,7 @@ function PostComposer({ user, onCreated }) {
         music_track_meta: selectedTrack
           ? { title: selectedTrack.title, artist: selectedTrack.artist || 'Philomni Originals' }
           : null,
+        tagged_products: taggedProducts.length > 0 ? taggedProducts : null,
       }).select().single()
       if (err) { setError(err.message); return }
       // Record music usage
@@ -2040,6 +2071,22 @@ function PostComposer({ user, onCreated }) {
         </div>
       )}
 
+      {/* Tagged product chips */}
+      {expanded && taggedProducts.length > 0 && (
+        <div className="px-4 pb-2 flex items-center gap-2 flex-wrap">
+          {taggedProducts.map(t => (
+            <span key={t.product_id} className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
+              <span className="w-5 h-5 rounded-full bg-muted overflow-hidden flex items-center justify-center text-[10px]">
+                {t.image ? <img src={t.image} className="w-full h-full object-cover" alt="" /> : '🛍️'}
+              </span>
+              <span className="max-w-[120px] truncate">{t.title}</span>
+              <button onClick={() => setTaggedProducts(prev => prev.filter(p => p.product_id !== t.product_id))}
+                className="hover:text-foreground"><X className="w-3 h-3" /></button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Footer */}
       {expanded && (
         <div className="px-4 py-2.5 border-t border-border/60 flex items-center justify-between gap-2 flex-wrap bg-muted/10">
@@ -2076,6 +2123,13 @@ function PostComposer({ user, onCreated }) {
               </Link>
               <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">Add Music</span>
             </div>
+            <div className="relative group">
+              <button onClick={() => setShowProductPicker(true)}
+                className={`p-2 rounded-xl hover:bg-muted transition-colors flex items-center ${taggedProducts.length > 0 ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-primary'}`}>
+                <ShoppingBag className="w-4 h-4" />
+              </button>
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">Tag Products</span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {charCount > 0 && (
@@ -2100,6 +2154,15 @@ function PostComposer({ user, onCreated }) {
           file={mediaFiles[mediaEditorIdx].file}
           onSave={handleMediaEdited}
           onClose={() => setMediaEditorIdx(null)}
+        />
+      )}
+
+      {/* Product tag picker */}
+      {showProductPicker && (
+        <ProductTagPicker
+          initial={taggedProducts}
+          onClose={() => setShowProductPicker(false)}
+          onConfirm={(tags) => { setTaggedProducts(tags); setShowProductPicker(false) }}
         />
       )}
     </div>

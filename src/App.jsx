@@ -159,6 +159,11 @@ const LiveStart  = lazy(() => import('./pages/LiveStart'))
 const LiveRecap  = lazy(() => import('./pages/LiveRecap'))
 const BuyCoins   = lazy(() => import('./pages/BuyCoins'))
 
+// Philomni Shop — affiliate marketplace
+const AffiliateMarketplace = lazy(() => import('./pages/AffiliateMarketplace'))
+const SellerDashboard      = lazy(() => import('./pages/SellerDashboard'))
+const AffiliateEarnings    = lazy(() => import('./pages/AffiliateEarnings'))
+
 // Celebrations
 const Celebrations       = lazy(() => import('./pages/Celebrations'))
 const CelebrationCreate  = lazy(() => import('./pages/CelebrationCreate'))
@@ -359,6 +364,11 @@ export default function App() {
               <Route path="/monetize"  element={<P page={CreatorMonetize} />} />
               <Route path="/advertise" element={<P page={Advertise} />} />
               <Route path="/my-ads"    element={<P page={MyAds} />} />
+
+              {/* Philomni Shop — affiliate marketplace (public to browse, auth to promote/sell) */}
+              <Route path="/affiliate"           element={<PL page={AffiliateMarketplace} />} />
+              <Route path="/seller-dashboard"    element={<P page={SellerDashboard} />} />
+              <Route path="/affiliate-earnings"  element={<P page={AffiliateEarnings} />} />
 
               {/* Music — Artist & Playlist */}
               <Route path="/artist/:userId" element={<PL page={ArtistProfile} />} />

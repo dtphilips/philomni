@@ -71,6 +71,8 @@ const CREATOR_NAV = [
     label: 'Earn',
     items: [
       { to: '/wallet',          icon: Wallet,      label: 'My Wallet' },
+      { to: '/affiliate',       icon: ShoppingBag, label: 'Affiliate Market', badge: '💰' },
+      { to: '/seller-dashboard',icon: Store,       label: 'Seller Dashboard' },
       { to: '/coins',           icon: DollarSign,  label: 'Buy Coins',  badge: '🪙' },
       { to: '/consulting/offer',icon: Briefcase,   label: 'Consulting' },
       { to: '/sell',            icon: Package,     label: 'Sell Products' },
@@ -142,8 +144,10 @@ const PRO_NAV = [
     label: 'Earn',
     items: [
       { to: '/wallet',          icon: Wallet,      label: 'My Wallet' },
+      { to: '/affiliate',       icon: ShoppingBag, label: 'Affiliate Market', badge: '💰' },
+      { to: '/seller-dashboard',icon: Store,       label: 'Seller Dashboard' },
       { to: '/coins',           icon: Wallet,      label: 'Buy Coins',  badge: '🪙' },
-      { to: '/monetize',        icon: DollarSign,  label: 'Monetize', badge: '💰' },
+      { to: '/monetize',        icon: DollarSign,  label: 'Monetize' },
       { to: '/consulting/offer',icon: Users,       label: 'Offer Consulting' },
     ],
   },
