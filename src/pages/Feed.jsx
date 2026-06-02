@@ -2484,7 +2484,7 @@ export default function Feed() {
             Feed error: {feedError}
           </div>
         )}
-        {loading ? (
+        {loading && posts.length === 0 ? (
           <SkeletonFeed count={3} />
         ) : posts.length === 0 ? (
           <div className="text-center py-20 bg-card border border-border/60 rounded-2xl">
