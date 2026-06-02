@@ -109,31 +109,9 @@ export const AuthProvider = ({ children }) => {
       }
     })
 
-    // When the user returns to the tab after being away, re-validate the session.
-    // Catches the case where the token expired while the tab was hidden.
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState !== 'visible') return
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        // Session still valid — re-fetch profile if we lost it
-        if (!profileRef.current) {
-          profileFetchedFor.current = null
-          fetchProfile(session.user.id)
-        }
-      } else {
-        // Session expired while hidden — clear state cleanly
-        setUser(null)
-        setProfile(null)
-        profileRef.current = null
-        profileFetchedFor.current = null
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
     return () => {
       clearTimeout(cap)
       subscription.unsubscribe()
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
