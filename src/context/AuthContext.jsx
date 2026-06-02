@@ -64,6 +64,12 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  // ── TEMP DIAGNOSTIC: does the whole AuthProvider remount on tab switch? ─────
+  useEffect(() => {
+    console.log('%c[MOUNT] AuthProvider', 'color:#0ff', new Date().toLocaleTimeString())
+    return () => console.log('%c[UNMOUNT] AuthProvider', 'color:#f0f', new Date().toLocaleTimeString())
+  }, [])
+
   // ── Boot ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     const cap = setTimeout(() => setLoading(false), 3000)
