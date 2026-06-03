@@ -2349,6 +2349,12 @@ export default function Feed() {
   const pageRef = useRef(0)
   const loadingRef = useRef(_feedPostsCache.length === 0) // mirrors `loading` for callbacks
 
+  // TEMP diagnostic — confirms whether Feed remounts on tab return
+  useEffect(() => {
+    window.__dlog?.(`Feed MOUNT (cache=${_feedPostsCache.length})`)
+    return () => window.__dlog?.('Feed UNMOUNT')
+  }, [])
+
   // Load a sponsored ad for injection
   useEffect(() => { fetchFeedAd().then(setFeedAd) }, [])
 
@@ -2373,6 +2379,7 @@ export default function Feed() {
   const fetchPosts = async () => {
     const t0 = performance.now()
     console.log('[Feed] fetchPosts START')
+    window.__dlog?.('Feed fetchPosts START')
     loadingRef.current = true
     setLoading(true)
     // Hard timeout so a hung Supabase call (e.g. mid token-refresh) can never
@@ -2414,10 +2421,12 @@ export default function Feed() {
       setFeedError(null)
       if (fetched.length < FEED_LIMIT) setHasMore(false)
       console.log(`[Feed] fetchPosts END — ${enriched.length} posts in ${Math.round(performance.now() - t0)}ms`)
+      window.__dlog?.(`Feed fetchPosts END ${enriched.length} posts ${Math.round(performance.now() - t0)}ms`)
 
     } catch (err) {
       const msg = controller.signal.aborted ? 'request timed out' : err.message
       console.error('[Feed] fetchPosts ERROR:', msg)
+      window.__dlog?.(`Feed fetchPosts ERROR: ${msg}`)
       // Only surface an error if we have nothing to show — keep cached posts otherwise
       if (posts.length === 0) setFeedError(msg)
     } finally {
