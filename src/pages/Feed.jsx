@@ -2328,18 +2328,17 @@ function ConnectionStoryCard() {
 
 // ─── Main Feed ────────────────────────────────────────────────────────────────
 
+// Module-level cache of the last loaded feed. Survives component remounts, so
+// if Feed is torn down and recreated (e.g. on a tab-return remount) it shows the
+// previous posts INSTANTLY instead of a skeleton — and never appears "stuck"
+// even if a background refetch is slow.
+let _feedPostsCache = []
+
 export default function Feed() {
   const { user, profile } = useAuth()
   const { mode } = useMode()
-  const [posts, setPosts] = useState([])
-  const [loading, setLoading] = useState(true)
-  // TEMP DIAGNOSTIC
-  const mountRef = useRef(0)
-  useEffect(() => {
-    mountRef.current++
-    console.log(`[Feed] MOUNT #${mountRef.current} user=${user?.id?.slice(0,8) ?? 'none'}`)
-    return () => console.log(`[Feed] UNMOUNT #${mountRef.current}`)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const [posts, setPosts] = useState(_feedPostsCache)
+  const [loading, setLoading] = useState(_feedPostsCache.length === 0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [feedAd, setFeedAd] = useState(null)
@@ -2348,7 +2347,7 @@ export default function Feed() {
   const [showGoLive, setShowGoLive] = useState(false)
   const sentinelRef = useRef()
   const pageRef = useRef(0)
-  const loadingRef = useRef(true) // mirrors `loading` for use inside callbacks without re-creating observers
+  const loadingRef = useRef(_feedPostsCache.length === 0) // mirrors `loading` for callbacks
 
   // Load a sponsored ad for injection
   useEffect(() => { fetchFeedAd().then(setFeedAd) }, [])
@@ -2372,9 +2371,14 @@ export default function Feed() {
   const FEED_LIMIT = 50
 
   const fetchPosts = async () => {
-    console.log(`[Feed] fetchPosts called — mount#${mountRef.current} posts=${posts.length}`)
+    const t0 = performance.now()
+    console.log('[Feed] fetchPosts START')
     loadingRef.current = true
     setLoading(true)
+    // Hard timeout so a hung Supabase call (e.g. mid token-refresh) can never
+    // leave the feed stuck on skeletons forever — abort after 10s and recover.
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10_000)
     try {
       // Fetch posts — same query for everyone (no user_id filter on main feed)
       const { data: rawPosts, error } = await supabase
@@ -2382,6 +2386,7 @@ export default function Feed() {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(FEED_LIMIT)
+        .abortSignal(controller.signal)
 
       if (error) throw error
       const fetched = rawPosts || []
@@ -2395,6 +2400,7 @@ export default function Feed() {
           .from('users')
           .select('id, full_name, avatar_url, plan')
           .in('id', userIds)
+          .abortSignal(controller.signal)
         if (profiles?.length) {
           enriched = fetched.map(post => ({
             ...post,
@@ -2403,13 +2409,19 @@ export default function Feed() {
         }
       }
 
+      _feedPostsCache = enriched // survive remounts
       setPosts(enriched)
+      setFeedError(null)
       if (fetched.length < FEED_LIMIT) setHasMore(false)
+      console.log(`[Feed] fetchPosts END — ${enriched.length} posts in ${Math.round(performance.now() - t0)}ms`)
 
     } catch (err) {
-      console.error('[Feed] fetchPosts error:', err.message)
-      setFeedError(err.message)
+      const msg = controller.signal.aborted ? 'request timed out' : err.message
+      console.error('[Feed] fetchPosts ERROR:', msg)
+      // Only surface an error if we have nothing to show — keep cached posts otherwise
+      if (posts.length === 0) setFeedError(msg)
     } finally {
+      clearTimeout(timeoutId)
       loadingRef.current = false
       setLoading(false)
     }
