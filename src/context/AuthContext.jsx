@@ -8,9 +8,9 @@ const AuthContext = createContext({})
 export const useAuth = () => useContext(AuthContext)
 
 // ⚠️ CRITICAL AUTH NOTES — read before modifying:
-// 1. supabase.js: autoRefreshToken:false + no-op `lock`. Do NOT change — the lock
-//    prevents the cross-tab Navigator Lock deadlock that hung every query on a
-//    signed-in refresh.
+// 1. supabase.js: autoRefreshToken:true + no-op `lock`. KEEP the no-op lock —
+//    it prevents the cross-tab Navigator Lock deadlock. autoRefreshToken:true
+//    keeps JWTs fresh so long-idle sessions don't SIGNED_OUT on tab return.
 // 2. setUserStable keeps the SAME user reference when the id is unchanged.
 //    Supabase RE-EMITS SIGNED_IN on tab refocus; changing the ref triggered an
 //    app-wide re-render/re-fetch storm (every page reset / flashed loading).
