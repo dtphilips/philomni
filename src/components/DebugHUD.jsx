@@ -6,12 +6,17 @@ import React, { useEffect, useState } from 'react'
 // happens when the tab is left and returned to. Call window.__dlog(msg) anywhere.
 // Remove this component + its mount in App.jsx once the tab-return bug is fixed.
 
-const _buf = []
+// Persist across reloads so a screenshot survives the page reloading on tab
+// return — the log shows what happened just before AND after the reload.
+const SKEY = '__dhud_log'
+let _buf = []
+try { _buf = JSON.parse(sessionStorage.getItem(SKEY) || '[]') } catch {}
 function push(msg) {
   const t = new Date()
   const stamp = `${String(t.getMinutes()).padStart(2, '0')}:${String(t.getSeconds()).padStart(2, '0')}.${String(t.getMilliseconds()).padStart(3, '0')}`
   _buf.push(`${stamp}  ${msg}`)
   if (_buf.length > 40) _buf.shift()
+  try { sessionStorage.setItem(SKEY, JSON.stringify(_buf)) } catch {}
   if (typeof window !== 'undefined' && window.__dhudUpdate) window.__dhudUpdate([..._buf])
 }
 // Expose globally so AuthContext / Feed / anywhere can log
@@ -73,7 +78,11 @@ export default function DebugHUD() {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
         <strong style={{ color: '#a78bfa' }}>DEBUG — screenshot when stuck</strong>
-        <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>×</button>
+        <span>
+          <button onClick={() => { _buf = []; try { sessionStorage.removeItem(SKEY) } catch {}; setLines([]) }}
+            style={{ background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', marginRight: 8 }}>clear</button>
+          <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>×</button>
+        </span>
       </div>
       {lines.map((l, i) => (
         <div key={i} style={{
