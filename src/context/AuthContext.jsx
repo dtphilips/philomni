@@ -19,17 +19,32 @@ export const useAuth = () => useContext(AuthContext)
 //    on every provider render. Keep the useMemo wrappers.
 // 4. fetchProfile only runs when we don't already hold this user's profile.
 // 5. Never add window.location calls in the auth flow (except signOut).
+// 6. SIGNED_OUT is deferred — Supabase fires SIGNED_OUT during token refresh
+//    cycles (when token is within 90s of expiry) and immediately follows with
+//    SIGNED_IN/TOKEN_REFRESHED. Clearing state immediately on SIGNED_OUT causes
+//    all pages to blank momentarily. We start a 2s timer; if recovery fires
+//    before it expires we cancel it and keep the user signed in. Only if no
+//    recovery comes do we actually clear state (genuine sign-out).
 export const AuthProvider = ({ children }) => {
   const [user,    setUser]    = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const profileFetchedFor = useRef(null) // which userId we last fetched for
-  const profileRef        = useRef(null) // mirror of profile for stable reads in listeners
+  const profileFetchedFor  = useRef(null) // which userId we last fetched for
+  const profileRef         = useRef(null) // mirror of profile for stable reads in listeners
+  const signedOutTimer     = useRef(null) // deferred SIGNED_OUT clear (see note 6)
 
   // Update user only when it actually changes — keeps a stable reference across
   // the duplicate SIGNED_IN events Supabase fires on tab refocus.
   const setUserStable = (nextUser) => {
     setUser(prev => (prev?.id === nextUser?.id ? prev : nextUser))
+  }
+
+  // Clear auth state — used by deferred SIGNED_OUT handler and handleSignOut
+  const clearAuthState = () => {
+    setUser(null)
+    setProfile(null)
+    profileRef.current = null
+    profileFetchedFor.current = null
   }
 
   // ── Profile fetch (background, never blocks UI) ───────────────────────────
@@ -88,14 +103,22 @@ export const AuthProvider = ({ children }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log(`[Auth] ${event} — user=${session?.user?.id?.slice(0,8) ?? 'none'} profile=${!!profileRef.current}`)
+
       if (event === 'SIGNED_OUT') {
-        setUser(null)
-        setProfile(null)
-        profileRef.current = null
-        profileFetchedFor.current = null
+        // Defer clearing state — Supabase fires SIGNED_OUT mid-refresh then
+        // immediately follows with SIGNED_IN/TOKEN_REFRESHED on success.
+        // Cancel any existing timer, start a 2s window for recovery.
+        clearTimeout(signedOutTimer.current)
+        signedOutTimer.current = setTimeout(() => {
+          console.log('[Auth] SIGNED_OUT confirmed — clearing state')
+          clearAuthState()
+        }, 2000)
         return
       }
+
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // Recovery after a potential SIGNED_OUT — cancel the deferred clear
+        clearTimeout(signedOutTimer.current)
         if (session?.user) {
           setUserStable(session.user) // stable ref — no re-render storm on tab refocus
           // Only fetch if we don't already hold this user's profile
@@ -107,15 +130,17 @@ export const AuthProvider = ({ children }) => {
       }
     })
 
-    return () => { clearTimeout(cap); subscription.unsubscribe() }
+    return () => {
+      clearTimeout(cap)
+      clearTimeout(signedOutTimer.current)
+      subscription.unsubscribe()
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sign out ──────────────────────────────────────────────────────────────
   const handleSignOut = async () => {
-    setUser(null)
-    setProfile(null)
-    profileRef.current = null
-    profileFetchedFor.current = null
+    clearTimeout(signedOutTimer.current) // cancel any deferred clear (we're doing it now)
+    clearAuthState()
     localStorage.clear()
     sessionStorage.clear()
     await supabase.auth.signOut()
