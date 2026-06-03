@@ -22,6 +22,24 @@ function push(msg) {
 // Expose globally so AuthContext / Feed / anywhere can log
 if (typeof window !== 'undefined') window.__dlog = push
 
+// Patch history at MODULE LOAD (before <BrowserRouter> captures the originals)
+// so we log every programmatic navigation + its caller. Reveals whether route
+// changes are user clicks or automatic, and what code triggers them.
+if (typeof window !== 'undefined' && !window.__navPatched) {
+  window.__navPatched = true
+  const wrap = (name) => {
+    const orig = history[name]
+    history[name] = function (state, title, url) {
+      let who = ''
+      try { who = (new Error().stack || '').split('\n')[2]?.trim().replace(/^at\s+/, '').slice(0, 64) || '' } catch {}
+      push(`NAV ${name} → ${url ?? location.pathname} | ${who}`)
+      return orig.apply(this, arguments)
+    }
+  }
+  wrap('pushState'); wrap('replaceState')
+  window.addEventListener('popstate', () => push('NAV popstate (back/fwd)'))
+}
+
 export default function DebugHUD() {
   const [lines, setLines] = useState([..._buf])
   const [open, setOpen] = useState(true)

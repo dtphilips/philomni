@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react'
+import React, { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ModeProvider } from './context/ModeContext'
@@ -191,8 +191,8 @@ const queryClient = new QueryClient({
 
 // ─── Page loading fallback ────────────────────────────────────────────────────
 function PageLoader() {
-  // TEMP diagnostic — if this logs repeatedly, the Suspense boundary is re-suspending
-  if (typeof window !== 'undefined') window.__dlog?.('PageLoader (Suspense fallback) shown')
+  // TEMP diagnostic — log AFTER commit (not during render) to avoid setState-in-render
+  useEffect(() => { window.__dlog?.('PageLoader (Suspense fallback) shown') }, [])
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center',
