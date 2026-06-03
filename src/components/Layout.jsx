@@ -425,6 +425,15 @@ export default function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [transition, setTransition] = useState(null) // { to: 'pro'|'creator', phase: 'in'|'out' }
 
+  // TEMP diagnostic — does Layout remount, and is the route changing?
+  useEffect(() => {
+    window.__dlog?.(`Layout MOUNT path=${window.location.pathname}`)
+    return () => window.__dlog?.('Layout UNMOUNT')
+  }, [])
+  useEffect(() => {
+    window.__dlog?.(`route → ${location.pathname} (mode=${mode})`)
+  }, [location.pathname, mode])
+
   // Collapsible sidebar (desktop) — persisted across refreshes
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('sidebar-collapsed') === 'true'

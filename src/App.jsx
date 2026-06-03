@@ -191,6 +191,8 @@ const queryClient = new QueryClient({
 
 // ─── Page loading fallback ────────────────────────────────────────────────────
 function PageLoader() {
+  // TEMP diagnostic — if this logs repeatedly, the Suspense boundary is re-suspending
+  if (typeof window !== 'undefined') window.__dlog?.('PageLoader (Suspense fallback) shown')
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center',
