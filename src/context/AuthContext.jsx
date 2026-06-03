@@ -87,6 +87,7 @@ export const AuthProvider = ({ children }) => {
       .catch(err => { clearTimeout(cap); console.error('getSession threw:', err); setLoading(false) })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log(`[Auth] ${event} — user=${session?.user?.id?.slice(0,8) ?? 'none'} profile=${!!profileRef.current}`)
       if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)

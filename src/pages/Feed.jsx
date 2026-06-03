@@ -2333,6 +2333,13 @@ export default function Feed() {
   const { mode } = useMode()
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
+  // TEMP DIAGNOSTIC
+  const mountRef = useRef(0)
+  useEffect(() => {
+    mountRef.current++
+    console.log(`[Feed] MOUNT #${mountRef.current} user=${user?.id?.slice(0,8) ?? 'none'}`)
+    return () => console.log(`[Feed] UNMOUNT #${mountRef.current}`)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [feedAd, setFeedAd] = useState(null)
@@ -2365,6 +2372,7 @@ export default function Feed() {
   const FEED_LIMIT = 50
 
   const fetchPosts = async () => {
+    console.log(`[Feed] fetchPosts called — mount#${mountRef.current} posts=${posts.length}`)
     loadingRef.current = true
     setLoading(true)
     try {
