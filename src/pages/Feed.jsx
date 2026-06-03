@@ -99,14 +99,17 @@ function AdCard({ ad, viewerId }) {
 
 // Fetch one random active ad for injection
 async function fetchFeedAd() {
-  const { data } = await supabase
-    .from('ads')
-    .select('*')
-    .eq('status', 'active')
-    .lte('spent', supabase.rpc ? 'budget' : 99999)
-    .limit(10)
-  if (!data || data.length === 0) return null
-  return data[Math.floor(Math.random() * data.length)]
+  try {
+    const { data } = await supabase
+      .from('ads')
+      .select('*')
+      .eq('status', 'active')
+      .limit(10)
+    if (!data || data.length === 0) return null
+    return data[Math.floor(Math.random() * data.length)]
+  } catch {
+    return null
+  }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
