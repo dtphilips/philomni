@@ -1250,7 +1250,44 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
   const [showEditMedia, setShowEditMedia] = useState(false)
   const [editSaving, setEditSaving] = useState(false)
   const menuRef = useRef()
+  const repostMenuRef = useRef()
   const isOwner = currentUser?.id === post.author_id
+  const postAuthorId = post.author_id || post.created_by
+
+  // Follow state
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [allowReposts, setAllowReposts] = useState(post.allow_reposts !== false)
+  const [showRepostMenu, setShowRepostMenu] = useState(false)
+  const [showQuoteModal, setShowQuoteModal] = useState(false)
+  const [quoteText, setQuoteText] = useState('')
+  const [quoting, setQuoting] = useState(false)
+
+  useEffect(() => {
+    if (!currentUser || isOwner) return
+    supabase.from('follows').select('id')
+      .eq('follower_id', currentUser.id)
+      .eq('following_id', postAuthorId)
+      .maybeSingle()
+      .then(({ data }) => setIsFollowing(!!data))
+  }, [currentUser, postAuthorId, isOwner])
+
+  useEffect(() => {
+    const fn = e => { if (repostMenuRef.current && !repostMenuRef.current.contains(e.target)) setShowRepostMenu(false) }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [])
+
+  const handleFollow = async () => {
+    if (!currentUser) { navigate('/login'); return }
+    if (isFollowing) {
+      await supabase.from('follows').delete()
+        .eq('follower_id', currentUser.id).eq('following_id', postAuthorId)
+      setIsFollowing(false)
+    } else {
+      await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: postAuthorId })
+      setIsFollowing(true)
+    }
+  }
 
   // Load gift summary for this post
   useEffect(() => {
@@ -1351,31 +1388,54 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
     }
   }
 
-  const handleRepost = async () => {
+  const doRepost = async (text = null) => {
     if (!currentUser || reposting) return
     setReposting(true)
     try {
-      const { data } = await supabase.from('posts').insert({
-        content: post.content,
-        media_urls: post.media_urls,
-        media_type: post.media_type,
+      const payload = {
         author_id: currentUser.id,
+        created_by: currentUser.id,
         author_name: currentUser.full_name ?? currentUser.email,
         author_avatar: currentUser.avatar_url ?? null,
         author_role: currentUser.role ?? null,
+        is_repost: true,
         repost_of: post.id,
+        original_user_id: postAuthorId,
+        repost_text: text || null,
         reposted_by: currentUser.id,
         reposted_by_name: currentUser.full_name,
+        // carry original content/media so the feed can render it
+        content: post.content,
+        media_urls: post.media_urls,
+        media_type: post.media_type,
         like_count: 0, comment_count: 0, repost_count: 0,
         visibility: 'public',
         created_at: new Date().toISOString(),
-      }).select().single()
+      }
+      const { data } = await supabase.from('posts').insert(payload).select().single()
       const newCount = repostCount + 1
       setRepostCount(newCount)
-      await supabase.from('posts').update({ repost_count: newCount }).eq('id', post.id)
+      await supabase.from('posts').update({
+        repost_count: newCount,
+        reposts_count: newCount,
+      }).eq('id', post.id)
       if (data) onRepost?.(data)
     } catch (err) { console.error(err) }
     setReposting(false)
+  }
+
+  const handleRepost = async () => {
+    setShowRepostMenu(false)
+    await doRepost(null)
+  }
+
+  const handleQuoteRepost = async () => {
+    if (!quoteText.trim()) return
+    setQuoting(true)
+    await doRepost(quoteText.trim())
+    setQuoting(false)
+    setShowQuoteModal(false)
+    setQuoteText('')
   }
 
   const handleDelete = async () => {
@@ -1423,21 +1483,50 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
         {post.reposted_by_name && (
           <div className="flex items-center gap-2 px-4 pt-3 pb-1 text-xs text-muted-foreground">
             <Repeat2 className="w-3.5 h-3.5" />
-            <span>{post.reposted_by_name} reposted</span>
+            <button onClick={() => navigate(`/profile/${post.reposted_by}`)}
+              className="hover:underline font-medium">
+              {post.reposted_by_name}
+            </button>
+            <span>{post.repost_text ? 'quoted' : 'reposted'}</span>
+          </div>
+        )}
+        {/* Quote repost text */}
+        {post.repost_text && (
+          <div className="mx-4 mt-2 px-3 py-2 bg-primary/5 border-l-2 border-primary/40 rounded-r-xl">
+            <p className="text-sm text-foreground">{post.repost_text}</p>
           </div>
         )}
 
-        {/* Header — use enriched post.author if available, fall back to denormalized fields */}
+        {/* Header */}
         <div className="flex items-start justify-between px-4 pt-4 pb-2">
-          <div className="flex items-center gap-3">
-            <Avatar src={post.author?.avatar_url || post.author_avatar} name={post.author?.full_name || post.author_name} size={11} />
-            <div>
-              <p className="text-sm font-bold text-foreground leading-tight flex items-center gap-1.5">
-                {post.author?.full_name || post.author_name || 'Creator'}
-                {spotlightWinnerId && post.author_id === spotlightWinnerId && (
-                  <SpotlightBadge size="sm" />
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {/* Clickable avatar */}
+            <button onClick={() => navigate(`/profile/${postAuthorId}`)}
+              className="flex-shrink-0 hover:opacity-80 transition-opacity">
+              <Avatar src={post.author?.avatar_url || post.author_avatar} name={post.author?.full_name || post.author_name} size={11} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Clickable name */}
+                <button onClick={() => navigate(`/profile/${postAuthorId}`)}
+                  className="text-sm font-bold text-foreground leading-tight hover:underline flex items-center gap-1.5">
+                  {post.author?.full_name || post.author_name || 'Creator'}
+                  {spotlightWinnerId && post.author_id === spotlightWinnerId && (
+                    <SpotlightBadge size="sm" />
+                  )}
+                </button>
+                {/* Follow button — only for other users' posts */}
+                {!isOwner && currentUser && (
+                  <button onClick={handleFollow}
+                    className={`text-xs px-2.5 py-0.5 rounded-full font-medium transition-all flex-shrink-0 ${
+                      isFollowing
+                        ? 'bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
+                        : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    }`}>
+                    {isFollowing ? 'Following' : 'Follow'}
+                  </button>
                 )}
-              </p>
+              </div>
               {(post.author_role || post.author_headline) && (
                 <p className="text-xs text-primary/80 leading-tight mt-0.5">{post.author_role ?? post.author_headline}</p>
               )}
@@ -1461,6 +1550,16 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
                     <button onClick={openEditModal}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">
                       <Edit3 className="w-4 h-4 text-muted-foreground" /> Edit post
+                    </button>
+                    <button onClick={async () => {
+                        const next = !allowReposts
+                        setAllowReposts(next)
+                        setShowMenu(false)
+                        await supabase.from('posts').update({ allow_reposts: next }).eq('id', post.id)
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">
+                      <Repeat2 className="w-4 h-4 text-muted-foreground" />
+                      {allowReposts ? 'Turn off reposts' : 'Turn on reposts'}
                     </button>
                     <div className="my-1 border-t border-border" />
                     <button onClick={handleDelete}
@@ -1575,12 +1674,44 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
             <span>Comment</span>
             {commentCount > 0 && <span className="text-xs opacity-70">{fmtCount(commentCount)}</span>}
           </button>
-          <button onClick={handleRepost} disabled={reposting}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/5 rounded-xl transition-all">
-            {reposting ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="text-base">🔁</span>}
-            <span>Repost</span>
-            {repostCount > 0 && <span className="text-xs opacity-70">{fmtCount(repostCount)}</span>}
-          </button>
+          <div className="relative flex-1" ref={repostMenuRef}>
+            {!allowReposts ? (
+              <div className="relative group flex-1 flex items-center justify-center">
+                <button disabled
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-muted-foreground/40 cursor-not-allowed rounded-xl">
+                  <span className="text-base">🔁</span>
+                  <span>Repost</span>
+                  {repostCount > 0 && <span className="text-xs opacity-70">{fmtCount(repostCount)}</span>}
+                </button>
+                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  Reposts turned off
+                </span>
+              </div>
+            ) : (
+              <>
+                <button onClick={() => setShowRepostMenu(v => !v)} disabled={reposting}
+                  className={`w-full flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold rounded-xl transition-all ${
+                    showRepostMenu ? 'text-emerald-500 bg-emerald-500/10' : 'text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/5'
+                  }`}>
+                  {reposting ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="text-base">🔁</span>}
+                  <span>Repost</span>
+                  {repostCount > 0 && <span className="text-xs opacity-70">{fmtCount(repostCount)}</span>}
+                </button>
+                {showRepostMenu && (
+                  <div className="absolute bottom-full left-0 mb-1 bg-popover border border-border rounded-2xl shadow-xl py-1.5 z-30 min-w-[160px]">
+                    <button onClick={handleRepost}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">
+                      <Repeat2 className="w-4 h-4 text-emerald-500" /> Repost
+                    </button>
+                    <button onClick={() => { setShowRepostMenu(false); setShowQuoteModal(true) }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors">
+                      <Edit3 className="w-4 h-4 text-primary" /> Quote Repost
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
           <button onClick={() => setShowShare(true)}
             className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-muted-foreground hover:text-blue-400 hover:bg-blue-500/5 rounded-xl transition-all">
             <span className="text-base">↗️</span>
@@ -1710,6 +1841,49 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
       })()}
 
       {showShare && <ShareModal post={post} currentUser={currentUser} onClose={() => setShowShare(false)} />}
+
+      {/* Quote Repost Modal */}
+      {showQuoteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowQuoteModal(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-lg bg-card border border-border rounded-3xl shadow-2xl p-6 mx-4"
+            onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-foreground mb-4">Quote Repost</h3>
+            {/* Original post preview */}
+            <div className="border border-border rounded-xl p-3 mb-4 bg-muted/30">
+              <div className="flex items-center gap-2 mb-2">
+                <Avatar src={post.author?.avatar_url || post.author_avatar} name={post.author?.full_name || post.author_name} size={7} />
+                <p className="text-xs font-semibold text-foreground">{post.author?.full_name || post.author_name}</p>
+              </div>
+              {post.content && (
+                <p className="text-xs text-muted-foreground line-clamp-3"
+                  dangerouslySetInnerHTML={{ __html: post.content }} />
+              )}
+              {Array.isArray(post.media_urls) && post.media_urls[0] && (
+                <img src={post.media_urls[0]} alt="" className="mt-2 w-full max-h-32 object-cover rounded-lg" />
+              )}
+            </div>
+            <textarea
+              value={quoteText}
+              onChange={e => setQuoteText(e.target.value)}
+              placeholder="Add your thoughts…"
+              rows={3}
+              className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none mb-4"
+            />
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => { setShowQuoteModal(false); setQuoteText('') }}
+                className="px-4 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleQuoteRepost} disabled={quoting || !quoteText.trim()}
+                className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors">
+                {quoting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Quote Repost
+              </button>
+            </div>
+          </div>
+        </div>
+      )}}
 
       {/* Tagged products drawer — Buy Now flow */}
       {showShop && <TaggedProductsDrawer tags={taggedProducts} onClose={() => setShowShop(false)} />}
