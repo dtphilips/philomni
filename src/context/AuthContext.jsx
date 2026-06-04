@@ -86,6 +86,17 @@ export const AuthProvider = ({ children }) => {
     supabase.auth.getSession()
       .then(({ data: { session }, error }) => {
         clearTimeout(cap)
+        // ROOT FIX for "all pages stuck on skeletons after returning to the tab":
+        // Supabase registers a visibilitychange listener that, on every tab
+        // return, acquires the auth lock and runs _recoverAndRefresh. After a
+        // REAL tab backgrounding that op can stall, and because it holds the
+        // lock, every subsequent getSession() (which each query calls to attach
+        // the JWT) queues behind it forever → eternal skeletons on all pages.
+        // stopAutoRefresh() removes that visibility listener. getSession awaits
+        // initializePromise, so by here the listener exists and we can remove it.
+        // The session stays in localStorage and queries read it on demand; we
+        // just no longer do any auth work on tab focus.
+        try { supabase.auth.stopAutoRefresh() } catch {}
         if (error) { console.error('getSession error:', error.message); setLoading(false); return }
         if (session?.user) {
           const now       = Math.floor(Date.now() / 1000)

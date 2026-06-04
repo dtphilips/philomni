@@ -2382,18 +2382,20 @@ export default function Feed() {
     window.__dlog?.('Feed fetchPosts START')
     loadingRef.current = true
     setLoading(true)
-    // Hard timeout so a hung Supabase call (e.g. mid token-refresh) can never
-    // leave the feed stuck on skeletons forever — abort after 10s and recover.
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10_000)
+
+    // Race the WHOLE operation against a reject-timeout. Unlike an AbortSignal
+    // (which only cancels the HTTP fetch), this also unblocks a stall that
+    // happens BEFORE the fetch — e.g. supabase getSession() queued behind a
+    // visibility-triggered auth op after a real tab backgrounding. On timeout we
+    // reject, clear the skeleton, keep cached posts, and let a later trigger retry.
+    const withTimeout = (p, ms = 12_000) =>
+      Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
+
     try {
       // Fetch posts — same query for everyone (no user_id filter on main feed)
-      const { data: rawPosts, error } = await supabase
-        .from('posts')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(FEED_LIMIT)
-        .abortSignal(controller.signal)
+      const { data: rawPosts, error } = await withTimeout(
+        supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(FEED_LIMIT)
+      )
 
       if (error) throw error
       const fetched = rawPosts || []
@@ -2403,11 +2405,9 @@ export default function Feed() {
       let enriched = fetched
       const userIds = [...new Set(fetched.map(p => p.created_by || p.author_id).filter(Boolean))]
       if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('users')
-          .select('id, full_name, avatar_url, plan')
-          .in('id', userIds)
-          .abortSignal(controller.signal)
+        const { data: profiles } = await withTimeout(
+          supabase.from('users').select('id, full_name, avatar_url, plan').in('id', userIds)
+        )
         if (profiles?.length) {
           enriched = fetched.map(post => ({
             ...post,
@@ -2424,13 +2424,11 @@ export default function Feed() {
       window.__dlog?.(`Feed fetchPosts END ${enriched.length} posts ${Math.round(performance.now() - t0)}ms`)
 
     } catch (err) {
-      const msg = controller.signal.aborted ? 'request timed out' : err.message
-      console.error('[Feed] fetchPosts ERROR:', msg)
-      window.__dlog?.(`Feed fetchPosts ERROR: ${msg}`)
+      console.error('[Feed] fetchPosts ERROR:', err.message)
+      window.__dlog?.(`Feed fetchPosts ERROR: ${err.message}`)
       // Only surface an error if we have nothing to show — keep cached posts otherwise
-      if (posts.length === 0) setFeedError(msg)
+      if (posts.length === 0) setFeedError(err.message)
     } finally {
-      clearTimeout(timeoutId)
       loadingRef.current = false
       setLoading(false)
     }

@@ -25,6 +25,27 @@ import { createClient } from '@supabase/supabase-js'
 // Tried and rejected: autoRefreshToken:true + no-op lock (refresh races → hang),
 // autoRefreshToken:true + in-tab chain lock (one stalled op poisons all later
 // ops), autoRefreshToken:true + default lock (stalled refresh holds the lock).
+
+// ─── Global fetch timeout ─────────────────────────────────────────────────────
+// On REAL tab backgrounding the browser suspends the page and tears down sockets;
+// on return a Supabase request can stall indefinitely (the request never settles),
+// leaving every page stuck on skeletons. A correctly-scoped per-request timeout
+// converts that eternal stall into a quick rejection so the query layer can
+// recover/retry instead of hanging forever. Respects any caller-supplied
+// AbortSignal (e.g. PostgREST .abortSignal()) so it never breaks intentional
+// aborts — this is NOT the shared-controller override that regressed before.
+const REQUEST_TIMEOUT_MS = 15000
+function fetchWithTimeout(input, init = {}) {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(new DOMException('Request timed out', 'TimeoutError')), REQUEST_TIMEOUT_MS)
+  const caller = init.signal
+  if (caller) {
+    if (caller.aborted) ctrl.abort(caller.reason)
+    else caller.addEventListener('abort', () => ctrl.abort(caller.reason), { once: true })
+  }
+  return fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer))
+}
+
 export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -36,5 +57,6 @@ export const supabase = createClient(
       detectSessionInUrl: true,
       lock: (_name, _acquireTimeout, fn) => fn(),
     },
+    global: { fetch: fetchWithTimeout },
   }
 )
