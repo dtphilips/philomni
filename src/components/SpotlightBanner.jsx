@@ -21,12 +21,15 @@ export default function SpotlightBanner() {
   const [loaded, setLoaded]       = useState(false)
 
   useEffect(() => {
-    const currentMonth = new Date().toISOString().slice(0, 7)
+    // Fetch the currently-active winner. NOTE: `month` is a Postgres `date`
+    // column, so filtering it with a "YYYY-MM" string (e.g. "2026-06") throws
+    // 400 "invalid input syntax for type date". Filter by is_active instead.
     supabase
       .from('spotlight_winners')
       .select('*')
-      .eq('month', currentMonth)
       .eq('is_active', true)
+      .order('month', { ascending: false })
+      .limit(1)
       .maybeSingle()
       .then(async ({ data: w }) => {
         if (!w) { setLoaded(true); return }

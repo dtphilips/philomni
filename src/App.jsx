@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect } from 'react'
+import React, { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ModeProvider } from './context/ModeContext'
@@ -7,7 +7,6 @@ import { MusicProvider } from './context/MusicContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
-import DebugHUD from './components/DebugHUD'
 
 // ─── Lazy-loaded pages — each becomes its own JS chunk ────────────────────────
 // Auth
@@ -191,8 +190,6 @@ const queryClient = new QueryClient({
 
 // ─── Page loading fallback ────────────────────────────────────────────────────
 function PageLoader() {
-  // TEMP diagnostic — log AFTER commit (not during render) to avoid setState-in-render
-  useEffect(() => { window.__dlog?.('PageLoader (Suspense fallback) shown') }, [])
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -237,7 +234,6 @@ export default function App() {
       <SubscriptionProvider>
       <MusicProvider>
       <ModeProvider>
-        <DebugHUD />
         <BrowserRouter>
           {/* Outer Suspense catches the very first bundle evaluation only */}
           <Suspense fallback={<PageLoader />}>

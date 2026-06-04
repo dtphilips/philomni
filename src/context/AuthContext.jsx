@@ -113,9 +113,6 @@ export const AuthProvider = ({ children }) => {
       .catch(err => { clearTimeout(cap); console.error('getSession threw:', err); setLoading(false) })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log(`[Auth] ${event} — user=${session?.user?.id?.slice(0,8) ?? 'none'} profile=${!!profileRef.current}`)
-      window.__dlog?.(`Auth ${event} user=${session?.user?.id?.slice(0,4) ?? 'none'} prof=${!!profileRef.current}`)
-
       if (event === 'SIGNED_OUT') {
         // Defer clearing state — Supabase fires SIGNED_OUT mid-refresh then
         // immediately follows with SIGNED_IN/TOKEN_REFRESHED on success.

@@ -2349,12 +2349,6 @@ export default function Feed() {
   const pageRef = useRef(0)
   const loadingRef = useRef(_feedPostsCache.length === 0) // mirrors `loading` for callbacks
 
-  // TEMP diagnostic — confirms whether Feed remounts on tab return
-  useEffect(() => {
-    window.__dlog?.(`Feed MOUNT (cache=${_feedPostsCache.length})`)
-    return () => window.__dlog?.('Feed UNMOUNT')
-  }, [])
-
   // Load a sponsored ad for injection
   useEffect(() => { fetchFeedAd().then(setFeedAd) }, [])
 
@@ -2377,9 +2371,6 @@ export default function Feed() {
   const FEED_LIMIT = 50
 
   const fetchPosts = async () => {
-    const t0 = performance.now()
-    console.log('[Feed] fetchPosts START')
-    window.__dlog?.('Feed fetchPosts START')
     loadingRef.current = true
     setLoading(true)
 
@@ -2420,12 +2411,9 @@ export default function Feed() {
       setPosts(enriched)
       setFeedError(null)
       if (fetched.length < FEED_LIMIT) setHasMore(false)
-      console.log(`[Feed] fetchPosts END — ${enriched.length} posts in ${Math.round(performance.now() - t0)}ms`)
-      window.__dlog?.(`Feed fetchPosts END ${enriched.length} posts ${Math.round(performance.now() - t0)}ms`)
 
     } catch (err) {
-      console.error('[Feed] fetchPosts ERROR:', err.message)
-      window.__dlog?.(`Feed fetchPosts ERROR: ${err.message}`)
+      console.error('[Feed] fetchPosts error:', err.message)
       // Only surface an error if we have nothing to show — keep cached posts otherwise
       if (posts.length === 0) setFeedError(err.message)
     } finally {
