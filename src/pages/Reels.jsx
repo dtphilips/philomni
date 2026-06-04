@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import {
   Heart, MessageCircle, Share2, Music, Plus, Volume2, VolumeX,
   Play, Pause, Bookmark, MoreHorizontal, X, Upload,
+  Edit3, Trash2, BarChart2, Rocket, Flag, EyeOff, Link2, User,
+  MessageCircleOff,
 } from 'lucide-react'
 
 // ─── Sample reels shown when DB has no video posts ───────────────────────────
@@ -16,9 +18,7 @@ const SAMPLE_REELS = [
     media_type: 'video',
     author_name: 'Philomni',
     author_avatar: null,
-    likes_count: 1240,
-    comments_count: 89,
-    shares_count: 45,
+    likes_count: 1240, comments_count: 89, shares_count: 45, views_count: 0, saves_count: 0,
     created_at: new Date().toISOString(),
   },
   {
@@ -28,9 +28,7 @@ const SAMPLE_REELS = [
     media_type: 'video',
     author_name: 'Philomni Team',
     author_avatar: null,
-    likes_count: 892,
-    comments_count: 34,
-    shares_count: 28,
+    likes_count: 892, comments_count: 34, shares_count: 28, views_count: 0, saves_count: 0,
     created_at: new Date().toISOString(),
   },
   {
@@ -40,15 +38,14 @@ const SAMPLE_REELS = [
     media_type: 'video',
     author_name: 'Creator',
     author_avatar: null,
-    likes_count: 567,
-    comments_count: 23,
-    shares_count: 12,
+    likes_count: 567, comments_count: 23, shares_count: 12, views_count: 0, saves_count: 0,
     created_at: new Date().toISOString(),
   },
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function formatCount(n) {
+  if (!n) return '0'
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
   return String(n)
@@ -78,8 +75,7 @@ function CommentsDrawer({ reel, onClose }) {
 
   useEffect(() => {
     if (!reel?.id || reel.id.startsWith('sample')) return
-    supabase
-      .from('comments')
+    supabase.from('comments')
       .select('*, users(full_name, avatar_url)')
       .eq('post_id', reel.id)
       .order('created_at', { ascending: false })
@@ -89,8 +85,7 @@ function CommentsDrawer({ reel, onClose }) {
 
   const handlePost = async () => {
     if (!text.trim() || !user || reel.id.startsWith('sample')) return
-    const { data } = await supabase
-      .from('comments')
+    const { data } = await supabase.from('comments')
       .insert({ post_id: reel.id, content: text.trim(), user_id: user.id })
       .select('*, users(full_name, avatar_url)')
       .single()
@@ -100,10 +95,8 @@ function CommentsDrawer({ reel, onClose }) {
 
   return (
     <div className="absolute inset-0 z-30 flex items-end" onClick={onClose}>
-      <div
-        className="w-full bg-zinc-900 rounded-t-2xl max-h-[65%] flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="w-full bg-zinc-900 rounded-t-2xl max-h-[65%] flex flex-col"
+        onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <span className="text-white font-semibold">Comments</span>
           <button onClick={onClose}><X className="w-5 h-5 text-white/60" /></button>
@@ -125,17 +118,12 @@ function CommentsDrawer({ reel, onClose }) {
           ))}
         </div>
         <div className="flex gap-2 p-3 border-t border-white/10">
-          <input
-            value={text}
-            onChange={e => setText(e.target.value)}
+          <input value={text} onChange={e => setText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handlePost()}
             placeholder="Add a comment…"
-            className="flex-1 bg-white/10 text-white placeholder-white/40 rounded-full px-4 py-2 text-sm outline-none"
-          />
-          <button
-            onClick={handlePost}
-            className="bg-purple-600 text-white text-sm px-4 py-2 rounded-full hover:bg-purple-700 transition"
-          >
+            className="flex-1 bg-white/10 text-white placeholder-white/40 rounded-full px-4 py-2 text-sm outline-none" />
+          <button onClick={handlePost}
+            className="bg-purple-600 text-white text-sm px-4 py-2 rounded-full hover:bg-purple-700 transition">
             Post
           </button>
         </div>
@@ -169,15 +157,15 @@ function UploadModal({ onClose, onUploaded }) {
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(up.path)
       await supabase.from('posts').insert({
-        content:      caption,
-        media_type:   'video',
-        feed_type:    'reel',
-        media_urls:   [publicUrl],
-        created_by:   user.id,
-        author_id:    user.id,
-        author_name:  user.full_name ?? user.email ?? 'Creator',
+        content: caption,
+        media_type: 'video',
+        feed_type: 'reel',
+        media_urls: [publicUrl],
+        created_by: user.id,
+        author_id: user.id,
+        author_name: user.full_name ?? user.email ?? 'Creator',
         author_avatar: user.avatar_url ?? null,
-        created_at:   new Date().toISOString(),
+        created_at: new Date().toISOString(),
       })
       onUploaded()
       onClose()
@@ -190,10 +178,8 @@ function UploadModal({ onClose, onUploaded }) {
 
   return (
     <div className="absolute inset-0 z-40 bg-black/80 flex items-end" onClick={onClose}>
-      <div
-        className="w-full bg-zinc-900 rounded-t-2xl p-4 space-y-4"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="w-full bg-zinc-900 rounded-t-2xl p-4 space-y-4"
+        onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <span className="text-white font-semibold text-lg">Upload Reel</span>
           <button onClick={onClose}><X className="w-5 h-5 text-white/60" /></button>
@@ -202,33 +188,23 @@ function UploadModal({ onClose, onUploaded }) {
         {preview ? (
           <div className="relative aspect-[9/16] max-h-48 mx-auto rounded-xl overflow-hidden bg-black">
             <video src={preview} className="w-full h-full object-cover" />
-            <button
-              onClick={() => { setFile(null); setPreview(null) }}
-              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white"
-            >
+            <button onClick={() => { setFile(null); setPreview(null) }}
+              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white">
               <X className="w-4 h-4" />
             </button>
           </div>
         ) : (
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="w-full h-32 border-2 border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-white/40 hover:border-purple-500 hover:text-purple-400 transition"
-          >
+          <button onClick={() => fileRef.current?.click()}
+            className="w-full h-32 border-2 border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-white/40 hover:border-purple-500 hover:text-purple-400 transition">
             <Upload className="w-8 h-8" />
             <p className="text-sm">Tap to select a video</p>
           </button>
         )}
-        <textarea
-          value={caption}
-          onChange={e => setCaption(e.target.value)}
+        <textarea value={caption} onChange={e => setCaption(e.target.value)}
           placeholder="Write a caption…"
-          className="w-full bg-white/10 text-white placeholder-white/40 rounded-xl px-4 py-3 text-sm resize-none h-20 outline-none"
-        />
-        <button
-          onClick={handleUpload}
-          disabled={!file || uploading}
-          className="w-full bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition disabled:opacity-50"
-        >
+          className="w-full bg-white/10 text-white placeholder-white/40 rounded-xl px-4 py-3 text-sm resize-none h-20 outline-none" />
+        <button onClick={handleUpload} disabled={!file || uploading}
+          className="w-full bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition disabled:opacity-50">
           {uploading ? 'Uploading…' : 'Share Reel'}
         </button>
       </div>
@@ -236,79 +212,360 @@ function UploadModal({ onClose, onUploaded }) {
   )
 }
 
+// ─── Edit Caption Modal ───────────────────────────────────────────────────────
+function EditCaptionModal({ reel, onClose, onSaved }) {
+  const [caption, setCaption] = useState(reel.content?.replace(/<[^>]*>/g, '') ?? '')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    await supabase.from('posts').update({ content: caption }).eq('id', reel.id)
+    onSaved(caption)
+    onClose()
+    setSaving(false)
+  }
+
+  return (
+    <div className="absolute inset-0 z-50 bg-black/80 flex items-end" onClick={onClose}>
+      <div className="w-full bg-zinc-900 rounded-t-2xl p-5 space-y-4"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <span className="text-white font-semibold text-lg">Edit Caption</span>
+          <button onClick={onClose}><X className="w-5 h-5 text-white/60" /></button>
+        </div>
+        <textarea value={caption} onChange={e => setCaption(e.target.value)}
+          rows={4} placeholder="Write a caption…"
+          className="w-full bg-white/10 text-white placeholder-white/40 rounded-xl px-4 py-3 text-sm resize-none outline-none" />
+        <div className="flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-3 rounded-xl border border-white/20 text-white/60 text-sm">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-3 rounded-xl bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Insights Panel ───────────────────────────────────────────────────────────
+function InsightsPanel({ reel, onClose }) {
+  const [insights, setInsights] = useState(null)
+
+  useEffect(() => {
+    const load = async () => {
+      // Use the reel's own count fields as primary source
+      // video_analytics uses video_id column — query it for watch time data
+      const { data } = await supabase.from('video_analytics')
+        .select('views, watch_time')
+        .eq('video_id', reel.id)
+        .catch(() => ({ data: null }))
+
+      const analyticsViews = data?.reduce((a, r) => a + (r.views || 0), 0) ?? 0
+      const totalWatchTime = data?.reduce((a, r) => a + (r.watch_time || 0), 0) ?? 0
+      const totalViews = reel.views_count || reel.view_count || analyticsViews || 0
+      // Estimate completion rate: if avg watch_time >= video duration proxy (assume 30s avg)
+      const completionRate = totalViews > 0 && totalWatchTime > 0
+        ? Math.min(100, Math.round((totalWatchTime / (totalViews * 30)) * 100))
+        : 0
+
+      setInsights({
+        views:          totalViews,
+        likes:          reel.likes_count  ?? reel.like_count    ?? 0,
+        comments:       reel.comments_count ?? reel.comment_count ?? 0,
+        saves:          reel.saves_count  ?? reel.save_count    ?? 0,
+        shares:         reel.shares_count ?? reel.share_count   ?? 0,
+        completionRate,
+      })
+    }
+    load()
+  }, [reel.id])
+
+  return (
+    <div className="absolute inset-0 z-40 bg-black/80 flex items-end">
+      <div className="w-full bg-zinc-900 rounded-t-2xl p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-white font-bold text-lg">Reel Insights</h3>
+          <button onClick={onClose}><X className="w-5 h-5 text-white/60" /></button>
+        </div>
+        {!insights ? (
+          <div className="flex justify-center py-8">
+            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Views',      value: formatCount(insights.views),      icon: '👁️' },
+              { label: 'Likes',      value: formatCount(insights.likes),      icon: '❤️' },
+              { label: 'Comments',   value: formatCount(insights.comments),   icon: '💬' },
+              { label: 'Saves',      value: formatCount(insights.saves),      icon: '🔖' },
+              { label: 'Shares',     value: formatCount(insights.shares),     icon: '🔄' },
+              { label: 'Completion', value: insights.completionRate + '%',    icon: '✅' },
+            ].map(stat => (
+              <div key={stat.label} className="bg-white/10 rounded-xl p-3 text-center">
+                <div className="text-2xl mb-1">{stat.icon}</div>
+                <div className="text-white font-bold text-lg">{stat.value}</div>
+                <div className="text-white/50 text-xs">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-white/30 text-xs text-center mt-4">Stats update every few minutes</p>
+      </div>
+    </div>
+  )
+}
+
+// ─── Report Sheet ─────────────────────────────────────────────────────────────
+function ReportSheet({ onClose }) {
+  const [reported, setReported] = useState(false)
+  const options = ["It's spam", 'Inappropriate content', 'Hate speech', 'Violence', 'False information', 'Other']
+
+  if (reported) return (
+    <div className="absolute inset-0 z-50 bg-black/70 flex items-center justify-center">
+      <div className="bg-zinc-900 rounded-2xl p-6 text-center mx-6">
+        <div className="text-4xl mb-3">✅</div>
+        <p className="text-white font-semibold mb-1">Report submitted</p>
+        <p className="text-white/50 text-sm mb-4">Thanks for helping keep Philomni safe.</p>
+        <button onClick={onClose} className="px-6 py-2 bg-purple-600 text-white rounded-full text-sm">Done</button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="absolute inset-0 z-50 bg-black/60 flex items-end" onClick={onClose}>
+      <div className="w-full bg-zinc-900 rounded-t-2xl p-4"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-white font-semibold">Report</span>
+          <button onClick={onClose}><X className="w-5 h-5 text-white/60" /></button>
+        </div>
+        <p className="text-white/50 text-sm mb-3">Why are you reporting this?</p>
+        <div className="space-y-1">
+          {options.map(opt => (
+            <button key={opt} onClick={() => setReported(true)}
+              className="w-full text-left px-4 py-3 text-white rounded-xl hover:bg-white/10 transition text-sm">
+              {opt}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Single Reel Slide ────────────────────────────────────────────────────────
-function ReelSlide({ reel, index, isMuted, onMuteToggle, videoRefsCallback, onActivate }) {
+function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsCallback, onActivate, onHide }) {
+  const [reel, setReel] = useState(initialReel)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showPlayIcon, setShowPlayIcon] = useState(false)
+
+  // Like
   const [liked, setLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(reel.likes_count ?? 0)
+
+  // Save
   const [saved, setSaved] = useState(false)
+
+  // Follow
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followLoading, setFollowLoading] = useState(false)
+
+  // Overlays
   const [showComments, setShowComments] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const [showEditCaption, setShowEditCaption] = useState(false)
+  const [showInsights, setShowInsights] = useState(false)
+  const [showReport, setShowReport] = useState(false)
+
   const videoRef = useRef(null)
+  const viewTracked = useRef(false)
+  const viewTimerRef = useRef(null)
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  // Register ref in parent array
-  useEffect(() => {
-    videoRefsCallback(index, videoRef)
-  }, [index, videoRefsCallback])
+  const authorId = reel.author_id ?? reel.created_by
+  const isOwnReel = !!user && !!authorId && user.id === authorId
+  const isSample = reel.id.startsWith('sample')
 
+  // Register video ref in parent map
+  useEffect(() => { videoRefsCallback(index, videoRef) }, [index, videoRefsCallback])
+
+  // Check liked status on mount
+  useEffect(() => {
+    if (!user || isSample) return
+    supabase.from('likes').select('id').eq('post_id', reel.id).eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => setLiked(!!data))
+  }, [user, reel.id, isSample])
+
+  // Check saved status on mount
+  useEffect(() => {
+    if (!user || isSample) return
+    supabase.from('saved_posts').select('id').eq('post_id', reel.id).eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => setSaved(!!data))
+  }, [user, reel.id, isSample])
+
+  // Check follow status on mount
+  useEffect(() => {
+    if (!user || !authorId || isOwnReel || isSample) return
+    supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', authorId).maybeSingle()
+      .then(({ data }) => setIsFollowing(!!data))
+  }, [user, authorId, isOwnReel, isSample])
+
+  // Sync muted attribute
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = isMuted
+  }, [isMuted])
+
+  // Handlers
   const handleVideoClick = () => {
     const vid = videoRef.current
     if (!vid) return
-    if (vid.paused) {
-      vid.play().catch(() => {})
-      setIsPlaying(true)
-    } else {
-      vid.pause()
-      setIsPlaying(false)
-    }
+    if (vid.paused) { vid.play().catch(() => {}); setIsPlaying(true) }
+    else { vid.pause(); setIsPlaying(false) }
     setShowPlayIcon(true)
     setTimeout(() => setShowPlayIcon(false), 800)
   }
 
-  const handleLike = () => {
-    setLiked(l => !l)
-    setLikeCount(c => liked ? c - 1 : c + 1)
-    if (!reel.id.startsWith('sample') && user) {
-      supabase.from('likes').insert({ post_id: reel.id, user_id: user.id }).then(() => {})
+  const handleLike = async () => {
+    if (!user) { navigate('/login'); return }
+    if (isSample) { setLiked(l => !l); setLikeCount(c => liked ? c - 1 : c + 1); return }
+    if (liked) {
+      await supabase.from('likes').delete().eq('post_id', reel.id).eq('user_id', user.id)
+      await supabase.from('posts').update({ likes_count: Math.max(0, likeCount - 1) }).eq('id', reel.id)
+      setLiked(false); setLikeCount(c => Math.max(0, c - 1))
+    } else {
+      await supabase.from('likes').insert({ post_id: reel.id, user_id: user.id })
+      await supabase.from('posts').update({ likes_count: likeCount + 1 }).eq('id', reel.id)
+      setLiked(true); setLikeCount(c => c + 1)
     }
+  }
+
+  const handleSave = async () => {
+    if (!user) { navigate('/login'); return }
+    if (isSample) { setSaved(s => !s); return }
+    if (saved) {
+      await supabase.from('saved_posts').delete().eq('post_id', reel.id).eq('user_id', user.id)
+      await supabase.from('posts').update({ saves_count: Math.max(0, (reel.saves_count ?? 0) - 1) }).eq('id', reel.id)
+      setSaved(false)
+    } else {
+      await supabase.from('saved_posts').insert({ post_id: reel.id, user_id: user.id })
+      await supabase.from('posts').update({ saves_count: (reel.saves_count ?? 0) + 1 }).eq('id', reel.id)
+      setSaved(true)
+    }
+  }
+
+  const handleFollow = async () => {
+    if (!user) { navigate('/login'); return }
+    if (!authorId || isSample) return
+    setFollowLoading(true)
+    if (isFollowing) {
+      await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', authorId)
+      setIsFollowing(false)
+    } else {
+      await supabase.from('follows').insert({ follower_id: user.id, following_id: authorId })
+      setIsFollowing(true)
+    }
+    setFollowLoading(false)
   }
 
   const handleShare = () => {
     navigator.clipboard.writeText(`${window.location.origin}/reels/${reel.id}`).catch(() => {})
   }
 
-  const videoSrc   = getVideoUrl(reel)
+  const handleDeleteReel = async () => {
+    setShowMenu(false)
+    if (!window.confirm('Delete this reel?')) return
+    await supabase.from('posts').delete().eq('id', reel.id)
+    onHide(reel.id)
+  }
+
+  const handleToggleComments = async () => {
+    setShowMenu(false)
+    const next = !reel.comments_disabled
+    await supabase.from('posts').update({ comments_disabled: next }).eq('id', reel.id)
+    setReel(r => ({ ...r, comments_disabled: next }))
+  }
+
+  // Own-reel menu items
+  const ownerMenuItems = [
+    { label: 'Edit Caption',       icon: Edit3,           action: () => { setShowMenu(false); setShowEditCaption(true) } },
+    { label: 'See Insights',       icon: BarChart2,        action: () => { setShowMenu(false); setShowInsights(true) } },
+    { label: 'Boost Post',         icon: Rocket,           action: () => { setShowMenu(false); navigate(`/advertise?tab=boost&postId=${reel.id}`) } },
+    { label: reel.comments_disabled ? 'Turn on comments' : 'Turn off comments',
+                                   icon: MessageCircleOff, action: handleToggleComments },
+    { label: 'Delete Reel',        icon: Trash2,           action: handleDeleteReel, danger: true },
+  ]
+
+  // Other-user menu items
+  const otherMenuItems = [
+    { label: 'Report',             icon: Flag,   action: () => { setShowMenu(false); setShowReport(true) } },
+    { label: 'Not interested',     icon: EyeOff, action: () => { setShowMenu(false); onHide(reel.id) } },
+    { label: 'Copy link',          icon: Link2,  action: () => { handleShare(); setShowMenu(false) } },
+    { label: 'About this account', icon: User,   action: () => { setShowMenu(false); authorId && navigate(`/profile/${authorId}`) } },
+  ]
+
+  const menuItems = isOwnReel ? ownerMenuItems : otherMenuItems
+
+  const videoSrc    = getVideoUrl(reel)
   const authorName  = reel.author_name  ?? reel.users?.full_name  ?? 'Creator'
   const authorAvatar = reel.author_avatar ?? reel.users?.avatar_url ?? null
 
   return (
-    <div
-      className="relative h-screen w-full snap-start bg-black flex items-center justify-center flex-shrink-0"
-      data-index={index}
-    >
+    <div className="relative h-screen w-full snap-start bg-black flex items-center justify-center flex-shrink-0"
+      data-index={index}>
+
       {/* Video */}
       {videoSrc ? (
         <video
           ref={videoRef}
           src={videoSrc}
           className="h-full w-full object-cover"
-          loop
-          playsInline
-          muted={isMuted}
-          preload="metadata"
+          loop playsInline muted={isMuted} preload="metadata"
           data-index={index}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           onClick={handleVideoClick}
           onError={e => console.warn('[Reels] video error', videoSrc, e)}
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+          onPlay={() => {
+            setIsPlaying(true)
+            if (!viewTracked.current && !isSample) {
+              viewTimerRef.current = setTimeout(async () => {
+                if (viewTracked.current) return
+                viewTracked.current = true
+                await supabase.from('posts')
+                  .update({ views_count: (reel.views_count ?? 0) + 1 })
+                  .eq('id', reel.id)
+                // video_analytics uses video_id/views/watch_time/created_by
+                supabase.from('video_analytics').insert({
+                  video_id: reel.id,
+                  views: 1,
+                  watch_time: 3,
+                  created_by: user?.id ?? null,
+                }).catch(() => {})
+              }, 3000)
+            }
+          }}
+          onPause={() => {
+            setIsPlaying(false)
+            clearTimeout(viewTimerRef.current)
+          }}
+          onEnded={() => {
+            if (!viewTracked.current || isSample) return
+            supabase.from('video_analytics').insert({
+              video_id: reel.id,
+              views: 0,
+              watch_time: Math.round(videoRef.current?.duration ?? 0),
+              created_by: user?.id ?? null,
+            }).catch(() => {})
+          }}
         />
       ) : (
-        <div
-          className="w-full h-full bg-gradient-to-br from-purple-900/60 to-black flex items-center justify-center p-8"
-          onClick={handleVideoClick}
-        >
+        <div className="w-full h-full bg-gradient-to-br from-purple-900/60 to-black flex items-center justify-center p-8"
+          onClick={handleVideoClick}>
           <p className="text-white text-xl font-bold text-center">{reel.content}</p>
         </div>
       )}
@@ -317,9 +574,7 @@ function ReelSlide({ reel, index, isMuted, onMuteToggle, videoRefsCallback, onAc
       {showPlayIcon && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-black/40 rounded-full p-5">
-            {isPlaying
-              ? <Pause className="w-12 h-12 text-white" />
-              : <Play className="w-12 h-12 text-white" />}
+            {isPlaying ? <Pause className="w-12 h-12 text-white" /> : <Play className="w-12 h-12 text-white" />}
           </div>
         </div>
       )}
@@ -339,21 +594,36 @@ function ReelSlide({ reel, index, isMuted, onMuteToggle, videoRefsCallback, onAc
         </div>
       </div>
 
-      {/* Bottom author + caption */}
+      {/* Bottom: author + caption */}
       <div className="absolute bottom-0 left-0 right-16 p-4 pb-6 bg-gradient-to-t from-black/80 to-transparent pointer-events-none">
-        <div className="flex items-center gap-3 mb-3 pointer-events-auto">
+        {/* Clickable author row */}
+        <div
+          onClick={() => !isSample && authorId && navigate(`/profile/${authorId}`)}
+          className={`flex items-center gap-3 mb-3 pointer-events-auto ${!isSample && authorId ? 'cursor-pointer' : ''}`}
+        >
           <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center overflow-hidden border-2 border-white flex-shrink-0">
             {authorAvatar
               ? <img src={authorAvatar} alt="" className="w-full h-full object-cover" />
               : <span className="text-white text-sm font-bold">{authorName[0]}</span>}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white font-semibold text-sm truncate">{authorName}</p>
+            <p className="text-white font-semibold text-sm truncate hover:underline">{authorName}</p>
             <p className="text-white/60 text-xs">{new Date(reel.created_at).toLocaleDateString()}</p>
           </div>
-          <button className="border border-white/70 text-white text-xs px-3 py-1 rounded-full hover:bg-white hover:text-black transition">
-            Follow
-          </button>
+          {/* Follow button — only for other users */}
+          {!isOwnReel && (
+            <button
+              onClick={e => { e.stopPropagation(); handleFollow() }}
+              disabled={followLoading}
+              className={`text-xs px-3 py-1 rounded-full border transition font-medium flex-shrink-0 ${
+                isFollowing
+                  ? 'border-white/40 text-white/60 bg-white/10'
+                  : 'border-white text-white hover:bg-white hover:text-black'
+              }`}
+            >
+              {isFollowing ? 'Following' : 'Follow'}
+            </button>
+          )}
         </div>
 
         {reel.content && (
@@ -377,8 +647,12 @@ function ReelSlide({ reel, index, isMuted, onMuteToggle, videoRefsCallback, onAc
           <span className="text-white text-xs">{formatCount(likeCount)}</span>
         </button>
 
-        <button onClick={() => setShowComments(true)} className="flex flex-col items-center gap-1">
-          <div className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white">
+        <button
+          onClick={() => !reel.comments_disabled && setShowComments(true)}
+          className="flex flex-col items-center gap-1"
+          title={reel.comments_disabled ? 'Comments turned off' : undefined}
+        >
+          <div className={`w-10 h-10 rounded-full bg-black/40 flex items-center justify-center ${reel.comments_disabled ? 'text-white/30' : 'text-white'}`}>
             <MessageCircle className="w-6 h-6" />
           </div>
           <span className="text-white text-xs">{formatCount(reel.comments_count ?? 0)}</span>
@@ -391,42 +665,82 @@ function ReelSlide({ reel, index, isMuted, onMuteToggle, videoRefsCallback, onAc
           <span className="text-white text-xs">{formatCount(reel.shares_count ?? 0)}</span>
         </button>
 
-        <button onClick={() => setSaved(s => !s)} className="flex flex-col items-center gap-1">
+        <button onClick={handleSave} className="flex flex-col items-center gap-1">
           <div className={`w-10 h-10 rounded-full bg-black/40 flex items-center justify-center ${saved ? 'text-yellow-400' : 'text-white'}`}>
             <Bookmark className="w-6 h-6" fill={saved ? 'currentColor' : 'none'} />
           </div>
           <span className="text-white text-xs">Save</span>
         </button>
 
-        <button className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white">
+        <button onClick={() => setShowMenu(true)}
+          className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white">
           <MoreHorizontal className="w-6 h-6" />
         </button>
       </div>
 
-      {/* Comments drawer */}
-      {showComments && (
-        <CommentsDrawer reel={reel} onClose={() => setShowComments(false)} />
+      {/* ── Three-dot menu (bottom sheet) ── */}
+      {showMenu && (
+        <div className="absolute inset-0 z-40 bg-black/60" onClick={() => setShowMenu(false)}>
+          <div className="absolute bottom-0 left-0 right-0 bg-zinc-900 rounded-t-2xl p-4 space-y-1"
+            onClick={e => e.stopPropagation()}>
+            {menuItems.map(item => (
+              <button key={item.label} onClick={item.action}
+                className={`w-full text-left px-4 py-3 rounded-xl hover:bg-white/10 transition flex items-center gap-3 ${
+                  item.danger ? 'text-red-400' : 'text-white'
+                }`}>
+                <item.icon className={`w-5 h-5 ${item.danger ? 'text-red-400' : 'text-white/60'}`} />
+                {item.label}
+              </button>
+            ))}
+            <button onClick={() => setShowMenu(false)}
+              className="w-full text-center px-4 py-3 text-white/40 text-sm mt-2">
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
+      {/* Comments drawer */}
+      {showComments && <CommentsDrawer reel={reel} onClose={() => setShowComments(false)} />}
+
       {/* Upload modal */}
-      {showUpload && (
-        <UploadModal onClose={() => setShowUpload(false)} onUploaded={() => {}} />
+      {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUploaded={() => {}} />}
+
+      {/* Edit caption modal */}
+      {showEditCaption && (
+        <EditCaptionModal
+          reel={reel}
+          onClose={() => setShowEditCaption(false)}
+          onSaved={(newCaption) => setReel(r => ({ ...r, content: newCaption }))}
+        />
       )}
+
+      {/* Insights panel */}
+      {showInsights && <InsightsPanel reel={reel} onClose={() => setShowInsights(false)} />}
+
+      {/* Report sheet */}
+      {showReport && <ReportSheet onClose={() => setShowReport(false)} />}
     </div>
   )
 }
 
 // ─── Main Reels Page ──────────────────────────────────────────────────────────
 export default function Reels() {
-  const [reels, setReels] = useState([])
+  const [allReels, setAllReels] = useState([])
+  const [hiddenIds, setHiddenIds] = useState(new Set())
   const [loading, setLoading] = useState(true)
-  const [currentIndex, setCurrentIndex] = useState(0)
   const [isMuted, setIsMuted] = useState(true)
+  const [currentIndex, setCurrentIndex] = useState(0)
   const containerRef = useRef(null)
   const videoRefsMap = useRef({})
   const observerRef = useRef(null)
 
-  // Register video ref from child
+  const reels = allReels.filter(r => !hiddenIds.has(r.id))
+
+  const handleHide = useCallback((id) => {
+    setHiddenIds(prev => new Set([...prev, id]))
+  }, [])
+
   const videoRefsCallback = useCallback((index, ref) => {
     videoRefsMap.current[index] = ref
   }, [])
@@ -438,56 +752,35 @@ export default function Reels() {
       .eq('media_type', 'video')
       .order('created_at', { ascending: false })
       .limit(20)
-      .then(({ data }) => { setReels(data?.length ? data : SAMPLE_REELS); setLoading(false) })
-      .catch(() => { setReels(SAMPLE_REELS); setLoading(false) })
+      .then(({ data }) => { setAllReels(data?.length ? data : SAMPLE_REELS); setLoading(false) })
+      .catch(() => { setAllReels(SAMPLE_REELS); setLoading(false) })
     const t = setTimeout(() => setLoading(false), 5000)
     return () => clearTimeout(t)
   }, [])
 
-  // Intersection Observer — play the visible video, pause others
+  // IntersectionObserver — play visible video, pause others
   useEffect(() => {
     if (loading || reels.length === 0) return
-
-    // Give the DOM a tick to render the slides
     const timer = setTimeout(() => {
-      if (observerRef.current) observerRef.current.disconnect()
-
-      observerRef.current = new IntersectionObserver(
-        (entries) => {
-          entries.forEach(entry => {
-            const idx = parseInt(entry.target.dataset.index, 10)
-            const vidRef = videoRefsMap.current[idx]
-            const video = vidRef?.current
-
-            if (entry.isIntersecting) {
-              setCurrentIndex(idx)
-              if (video) {
-                video.currentTime = 0
-                video.play().catch(() => {})
-              }
-            } else {
-              if (video) {
-                video.pause()
-                video.currentTime = 0
-              }
-            }
-          })
-        },
-        { threshold: 0.7 },
-      )
-
-      // Observe every slide element
-      const container = containerRef.current
-      if (!container) return
-      container.querySelectorAll('[data-index]').forEach(el => {
+      observerRef.current?.disconnect()
+      observerRef.current = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          const idx = parseInt(entry.target.dataset.index, 10)
+          const vidRef = videoRefsMap.current[idx]
+          const video = vidRef?.current
+          if (entry.isIntersecting) {
+            setCurrentIndex(idx)
+            if (video) { video.currentTime = 0; video.play().catch(() => {}) }
+          } else {
+            if (video) { video.pause(); video.currentTime = 0 }
+          }
+        })
+      }, { threshold: 0.7 })
+      containerRef.current?.querySelectorAll('[data-index]').forEach(el => {
         observerRef.current.observe(el)
       })
     }, 100)
-
-    return () => {
-      clearTimeout(timer)
-      observerRef.current?.disconnect()
-    }
+    return () => { clearTimeout(timer); observerRef.current?.disconnect() }
   }, [loading, reels])
 
   // Keyboard navigation
@@ -497,8 +790,7 @@ export default function Reels() {
       if (!container) return
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
-        const dir = e.key === 'ArrowDown' ? 1 : -1
-        container.scrollBy({ top: dir * window.innerHeight, behavior: 'smooth' })
+        container.scrollBy({ top: (e.key === 'ArrowDown' ? 1 : -1) * window.innerHeight, behavior: 'smooth' })
       }
       if (e.key === ' ') {
         e.preventDefault()
@@ -506,15 +798,13 @@ export default function Reels() {
         if (!vid) return
         vid.paused ? vid.play().catch(() => {}) : vid.pause()
       }
-      if (e.key === 'm' || e.key === 'M') {
-        setIsMuted(m => !m)
-      }
+      if (e.key === 'm' || e.key === 'M') setIsMuted(m => !m)
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [currentIndex])
 
-  // Sync mute state to all video elements whenever it changes
+  // Sync mute to all videos
   useEffect(() => {
     Object.values(videoRefsMap.current).forEach(ref => {
       if (ref?.current) ref.current.muted = isMuted
@@ -533,11 +823,9 @@ export default function Reels() {
   }
 
   return (
-    <div
-      ref={containerRef}
+    <div ref={containerRef}
       className="h-screen overflow-y-scroll snap-y snap-mandatory bg-black"
-      style={{ scrollSnapType: 'y mandatory', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-    >
+      style={{ scrollSnapType: 'y mandatory', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
       {reels.map((reel, index) => (
         <ReelSlide
           key={reel.id}
@@ -547,6 +835,7 @@ export default function Reels() {
           onMuteToggle={() => setIsMuted(m => !m)}
           videoRefsCallback={videoRefsCallback}
           onActivate={setCurrentIndex}
+          onHide={handleHide}
         />
       ))}
     </div>
