@@ -2518,6 +2518,29 @@ function ConnectionStoryCard() {
 // even if a background refetch is slow.
 let _feedPostsCache = []
 
+function scorePost(post) {
+  const views    = post.views_count    || post.view_count      || 0
+  const likes    = post.likes_count    || post.like_count      || 0
+  const comments = post.comments_count || post.comment_count   || 0
+  const reposts  = post.reposts_count  || post.repost_count    || 0
+  const saves    = post.saves_count    || post.save_count      || 0
+  const hoursAgo = (Date.now() - new Date(post.created_at)) / (1000 * 60 * 60)
+  const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
+  const baseScore = (views * 1) + (likes * 3) + (comments * 5) + (reposts * 4) + (saves * 3)
+  return baseScore + recencyBonus + (Math.random() * 5)
+}
+
+function shuffleBottom(arr) {
+  const topCount = Math.floor(arr.length * 0.7)
+  const top    = arr.slice(0, topCount)
+  const bottom = arr.slice(topCount)
+  for (let i = bottom.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[bottom[i], bottom[j]] = [bottom[j], bottom[i]]
+  }
+  return [...top, ...bottom]
+}
+
 export default function Feed() {
   const { user, profile } = useAuth()
   const { mode } = useMode()
@@ -2547,33 +2570,6 @@ export default function Feed() {
   }, [])
 
   const FEED_LIMIT = 50
-
-  const scorePost = (post) => {
-    const views    = post.views_count || post.view_count   || 0
-    const likes    = post.likes_count || post.like_count   || 0
-    const comments = post.comments_count || post.comment_count || 0
-    const reposts  = post.reposts_count  || post.repost_count  || 0
-    const saves    = post.saves_count    || post.save_count    || 0
-
-    const hoursAgo = (Date.now() - new Date(post.created_at)) / (1000 * 60 * 60)
-    const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
-
-    const engagementScore = (views * 1) + (likes * 3) + (comments * 5) + (reposts * 4) + (saves * 3)
-    const randomFactor = Math.random() * 5
-
-    return engagementScore + recencyBonus + randomFactor
-  }
-
-  const shuffleBottom = (arr) => {
-    const topCount = Math.floor(arr.length * 0.7)
-    const top    = arr.slice(0, topCount)
-    const bottom = arr.slice(topCount)
-    for (let i = bottom.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[bottom[i], bottom[j]] = [bottom[j], bottom[i]]
-    }
-    return [...top, ...bottom]
-  }
 
   const fetchPosts = async () => {
     loadingRef.current = true
