@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { toggleLike, toggleSave, checkLiked, checkSaved } from '../lib/postActions'
 import { useAuth } from '../context/AuthContext'
 import {
   Heart, MessageCircle, Share2, Music, Plus, Volume2, VolumeX,
@@ -65,6 +66,31 @@ function parseMediaUrls(raw) {
 function getVideoUrl(reel) {
   const urls = parseMediaUrls(reel.media_urls)
   return urls[0] ?? reel.video_url ?? null
+}
+
+// Deterministic engagement score for reels (mirrors the Feed algorithm).
+function scoreReel(reel) {
+  const views    = reel.views_count    ?? reel.view_count    ?? 0
+  const likes    = reel.likes_count    ?? reel.like_count    ?? 0
+  const comments = reel.comments_count ?? reel.comment_count ?? 0
+  const saves    = reel.saves_count    ?? reel.save_count    ?? 0
+  const hoursAgo = (Date.now() - new Date(reel.created_at)) / (1000 * 60 * 60)
+  const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
+  return (views * 1) + (likes * 3) + (comments * 5) + (saves * 3) + recencyBonus
+}
+
+// Score once, sort, shuffle bottom 30% — varies feed order on each load.
+function shuffleReels(reels) {
+  const scored = reels.map(r => ({ reel: r, score: scoreReel(r) }))
+  scored.sort((a, b) => b.score - a.score)
+  const topCount = Math.floor(scored.length * 0.7)
+  const top    = scored.slice(0, topCount).map(s => s.reel)
+  const bottom = scored.slice(topCount).map(s => s.reel)
+  for (let i = bottom.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[bottom[i], bottom[j]] = [bottom[j], bottom[i]]
+  }
+  return [...top, ...bottom]
 }
 
 // ─── Comments Drawer ──────────────────────────────────────────────────────────
@@ -165,6 +191,8 @@ function UploadModal({ onClose, onUploaded }) {
         author_id: user.id,
         author_name: user.full_name ?? user.email ?? 'Creator',
         author_avatar: user.avatar_url ?? null,
+        likes_count: 0, comments_count: 0, views_count: 0, shares_count: 0, saves_count: 0,
+        visibility: 'public',
         created_at: new Date().toISOString(),
       })
       onUploaded()
@@ -403,18 +431,16 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
   // Register video ref in parent map
   useEffect(() => { videoRefsCallback(index, videoRef) }, [index, videoRefsCallback])
 
-  // Check liked status on mount
+  // Check liked status on mount (shared helper)
   useEffect(() => {
     if (!user || isSample) { setLikeChecked(true); return }
-    supabase.from('likes').select('id').eq('post_id', reel.id).eq('user_id', user.id).maybeSingle()
-      .then(({ data }) => { setLiked(!!data); setLikeChecked(true) })
+    checkLiked(reel.id, user.id).then(v => { setLiked(v); setLikeChecked(true) })
   }, [user, reel.id, isSample])
 
-  // Check saved status on mount
+  // Check saved status on mount (shared helper)
   useEffect(() => {
     if (!user || isSample) return
-    supabase.from('saved_posts').select('id').eq('post_id', reel.id).eq('user_id', user.id).maybeSingle()
-      .then(({ data }) => setSaved(!!data))
+    checkSaved(reel.id, user.id).then(setSaved)
   }, [user, reel.id, isSample])
 
   // Check follow status on mount
@@ -442,29 +468,21 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
   const handleLike = async () => {
     if (!user) { navigate('/login'); return }
     if (isSample) { setLiked(l => !l); setLikeCount(c => liked ? c - 1 : c + 1); return }
-    if (liked) {
-      await supabase.from('likes').delete().eq('post_id', reel.id).eq('user_id', user.id)
-      await supabase.from('posts').update({ likes_count: Math.max(0, likeCount - 1) }).eq('id', reel.id)
-      setLiked(false); setLikeCount(c => Math.max(0, c - 1))
-    } else {
-      await supabase.from('likes').insert({ post_id: reel.id, user_id: user.id })
-      await supabase.from('posts').update({ likes_count: likeCount + 1 }).eq('id', reel.id)
-      setLiked(true); setLikeCount(c => c + 1)
-    }
+    // Optimistic, then reconcile via shared helper (writes canonical likes_count)
+    setLiked(l => !l)
+    setLikeCount(c => Math.max(0, c + (liked ? -1 : 1)))
+    const res = await toggleLike(reel.id, user.id, liked, likeCount)
+    setLiked(res.liked)
+    setLikeCount(res.count)
   }
 
   const handleSave = async () => {
     if (!user) { navigate('/login'); return }
     if (isSample) { setSaved(s => !s); return }
-    if (saved) {
-      await supabase.from('saved_posts').delete().eq('post_id', reel.id).eq('user_id', user.id)
-      await supabase.from('posts').update({ saves_count: Math.max(0, (reel.saves_count ?? 0) - 1) }).eq('id', reel.id)
-      setSaved(false)
-    } else {
-      await supabase.from('saved_posts').insert({ post_id: reel.id, user_id: user.id })
-      await supabase.from('posts').update({ saves_count: (reel.saves_count ?? 0) + 1 }).eq('id', reel.id)
-      setSaved(true)
-    }
+    setSaved(s => !s)
+    const res = await toggleSave(reel.id, user.id, saved)
+    setSaved(res.saved)
+    setReel(r => ({ ...r, saves_count: res.count }))
   }
 
   const handleFollow = async () => {
@@ -765,7 +783,11 @@ export default function Reels() {
       .eq('media_type', 'video')
       .order('created_at', { ascending: false })
       .limit(20)
-      .then(({ data }) => { setAllReels(data?.length ? data : SAMPLE_REELS); setLoading(false) })
+      .then(({ data }) => {
+        const randomized = data?.length ? shuffleReels(data) : SAMPLE_REELS
+        setAllReels(randomized)
+        setLoading(false)
+      })
       .catch(() => { setAllReels(SAMPLE_REELS); setLoading(false) })
     const t = setTimeout(() => setLoading(false), 5000)
     return () => clearTimeout(t)

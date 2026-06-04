@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { toggleLike } from '../lib/postActions'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import { formatDistanceToNow } from 'date-fns'
@@ -1224,9 +1225,9 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
   const navigate = useNavigate()
   const [liked, setLiked] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [likeCount, setLikeCount] = useState(post.like_count ?? 0)
-  const [commentCount, setCommentCount] = useState(post.comment_count ?? 0)
-  const [repostCount, setRepostCount] = useState(post.repost_count ?? 0)
+  const [likeCount, setLikeCount] = useState(post.likes_count ?? post.like_count ?? 0)
+  const [commentCount, setCommentCount] = useState(post.comments_count ?? post.comment_count ?? 0)
+  const [repostCount, setRepostCount] = useState(post.reposts_count ?? post.repost_count ?? 0)
   const [showComments, setShowComments] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [showShare, setShowShare] = useState(false)
@@ -1365,16 +1366,12 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
 
   const handleLike = async () => {
     if (!currentUser) return
-    const next = !liked
-    setLiked(next)
-    const count = Math.max(0, likeCount + (next ? 1 : -1))
-    setLikeCount(count)
-    if (next) {
-      await supabase.from('likes').insert({ post_id: post.id, user_id: currentUser.id })
-    } else {
-      await supabase.from('likes').delete().eq('post_id', post.id).eq('user_id', currentUser.id)
-    }
-    await supabase.from('posts').update({ like_count: count }).eq('id', post.id)
+    // Optimistic flip, then reconcile via shared helper (writes canonical likes_count)
+    setLiked(l => !l)
+    setLikeCount(c => Math.max(0, c + (liked ? -1 : 1)))
+    const res = await toggleLike(post.id, currentUser.id, liked, likeCount)
+    setLiked(res.liked)
+    setLikeCount(res.count)
   }
 
   const handleSave = async () => {
@@ -1408,17 +1405,14 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
         content: post.content,
         media_urls: post.media_urls,
         media_type: post.media_type,
-        like_count: 0, comment_count: 0, repost_count: 0,
+        likes_count: 0, comments_count: 0, reposts_count: 0,
         visibility: 'public',
         created_at: new Date().toISOString(),
       }
       const { data } = await supabase.from('posts').insert(payload).select().single()
       const newCount = repostCount + 1
       setRepostCount(newCount)
-      await supabase.from('posts').update({
-        repost_count: newCount,
-        reposts_count: newCount,
-      }).eq('id', post.id)
+      await supabase.from('posts').update({ reposts_count: newCount }).eq('id', post.id)
       if (data) onRepost?.(data)
     } catch (err) { console.error(err) }
     setReposting(false)
@@ -1637,10 +1631,10 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
         )}
 
         {/* View count */}
-        {post.view_count > 0 && (
+        {(post.views_count ?? post.view_count) > 0 && (
           <div className="flex items-center gap-1 px-4 pt-2 text-xs text-muted-foreground">
             <Eye className="w-3 h-3" />
-            <span>{fmtCount(post.view_count)} views</span>
+            <span>{fmtCount(post.views_count ?? post.view_count)} views</span>
           </div>
         )}
 
@@ -1748,7 +1742,7 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
 
         {/* Insights bar */}
         <div className="border-t border-border/40 px-4 py-2 flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-muted-foreground">👁 {fmtCount(post.view_count || 0)} views</span>
+          <span className="text-xs text-muted-foreground">👁 {fmtCount(post.views_count ?? post.view_count ?? 0)} views</span>
           <span className="text-xs text-muted-foreground/30">·</span>
           <span className="text-xs text-muted-foreground">❤️ {fmtCount(likeCount)}</span>
           <span className="text-xs text-muted-foreground/30">·</span>
@@ -1756,7 +1750,7 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
           <span className="text-xs text-muted-foreground/30">·</span>
           <span className="text-xs text-muted-foreground">🔁 {fmtCount(repostCount)}</span>
           <span className="text-xs text-muted-foreground/30">·</span>
-          <span className="text-xs text-muted-foreground">🔖 {fmtCount(post.save_count || 0)}</span>
+          <span className="text-xs text-muted-foreground">🔖 {fmtCount(post.saves_count ?? post.save_count ?? 0)}</span>
           {isOwner && (
             <div className="ml-auto flex items-center gap-3 flex-shrink-0">
               <button onClick={() => navigate(`/advertise?tab=boost&postId=${post.id}`)}
@@ -1779,11 +1773,11 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
 
       {/* Insights Modal */}
       {showInsights && (() => {
-        const views    = post.view_count || 0
+        const views    = post.views_count ?? post.view_count ?? 0
         const likes    = likeCount
         const comments = commentCount
         const reposts  = repostCount
-        const saves    = post.save_count || 0
+        const saves    = post.saves_count ?? post.save_count ?? 0
         const engTotal = likes + comments + reposts + saves
         const rate     = views > 0 ? ((engTotal / views) * 100).toFixed(1) : '0.0'
         const peak     = Math.max(views, likes, comments, reposts, saves, 1)
@@ -2100,7 +2094,7 @@ function PostComposer({ user, onCreated }) {
         author_role:   profile?.plan ?? null,
         media_urls: mediaUrls.length > 0 ? mediaUrls : null,
         media_type: mediaType,
-        like_count: 0, comment_count: 0, repost_count: 0,
+        likes_count: 0, comments_count: 0, reposts_count: 0, views_count: 0, saves_count: 0,
         visibility: audience,
         feed_type: isVideoPost ? 'reel' : feedType,
         created_at: new Date().toISOString(),
@@ -2518,26 +2512,43 @@ function ConnectionStoryCard() {
 // even if a background refetch is slow.
 let _feedPostsCache = []
 
+// Pure, DETERMINISTIC engagement score — no randomness here, so it's safe to
+// use as a sort comparator (Math.random() inside a comparator is non-deterministic
+// and V8 rejects it with "comparison function failed").
 function scorePost(post) {
-  const views    = post.views_count    || post.view_count      || 0
-  const likes    = post.likes_count    || post.like_count      || 0
-  const comments = post.comments_count || post.comment_count   || 0
-  const reposts  = post.reposts_count  || post.repost_count    || 0
-  const saves    = post.saves_count    || post.save_count      || 0
+  const views    = post.views_count    ?? post.view_count    ?? 0
+  const likes    = post.likes_count    ?? post.like_count    ?? 0
+  const comments = post.comments_count ?? post.comment_count ?? 0
+  const reposts  = post.reposts_count  ?? post.repost_count  ?? 0
+  const saves    = post.saves_count    ?? post.save_count    ?? 0
   const hoursAgo = (Date.now() - new Date(post.created_at)) / (1000 * 60 * 60)
   const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
-  const baseScore = (views * 1) + (likes * 3) + (comments * 5) + (reposts * 4) + (saves * 3)
-  return baseScore + recencyBonus + (Math.random() * 5)
+  return (views * 1) + (likes * 3) + (comments * 5) + (reposts * 4) + (saves * 3) + recencyBonus
 }
 
-function shuffleBottom(arr) {
-  const topCount = Math.floor(arr.length * 0.7)
-  const top    = arr.slice(0, topCount)
-  const bottom = arr.slice(topCount)
+// Score once, sort, then inject randomness AFTER scoring so the order varies on
+// every call without corrupting the comparator. Top 70% stays mostly ranked
+// (with occasional adjacent swaps); bottom 30% is fully shuffled.
+function shuffleFeed(posts) {
+  const scored = posts.map(p => ({ post: p, score: scorePost(p) }))
+  scored.sort((a, b) => b.score - a.score)
+
+  const topCount = Math.floor(scored.length * 0.7)
+  const top    = scored.slice(0, topCount).map(s => s.post)
+  const bottom = scored.slice(topCount).map(s => s.post)
+
+  // Fisher-Yates shuffle on the bottom 30%
   for (let i = bottom.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[bottom[i], bottom[j]] = [bottom[j], bottom[i]]
   }
+
+  // 20% chance to swap each adjacent pair in the top section, so the lead posts
+  // aren't in an identical order every refresh.
+  for (let i = 1; i < top.length - 1; i++) {
+    if (Math.random() < 0.2) { [top[i], top[i + 1]] = [top[i + 1], top[i]] }
+  }
+
   return [...top, ...bottom]
 }
 
@@ -2596,7 +2607,7 @@ export default function Feed() {
             .order('created_at', { ascending: false })
             .limit(30)
         )
-        followingPosts = shuffleBottom((data || []).sort((a, b) => scorePost(b) - scorePost(a)))
+        followingPosts = shuffleFeed(data || [])
       }
 
       // ── Layer 2: Discovery posts (25% of feed) ──────────────────────────────
@@ -2608,7 +2619,7 @@ export default function Feed() {
       }
       const { data: discData, error } = await withTimeout(discoveryQuery)
       if (error) throw error
-      const discoveryPosts = shuffleBottom((discData || []).sort((a, b) => scorePost(b) - scorePost(a)))
+      const discoveryPosts = shuffleFeed(discData || [])
 
       // ── Build combined post pool ──────────────────────────────────────────────
       const followingTarget = Math.ceil(FEED_LIMIT * 0.6)
