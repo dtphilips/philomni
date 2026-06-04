@@ -94,7 +94,7 @@ function CommentsDrawer({ reel, onClose }) {
   }
 
   return (
-    <div className="absolute inset-0 z-30 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 z-30 flex items-end" onClick={onClose}>
       <div className="w-full bg-zinc-900 rounded-t-2xl max-h-[65%] flex flex-col"
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
@@ -177,7 +177,7 @@ function UploadModal({ onClose, onUploaded }) {
   }
 
   return (
-    <div className="absolute inset-0 z-40 bg-black/80 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 z-40 bg-black/80 flex items-end" onClick={onClose}>
       <div className="w-full bg-zinc-900 rounded-t-2xl p-4 space-y-4"
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
@@ -226,7 +226,7 @@ function EditCaptionModal({ reel, onClose, onSaved }) {
   }
 
   return (
-    <div className="absolute inset-0 z-50 bg-black/80 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-end" onClick={onClose}>
       <div className="w-full bg-zinc-900 rounded-t-2xl p-5 space-y-4"
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
@@ -257,27 +257,34 @@ function InsightsPanel({ reel, onClose }) {
 
   useEffect(() => {
     const load = async () => {
-      // Use the reel's own count fields as primary source
-      // video_analytics uses video_id column — query it for watch time data
-      const { data } = await supabase.from('video_analytics')
-        .select('views, watch_time')
-        .eq('video_id', reel.id)
-        .catch(() => ({ data: null }))
+      // Pull fresh counts directly from posts table
+      const { data: post } = await supabase
+        .from('posts')
+        .select('views_count, likes_count, comments_count, saves_count, shares_count, reposts_count')
+        .eq('id', reel.id)
+        .single()
 
-      const analyticsViews = data?.reduce((a, r) => a + (r.views || 0), 0) ?? 0
-      const totalWatchTime = data?.reduce((a, r) => a + (r.watch_time || 0), 0) ?? 0
-      const totalViews = reel.views_count || reel.view_count || analyticsViews || 0
-      // Estimate completion rate: if avg watch_time >= video duration proxy (assume 30s avg)
-      const completionRate = totalViews > 0 && totalWatchTime > 0
-        ? Math.min(100, Math.round((totalWatchTime / (totalViews * 30)) * 100))
-        : 0
+      // Also pull watch_time from video_analytics (video_id col, no event_type)
+      let completionRate = 0
+      try {
+        const { data: analytics } = await supabase
+          .from('video_analytics')
+          .select('views, watch_time')
+          .eq('video_id', reel.id)
+        const totalViews     = (post?.views_count ?? 0)
+        const totalWatchTime = analytics?.reduce((a, r) => a + (r.watch_time || 0), 0) ?? 0
+        completionRate = totalViews > 0 && totalWatchTime > 0
+          ? Math.min(100, Math.round((totalWatchTime / (totalViews * 30)) * 100))
+          : 0
+      } catch { /* fail silently */ }
 
       setInsights({
-        views:          totalViews,
-        likes:          reel.likes_count  ?? reel.like_count    ?? 0,
-        comments:       reel.comments_count ?? reel.comment_count ?? 0,
-        saves:          reel.saves_count  ?? reel.save_count    ?? 0,
-        shares:         reel.shares_count ?? reel.share_count   ?? 0,
+        views:    post?.views_count    ?? reel.views_count    ?? 0,
+        likes:    post?.likes_count    ?? reel.likes_count    ?? 0,
+        comments: post?.comments_count ?? reel.comments_count ?? 0,
+        saves:    post?.saves_count    ?? reel.saves_count    ?? 0,
+        shares:   post?.shares_count   ?? reel.shares_count   ?? 0,
+        reposts:  post?.reposts_count  ?? 0,
         completionRate,
       })
     }
@@ -325,7 +332,7 @@ function ReportSheet({ onClose }) {
   const options = ["It's spam", 'Inappropriate content', 'Hate speech', 'Violence', 'False information', 'Other']
 
   if (reported) return (
-    <div className="absolute inset-0 z-50 bg-black/70 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
       <div className="bg-zinc-900 rounded-2xl p-6 text-center mx-6">
         <div className="text-4xl mb-3">✅</div>
         <p className="text-white font-semibold mb-1">Report submitted</p>
@@ -336,7 +343,7 @@ function ReportSheet({ onClose }) {
   )
 
   return (
-    <div className="absolute inset-0 z-50 bg-black/60 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-end" onClick={onClose}>
       <div className="w-full bg-zinc-900 rounded-t-2xl p-4"
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
@@ -365,6 +372,7 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
 
   // Like
   const [liked, setLiked] = useState(false)
+  const [likeChecked, setLikeChecked] = useState(false)
   const [likeCount, setLikeCount] = useState(reel.likes_count ?? 0)
 
   // Save
@@ -397,9 +405,9 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
 
   // Check liked status on mount
   useEffect(() => {
-    if (!user || isSample) return
+    if (!user || isSample) { setLikeChecked(true); return }
     supabase.from('likes').select('id').eq('post_id', reel.id).eq('user_id', user.id).maybeSingle()
-      .then(({ data }) => setLiked(!!data))
+      .then(({ data }) => { setLiked(!!data); setLikeChecked(true) })
   }, [user, reel.id, isSample])
 
   // Check saved status on mount
@@ -473,8 +481,13 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
     setFollowLoading(false)
   }
 
-  const handleShare = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/reels/${reel.id}`).catch(() => {})
+  const handleShare = async () => {
+    navigator.clipboard.writeText(`${window.location.origin}/reels/${reel.id}`).then(() => {}, () => {})
+    if (!isSample) {
+      const newCount = (reel.shares_count ?? 0) + 1
+      await supabase.from('posts').update({ shares_count: newCount }).eq('id', reel.id)
+      setReel(r => ({ ...r, shares_count: newCount }))
+    }
   }
 
   const handleDeleteReel = async () => {
@@ -539,13 +552,11 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
                 await supabase.from('posts')
                   .update({ views_count: (reel.views_count ?? 0) + 1 })
                   .eq('id', reel.id)
-                // video_analytics uses video_id/views/watch_time/created_by
-                supabase.from('video_analytics').insert({
-                  video_id: reel.id,
-                  views: 1,
-                  watch_time: 3,
-                  created_by: user?.id ?? null,
-                }).catch(() => {})
+                try {
+                  await supabase.from('video_analytics').insert({
+                    video_id: reel.id, views: 1, watch_time: 3, created_by: user?.id ?? null,
+                  })
+                } catch { /* fail silently */ }
               }, 3000)
             }
           }}
@@ -553,14 +564,16 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
             setIsPlaying(false)
             clearTimeout(viewTimerRef.current)
           }}
-          onEnded={() => {
+          onEnded={async () => {
             if (!viewTracked.current || isSample) return
-            supabase.from('video_analytics').insert({
-              video_id: reel.id,
-              views: 0,
-              watch_time: Math.round(videoRef.current?.duration ?? 0),
-              created_by: user?.id ?? null,
-            }).catch(() => {})
+            try {
+              await supabase.from('video_analytics').insert({
+                video_id: reel.id,
+                views: 0,
+                watch_time: Math.round(videoRef.current?.duration ?? 0),
+                created_by: user?.id ?? null,
+              })
+            } catch { /* fail silently */ }
           }}
         />
       ) : (
@@ -640,8 +653,8 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
 
       {/* Right action buttons */}
       <div className="absolute right-3 bottom-24 flex flex-col gap-5 items-center">
-        <button onClick={handleLike} className="flex flex-col items-center gap-1">
-          <div className={`w-10 h-10 rounded-full bg-black/40 flex items-center justify-center ${liked ? 'text-red-500' : 'text-white'}`}>
+        <button onClick={handleLike} disabled={!likeChecked} className="flex flex-col items-center gap-1">
+          <div className={`w-10 h-10 rounded-full bg-black/40 flex items-center justify-center transition-colors ${liked ? 'text-red-500' : 'text-white'} ${!likeChecked ? 'opacity-50' : ''}`}>
             <Heart className="w-6 h-6" fill={liked ? 'currentColor' : 'none'} />
           </div>
           <span className="text-white text-xs">{formatCount(likeCount)}</span>
@@ -680,7 +693,7 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
 
       {/* ── Three-dot menu (bottom sheet) ── */}
       {showMenu && (
-        <div className="absolute inset-0 z-40 bg-black/60" onClick={() => setShowMenu(false)}>
+        <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setShowMenu(false)}>
           <div className="absolute bottom-0 left-0 right-0 bg-zinc-900 rounded-t-2xl p-4 space-y-1"
             onClick={e => e.stopPropagation()}>
             {menuItems.map(item => (
