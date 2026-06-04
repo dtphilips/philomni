@@ -1304,19 +1304,18 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
       .then(({ data }) => setSaved(!!data))
   }, [post.id, currentUser])
 
-  // Increment view_count when post is visible for 2 seconds
+  // Increment view count when post is visible for 2 seconds
   useEffect(() => {
     if (viewedRef.current) return
     const el = cardRef.current
     if (!el) return
     let timer = null
-    const baseCount = post.view_count || 0
     const observer = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting) {
         timer = setTimeout(async () => {
           if (!viewedRef.current) {
             viewedRef.current = true
-            await supabase.from('posts').update({ view_count: baseCount + 1 }).eq('id', post.id)
+            await supabase.rpc('increment_views', { post_id: post.id })
           }
         }, 2000)
       } else {
@@ -2375,14 +2374,31 @@ export default function Feed() {
 
   const FEED_LIMIT = 50
 
-  const engagementScore = (post) => {
-    const now = Date.now()
-    const age = now - new Date(post.created_at).getTime()
-    const recency = age < 86400000 ? 10 : age < 172800000 ? 5 : 0
-    return (post.like_count || post.likes_count || 0) * 2
-      + (post.comment_count || post.comments_count || 0) * 3
-      + (post.repost_count || 0) * 2
-      + recency
+  const scorePost = (post) => {
+    const views    = post.views_count || post.view_count   || 0
+    const likes    = post.likes_count || post.like_count   || 0
+    const comments = post.comments_count || post.comment_count || 0
+    const reposts  = post.reposts_count  || post.repost_count  || 0
+    const saves    = post.saves_count    || post.save_count    || 0
+
+    const hoursAgo = (Date.now() - new Date(post.created_at)) / (1000 * 60 * 60)
+    const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
+
+    const engagementScore = (views * 1) + (likes * 3) + (comments * 5) + (reposts * 4) + (saves * 3)
+    const randomFactor = Math.random() * 5
+
+    return engagementScore + recencyBonus + randomFactor
+  }
+
+  const shuffleBottom = (arr) => {
+    const topCount = Math.floor(arr.length * 0.7)
+    const top    = arr.slice(0, topCount)
+    const bottom = arr.slice(topCount)
+    for (let i = bottom.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[bottom[i], bottom[j]] = [bottom[j], bottom[i]]
+    }
+    return [...top, ...bottom]
   }
 
   const fetchPosts = async () => {
@@ -2410,7 +2426,7 @@ export default function Feed() {
             .order('created_at', { ascending: false })
             .limit(30)
         )
-        followingPosts = (data || []).sort((a, b) => engagementScore(b) - engagementScore(a))
+        followingPosts = shuffleBottom((data || []).sort((a, b) => scorePost(b) - scorePost(a)))
       }
 
       // ── Layer 2: Discovery posts (25% of feed) ──────────────────────────────
@@ -2422,7 +2438,7 @@ export default function Feed() {
       }
       const { data: discData, error } = await withTimeout(discoveryQuery)
       if (error) throw error
-      const discoveryPosts = (discData || []).sort((a, b) => engagementScore(b) - engagementScore(a))
+      const discoveryPosts = shuffleBottom((discData || []).sort((a, b) => scorePost(b) - scorePost(a)))
 
       // ── Build combined post pool ──────────────────────────────────────────────
       const followingTarget = Math.ceil(FEED_LIMIT * 0.6)
