@@ -42,13 +42,21 @@ export const checkLiked = async (postId, userId) => {
 export const toggleLike = async (postId, userId, currentlyLiked, currentCount) => {
   if (currentlyLiked) {
     await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', userId)
-    await incrementCount(postId, 'likes_count', -1)
-    return { liked: false, count: Math.max(0, currentCount - 1) }
-  } else {
-    await supabase.from('likes').insert({ post_id: postId, user_id: userId })
-    await incrementCount(postId, 'likes_count', 1)
-    return { liked: true, count: currentCount + 1 }
+    const count = await incrementCount(postId, 'likes_count', -1)
+    return { liked: false, count }
   }
+  // Guard against an existing row so we never double-count (likes has a
+  // UNIQUE(post_id, user_id) constraint — a duplicate insert returns an error).
+  const already = await checkLiked(postId, userId)
+  if (already) return { liked: true, count: currentCount }
+
+  const { error } = await supabase.from('likes').insert({ post_id: postId, user_id: userId })
+  if (error) {
+    // Unique violation = already liked elsewhere; reconcile state, don't bump count.
+    return { liked: true, count: currentCount }
+  }
+  const count = await incrementCount(postId, 'likes_count', 1)
+  return { liked: true, count }
 }
 
 /** Is this post currently saved by this user? */

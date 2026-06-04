@@ -68,29 +68,28 @@ function getVideoUrl(reel) {
   return urls[0] ?? reel.video_url ?? null
 }
 
-// Deterministic engagement score for reels (mirrors the Feed algorithm).
-function scoreReel(reel) {
+// Session seed — once per page load. Reel order changes on refresh but stays
+// stable within a session.
+const SESSION_SEED = Date.now()
+
+// Deterministic engagement score + per-reel seeded jitter (mirrors the Feed algorithm).
+function scoreReel(reel, index = 0) {
   const views    = reel.views_count    ?? reel.view_count    ?? 0
   const likes    = reel.likes_count    ?? reel.like_count    ?? 0
   const comments = reel.comments_count ?? reel.comment_count ?? 0
   const saves    = reel.saves_count    ?? reel.save_count    ?? 0
   const hoursAgo = (Date.now() - new Date(reel.created_at)) / (1000 * 60 * 60)
   const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
-  return (views * 1) + (likes * 3) + (comments * 5) + (saves * 3) + recencyBonus
+  const seededRandom = ((SESSION_SEED + index * 2654435761) % 1000) / 1000 * 8
+  return (views * 1) + (likes * 3) + (comments * 5) + (saves * 3) + recencyBonus + seededRandom
 }
 
-// Score once, sort, shuffle bottom 30% — varies feed order on each load.
+// Rank reels by seeded score — scores computed once (with index), then sorted.
 function shuffleReels(reels) {
-  const scored = reels.map(r => ({ reel: r, score: scoreReel(r) }))
-  scored.sort((a, b) => b.score - a.score)
-  const topCount = Math.floor(scored.length * 0.7)
-  const top    = scored.slice(0, topCount).map(s => s.reel)
-  const bottom = scored.slice(topCount).map(s => s.reel)
-  for (let i = bottom.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[bottom[i], bottom[j]] = [bottom[j], bottom[i]]
-  }
-  return [...top, ...bottom]
+  return reels
+    .map((reel, index) => ({ reel, score: scoreReel(reel, index) }))
+    .sort((a, b) => b.score - a.score)
+    .map(({ reel }) => reel)
 }
 
 // ─── Comments Drawer ──────────────────────────────────────────────────────────

@@ -1219,15 +1219,79 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent }) {
   )
 }
 
+// ─── Liker Row (who-liked modal) ──────────────────────────────────────────────
+// A standalone component so its hooks aren't created inside a .map() callback.
+function LikerRow({ liker, currentUser, navigate, onClose }) {
+  const u = liker.users
+  const [following, setFollowing] = useState(false)
+  const isMe = u && u.id === currentUser?.id
+
+  useEffect(() => {
+    if (!u || isMe || !currentUser) return
+    supabase.from('follows').select('id')
+      .eq('follower_id', currentUser.id).eq('following_id', u.id).maybeSingle()
+      .then(({ data }) => setFollowing(!!data))
+  }, [u?.id, isMe, currentUser?.id])
+
+  if (!u) return null
+
+  const handleFollowFromLikes = async () => {
+    if (!currentUser || isMe) return
+    if (following) {
+      await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', u.id)
+      setFollowing(false)
+    } else {
+      await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: u.id })
+      setFollowing(true)
+    }
+  }
+
+  const goProfile = () => { navigate(`/profile/${u.id}`); onClose() }
+
+  return (
+    <div className="flex items-center gap-3">
+      <button onClick={goProfile}
+        className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+        {u.avatar_url
+          ? <img src={u.avatar_url} alt="" className="w-full h-full object-cover" />
+          : <span className="text-primary font-semibold text-sm">{u.full_name?.[0] ?? '?'}</span>}
+      </button>
+      <button onClick={goProfile} className="flex-1 min-w-0 text-left">
+        <p className="font-medium text-foreground text-sm truncate">{u.full_name ?? u.username ?? 'User'}</p>
+        <p className="text-xs text-muted-foreground truncate">
+          {u.plan === 'promax' ? '⭐ Pro Max' : u.plan === 'pro' ? 'Pro' : 'Creator'}
+        </p>
+      </button>
+      {isMe ? (
+        <span className="text-xs text-muted-foreground flex-shrink-0">You</span>
+      ) : (
+        <button onClick={handleFollowFromLikes}
+          className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all flex-shrink-0 ${
+            following
+              ? 'bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
+              : 'bg-primary text-primary-foreground hover:bg-primary/90'
+          }`}>
+          {following ? 'Following' : 'Follow'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
 function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWinnerId }) {
   const navigate = useNavigate()
   const [liked, setLiked] = useState(false)
+  const [likeChecked, setLikeChecked] = useState(false)
   const [saved, setSaved] = useState(false)
   const [likeCount, setLikeCount] = useState(post.likes_count ?? post.like_count ?? 0)
   const [commentCount, setCommentCount] = useState(post.comments_count ?? post.comment_count ?? 0)
   const [repostCount, setRepostCount] = useState(post.reposts_count ?? post.repost_count ?? 0)
+  // Who-liked modal
+  const [showLikes, setShowLikes] = useState(false)
+  const [likers, setLikers] = useState([])
+  const [likersLoading, setLikersLoading] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [showShare, setShowShare] = useState(false)
@@ -1335,9 +1399,9 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
 
   // Check if already liked / saved
   useEffect(() => {
-    if (!currentUser) return
+    if (!currentUser) { setLikeChecked(true); return }
     supabase.from('likes').select('id').eq('post_id', post.id).eq('user_id', currentUser.id).maybeSingle()
-      .then(({ data }) => setLiked(!!data))
+      .then(({ data }) => { setLiked(!!data); setLikeChecked(true) })
     supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', currentUser.id).maybeSingle()
       .then(({ data }) => setSaved(!!data))
   }, [post.id, currentUser])
@@ -1372,6 +1436,29 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
     const res = await toggleLike(post.id, currentUser.id, liked, likeCount)
     setLiked(res.liked)
     setLikeCount(res.count)
+  }
+
+  const fetchLikers = async () => {
+    setLikersLoading(true)
+    setShowLikes(true)
+    const { data } = await supabase
+      .from('likes')
+      .select('user_id, created_at')
+      .eq('post_id', post.id)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    const rows = data ?? []
+    const userIds = [...new Set(rows.map(l => l.user_id).filter(Boolean))]
+    let profiles = []
+    if (userIds.length) {
+      const { data: pData } = await supabase
+        .from('users')
+        .select('id, full_name, username, avatar_url, plan')
+        .in('id', userIds)
+      profiles = pData ?? []
+    }
+    setLikers(rows.map(l => ({ ...l, users: profiles.find(p => p.id === l.user_id) })))
+    setLikersLoading(false)
   }
 
   const handleSave = async () => {
@@ -1642,9 +1729,9 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
         {(likeCount > 0 || commentCount > 0) && (
           <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground border-t border-border/40 mt-1">
             {likeCount > 0 && (
-              <span className="flex items-center gap-1">
-                <span className="text-base">👍</span> {fmtCount(likeCount)}
-              </span>
+              <button onClick={fetchLikers} className="flex items-center gap-1 hover:underline">
+                <span className="text-base">👍</span> {fmtCount(likeCount)} {likeCount === 1 ? 'like' : 'likes'}
+              </button>
             )}
             {commentCount > 0 && (
               <button onClick={() => setShowComments(v => !v)} className="hover:underline ml-auto">
@@ -1656,8 +1743,8 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
 
         {/* Engagement bar */}
         <div className="flex items-center border-t border-border/60 px-1">
-          <button onClick={handleLike}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold rounded-xl transition-all ${liked ? 'text-[#7c3aed]' : 'text-muted-foreground hover:text-[#7c3aed] hover:bg-primary/5'}`}>
+          <button onClick={handleLike} disabled={!likeChecked}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold rounded-xl transition-all disabled:opacity-60 ${liked ? 'text-[#7c3aed]' : 'text-muted-foreground hover:text-[#7c3aed] hover:bg-primary/5'}`}>
             <span className="text-base">{liked ? '👍' : '👍'}</span>
             <span className={liked ? 'text-[#7c3aed]' : ''}>Like</span>
             {likeCount > 0 && <span className="text-xs opacity-70">{fmtCount(likeCount)}</span>}
@@ -1835,6 +1922,38 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
       })()}
 
       {showShare && <ShareModal post={post} currentUser={currentUser} onClose={() => setShowShare(false)} />}
+
+      {/* Who-liked modal */}
+      {showLikes && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center"
+          onClick={() => setShowLikes(false)}>
+          <div className="bg-card rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[70vh] flex flex-col"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="font-semibold text-foreground">
+                {fmtCount(likeCount)} {likeCount === 1 ? 'Like' : 'Likes'}
+              </h3>
+              <button onClick={() => setShowLikes(false)}>
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {likersLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : likers.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8 text-sm">No likes yet</p>
+              ) : (
+                likers.map(liker => (
+                  <LikerRow key={liker.user_id} liker={liker} currentUser={currentUser}
+                    navigate={navigate} onClose={() => setShowLikes(false)} />
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quote Repost Modal */}
       {showQuoteModal && (
@@ -2512,10 +2631,15 @@ function ConnectionStoryCard() {
 // even if a background refetch is slow.
 let _feedPostsCache = []
 
-// Pure, DETERMINISTIC engagement score — no randomness here, so it's safe to
-// use as a sort comparator (Math.random() inside a comparator is non-deterministic
-// and V8 rejects it with "comparison function failed").
-function scorePost(post) {
+// Session seed — evaluated once per page load. The feed order changes on every
+// refresh but stays STABLE within a session (so posts don't jump around as you
+// scroll / refetch). A hard reload picks a new seed.
+const SESSION_SEED = Date.now()
+
+// Deterministic engagement score plus a per-post seeded jitter. The jitter is a
+// pure function of (SESSION_SEED, index), so it's stable inside a sort comparator
+// for the lifetime of the session but differs between sessions.
+function scorePost(post, index = 0) {
   const views    = post.views_count    ?? post.view_count    ?? 0
   const likes    = post.likes_count    ?? post.like_count    ?? 0
   const comments = post.comments_count ?? post.comment_count ?? 0
@@ -2523,33 +2647,18 @@ function scorePost(post) {
   const saves    = post.saves_count    ?? post.save_count    ?? 0
   const hoursAgo = (Date.now() - new Date(post.created_at)) / (1000 * 60 * 60)
   const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
-  return (views * 1) + (likes * 3) + (comments * 5) + (reposts * 4) + (saves * 3) + recencyBonus
+  const seededRandom = ((SESSION_SEED + index * 2654435761) % 1000) / 1000 * 8
+  return (views * 1) + (likes * 3) + (comments * 5) + (reposts * 4) + (saves * 3) + recencyBonus + seededRandom
 }
 
-// Score once, sort, then inject randomness AFTER scoring so the order varies on
-// every call without corrupting the comparator. Top 70% stays mostly ranked
-// (with occasional adjacent swaps); bottom 30% is fully shuffled.
-function shuffleFeed(posts) {
-  const scored = posts.map(p => ({ post: p, score: scorePost(p) }))
-  scored.sort((a, b) => b.score - a.score)
-
-  const topCount = Math.floor(scored.length * 0.7)
-  const top    = scored.slice(0, topCount).map(s => s.post)
-  const bottom = scored.slice(topCount).map(s => s.post)
-
-  // Fisher-Yates shuffle on the bottom 30%
-  for (let i = bottom.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[bottom[i], bottom[j]] = [bottom[j], bottom[i]]
-  }
-
-  // 20% chance to swap each adjacent pair in the top section, so the lead posts
-  // aren't in an identical order every refresh.
-  for (let i = 1; i < top.length - 1; i++) {
-    if (Math.random() < 0.2) { [top[i], top[i + 1]] = [top[i + 1], top[i]] }
-  }
-
-  return [...top, ...bottom]
+// Rank posts by seeded score. Scores are computed ONCE (with index) and the
+// array is sorted on those precomputed numbers — never call a randomizing
+// comparator directly.
+function rankPosts(posts) {
+  return posts
+    .map((post, index) => ({ post, score: scorePost(post, index) }))
+    .sort((a, b) => b.score - a.score)
+    .map(({ post }) => post)
 }
 
 export default function Feed() {
@@ -2607,7 +2716,7 @@ export default function Feed() {
             .order('created_at', { ascending: false })
             .limit(30)
         )
-        followingPosts = shuffleFeed(data || [])
+        followingPosts = rankPosts(data || [])
       }
 
       // ── Layer 2: Discovery posts (25% of feed) ──────────────────────────────
@@ -2619,7 +2728,7 @@ export default function Feed() {
       }
       const { data: discData, error } = await withTimeout(discoveryQuery)
       if (error) throw error
-      const discoveryPosts = shuffleFeed(discData || [])
+      const discoveryPosts = rankPosts(discData || [])
 
       // ── Build combined post pool ──────────────────────────────────────────────
       const followingTarget = Math.ceil(FEED_LIMIT * 0.6)
