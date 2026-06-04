@@ -1,30 +1,68 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Link } from 'react-router-dom'
 import {
-  Megaphone, Upload, Eye, MousePointer, DollarSign,
-  Calendar, Target, Loader2, ExternalLink, ImageIcon, ArrowRight,
+  Megaphone, Upload, Eye, MousePointer, Zap, Star, Crown,
+  Loader2, ExternalLink, ImageIcon, ChevronRight, Check,
+  Rocket, TrendingUp, Users, Target,
 } from 'lucide-react'
 
-const INDUSTRIES = [
-  'Technology', 'Fashion & Lifestyle', 'Finance', 'Healthcare', 'Education',
-  'Media & Entertainment', 'Food & Beverage', 'Real Estate', 'Marketing',
-  'E-commerce', 'Gaming', 'Travel', 'Sports & Fitness', 'Beauty', 'Other',
+const PACKAGES = [
+  {
+    id: 'starter',
+    name: 'Starter',
+    price: 299,
+    period: '/month',
+    impressions: '50,000',
+    impressions_limit: 50000,
+    icon: Zap,
+    color: 'text-blue-400',
+    bg: 'bg-blue-400/10 border-blue-400/30',
+    features: ['50K impressions/month', 'Feed placement', 'Basic analytics', 'Email support'],
+  },
+  {
+    id: 'growth',
+    name: 'Growth',
+    price: 799,
+    period: '/month',
+    impressions: '200,000',
+    impressions_limit: 200000,
+    icon: TrendingUp,
+    color: 'text-primary',
+    bg: 'bg-primary/10 border-primary/40',
+    popular: true,
+    features: ['200K impressions/month', 'Feed + banner placement', 'Priority placement', 'Bi-weekly strategy calls', 'Advanced analytics'],
+  },
+  {
+    id: 'premium',
+    name: 'Premium',
+    price: 1999,
+    period: '/month',
+    impressions: 'Unlimited',
+    impressions_limit: null,
+    icon: Crown,
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/10 border-amber-400/30',
+    features: ['Unlimited impressions', 'All placements', 'Dedicated account manager', 'Custom reporting', 'Priority support'],
+  },
 ]
-const FOLLOWER_RANGES = ['1–10K', '10K–100K', '100K–1M', '1M+', 'Any']
 
-const CPV   = 0.001 // cost per view
-const MIN_BUDGET = 50
+const BOOST_OPTIONS = [
+  { id: 'quick', label: 'Quick Boost', price: 10, impressions: 5000, days: 7 },
+  { id: 'standard', label: 'Standard Boost', price: 25, impressions: 15000, days: 14 },
+  { id: 'power', label: 'Power Boost', price: 50, impressions: 40000, days: 30 },
+]
 
-function estimateReach(budget) {
-  return Math.round((budget / CPV) * 0.7)
-}
+const REACH_OPTIONS = [
+  { value: 'broad', label: 'Broad', desc: 'Reach everyone on Philomni' },
+  { value: 'niche', label: 'Niche', desc: 'Similar creators & audiences' },
+  { value: 'followers_of_followers', label: 'Followers of followers', desc: 'Extended network reach' },
+]
 
 async function uploadMedia(file) {
-  const ext  = file.name.split('.').pop() || 'bin'
+  const ext = file.name.split('.').pop() || 'bin'
   const path = `ads/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`
   const { data, error } = await supabase.storage.from('uploads').upload(path, file, { upsert: true })
   if (error) throw error
@@ -32,282 +70,448 @@ async function uploadMedia(file) {
 }
 
 export default function Advertise() {
-  const { user }   = useAuth()
-  const navigate   = useNavigate()
-  const [loading, setLoading] = useState(false)
-  const [mediaFile, setMediaFile] = useState(null)
-  const [mediaPreview, setMediaPreview] = useState(null)
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const initialTab = searchParams.get('tab') === 'boost' ? 'boost' : 'campaign'
+  const preselectedPostId = searchParams.get('postId') || null
 
-  const [form, setForm] = useState({
-    title:           '',
-    content:         '',
-    cta_text:        'Learn More',
-    cta_url:         '',
-    budget:          '',
-    industry:        '',
-    follower_range:  'Any',
-    country:         '',
-    start_date:      '',
-    end_date:        '',
+  const [tab, setTab] = useState(initialTab)
+
+  // — Campaign state —
+  const [selectedPkg, setSelectedPkg] = useState(null)
+  const [showCampaignForm, setShowCampaignForm] = useState(false)
+  const [campaignForm, setCampaignForm] = useState({
+    title: '', description: '', cta_text: 'Learn More', cta_url: '',
+    target_roles: 'all', start_date: '', end_date: '',
   })
+  const [campaignMedia, setCampaignMedia] = useState(null)
+  const [campaignPreview, setCampaignPreview] = useState(null)
+  const [campaignLoading, setCampaignLoading] = useState(false)
+  const [campaignDone, setCampaignDone] = useState(false)
 
-  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+  // — Boost state —
+  const [userPosts, setUserPosts] = useState([])
+  const [postsLoading, setPostsLoading] = useState(false)
+  const [selectedPost, setSelectedPost] = useState(null)
+  const [selectedBoost, setSelectedBoost] = useState(null)
+  const [reachType, setReachType] = useState('broad')
+  const [boostLoading, setBoostLoading] = useState(false)
+  const [boostDone, setBoostDone] = useState(false)
 
-  const handleMediaChange = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setMediaFile(file)
-    setMediaPreview(URL.createObjectURL(file))
-  }
+  const setC = (k, v) => setCampaignForm(prev => ({ ...prev, [k]: v }))
 
-  const handleSubmit = async (e) => {
+  // Fetch user posts for boost tab
+  useEffect(() => {
+    if (tab !== 'boost' || !user?.id) return
+    setPostsLoading(true)
+    supabase.from('posts').select('id, content, media_urls, media_type, like_count, comment_count, created_at')
+      .eq('author_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data }) => { setUserPosts(data || []); setPostsLoading(false) })
+  }, [tab, user?.id])
+
+  // Pre-select post if postId in URL
+  useEffect(() => {
+    if (!preselectedPostId || !userPosts.length) return
+    const post = userPosts.find(p => p.id === preselectedPostId)
+    if (post) setSelectedPost(post)
+  }, [preselectedPostId, userPosts])
+
+  const handleCampaignSubmit = async (e) => {
     e.preventDefault()
-    if (!form.title.trim()) { toast.error('Ad headline is required'); return }
-    if (!form.cta_url.trim()) { toast.error('CTA URL is required'); return }
-    const budget = parseFloat(form.budget)
-    if (!budget || budget < MIN_BUDGET) { toast.error(`Minimum budget is $${MIN_BUDGET}`); return }
-
-    setLoading(true)
+    if (!campaignForm.title.trim()) { toast.error('Campaign title is required'); return }
+    if (!campaignForm.cta_url.trim()) { toast.error('CTA URL is required'); return }
+    if (!selectedPkg) { toast.error('Select a package'); return }
+    setCampaignLoading(true)
     try {
-      let imageUrl = null, videoUrl = null
-      if (mediaFile) {
-        const url = await uploadMedia(mediaFile)
-        const isVid = mediaFile.type.startsWith('video/')
-        if (isVid) videoUrl = url; else imageUrl = url
-      }
-
-      await supabase.from('ads').insert({
+      let imageUrl = null
+      if (campaignMedia) imageUrl = await uploadMedia(campaignMedia)
+      const pkg = PACKAGES.find(p => p.id === selectedPkg)
+      await supabase.from('ad_campaigns').insert({
         advertiser_id: user.id,
-        title:         form.title,
-        content:       form.content,
-        cta_text:      form.cta_text || 'Learn More',
-        cta_url:       form.cta_url,
-        image_url:     imageUrl,
-        video_url:     videoUrl,
-        budget,
-        cost_per_view: CPV,
-        target_audience: {
-          industry:       form.industry || null,
-          follower_range: form.follower_range || 'Any',
-          country:        form.country || null,
-        },
-        start_date: form.start_date || null,
-        end_date:   form.end_date   || null,
-        status:     'pending',
+        title: campaignForm.title,
+        description: campaignForm.description,
+        image_url: imageUrl,
+        cta_text: campaignForm.cta_text,
+        cta_url: campaignForm.cta_url,
+        package_type: selectedPkg,
+        budget: pkg.price,
+        impressions_limit: pkg.impressions_limit,
+        target_roles: campaignForm.target_roles !== 'all' ? [campaignForm.target_roles] : null,
+        starts_at: campaignForm.start_date || null,
+        ends_at: campaignForm.end_date || null,
+        status: 'pending',
       })
-
-      toast.success('Ad submitted for review! We\'ll activate it within 24 hours.')
-      navigate('/my-ads')
+      setCampaignDone(true)
     } catch (err) {
       toast.error(err.message)
     }
-    setLoading(false)
+    setCampaignLoading(false)
   }
 
-  const budget = parseFloat(form.budget) || 0
+  const handleBoostSubmit = async () => {
+    if (!selectedPost) { toast.error('Select a post to boost'); return }
+    if (!selectedBoost) { toast.error('Select a boost option'); return }
+    setBoostLoading(true)
+    try {
+      const opt = BOOST_OPTIONS.find(o => o.id === selectedBoost)
+      const endsAt = new Date(Date.now() + opt.days * 86400000).toISOString()
+      await supabase.from('boosted_posts').insert({
+        post_id: selectedPost.id,
+        creator_id: user.id,
+        budget: opt.price,
+        impressions_limit: opt.impressions,
+        reach_type: reachType,
+        ends_at: endsAt,
+        status: 'pending',
+      })
+      setBoostDone(true)
+    } catch (err) {
+      toast.error(err.message)
+    }
+    setBoostLoading(false)
+  }
 
   return (
     <div className="max-w-5xl mx-auto py-6 px-4">
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-6">
         <Megaphone className="w-6 h-6 text-primary" />
-        <h1 className="text-2xl font-bold text-foreground">Create an Ad</h1>
+        <h1 className="text-2xl font-bold text-foreground">Advertise on Philomni</h1>
       </div>
 
-      {/* Managed campaign callout */}
-      <div className="flex items-start gap-3 p-4 rounded-xl bg-primary/8 border border-primary/20 mb-6">
-        <ArrowRight className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-        <p className="text-sm text-muted-foreground">
-          <span className="text-foreground font-medium">Running a campaign over $500?</span>{' '}
-          Contact our partnerships team for custom pricing, priority placement, and a dedicated account manager.{' '}
-          <Link to="/partners" className="text-primary hover:underline font-medium">
-            View Packages &rarr;
-          </Link>
-        </p>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-8">
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-
-          {/* Headline */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Ad Headline <span className="text-muted-foreground font-normal">({form.title.length}/60)</span>
-            </label>
-            <input value={form.title} onChange={e => set('title', e.target.value.slice(0, 60))}
-              placeholder="Short, punchy headline…"
-              className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Description <span className="text-muted-foreground font-normal">({form.content.length}/150)</span>
-            </label>
-            <textarea value={form.content} onChange={e => set('content', e.target.value.slice(0, 150))}
-              placeholder="Tell your audience what you're offering…"
-              rows={3}
-              className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
-          </div>
-
-          {/* Media upload */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Ad Creative (image or video)</label>
-            <label className="flex items-center justify-center gap-2 px-4 py-5 rounded-xl border border-dashed border-border hover:border-primary/50 cursor-pointer transition-colors bg-muted/40 text-muted-foreground hover:text-foreground">
-              {mediaFile ? (
-                <span className="text-sm">{mediaFile.name}</span>
-              ) : (
-                <>
-                  <Upload className="w-5 h-5" />
-                  <span className="text-sm">Upload image or video (JPG, PNG, MP4)</span>
-                </>
-              )}
-              <input type="file" accept="image/*,video/mp4,video/webm" className="hidden" onChange={handleMediaChange} />
-            </label>
-          </div>
-
-          {/* CTA */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">CTA Button Text</label>
-              <select value={form.cta_text} onChange={e => set('cta_text', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                {['Learn More','Shop Now','Sign Up','Download','Get Started','Book Now','Contact Us'].map(t =>
-                  <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Destination URL</label>
-              <input value={form.cta_url} onChange={e => set('cta_url', e.target.value)}
-                placeholder="https://yoursite.com" type="url"
-                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-            </div>
-          </div>
-
-          {/* Budget */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Budget (USD · minimum ${MIN_BUDGET})
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-              <input value={form.budget} onChange={e => set('budget', e.target.value)} type="number" min={MIN_BUDGET}
-                placeholder="100"
-                className="w-full pl-7 pr-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-            </div>
-            {budget >= MIN_BUDGET && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Estimated reach: ~{estimateReach(budget).toLocaleString()} views · ${CPV}/view
-              </p>
-            )}
-          </div>
-
-          {/* Targeting */}
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-foreground">Target Audience (optional)</label>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">Industry / Niche</label>
-                <select value={form.industry} onChange={e => set('industry', e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                  <option value="">Any Industry</option>
-                  {INDUSTRIES.map(i => <option key={i}>{i}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">Follower Range</label>
-                <select value={form.follower_range} onChange={e => set('follower_range', e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                  {FOLLOWER_RANGES.map(r => <option key={r}>{r}</option>)}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Country / Region (optional)</label>
-              <input value={form.country} onChange={e => set('country', e.target.value)}
-                placeholder="e.g. Nigeria, Global, West Africa"
-                className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-            </div>
-          </div>
-
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Start Date</label>
-              <input type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-            </div>
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">End Date</label>
-              <input type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-            </div>
-          </div>
-
-          <button type="submit" disabled={loading}
-            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Megaphone className="w-4 h-4" />}
-            Submit for Review
+      {/* Tab switcher */}
+      <div className="flex gap-1 bg-muted p-1 rounded-xl mb-6 w-fit">
+        {[
+          { id: 'campaign', label: 'Run a Campaign', icon: Megaphone },
+          { id: 'boost', label: 'Boost a Post', icon: Rocket },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+              tab === t.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            }`}>
+            <t.icon className="w-4 h-4" />
+            {t.label}
           </button>
-          <p className="text-xs text-muted-foreground text-center">Ads are reviewed within 24 hours. You will only be charged for confirmed views.</p>
-        </form>
+        ))}
+      </div>
 
-        {/* Live preview */}
-        <div className="lg:sticky lg:top-20 h-fit space-y-4">
-          <p className="text-sm font-semibold text-foreground">Live Preview</p>
-          <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-            {/* Sponsored label */}
-            <div className="flex items-center justify-between px-4 pt-3 pb-0">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Megaphone className="w-4 h-4 text-primary" />
+      {/* ── CAMPAIGN TAB ── */}
+      {tab === 'campaign' && (
+        <>
+          {campaignDone ? (
+            <div className="text-center py-16 bg-card border border-border rounded-2xl">
+              <div className="w-16 h-16 rounded-full bg-green-400/10 flex items-center justify-center mx-auto mb-4">
+                <Check className="w-8 h-8 text-green-400" />
+              </div>
+              <h2 className="text-xl font-bold text-foreground mb-2">Campaign Submitted!</h2>
+              <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+                Your campaign has been submitted for review. We'll activate it within 24 hours and contact you to complete payment.
+              </p>
+              <button onClick={() => navigate('/my-ads')}
+                className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors">
+                View My Campaigns
+              </button>
+            </div>
+          ) : !showCampaignForm ? (
+            <>
+              <p className="text-muted-foreground mb-6">Choose a package to reach Philomni's creator and professional audience.</p>
+              <div className="grid md:grid-cols-3 gap-4 mb-6">
+                {PACKAGES.map(pkg => (
+                  <div key={pkg.id}
+                    onClick={() => setSelectedPkg(pkg.id)}
+                    className={`relative cursor-pointer rounded-2xl border p-5 transition-all ${
+                      selectedPkg === pkg.id
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                        : `${pkg.bg} hover:border-primary/50`
+                    }`}>
+                    {pkg.popular && (
+                      <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-primary-foreground text-[10px] font-bold rounded-full">
+                        MOST POPULAR
+                      </span>
+                    )}
+                    <div className={`w-10 h-10 rounded-xl ${pkg.bg} flex items-center justify-center mb-3`}>
+                      <pkg.icon className={`w-5 h-5 ${pkg.color}`} />
+                    </div>
+                    <h3 className="font-bold text-foreground text-lg">{pkg.name}</h3>
+                    <div className="flex items-baseline gap-1 my-2">
+                      <span className="text-2xl font-bold text-foreground">${pkg.price}</span>
+                      <span className="text-muted-foreground text-sm">{pkg.period}</span>
+                    </div>
+                    <p className={`text-sm font-semibold ${pkg.color} mb-3`}>{pkg.impressions} impressions</p>
+                    <ul className="space-y-2">
+                      {pkg.features.map(f => (
+                        <li key={f} className="flex items-start gap-2 text-xs text-muted-foreground">
+                          <Check className="w-3.5 h-3.5 text-green-400 flex-shrink-0 mt-0.5" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    {selectedPkg === pkg.id && (
+                      <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between bg-muted/50 rounded-xl px-4 py-3 mb-4">
+                <p className="text-sm text-muted-foreground">
+                  Payment integration coming soon — we'll contact you to complete payment
+                </p>
+              </div>
+              <button
+                onClick={() => { if (!selectedPkg) { toast.error('Select a package first'); return } setShowCampaignForm(true) }}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors">
+                Get Started <ChevronRight className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <div className="grid lg:grid-cols-2 gap-8">
+              <form onSubmit={handleCampaignSubmit} className="space-y-5">
+                <div className="flex items-center gap-3 p-3 bg-primary/8 border border-primary/20 rounded-xl">
+                  <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                    {(() => { const pkg = PACKAGES.find(p => p.id === selectedPkg); return pkg ? <pkg.icon className={`w-4 h-4 ${pkg.color}`} /> : null })()}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{PACKAGES.find(p => p.id === selectedPkg)?.name} Package</p>
+                    <p className="text-xs text-muted-foreground">${PACKAGES.find(p => p.id === selectedPkg)?.price}/month · {PACKAGES.find(p => p.id === selectedPkg)?.impressions} impressions</p>
+                  </div>
+                  <button type="button" onClick={() => setShowCampaignForm(false)} className="ml-auto text-xs text-primary hover:underline">Change</button>
                 </div>
+
                 <div>
-                  <p className="text-sm font-semibold text-foreground leading-tight">{user?.full_name || 'Your Brand'}</p>
-                  <p className="text-[10px] text-muted-foreground">Sponsored</p>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Campaign Title</label>
+                  <input value={campaignForm.title} onChange={e => setC('title', e.target.value)}
+                    placeholder="What's your campaign about?" required
+                    className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
-              </div>
-            </div>
 
-            {/* Creative */}
-            {mediaPreview ? (
-              mediaFile?.type?.startsWith('video/')
-                ? <video src={mediaPreview} className="w-full aspect-video object-cover mt-3" muted loop autoPlay />
-                : <img src={mediaPreview} className="w-full aspect-video object-cover mt-3" alt="" />
-            ) : (
-              <div className="w-full aspect-video bg-muted mt-3 flex items-center justify-center">
-                <ImageIcon className="w-8 h-8 text-muted-foreground/40" />
-              </div>
-            )}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Description</label>
+                  <textarea value={campaignForm.description} onChange={e => setC('description', e.target.value)}
+                    placeholder="Tell your audience what you're offering…" rows={3}
+                    className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                </div>
 
-            <div className="p-4">
-              <p className="font-bold text-foreground text-sm mb-1">{form.title || 'Your ad headline'}</p>
-              <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{form.content || 'Your ad description will appear here.'}</p>
-              <a href={form.cta_url || '#'} target="_blank" rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
-                {form.cta_text || 'Learn More'} <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
-          </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Ad Creative (image)</label>
+                  <label className="flex items-center justify-center gap-2 px-4 py-5 rounded-xl border border-dashed border-border hover:border-primary/50 cursor-pointer transition-colors bg-muted/40 text-muted-foreground hover:text-foreground">
+                    {campaignMedia ? (
+                      <span className="text-sm">{campaignMedia.name}</span>
+                    ) : (
+                      <>
+                        <Upload className="w-5 h-5" />
+                        <span className="text-sm">Upload image (JPG, PNG)</span>
+                      </>
+                    )}
+                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (f) { setCampaignMedia(f); setCampaignPreview(URL.createObjectURL(f)) }
+                    }} />
+                  </label>
+                </div>
 
-          {budget >= MIN_BUDGET && (
-            <div className="bg-card rounded-xl border border-border p-4 grid grid-cols-3 gap-3 text-center">
-              <div>
-                <p className="text-lg font-bold text-foreground">${budget}</p>
-                <p className="text-xs text-muted-foreground">Budget</p>
-              </div>
-              <div>
-                <p className="text-lg font-bold text-foreground">~{(estimateReach(budget) / 1000).toFixed(0)}K</p>
-                <p className="text-xs text-muted-foreground">Est. Views</p>
-              </div>
-              <div>
-                <p className="text-lg font-bold text-foreground">${CPV}</p>
-                <p className="text-xs text-muted-foreground">Per View</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">CTA Button</label>
+                    <select value={campaignForm.cta_text} onChange={e => setC('cta_text', e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                      {['Learn More','Shop Now','Sign Up','Download','Get Started','Book Now','Contact Us'].map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Destination URL</label>
+                    <input value={campaignForm.cta_url} onChange={e => setC('cta_url', e.target.value)}
+                      placeholder="https://yoursite.com" type="url" required
+                      className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Target Audience</label>
+                  <select value={campaignForm.target_roles} onChange={e => setC('target_roles', e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                    <option value="all">All users</option>
+                    <option value="creator">Creators</option>
+                    <option value="professional">Professionals</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Start Date</label>
+                    <input type="date" value={campaignForm.start_date} onChange={e => setC('start_date', e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">End Date</label>
+                    <input type="date" value={campaignForm.end_date} onChange={e => setC('end_date', e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+                  Payment integration coming soon — we'll contact you to complete payment after review.
+                </p>
+
+                <button type="submit" disabled={campaignLoading}
+                  className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+                  {campaignLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Megaphone className="w-4 h-4" />}
+                  Submit Campaign for Review
+                </button>
+              </form>
+
+              {/* Preview */}
+              <div className="lg:sticky lg:top-20 h-fit space-y-4">
+                <p className="text-sm font-semibold text-foreground">Ad Preview</p>
+                <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+                  <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
+                        <Megaphone className="w-3.5 h-3.5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground leading-tight">{user?.full_name || 'Your Brand'}</p>
+                        <p className="text-[10px] text-muted-foreground">Sponsored</p>
+                      </div>
+                    </div>
+                  </div>
+                  {campaignPreview
+                    ? <img src={campaignPreview} className="w-full aspect-video object-cover mt-2" alt="" />
+                    : <div className="w-full aspect-video bg-muted mt-2 flex items-center justify-center"><ImageIcon className="w-8 h-8 text-muted-foreground/40" /></div>
+                  }
+                  <div className="p-4">
+                    <p className="font-bold text-foreground text-sm mb-1">{campaignForm.title || 'Your campaign headline'}</p>
+                    <p className="text-xs text-muted-foreground mb-3">{campaignForm.description || 'Your description will appear here.'}</p>
+                    <div className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold">
+                      {campaignForm.cta_text} <ExternalLink className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
-        </div>
-      </div>
+        </>
+      )}
+
+      {/* ── BOOST TAB ── */}
+      {tab === 'boost' && (
+        <>
+          {boostDone ? (
+            <div className="text-center py-16 bg-card border border-border rounded-2xl">
+              <div className="w-16 h-16 rounded-full bg-green-400/10 flex items-center justify-center mx-auto mb-4">
+                <Check className="w-8 h-8 text-green-400" />
+              </div>
+              <h2 className="text-xl font-bold text-foreground mb-2">Boost Submitted!</h2>
+              <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+                Your post boost is under review. It goes live within 24 hours. We'll contact you to complete payment.
+              </p>
+              <button onClick={() => navigate('/my-ads')}
+                className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors">
+                View My Boosts
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Step 1: Select post */}
+              <div>
+                <h2 className="text-base font-semibold text-foreground mb-3">1. Select a post to boost</h2>
+                {postsLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+                ) : userPosts.length === 0 ? (
+                  <div className="text-center py-10 bg-card border border-border rounded-2xl">
+                    <p className="text-muted-foreground text-sm">No posts yet. Create a post first.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {userPosts.map(post => {
+                      const img = Array.isArray(post.media_urls) ? post.media_urls[0] : null
+                      const text = post.content?.replace(/<[^>]+>/g, '').slice(0, 60) || 'Text post'
+                      return (
+                        <button key={post.id} onClick={() => setSelectedPost(post)}
+                          className={`relative rounded-xl border overflow-hidden aspect-square transition-all ${
+                            selectedPost?.id === post.id
+                              ? 'border-primary ring-2 ring-primary'
+                              : 'border-border hover:border-primary/50'
+                          }`}>
+                          {img
+                            ? <img src={img} alt="" className="w-full h-full object-cover" />
+                            : <div className="w-full h-full bg-muted flex items-center justify-center p-2">
+                                <p className="text-xs text-muted-foreground text-center leading-tight">{text}</p>
+                              </div>
+                          }
+                          {selectedPost?.id === post.id && (
+                            <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center">
+                                <Check className="w-4 h-4 text-white" />
+                              </div>
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Step 2: Boost options */}
+              <div>
+                <h2 className="text-base font-semibold text-foreground mb-3">2. Choose a boost</h2>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {BOOST_OPTIONS.map(opt => (
+                    <button key={opt.id} onClick={() => setSelectedBoost(opt.id)}
+                      className={`relative text-left p-4 rounded-xl border transition-all ${
+                        selectedBoost === opt.id
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'border-border bg-card hover:border-primary/50'
+                      }`}>
+                      {selectedBoost === opt.id && (
+                        <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                      <p className="font-semibold text-foreground text-sm mb-1">{opt.label}</p>
+                      <p className="text-2xl font-bold text-foreground mb-2">${opt.price}</p>
+                      <p className="text-xs text-muted-foreground">{opt.impressions.toLocaleString()} extra impressions</p>
+                      <p className="text-xs text-muted-foreground">{opt.days} days</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Step 3: Reach type */}
+              <div>
+                <h2 className="text-base font-semibold text-foreground mb-3">3. Target audience</h2>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {REACH_OPTIONS.map(opt => (
+                    <button key={opt.value} onClick={() => setReachType(opt.value)}
+                      className={`text-left p-3 rounded-xl border transition-all ${
+                        reachType === opt.value
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border bg-card hover:border-primary/50'
+                      }`}>
+                      <p className="font-medium text-foreground text-sm">{opt.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+                Payment integration coming soon — we'll contact you to complete payment after review.
+              </p>
+
+              <button onClick={handleBoostSubmit} disabled={boostLoading || !selectedPost || !selectedBoost}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
+                {boostLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
+                Submit Boost for Review
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

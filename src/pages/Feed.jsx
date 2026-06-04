@@ -25,91 +25,95 @@ import ErrorBoundary from '../components/ErrorBoundary'
 import ProductTagPicker from '../components/shop/ProductTagPicker'
 import TaggedProductsDrawer from '../components/shop/TaggedProductsDrawer'
 
-// ── In-feed Ad Card ───────────────────────────────────────────────────────────
-function AdCard({ ad, viewerId }) {
-  const cardRef  = useRef(null)
-  const tracked  = useRef(false)
+// ── In-feed Sponsored Ad Card ─────────────────────────────────────────────────
+function SponsoredCard({ ad, viewerId }) {
+  const cardRef = useRef(null)
+  const tracked = useRef(false)
+  const [showWhy, setShowWhy] = useState(false)
 
   useEffect(() => {
-    if (!ad?.id || tracked.current) return
-    const observer = new IntersectionObserver(
-      async ([entry]) => {
-        if (entry.isIntersecting && !tracked.current) {
-          tracked.current = true
-          observer.disconnect()
-          // Record view
-          await supabase.from('ad_views').insert({ ad_id: ad.id, viewer_id: viewerId || null })
-          // Increment total_views and spent
-          await supabase.rpc
-            ? supabase.from('ads').update({
-                total_views: (ad.total_views || 0) + 1,
-                spent: Math.min(ad.budget || 0, parseFloat(((ad.spent || 0) + (ad.cost_per_view || 0.001)).toFixed(4))),
-              }).eq('id', ad.id)
-            : null
-          // Mark budget exhausted
-          const newSpent = (ad.spent || 0) + (ad.cost_per_view || 0.001)
-          if (newSpent >= (ad.budget || 0)) {
-            await supabase.from('ads').update({ status: 'completed' }).eq('id', ad.id)
-          }
-        }
-      },
-      { threshold: 0.6 }
-    )
+    if (!ad?.adId || tracked.current) return
+    const observer = new IntersectionObserver(async ([entry]) => {
+      if (entry.isIntersecting && !tracked.current) {
+        tracked.current = true
+        observer.disconnect()
+        await supabase.from('ad_impressions').insert({
+          ad_type: ad.adType,
+          ad_id: ad.adId,
+          viewer_id: viewerId || null,
+        })
+        const table = ad.adType === 'campaign' ? 'ad_campaigns' : 'boosted_posts'
+        const idCol = ad.adType === 'campaign' ? 'id' : 'id'
+        await supabase.from(table).update({
+          impressions_served: (ad.impressions_served || 0) + 1,
+        }).eq(idCol, ad.adType === 'campaign' ? ad.adId : ad.boostId || ad.adId)
+      }
+    }, { threshold: 0.6 })
     if (cardRef.current) observer.observe(cardRef.current)
     return () => observer.disconnect()
-  }, [ad?.id, viewerId])
+  }, [ad?.adId, viewerId])
 
-  const handleClick = async () => {
-    await supabase.from('ad_views').update({ clicked: true }).eq('ad_id', ad.id).eq('viewer_id', viewerId || null)
-    await supabase.from('ads').update({ total_clicks: (ad.total_clicks || 0) + 1 }).eq('id', ad.id)
+  const handleCTAClick = async () => {
+    await supabase.from('ad_impressions')
+      .update({ clicked: true })
+      .eq('ad_id', ad.adId)
+      .eq('viewer_id', viewerId || null)
+    const table = ad.adType === 'campaign' ? 'ad_campaigns' : 'boosted_posts'
+    const targetId = ad.adType === 'campaign' ? ad.adId : (ad.boostId || ad.adId)
+    await supabase.from(table).update({ clicks: (ad.clicks || 0) + 1 }).eq('id', targetId)
     if (ad.cta_url) window.open(ad.cta_url, '_blank', 'noopener noreferrer')
   }
+
+  const displayName = ad.author_name || ad.advertiser_name || 'Sponsored'
+  const displayAvatar = ad.author_avatar || null
+  const displayContent = ad.content ? ad.content.replace(/<[^>]+>/g, '') : (ad.description || '')
+  const displayImage = ad.image_url || (Array.isArray(ad.media_urls) ? ad.media_urls[0] : null)
 
   return (
     <div ref={cardRef} className="bg-card rounded-2xl border border-border/60 overflow-hidden shadow-sm">
       <div className="flex items-center justify-between px-4 pt-3 pb-1">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
-            <Megaphone className="w-3.5 h-3.5 text-primary" />
+          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+            {displayAvatar
+              ? <img src={displayAvatar} alt="" className="w-full h-full object-cover" />
+              : <Megaphone className="w-4 h-4 text-primary" />}
           </div>
           <div>
-            <p className="text-sm font-semibold text-foreground leading-tight">{ad.title}</p>
+            <p className="text-sm font-semibold text-foreground leading-tight">{displayName}</p>
+            <p className="text-[10px] text-muted-foreground">Sponsored</p>
           </div>
         </div>
-        <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">Sponsored</span>
+        <div className="relative">
+          <button onClick={() => setShowWhy(v => !v)} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+            Why am I seeing this?
+          </button>
+          {showWhy && (
+            <div className="absolute right-0 top-5 z-20 w-52 bg-popover border border-border rounded-xl shadow-xl p-3 text-xs text-muted-foreground">
+              This is a paid promotion on Philomni.
+              <button onClick={() => setShowWhy(false)} className="ml-1 text-primary hover:underline">Dismiss</button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {ad.image_url && (
-        <img src={ad.image_url} alt={ad.title} className="w-full max-h-72 object-cover mt-2" />
-      )}
-      {ad.video_url && !ad.image_url && (
-        <video src={ad.video_url} className="w-full max-h-72 object-cover mt-2" muted loop autoPlay playsInline />
+      {displayImage && (
+        <img src={displayImage} alt={ad.title} className="w-full max-h-72 object-cover mt-2" />
       )}
 
       <div className="px-4 py-3">
-        {ad.content && <p className="text-sm text-muted-foreground mb-3 leading-relaxed">{ad.content}</p>}
-        <button onClick={handleClick}
-          className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
-          {ad.cta_text || 'Learn More'} <ExternalLink className="w-3.5 h-3.5" />
-        </button>
+        {ad.title && <p className="font-semibold text-foreground text-sm mb-1">{ad.title}</p>}
+        {displayContent && (
+          <p className="text-sm text-muted-foreground mb-3 leading-relaxed line-clamp-3">{displayContent}</p>
+        )}
+        {ad.cta_url && (
+          <button onClick={handleCTAClick}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+            {ad.cta_text || 'Learn More'} <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     </div>
   )
-}
-
-// Fetch one random active ad for injection
-async function fetchFeedAd() {
-  try {
-    const { data } = await supabase
-      .from('ads')
-      .select('*')
-      .eq('status', 'active')
-      .limit(10)
-    if (!data || data.length === 0) return null
-    return data[Math.floor(Math.random() * data.length)]
-  } catch {
-    return null
-  }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1217,6 +1221,7 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent }) {
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
 function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWinnerId }) {
+  const navigate = useNavigate()
   const [liked, setLiked] = useState(false)
   const [saved, setSaved] = useState(false)
   const [likeCount, setLikeCount] = useState(post.like_count ?? 0)
@@ -1623,10 +1628,16 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
           <span className="text-xs text-muted-foreground/30">·</span>
           <span className="text-xs text-muted-foreground">🔖 {fmtCount(post.save_count || 0)}</span>
           {isOwner && (
-            <button onClick={() => setShowInsights(true)}
-              className="ml-auto text-xs text-primary font-semibold hover:underline flex-shrink-0">
-              See Insights →
-            </button>
+            <div className="ml-auto flex items-center gap-3 flex-shrink-0">
+              <button onClick={() => navigate(`/advertise?tab=boost&postId=${post.id}`)}
+                className="text-xs text-amber-500 font-semibold hover:underline flex items-center gap-1">
+                🚀 Boost
+              </button>
+              <button onClick={() => setShowInsights(true)}
+                className="text-xs text-primary font-semibold hover:underline">
+                See Insights →
+              </button>
+            </div>
           )}
         </div>
 
@@ -2341,7 +2352,6 @@ export default function Feed() {
   const [loading, setLoading] = useState(_feedPostsCache.length === 0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
-  const [feedAd, setFeedAd] = useState(null)
   const [feedError, setFeedError] = useState(null)
   const [spotlightWinnerId, setSpotlightWinnerId] = useState(null)
   const [showGoLive, setShowGoLive] = useState(false)
@@ -2349,8 +2359,7 @@ export default function Feed() {
   const pageRef = useRef(0)
   const loadingRef = useRef(_feedPostsCache.length === 0) // mirrors `loading` for callbacks
 
-  // Load a sponsored ad for injection
-  useEffect(() => { fetchFeedAd().then(setFeedAd) }, [])
+  // (ad fetching is now handled inside fetchPosts)
 
   // Fetch current spotlight winner's user_id — cached 5 min, fetched once per session
   useEffect(() => {
@@ -2364,57 +2373,119 @@ export default function Feed() {
     }, 300_000).then(uid => { if (uid) setSpotlightWinnerId(uid) })
   }, [])
 
-  // Confirmed posts columns: id, content, media_urls, media_type, visibility,
-  // created_by, author_id, author_name, author_avatar, author_role,
-  // like_count, comment_count, share_count, likes_count, comments_count, shares_count,
-  // created_at, updated_at, music_track_id, music_track_meta
   const FEED_LIMIT = 50
+
+  const engagementScore = (post) => {
+    const now = Date.now()
+    const age = now - new Date(post.created_at).getTime()
+    const recency = age < 86400000 ? 10 : age < 172800000 ? 5 : 0
+    return (post.like_count || post.likes_count || 0) * 2
+      + (post.comment_count || post.comments_count || 0) * 3
+      + (post.repost_count || 0) * 2
+      + recency
+  }
 
   const fetchPosts = async () => {
     loadingRef.current = true
     setLoading(true)
 
-    // Race the WHOLE operation against a reject-timeout. Unlike an AbortSignal
-    // (which only cancels the HTTP fetch), this also unblocks a stall that
-    // happens BEFORE the fetch — e.g. supabase getSession() queued behind a
-    // visibility-triggered auth op after a real tab backgrounding. On timeout we
-    // reject, clear the skeleton, keep cached posts, and let a later trigger retry.
     const withTimeout = (p, ms = 12_000) =>
       Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
 
     try {
-      // Fetch posts — same query for everyone (no user_id filter on main feed)
-      const { data: rawPosts, error } = await withTimeout(
-        supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(FEED_LIMIT)
-      )
+      // ── Layer 1: Following posts (60% of feed) ──────────────────────────────
+      let followedIds = []
+      if (user?.id) {
+        const { data: fData } = await withTimeout(
+          supabase.from('follows').select('following_id').eq('follower_id', user.id)
+        )
+        followedIds = (fData || []).map(f => f.following_id).filter(Boolean)
+      }
 
+      let followingPosts = []
+      if (followedIds.length > 0) {
+        const { data } = await withTimeout(
+          supabase.from('posts').select('*')
+            .in('author_id', followedIds)
+            .order('created_at', { ascending: false })
+            .limit(30)
+        )
+        followingPosts = (data || []).sort((a, b) => engagementScore(b) - engagementScore(a))
+      }
+
+      // ── Layer 2: Discovery posts (25% of feed) ──────────────────────────────
+      let discoveryQuery = supabase.from('posts').select('*')
+        .order('created_at', { ascending: false })
+        .limit(40)
+      if (followedIds.length > 0) {
+        discoveryQuery = discoveryQuery.not('author_id', 'in', `(${followedIds.join(',')})`)
+      }
+      const { data: discData, error } = await withTimeout(discoveryQuery)
       if (error) throw error
-      const fetched = rawPosts || []
+      const discoveryPosts = (discData || []).sort((a, b) => engagementScore(b) - engagementScore(a))
 
-      // Enrich with fresh author profiles (separate query, no FK join)
-      // Legacy posts have created_by=null; fall back to author_id
-      let enriched = fetched
-      const userIds = [...new Set(fetched.map(p => p.created_by || p.author_id).filter(Boolean))]
+      // ── Build combined post pool ──────────────────────────────────────────────
+      const followingTarget = Math.ceil(FEED_LIMIT * 0.6)
+      const discoveryTarget = Math.ceil(FEED_LIMIT * 0.35)
+      const allPosts = followedIds.length > 0
+        ? [...followingPosts.slice(0, followingTarget), ...discoveryPosts.slice(0, discoveryTarget)]
+        : discoveryPosts.slice(0, FEED_LIMIT)
+
+      // Enrich with author profiles
+      let enriched = allPosts
+      const userIds = [...new Set(allPosts.map(p => p.created_by || p.author_id).filter(Boolean))]
       if (userIds.length > 0) {
         const { data: profiles } = await withTimeout(
           supabase.from('users').select('id, full_name, avatar_url, plan').in('id', userIds)
         )
         if (profiles?.length) {
-          enriched = fetched.map(post => ({
+          enriched = allPosts.map(post => ({
             ...post,
             author: profiles.find(p => p.id === (post.created_by || post.author_id)) ?? null,
           }))
         }
       }
 
-      _feedPostsCache = enriched // survive remounts
-      setPosts(enriched)
+      // ── Layer 3: Fetch active ads for injection ────────────────────────────
+      const now = new Date().toISOString()
+      const [{ data: campAds }, { data: boostAds }] = await Promise.all([
+        supabase.from('ad_campaigns').select('*').eq('status', 'active').gt('ends_at', now).limit(10),
+        supabase.from('boosted_posts').select('*, posts(*)').eq('status', 'active').gt('ends_at', now).limit(10),
+      ])
+
+      const adsPool = []
+      if (campAds?.length) {
+        const pick = campAds[Math.floor(Math.random() * campAds.length)]
+        adsPool.push({ ...pick, isAd: true, adType: 'campaign', adId: pick.id })
+      }
+      if (boostAds?.length) {
+        const pick = boostAds[Math.floor(Math.random() * boostAds.length)]
+        if (pick.posts) {
+          adsPool.push({ ...pick.posts, isAd: true, adType: 'boost', adId: pick.id, boostId: pick.id,
+            impressions_served: pick.impressions_served, clicks: pick.clicks, cta_url: null })
+        }
+      }
+      // Duplicate the pool to cover all injection slots
+      const fullAdsPool = [...adsPool, ...adsPool, ...adsPool, ...adsPool]
+
+      // ── Interleave ads every 5th post ──────────────────────────────────────
+      const feedPosts = []
+      let adIndex = 0
+      for (let i = 0; i < enriched.length; i++) {
+        feedPosts.push(enriched[i])
+        if ((i + 1) % 5 === 0 && fullAdsPool[adIndex]) {
+          feedPosts.push({ ...fullAdsPool[adIndex], _feedAdKey: `ad-${i}-${adIndex}` })
+          adIndex++
+        }
+      }
+
+      _feedPostsCache = feedPosts
+      setPosts(feedPosts)
       setFeedError(null)
-      if (fetched.length < FEED_LIMIT) setHasMore(false)
+      if (enriched.length < FEED_LIMIT) setHasMore(false)
 
     } catch (err) {
       console.error('[Feed] fetchPosts error:', err.message)
-      // Only surface an error if we have nothing to show — keep cached posts otherwise
       if (posts.length === 0) setFeedError(err.message)
     } finally {
       loadingRef.current = false
@@ -2516,14 +2587,14 @@ export default function Feed() {
           <>
             <div className="space-y-4">
               {posts.map((post, i) => (
-                <React.Fragment key={post.id}>
+                <React.Fragment key={post._feedAdKey || post.id || `feed-${i}`}>
                   <ErrorBoundary fallback={null}>
-                    <PostCard post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} spotlightWinnerId={spotlightWinnerId} />
+                    {post.isAd
+                      ? <SponsoredCard ad={post} viewerId={user?.id} />
+                      : <PostCard post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} spotlightWinnerId={spotlightWinnerId} />
+                    }
                   </ErrorBoundary>
-                  {(i + 1) % 4 === 0 && i < posts.length - 1 && <ConnectionStoryCard />}
-                  {(i + 1) % 8 === 0 && feedAd && (
-                    <AdCard key={`ad-${i}`} ad={feedAd} viewerId={user?.id} />
-                  )}
+                  {!post.isAd && (i + 1) % 4 === 0 && i < posts.length - 1 && <ConnectionStoryCard />}
                 </React.Fragment>
               ))}
             </div>

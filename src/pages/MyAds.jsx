@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
-  Megaphone, Eye, MousePointer, DollarSign, Plus,
-  Loader2, Pause, Play, Clock, CheckCircle2, XCircle, BarChart3,
+  Megaphone, Eye, MousePointer, Plus, Loader2,
+  Pause, Play, Rocket, Zap, TrendingUp, Crown,
 } from 'lucide-react'
 
 const STATUS_CFG = {
@@ -16,42 +16,48 @@ const STATUS_CFG = {
   rejected:  { label: 'Rejected',       color: 'text-red-400 bg-red-400/10'       },
 }
 
-export default function MyAds() {
-  const { user }  = useAuth()
-  const navigate  = useNavigate()
-  const [ads,     setAds]     = useState([])
-  const [loading, setLoading] = useState(true)
-  const [toggling, setToggling] = useState(null)
+const PKG_ICONS = { starter: Zap, growth: TrendingUp, premium: Crown }
 
-  const fetchAds = async () => {
+function ProgressBar({ value, max }) {
+  const pct = max ? Math.min(100, (value / max) * 100) : 0
+  return (
+    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${pct}%` }} />
+    </div>
+  )
+}
+
+export default function MyAds() {
+  const { user }   = useAuth()
+  const navigate   = useNavigate()
+  const [tab, setTab] = useState('campaigns')
+  const [campaigns, setCampaigns] = useState([])
+  const [boosts,    setBoosts]    = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [toggling,  setToggling]  = useState(null)
+
+  const fetchAll = async () => {
     if (!user?.id) return
-    const { data } = await supabase
-      .from('ads')
-      .select('*')
-      .eq('advertiser_id', user.id)
-      .order('created_at', { ascending: false })
-    setAds(data || [])
+    setLoading(true)
+    const [{ data: camps }, { data: bsts }] = await Promise.all([
+      supabase.from('ad_campaigns').select('*').eq('advertiser_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('boosted_posts').select('*, posts(id, content, media_urls, media_type)').eq('creator_id', user.id).order('created_at', { ascending: false }),
+    ])
+    setCampaigns(camps || [])
+    setBoosts(bsts || [])
     setLoading(false)
   }
 
-  useEffect(() => { fetchAds() }, [user?.id])
+  useEffect(() => { fetchAll() }, [user?.id])
 
-  const togglePause = async (ad) => {
-    setToggling(ad.id)
-    const newStatus = ad.status === 'active' ? 'paused' : 'active'
-    await supabase.from('ads').update({ status: newStatus }).eq('id', ad.id)
-    setAds(prev => prev.map(a => a.id === ad.id ? { ...a, status: newStatus } : a))
-    toast.success(`Ad ${newStatus === 'paused' ? 'paused' : 'resumed'}.`)
+  const toggleCampaign = async (c) => {
+    setToggling(c.id)
+    const newStatus = c.status === 'active' ? 'paused' : 'active'
+    await supabase.from('ad_campaigns').update({ status: newStatus }).eq('id', c.id)
+    setCampaigns(prev => prev.map(x => x.id === c.id ? { ...x, status: newStatus } : x))
+    toast.success(`Campaign ${newStatus === 'paused' ? 'paused' : 'resumed'}.`)
     setToggling(null)
   }
-
-  // Summary totals
-  const totals = ads.reduce((acc, ad) => ({
-    spent:  acc.spent  + (ad.spent  || 0),
-    views:  acc.views  + (ad.total_views  || 0),
-    clicks: acc.clicks + (ad.total_clicks || 0),
-  }), { spent: 0, views: 0, clicks: 0 })
-  const ctr = totals.views > 0 ? ((totals.clicks / totals.views) * 100).toFixed(2) : '0.00'
 
   return (
     <div className="max-w-4xl mx-auto py-6 px-4 space-y-6">
@@ -62,95 +68,187 @@ export default function MyAds() {
         </div>
         <button onClick={() => navigate('/advertise')}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
-          <Plus className="w-4 h-4" /> Create Ad
+          <Plus className="w-4 h-4" /> Create
         </button>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Tab bar */}
+      <div className="flex gap-1 bg-muted p-1 rounded-xl w-fit">
         {[
-          { label: 'Total Spent', value: `$${totals.spent.toFixed(2)}`, icon: DollarSign, color: 'text-green-400' },
-          { label: 'Total Views',  value: totals.views.toLocaleString(),  icon: Eye,        color: 'text-blue-400'  },
-          { label: 'Total Clicks', value: totals.clicks.toLocaleString(), icon: MousePointer,color: 'text-purple-400'},
-          { label: 'Avg CTR',      value: `${ctr}%`,                      icon: BarChart3,  color: 'text-amber-400' },
-        ].map(s => (
-          <div key={s.label} className="bg-card rounded-xl border border-border p-4">
-            <s.icon className={`w-4 h-4 mb-2 ${s.color}`} />
-            <p className="text-lg font-bold text-foreground">{s.value}</p>
-            <p className="text-xs text-muted-foreground">{s.label}</p>
-          </div>
+          { id: 'campaigns', label: 'Campaigns', icon: Megaphone, count: campaigns.length },
+          { id: 'boosts',    label: 'Boosted Posts', icon: Rocket, count: boosts.length },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              tab === t.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            }`}>
+            <t.icon className="w-4 h-4" />
+            {t.label}
+            {t.count > 0 && (
+              <span className="text-[10px] font-bold bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">{t.count}</span>
+            )}
+          </button>
         ))}
       </div>
 
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-      ) : ads.length === 0 ? (
-        <div className="text-center py-14 bg-card rounded-2xl border border-border">
-          <Megaphone className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
-          <p className="text-foreground font-medium mb-1">No ads yet</p>
-          <p className="text-sm text-muted-foreground mb-4">Create your first ad to reach Philomni's audience.</p>
-          <button onClick={() => navigate('/advertise')}
-            className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
-            Create Ad
-          </button>
-        </div>
       ) : (
-        <div className="bg-card rounded-2xl border border-border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/40">
-                  <th className="text-left px-4 py-3 text-xs text-muted-foreground font-medium">Ad</th>
-                  <th className="text-center px-3 py-3 text-xs text-muted-foreground font-medium">Status</th>
-                  <th className="text-right px-3 py-3 text-xs text-muted-foreground font-medium">Views</th>
-                  <th className="text-right px-3 py-3 text-xs text-muted-foreground font-medium">Clicks</th>
-                  <th className="text-right px-3 py-3 text-xs text-muted-foreground font-medium">CTR</th>
-                  <th className="text-right px-3 py-3 text-xs text-muted-foreground font-medium">Budget Left</th>
-                  <th className="text-right px-3 py-3 text-xs text-muted-foreground font-medium">Days Left</th>
-                  <th className="px-3 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {ads.map(ad => {
-                  const cfg = STATUS_CFG[ad.status] || STATUS_CFG.pending
-                  const adCtr = ad.total_views > 0 ? ((ad.total_clicks / ad.total_views) * 100).toFixed(1) : '0.0'
-                  const budgetLeft = Math.max(0, (ad.budget || 0) - (ad.spent || 0))
-                  const daysLeft = ad.end_date
-                    ? Math.max(0, Math.ceil((new Date(ad.end_date) - new Date()) / 86400000))
-                    : '—'
+        <>
+          {/* ── CAMPAIGNS ── */}
+          {tab === 'campaigns' && (
+            campaigns.length === 0 ? (
+              <div className="text-center py-14 bg-card rounded-2xl border border-border">
+                <Megaphone className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
+                <p className="text-foreground font-medium mb-1">No campaigns yet</p>
+                <p className="text-sm text-muted-foreground mb-4">Launch a campaign to reach Philomni's audience.</p>
+                <button onClick={() => navigate('/advertise')}
+                  className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+                  Create Campaign
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {campaigns.map(c => {
+                  const cfg = STATUS_CFG[c.status] || STATUS_CFG.pending
+                  const PkgIcon = PKG_ICONS[c.package_type] || Megaphone
+                  const ctr = c.impressions_served > 0
+                    ? ((c.clicks / c.impressions_served) * 100).toFixed(1)
+                    : '0.0'
+                  const daysLeft = c.ends_at
+                    ? Math.max(0, Math.ceil((new Date(c.ends_at) - new Date()) / 86400000))
+                    : null
                   return (
-                    <tr key={ad.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-foreground">{ad.title || 'Untitled'}</p>
-                        <p className="text-xs text-muted-foreground">{new Date(ad.created_at).toLocaleDateString()}</p>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${cfg.color}`}>{cfg.label}</span>
-                      </td>
-                      <td className="px-3 py-3 text-right text-foreground">{(ad.total_views || 0).toLocaleString()}</td>
-                      <td className="px-3 py-3 text-right text-foreground">{(ad.total_clicks || 0).toLocaleString()}</td>
-                      <td className="px-3 py-3 text-right text-foreground">{adCtr}%</td>
-                      <td className="px-3 py-3 text-right text-foreground">${budgetLeft.toFixed(2)}</td>
-                      <td className="px-3 py-3 text-right text-muted-foreground">{daysLeft}</td>
-                      <td className="px-3 py-3 text-right">
-                        {(ad.status === 'active' || ad.status === 'paused') && (
-                          <button onClick={() => togglePause(ad)} disabled={toggling === ad.id}
-                            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                            {toggling === ad.id
-                              ? <Loader2 className="w-4 h-4 animate-spin" />
-                              : ad.status === 'active'
-                              ? <Pause className="w-4 h-4" />
-                              : <Play className="w-4 h-4" />}
-                          </button>
+                    <div key={c.id} className="bg-card border border-border rounded-2xl p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <PkgIcon className="w-4 h-4 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-foreground text-sm">{c.title}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{c.package_type} package · ${c.budget}/mo</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${cfg.color}`}>{cfg.label}</span>
+                          {(c.status === 'active' || c.status === 'paused') && (
+                            <button onClick={() => toggleCampaign(c)} disabled={toggling === c.id}
+                              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                              {toggling === c.id
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : c.status === 'active'
+                                ? <Pause className="w-4 h-4" />
+                                : <Play className="w-4 h-4" />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Impressions progress */}
+                      {c.impressions_limit && (
+                        <div>
+                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                            <span>Impressions</span>
+                            <span>{(c.impressions_served || 0).toLocaleString()} / {c.impressions_limit.toLocaleString()}</span>
+                          </div>
+                          <ProgressBar value={c.impressions_served || 0} max={c.impressions_limit} />
+                        </div>
+                      )}
+
+                      {/* Stats row */}
+                      <div className="flex gap-4 pt-1">
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Eye className="w-3 h-3" /> {(c.impressions_served || 0).toLocaleString()} views
+                        </span>
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <MousePointer className="w-3 h-3" /> {(c.clicks || 0).toLocaleString()} clicks
+                        </span>
+                        <span className="text-xs text-muted-foreground">CTR: {ctr}%</span>
+                        {daysLeft !== null && (
+                          <span className="text-xs text-muted-foreground ml-auto">{daysLeft}d remaining</span>
                         )}
-                      </td>
-                    </tr>
+                      </div>
+
+                      {c.starts_at && (
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(c.starts_at).toLocaleDateString()} – {c.ends_at ? new Date(c.ends_at).toLocaleDateString() : 'ongoing'}
+                        </p>
+                      )}
+                    </div>
                   )
                 })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </div>
+            )
+          )}
+
+          {/* ── BOOSTED POSTS ── */}
+          {tab === 'boosts' && (
+            boosts.length === 0 ? (
+              <div className="text-center py-14 bg-card rounded-2xl border border-border">
+                <Rocket className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
+                <p className="text-foreground font-medium mb-1">No boosted posts yet</p>
+                <p className="text-sm text-muted-foreground mb-4">Boost a post to reach more people.</p>
+                <button onClick={() => navigate('/advertise?tab=boost')}
+                  className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+                  Boost a Post
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {boosts.map(b => {
+                  const cfg = STATUS_CFG[b.status] || STATUS_CFG.pending
+                  const post = b.posts
+                  const img = Array.isArray(post?.media_urls) ? post.media_urls[0] : null
+                  const text = post?.content?.replace(/<[^>]+>/g, '').slice(0, 60) || 'Post'
+                  const daysLeft = b.ends_at
+                    ? Math.max(0, Math.ceil((new Date(b.ends_at) - new Date()) / 86400000))
+                    : null
+                  return (
+                    <div key={b.id} className="bg-card border border-border rounded-2xl p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        {/* Post thumbnail */}
+                        <div className="w-14 h-14 rounded-xl bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center">
+                          {img
+                            ? <img src={img} alt="" className="w-full h-full object-cover" />
+                            : <p className="text-[9px] text-muted-foreground text-center px-1 leading-tight">{text.slice(0, 30)}</p>
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-foreground font-medium truncate">{text}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{b.reach_type} reach · ${b.budget}</p>
+                        </div>
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${cfg.color}`}>{cfg.label}</span>
+                      </div>
+
+                      {b.impressions_limit && (
+                        <div>
+                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                            <span>Impressions</span>
+                            <span>{(b.impressions_served || 0).toLocaleString()} / {b.impressions_limit.toLocaleString()}</span>
+                          </div>
+                          <ProgressBar value={b.impressions_served || 0} max={b.impressions_limit} />
+                        </div>
+                      )}
+
+                      <div className="flex gap-4">
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Eye className="w-3 h-3" /> {(b.impressions_served || 0).toLocaleString()} views
+                        </span>
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <MousePointer className="w-3 h-3" /> {(b.clicks || 0).toLocaleString()} clicks
+                        </span>
+                        {daysLeft !== null && (
+                          <span className="text-xs text-muted-foreground ml-auto">{daysLeft}d remaining</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          )}
+        </>
       )}
     </div>
   )
