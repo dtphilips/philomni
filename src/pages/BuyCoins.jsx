@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { X, Loader2, Check, ExternalLink } from 'lucide-react'
+import { X, Loader2, Check, ExternalLink, CreditCard } from 'lucide-react'
+import { loadStripe } from '@stripe/stripe-js'
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import {
   PAYMENT_CONFIG,
   loadPaystackScript,
@@ -11,55 +13,31 @@ import {
   recordPayment,
 } from '../lib/payments'
 
+// ── Stripe singleton ───────────────────────────────────────────────────────────
+// Only initialise when the key is present — avoids Stripe console warnings.
+const stripePromise = PAYMENT_CONFIG.stripe.active
+  ? loadStripe(PAYMENT_CONFIG.stripe.publishableKey)
+  : null
+
 // ── Packages ──────────────────────────────────────────────────────────────────
 const PACKAGES = [
-  {
-    id:        'starter',
-    label:     'Starter',
-    coins:     100,
-    price:     1.00,
-    savings:   null,
-    highlight: false,
-  },
-  {
-    id:        'popular',
-    label:     'Popular',
-    coins:     500,
-    price:     4.50,
-    savings:   10,
-    highlight: false,
-  },
-  {
-    id:        'value',
-    label:     'Best Value',
-    coins:     1000,
-    price:     8.00,
-    savings:   20,
-    badge:     '⭐ Most Popular',
-    highlight: true,
-  },
-  {
-    id:        'super',
-    label:     'Super',
-    coins:     5000,
-    price:     35.00,
-    savings:   30,
-    highlight: false,
-  },
+  { id: 'starter', label: 'Starter',    coins: 100,  price: 1.00,  savings: null, highlight: false },
+  { id: 'popular', label: 'Popular',    coins: 500,  price: 4.50,  savings: 10,   highlight: false },
+  { id: 'value',   label: 'Best Value', coins: 1000, price: 8.00,  savings: 20,   highlight: true  },
+  { id: 'super',   label: 'Super',      coins: 5000, price: 35.00, savings: 30,   highlight: false },
 ]
 
-// ── Gifts catalog ─────────────────────────────────────────────────────────────
 const GIFTS = [
-  { emoji: '🌹', name: 'Rose',     cost: 1     },
-  { emoji: '❤️', name: 'Heart',    cost: 5     },
-  { emoji: '⭐', name: 'Star',     cost: 10    },
-  { emoji: '🔥', name: 'Fire',     cost: 20    },
-  { emoji: '👑', name: 'Crown',    cost: 50    },
-  { emoji: '💎', name: 'Diamond',  cost: 100   },
-  { emoji: '🚀', name: 'Rocket',   cost: 200   },
-  { emoji: '🌌', name: 'Galaxy',   cost: 500   },
-  { emoji: '✨', name: 'Philomni', cost: 1000  },
-  { emoji: '🏆', name: 'Legend',   cost: 5000  },
+  { emoji: '🌹', name: 'Rose',     cost: 1    },
+  { emoji: '❤️', name: 'Heart',    cost: 5    },
+  { emoji: '⭐', name: 'Star',     cost: 10   },
+  { emoji: '🔥', name: 'Fire',     cost: 20   },
+  { emoji: '👑', name: 'Crown',    cost: 50   },
+  { emoji: '💎', name: 'Diamond',  cost: 100  },
+  { emoji: '🚀', name: 'Rocket',   cost: 200  },
+  { emoji: '🌌', name: 'Galaxy',   cost: 500  },
+  { emoji: '✨', name: 'Philomni', cost: 1000 },
+  { emoji: '🏆', name: 'Legend',   cost: 5000 },
 ]
 
 function fmt(n) {
@@ -67,26 +45,138 @@ function fmt(n) {
 }
 
 const HOW_IT_WORKS = [
-  { emoji: '🪙', title: 'Buy Coins',      desc: 'Purchase coin packages above to top up your balance instantly.' },
-  { emoji: '🎁', title: 'Send Gifts',     desc: 'Use coins to send gifts during live streams and on any post.' },
-  { emoji: '💰', title: 'Creators Earn',  desc: '70% of every gift value goes directly to the creator\'s wallet.' },
+  { emoji: '🪙', title: 'Buy Coins',     desc: 'Purchase coin packages above to top up your balance instantly.' },
+  { emoji: '🎁', title: 'Send Gifts',    desc: 'Use coins to send gifts during live streams and on any post.' },
+  { emoji: '💰', title: 'Creators Earn', desc: '70% of every gift value goes directly to the creator\'s wallet.' },
 ]
 
-// ── Determine payment mode ────────────────────────────────────────────────────
-const PAYSTACK_ACTIVE  = PAYMENT_CONFIG.paystack.active
-const STRIPE_ACTIVE    = PAYMENT_CONFIG.stripe.active
-// $1 USD ≈ 1 500 NGN; multiply by 100 for kobo
-const USD_TO_KOBO = (usd) => Math.round(usd * 1500 * 100)
+const PAYSTACK_ACTIVE = PAYMENT_CONFIG.paystack.active
+const STRIPE_ACTIVE   = PAYMENT_CONFIG.stripe.active
+const USD_TO_KOBO     = (usd) => Math.round(usd * 1500 * 100)
 
+// ── Stripe Embedded Checkout Form ─────────────────────────────────────────────
+function StripeCheckoutForm({ pkg, user, onSuccess, onCancel }) {
+  const stripe   = useStripe()
+  const elements = useElements()
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState(null)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!stripe || !elements) return
+    setLoading(true)
+    setError(null)
+
+    try {
+      // Call our Supabase edge function to create the PaymentIntent server-side
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-stripe-payment`,
+        {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            amount:   pkg.price,
+            currency: 'usd',
+            coins:    pkg.coins,
+            userId:   user.id,
+            email:    user.email,
+          }),
+        },
+      )
+
+      const { clientSecret, error: fnError } = await res.json()
+      if (fnError) throw new Error(fnError)
+
+      // Confirm the card payment in the browser
+      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
+        clientSecret,
+        {
+          payment_method: {
+            card:             elements.getElement(CardElement),
+            billing_details:  { email: user.email, name: user.full_name ?? user.email },
+          },
+        },
+      )
+
+      if (stripeError) throw new Error(stripeError.message)
+
+      if (paymentIntent.status === 'succeeded') {
+        onSuccess({ provider: 'stripe', reference: paymentIntent.id, coins: pkg.coins, amount: pkg.price })
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 text-left">
+      {/* Card input */}
+      <div>
+        <label className="block text-xs font-medium text-foreground mb-1.5">Card details</label>
+        <div className="p-3.5 bg-white rounded-xl border border-border/40 shadow-sm">
+          <CardElement
+            options={{
+              style: {
+                base: {
+                  fontSize:     '15px',
+                  color:        '#1a1a1a',
+                  fontFamily:   'system-ui, sans-serif',
+                  '::placeholder': { color: '#9ca3af' },
+                },
+                invalid: { color: '#ef4444' },
+              },
+            }}
+          />
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2 leading-relaxed">
+          {error}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={!stripe || loading}
+        className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
+      >
+        {loading
+          ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</>
+          : <><CreditCard className="w-4 h-4" /> Pay ${pkg.price.toFixed(2)} USD</>
+        }
+      </button>
+
+      <button
+        type="button"
+        onClick={onCancel}
+        className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        Cancel
+      </button>
+
+      <p className="text-[10px] text-muted-foreground text-center">
+        🔒 Secured by Stripe · Your card is never stored on Philomni
+      </p>
+    </form>
+  )
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function BuyCoins() {
-  const { user } = useAuth()
-  const navigate = useNavigate()
-  const [coinBalance, setCoinBalance]   = useState(0)
-  const [selected,    setSelected]      = useState(null)
-  const [showModal,   setShowModal]     = useState(false)
-  const [saving,      setSaving]        = useState(false)
-  const [done,        setDone]          = useState(false)
-  const [error,       setError]         = useState('')
+  const { user }  = useAuth()
+  const navigate  = useNavigate()
+  const [coinBalance, setCoinBalance] = useState(0)
+  const [selected,    setSelected]    = useState(null)
+  const [showModal,   setShowModal]   = useState(false)
+  const [saving,      setSaving]      = useState(false)
+  const [done,        setDone]        = useState(false)
+  const [error,       setError]       = useState('')
 
   useEffect(() => {
     if (!user?.id) return
@@ -108,9 +198,8 @@ export default function BuyCoins() {
     setError('')
   }
 
-  // ── Add coins to DB after successful payment ──────────────────────────────
+  // Credit coins after any successful payment
   const creditCoins = async (intentId, providerRef) => {
-    // Record completed payment
     if (intentId) {
       await recordPayment(supabase, {
         paymentIntentId:   intentId,
@@ -118,7 +207,6 @@ export default function BuyCoins() {
         status:            'completed',
       })
     }
-    // Increment coin_balance
     const { data: fresh } = await supabase
       .from('users').select('coin_balance').eq('id', user.id).single()
     const newBalance = (fresh?.coin_balance || 0) + selected.coins
@@ -126,7 +214,7 @@ export default function BuyCoins() {
     setCoinBalance(newBalance)
   }
 
-  // ── Paystack flow ─────────────────────────────────────────────────────────
+  // ── Paystack flow ────────────────────────────────────────────────────────────
   const handlePaystack = async () => {
     if (!selected || !user) return
     setSaving(true)
@@ -151,11 +239,9 @@ export default function BuyCoins() {
         onSuccess:  async (reference) => {
           try {
             await creditCoins(intentId, reference)
-            setSaving(false)
-            setDone(true)
           } catch (err) {
             console.error('[BuyCoins] creditCoins error:', err)
-            // Payment succeeded even if DB write fails — show success and log
+          } finally {
             setSaving(false)
             setDone(true)
           }
@@ -169,25 +255,26 @@ export default function BuyCoins() {
     }
   }
 
-  // ── Stripe flow (requires backend — show contact info for now) ────────────
-  const handleStripe = async () => {
-    if (!selected || !user) return
-    setSaving(true)
-    setError('')
+  // ── Stripe success callback (called by StripeCheckoutForm) ───────────────────
+  const handleStripeSuccess = async ({ reference, coins }) => {
     try {
-      await createPaymentIntent(supabase, {
+      // Create a completed payment_intent record for audit trail
+      const intent = await createPaymentIntent(supabase, {
         userId:   user.id,
         amount:   Math.round(selected.price * 100),
         currency: 'usd',
         type:     'coins',
-        metadata: { coins: selected.coins, package: selected.id },
+        metadata: { coins, package: selected.id },
       })
-    } catch { /* non-fatal */ }
-    setSaving(false)
-    setError('stripe_contact')   // special sentinel to show contact UI
+      await creditCoins(intent.id, reference)
+    } catch (err) {
+      console.error('[BuyCoins] Stripe creditCoins error:', err)
+      // Still show success — payment succeeded on Stripe's side
+    }
+    setDone(true)
   }
 
-  // ── Coming-soon fallback ──────────────────────────────────────────────────
+  // ── Coming-soon fallback ─────────────────────────────────────────────────────
   const handleComingSoon = async () => {
     if (!selected || !user) return
     setSaving(true)
@@ -198,16 +285,19 @@ export default function BuyCoins() {
         price_usd: selected.price,
         status:    'pending',
       })
-    } catch { /* table may not exist — safe to ignore */ }
+    } catch { /* table may not exist yet */ }
     setSaving(false)
     setDone(true)
   }
 
+  // Which flow to use when the simple button is shown (Paystack only)
   const handleConfirm = () => {
-    if (PAYSTACK_ACTIVE)  return handlePaystack()
-    if (STRIPE_ACTIVE)    return handleStripe()
+    if (PAYSTACK_ACTIVE) return handlePaystack()
     return handleComingSoon()
   }
+
+  // Stripe modal shows its own form — this is only for non-Stripe paths
+  const showStripeForm = STRIPE_ACTIVE && !PAYSTACK_ACTIVE
 
   return (
     <div className="max-w-2xl mx-auto pb-20 px-4">
@@ -256,7 +346,8 @@ export default function BuyCoins() {
               <span className="text-sm text-muted-foreground font-medium pb-0.5">coins</span>
             </div>
             <p className="text-3xl font-black text-primary mt-2">
-              ${pkg.price.toFixed(2)} <span className="text-base font-normal text-muted-foreground">USD</span>
+              ${pkg.price.toFixed(2)}{' '}
+              <span className="text-base font-normal text-muted-foreground">USD</span>
             </p>
             {pkg.savings && (
               <span className="inline-block mt-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
@@ -315,19 +406,22 @@ export default function BuyCoins() {
       {showModal && (
         <div
           className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-4"
-          onClick={e => { if (e.target === e.currentTarget) closeModal() }}
+          onClick={e => { if (e.target === e.currentTarget && !saving) closeModal() }}
         >
-          <div className="bg-card border border-border rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center relative">
-            <button
-              onClick={closeModal}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-xl hover:bg-muted text-muted-foreground transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className="bg-card border border-border rounded-3xl shadow-2xl w-full max-w-sm p-6 relative">
+            {/* Close button — hide while Stripe form is processing */}
+            {!saving && (
+              <button
+                onClick={closeModal}
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-xl hover:bg-muted text-muted-foreground transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
 
-            {/* ── Success state ── */}
+            {/* ── SUCCESS ── */}
             {done ? (
-              <>
+              <div className="text-center">
                 <div className="w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto mb-4">
                   <Check className="w-8 h-8 text-emerald-500" />
                 </div>
@@ -347,67 +441,62 @@ export default function BuyCoins() {
                 >
                   Start Gifting 🎁
                 </button>
-              </>
+              </div>
 
-            ) : error === 'stripe_contact' ? (
-              /* ── Stripe contact-support state ── */
-              <>
-                <div className="text-4xl mb-4">💳</div>
-                <h3 className="font-black text-xl text-foreground mb-2">
-                  {selected?.coins.toLocaleString()} Coins
-                </h3>
-                <p className="text-primary font-bold text-lg mb-4">${selected?.price.toFixed(2)} USD</p>
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 mb-5 text-left">
-                  <p className="text-sm font-bold text-foreground mb-1">Complete your purchase</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Email us to receive your secure Stripe payment link. Coins will be added within minutes of payment confirmation.
-                  </p>
+            ) : showStripeForm && stripePromise ? (
+              /* ── STRIPE EMBEDDED FORM ── */
+              <div>
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="text-3xl">🪙</div>
+                  <div>
+                    <h3 className="font-black text-lg text-foreground leading-tight">
+                      {selected?.coins.toLocaleString()} Coins
+                    </h3>
+                    <p className="text-primary font-bold">${selected?.price.toFixed(2)} USD</p>
+                  </div>
                 </div>
-                <a
-                  href={`mailto:support@philomni.com?subject=Coin Purchase - ${selected?.coins} Coins ($${selected?.price})&body=Hi Philomni Team,%0D%0A%0D%0AI'd like to purchase ${selected?.coins} coins for $${selected?.price} USD.%0D%0A%0D%0AMy account email: ${user?.email}%0D%0A`}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors mb-2"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Email support@philomni.com
-                </a>
-                <button onClick={closeModal} className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Cancel
-                </button>
-              </>
+                <Elements stripe={stripePromise}>
+                  <StripeCheckoutForm
+                    pkg={selected}
+                    user={user}
+                    onSuccess={handleStripeSuccess}
+                    onCancel={closeModal}
+                  />
+                </Elements>
+              </div>
 
             ) : (
-              /* ── Default checkout state ── */
-              <>
+              /* ── PAYSTACK / COMING-SOON BUTTON ── */
+              <div className="text-center">
                 <div className="text-5xl mb-4">🪙</div>
                 <h3 className="font-black text-xl text-foreground mb-1">
                   {selected?.coins.toLocaleString()} Coins
                 </h3>
-                <p className="text-primary font-bold text-lg mb-4">${selected?.price.toFixed(2)} USD</p>
+                <p className="text-primary font-bold text-lg mb-4">
+                  ${selected?.price.toFixed(2)} USD
+                </p>
 
-                {/* Provider badge */}
                 {PAYSTACK_ACTIVE && (
                   <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mb-4">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
                     Secured by Paystack · NGN equivalent charged
                   </div>
                 )}
-                {STRIPE_ACTIVE && !PAYSTACK_ACTIVE && (
-                  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mb-4">
-                    <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
-                    Secured by Stripe
-                  </div>
-                )}
                 {!PAYSTACK_ACTIVE && !STRIPE_ACTIVE && (
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-4 text-left">
-                    <p className="text-sm font-bold text-foreground mb-1">Coin purchases launching soon!</p>
+                    <p className="text-sm font-bold text-foreground mb-1">
+                      Coin purchases launching soon!
+                    </p>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       You'll be notified when payments go live. Your interest has been noted ✓
                     </p>
                   </div>
                 )}
 
-                {error && error !== 'stripe_contact' && (
-                  <p className="text-xs text-destructive mb-3 bg-destructive/10 rounded-lg px-3 py-2">{error}</p>
+                {error && (
+                  <p className="text-xs text-destructive mb-3 bg-destructive/10 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
                 )}
 
                 <button
@@ -416,12 +505,19 @@ export default function BuyCoins() {
                   className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {saving ? 'Processing…' : PAYSTACK_ACTIVE ? `Pay $${selected?.price.toFixed(2)}` : STRIPE_ACTIVE ? `Pay with Stripe` : 'Notify Me When Live'}
+                  {saving
+                    ? 'Processing…'
+                    : PAYSTACK_ACTIVE
+                      ? `Pay $${selected?.price.toFixed(2)}`
+                      : 'Notify Me When Live'}
                 </button>
-                <button onClick={closeModal} className="w-full mt-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <button
+                  onClick={closeModal}
+                  className="w-full mt-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
                   Cancel
                 </button>
-              </>
+              </div>
             )}
           </div>
         </div>
