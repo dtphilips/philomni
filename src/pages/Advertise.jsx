@@ -8,7 +8,14 @@ import {
   Loader2, ExternalLink, ImageIcon, ChevronRight, Check,
   Rocket, TrendingUp, Users, Target,
 } from 'lucide-react'
-import PaymentButton from '../components/PaymentButton'
+import {
+  PAYMENT_CONFIG,
+  isNigerianTimezone,
+  loadPaystackScript,
+  openPaystackPopup,
+  createPaymentIntent,
+  recordPayment,
+} from '../lib/payments'
 
 const PACKAGES = [
   {
@@ -100,7 +107,105 @@ export default function Advertise() {
   const [boostLoading, setBoostLoading] = useState(false)
   const [boostDone, setBoostDone] = useState(false)
 
+  // — Payment state —
+  const [payLoading, setPayLoading] = useState(false)
+  const [emailModalData, setEmailModalData] = useState(null) // { subject, pkg } → show email modal
+
   const setC = (k, v) => setCampaignForm(prev => ({ ...prev, [k]: v }))
+
+  // ── Unified payment handler for campaign "Get Started" ──────────────────
+  const handleCampaignPayment = async () => {
+    if (!selectedPkg) { toast.error('Select a package first'); return }
+    const pkg = PACKAGES.find(p => p.id === selectedPkg)
+    if (!pkg) return
+
+    const isNG    = isNigerianTimezone()
+    const psActive = PAYMENT_CONFIG.paystack.active
+
+    if (psActive && isNG) {
+      // Nigerian user → Paystack
+      setPayLoading(true)
+      try {
+        await loadPaystackScript()
+        const intent = await createPaymentIntent(supabase, {
+          userId:   user.id,
+          amount:   Math.round(pkg.price * 1500 * 100), // USD → kobo
+          currency: 'ngn',
+          type:     'campaign',
+          metadata: { package: pkg.id },
+        })
+        openPaystackPopup({
+          email:      user.email,
+          amountKobo: Math.round(pkg.price * 1500 * 100),
+          currency:   'NGN',
+          metadata:   { package: pkg.id, payment_intent_id: intent.id },
+          onSuccess:  async (reference) => {
+            await recordPayment(supabase, { paymentIntentId: intent.id, providerPaymentId: reference })
+            toast.success('Payment confirmed! Fill in your campaign details.')
+            setPayLoading(false)
+            setShowCampaignForm(true)
+          },
+          onClose: () => setPayLoading(false),
+        })
+      } catch (err) {
+        toast.error('Payment failed. Please try again.')
+        setPayLoading(false)
+      }
+    } else {
+      // International user → email instructions
+      setEmailModalData({
+        subject: `Ad Campaign - ${pkg.name} Package ($${pkg.price}/mo)`,
+        pkg,
+      })
+    }
+  }
+
+  // ── Boost payment handler ─────────────────────────────────────────────────
+  const handleBoostPayment = async () => {
+    if (!selectedPost) { toast.error('Select a post to boost'); return }
+    if (!selectedBoost) { toast.error('Select a boost option'); return }
+    const opt = BOOST_OPTIONS.find(o => o.id === selectedBoost)
+    if (!opt) return
+
+    const isNG    = isNigerianTimezone()
+    const psActive = PAYMENT_CONFIG.paystack.active
+
+    if (psActive && isNG) {
+      setBoostLoading(true)
+      try {
+        await loadPaystackScript()
+        const intent = await createPaymentIntent(supabase, {
+          userId:   user.id,
+          amount:   Math.round(opt.price * 1500 * 100),
+          currency: 'ngn',
+          type:     'boost',
+          metadata: { post_id: selectedPost.id, boost_option: opt.id },
+        })
+        openPaystackPopup({
+          email:      user.email,
+          amountKobo: Math.round(opt.price * 1500 * 100),
+          currency:   'NGN',
+          metadata:   { post_id: selectedPost.id, payment_intent_id: intent.id },
+          onSuccess:  async (reference) => {
+            await recordPayment(supabase, { paymentIntentId: intent.id, providerPaymentId: reference })
+            // Now submit the boost record
+            await handleBoostSubmit()
+            setBoostLoading(false)
+          },
+          onClose: () => setBoostLoading(false),
+        })
+      } catch (err) {
+        toast.error('Payment failed. Please try again.')
+        setBoostLoading(false)
+      }
+    } else {
+      // International → email
+      setEmailModalData({
+        subject: `Post Boost - ${opt.label} ($${opt.price})`,
+        pkg: { name: opt.label, price: opt.price },
+      })
+    }
+  }
 
   // Fetch user posts for boost tab
   useEffect(() => {
@@ -257,19 +362,16 @@ export default function Advertise() {
                   </div>
                 ))}
               </div>
-              <PaymentButton
-                amount={PACKAGES.find(p => p.id === selectedPkg)?.price ?? 299}
-                currency="usd"
-                type="campaign"
-                label={selectedPkg ? `Get Started — $${PACKAGES.find(p => p.id === selectedPkg)?.price}/mo` : 'Get Started'}
-                metadata={{ package: selectedPkg }}
-                onSuccess={() => {
-                  toast.success('Payment received! Proceeding to campaign setup…')
-                  setShowCampaignForm(true)
-                }}
-                onError={() => toast.error('Payment failed. Please try again.')}
+              <button
+                onClick={handleCampaignPayment}
+                disabled={payLoading || !selectedPkg}
                 className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              />
+              >
+                {payLoading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</>
+                  : <>{selectedPkg ? `Get Started — $${PACKAGES.find(p => p.id === selectedPkg)?.price}/mo` : 'Get Started'} <ChevronRight className="w-4 h-4" /></>
+                }
+              </button>
             </>
           ) : (
             <div className="grid lg:grid-cols-2 gap-8">
@@ -355,10 +457,6 @@ export default function Advertise() {
                       className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                   </div>
                 </div>
-
-                <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-                  Payment integration coming soon — we'll contact you to complete payment after review.
-                </p>
 
                 <button type="submit" disabled={campaignLoading}
                   className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
@@ -503,18 +601,50 @@ export default function Advertise() {
                 </div>
               </div>
 
-              <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-                Payment integration coming soon — we'll contact you to complete payment after review.
-              </p>
-
-              <button onClick={handleBoostSubmit} disabled={boostLoading || !selectedPost || !selectedBoost}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
-                {boostLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
-                Submit Boost for Review
+              <button
+                onClick={handleBoostPayment}
+                disabled={boostLoading || !selectedPost || !selectedBoost}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                {boostLoading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</>
+                  : <><Rocket className="w-4 h-4" /> Boost Post — ${BOOST_OPTIONS.find(o => o.id === selectedBoost)?.price ?? ''}</>
+                }
               </button>
             </div>
           )}
         </>
+      )}
+      {/* ── Email Instructions Modal (international users) ─────────────────── */}
+      {emailModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEmailModalData(null)} />
+          <div className="relative bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="font-bold text-foreground text-lg mb-1">
+              {emailModalData.pkg.name} — ${emailModalData.pkg.price}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+              To get started, email us with the subject below. We'll send you payment instructions and activate your campaign within 24 hours.
+            </p>
+            <div className="bg-muted rounded-xl px-4 py-3 mb-4">
+              <p className="text-xs text-muted-foreground mb-0.5">Subject</p>
+              <p className="text-sm font-semibold text-foreground">{emailModalData.subject}</p>
+            </div>
+            <a
+              href={`mailto:support@philomni.com?subject=${encodeURIComponent(emailModalData.subject)}&body=${encodeURIComponent(`Hi Philomni Team,\n\nI'd like to get started with the ${emailModalData.pkg.name} package.\n\nMy account email: ${user?.email}\n\nPlease send payment instructions.\n\nThank you!`)}`}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors mb-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Email support@philomni.com
+            </a>
+            <button
+              onClick={() => setEmailModalData(null)}
+              className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

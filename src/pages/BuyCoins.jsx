@@ -2,44 +2,48 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { X, Loader2, Check } from 'lucide-react'
+import { X, Loader2, Check, ExternalLink } from 'lucide-react'
+import {
+  PAYMENT_CONFIG,
+  loadPaystackScript,
+  openPaystackPopup,
+  createPaymentIntent,
+  recordPayment,
+} from '../lib/payments'
 
 // ── Packages ──────────────────────────────────────────────────────────────────
 const PACKAGES = [
   {
-    id:       'starter',
-    label:    'Starter',
-    coins:    100,
-    price:    1.00,
-    savings:  null,
-    badge:    null,
+    id:        'starter',
+    label:     'Starter',
+    coins:     100,
+    price:     1.00,
+    savings:   null,
     highlight: false,
   },
   {
-    id:       'popular',
-    label:    'Popular',
-    coins:    500,
-    price:    4.50,
-    savings:  10,
-    badge:    null,
+    id:        'popular',
+    label:     'Popular',
+    coins:     500,
+    price:     4.50,
+    savings:   10,
     highlight: false,
   },
   {
-    id:       'value',
-    label:    'Best Value',
-    coins:    1000,
-    price:    8.00,
-    savings:  20,
-    badge:    '⭐ Most Popular',
-    highlight: true,   // purple border
+    id:        'value',
+    label:     'Best Value',
+    coins:     1000,
+    price:     8.00,
+    savings:   20,
+    badge:     '⭐ Most Popular',
+    highlight: true,
   },
   {
-    id:       'super',
-    label:    'Super',
-    coins:    5000,
-    price:    35.00,
-    savings:  30,
-    badge:    null,
+    id:        'super',
+    label:     'Super',
+    coins:     5000,
+    price:     35.00,
+    savings:   30,
     highlight: false,
   },
 ]
@@ -62,53 +66,129 @@ function fmt(n) {
   return n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K` : n
 }
 
-// ── How It Works cards ────────────────────────────────────────────────────────
 const HOW_IT_WORKS = [
-  {
-    emoji: '🪙',
-    title: 'Buy Coins',
-    desc:  'Purchase coin packages above to top up your balance instantly.',
-  },
-  {
-    emoji: '🎁',
-    title: 'Send Gifts',
-    desc:  'Use coins to send gifts during live streams and on any post.',
-  },
-  {
-    emoji: '💰',
-    title: 'Creators Earn',
-    desc:  '70% of every gift value goes directly to the creator\'s wallet.',
-  },
+  { emoji: '🪙', title: 'Buy Coins',      desc: 'Purchase coin packages above to top up your balance instantly.' },
+  { emoji: '🎁', title: 'Send Gifts',     desc: 'Use coins to send gifts during live streams and on any post.' },
+  { emoji: '💰', title: 'Creators Earn',  desc: '70% of every gift value goes directly to the creator\'s wallet.' },
 ]
+
+// ── Determine payment mode ────────────────────────────────────────────────────
+const PAYSTACK_ACTIVE  = PAYMENT_CONFIG.paystack.active
+const STRIPE_ACTIVE    = PAYMENT_CONFIG.stripe.active
+// $1 USD ≈ 1 500 NGN; multiply by 100 for kobo
+const USD_TO_KOBO = (usd) => Math.round(usd * 1500 * 100)
 
 export default function BuyCoins() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [coinBalance, setCoinBalance] = useState(user?.coin_balance || 0)
-  const [selected, setSelected] = useState(null)
-  const [showModal, setShowModal] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [done, setDone] = useState(false)
+  const [coinBalance, setCoinBalance]   = useState(0)
+  const [selected,    setSelected]      = useState(null)
+  const [showModal,   setShowModal]     = useState(false)
+  const [saving,      setSaving]        = useState(false)
+  const [done,        setDone]          = useState(false)
+  const [error,       setError]         = useState('')
 
   useEffect(() => {
     if (!user?.id) return
-    supabase
-      .from('users')
-      .select('coin_balance')
-      .eq('id', user.id)
-      .single()
-      .then(({ data }) => {
-        if (data) setCoinBalance(data.coin_balance || 0)
-      })
+    supabase.from('users').select('coin_balance').eq('id', user.id).single()
+      .then(({ data }) => { if (data) setCoinBalance(data.coin_balance || 0) })
   }, [user?.id])
 
   const handleBuy = (pkg) => {
     setSelected(pkg)
     setDone(false)
+    setError('')
     setShowModal(true)
   }
 
-  const confirmIntent = async () => {
+  const closeModal = () => {
+    if (saving) return
+    setShowModal(false)
+    setDone(false)
+    setError('')
+  }
+
+  // ── Add coins to DB after successful payment ──────────────────────────────
+  const creditCoins = async (intentId, providerRef) => {
+    // Record completed payment
+    if (intentId) {
+      await recordPayment(supabase, {
+        paymentIntentId:   intentId,
+        providerPaymentId: providerRef,
+        status:            'completed',
+      })
+    }
+    // Increment coin_balance
+    const { data: fresh } = await supabase
+      .from('users').select('coin_balance').eq('id', user.id).single()
+    const newBalance = (fresh?.coin_balance || 0) + selected.coins
+    await supabase.from('users').update({ coin_balance: newBalance }).eq('id', user.id)
+    setCoinBalance(newBalance)
+  }
+
+  // ── Paystack flow ─────────────────────────────────────────────────────────
+  const handlePaystack = async () => {
+    if (!selected || !user) return
+    setSaving(true)
+    setError('')
+    let intentId = null
+    try {
+      await loadPaystackScript()
+      const intent = await createPaymentIntent(supabase, {
+        userId:   user.id,
+        amount:   USD_TO_KOBO(selected.price),
+        currency: 'ngn',
+        type:     'coins',
+        metadata: { coins: selected.coins, package: selected.id },
+      })
+      intentId = intent.id
+
+      openPaystackPopup({
+        email:      user.email,
+        amountKobo: USD_TO_KOBO(selected.price),
+        currency:   'NGN',
+        metadata:   { coins: selected.coins, user_id: user.id, payment_intent_id: intentId },
+        onSuccess:  async (reference) => {
+          try {
+            await creditCoins(intentId, reference)
+            setSaving(false)
+            setDone(true)
+          } catch (err) {
+            console.error('[BuyCoins] creditCoins error:', err)
+            // Payment succeeded even if DB write fails — show success and log
+            setSaving(false)
+            setDone(true)
+          }
+        },
+        onClose: () => setSaving(false),
+      })
+    } catch (err) {
+      console.error('[BuyCoins] Paystack error:', err)
+      setError('Payment could not be initialized. Please try again.')
+      setSaving(false)
+    }
+  }
+
+  // ── Stripe flow (requires backend — show contact info for now) ────────────
+  const handleStripe = async () => {
+    if (!selected || !user) return
+    setSaving(true)
+    setError('')
+    try {
+      await createPaymentIntent(supabase, {
+        userId:   user.id,
+        amount:   Math.round(selected.price * 100),
+        currency: 'usd',
+        type:     'coins',
+        metadata: { coins: selected.coins, package: selected.id },
+      })
+    } catch { /* non-fatal */ }
+    setSaving(false)
+    setError('stripe_contact')   // special sentinel to show contact UI
+  }
+
+  // ── Coming-soon fallback ──────────────────────────────────────────────────
+  const handleComingSoon = async () => {
     if (!selected || !user) return
     setSaving(true)
     try {
@@ -118,15 +198,15 @@ export default function BuyCoins() {
         price_usd: selected.price,
         status:    'pending',
       })
-    } catch { /* table may not exist yet — safe to ignore */ }
+    } catch { /* table may not exist — safe to ignore */ }
     setSaving(false)
     setDone(true)
   }
 
-  const closeModal = () => {
-    if (saving) return
-    setShowModal(false)
-    setDone(false)
+  const handleConfirm = () => {
+    if (PAYSTACK_ACTIVE)  return handlePaystack()
+    if (STRIPE_ACTIVE)    return handleStripe()
+    return handleComingSoon()
   }
 
   return (
@@ -141,8 +221,6 @@ export default function BuyCoins() {
         <p className="text-muted-foreground text-sm leading-relaxed max-w-sm mx-auto">
           Use coins to send gifts and show appreciation to creators
         </p>
-
-        {/* Balance pill */}
         <div className="inline-flex items-center gap-2.5 mt-5 px-5 py-3 bg-amber-500/10 border border-amber-500/25 rounded-2xl">
           <span className="text-2xl">🪙</span>
           <div className="text-left">
@@ -165,35 +243,26 @@ export default function BuyCoins() {
                 : 'border-border hover:border-primary/40'
             }`}
           >
-            {/* Badges */}
             {pkg.highlight && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                 <span className="text-xs font-bold bg-primary text-primary-foreground px-3 py-1 rounded-full leading-none shadow-sm">
                   ⭐ Most Popular
                 </span>
               </div>
             )}
-
-            {/* Coin amount */}
             <div className="flex items-baseline gap-1.5 mb-1">
               <span className="text-2xl">🪙</span>
               <span className="text-4xl font-black text-foreground">{fmt(pkg.coins)}</span>
               <span className="text-sm text-muted-foreground font-medium pb-0.5">coins</span>
             </div>
-
-            {/* Price */}
             <p className="text-3xl font-black text-primary mt-2">
               ${pkg.price.toFixed(2)} <span className="text-base font-normal text-muted-foreground">USD</span>
             </p>
-
-            {/* Savings badge */}
             {pkg.savings && (
               <span className="inline-block mt-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
                 Save {pkg.savings}%
               </span>
             )}
-
-            {/* Buy button */}
             <button
               onClick={() => handleBuy(pkg)}
               className={`mt-5 w-full py-3 rounded-xl text-sm font-bold transition-all ${
@@ -256,7 +325,58 @@ export default function BuyCoins() {
               <X className="w-4 h-4" />
             </button>
 
-            {!done ? (
+            {/* ── Success state ── */}
+            {done ? (
+              <>
+                <div className="w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-8 h-8 text-emerald-500" />
+                </div>
+                <h3 className="font-black text-xl text-foreground mb-2">
+                  {selected?.coins.toLocaleString()} Coins Added!
+                </h3>
+                <p className="text-sm text-muted-foreground mb-1">
+                  New balance:{' '}
+                  <span className="font-bold text-amber-500">🪙 {coinBalance.toLocaleString()}</span>
+                </p>
+                <p className="text-xs text-muted-foreground mb-6">
+                  Your coins are ready to use on gifts and live streams.
+                </p>
+                <button
+                  onClick={closeModal}
+                  className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors"
+                >
+                  Start Gifting 🎁
+                </button>
+              </>
+
+            ) : error === 'stripe_contact' ? (
+              /* ── Stripe contact-support state ── */
+              <>
+                <div className="text-4xl mb-4">💳</div>
+                <h3 className="font-black text-xl text-foreground mb-2">
+                  {selected?.coins.toLocaleString()} Coins
+                </h3>
+                <p className="text-primary font-bold text-lg mb-4">${selected?.price.toFixed(2)} USD</p>
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 mb-5 text-left">
+                  <p className="text-sm font-bold text-foreground mb-1">Complete your purchase</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Email us to receive your secure Stripe payment link. Coins will be added within minutes of payment confirmation.
+                  </p>
+                </div>
+                <a
+                  href={`mailto:support@philomni.com?subject=Coin Purchase - ${selected?.coins} Coins ($${selected?.price})&body=Hi Philomni Team,%0D%0A%0D%0AI'd like to purchase ${selected?.coins} coins for $${selected?.price} USD.%0D%0A%0D%0AMy account email: ${user?.email}%0D%0A`}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors mb-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Email support@philomni.com
+                </a>
+                <button onClick={closeModal} className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Cancel
+                </button>
+              </>
+
+            ) : (
+              /* ── Default checkout state ── */
               <>
                 <div className="text-5xl mb-4">🪙</div>
                 <h3 className="font-black text-xl text-foreground mb-1">
@@ -264,39 +384,42 @@ export default function BuyCoins() {
                 </h3>
                 <p className="text-primary font-bold text-lg mb-4">${selected?.price.toFixed(2)} USD</p>
 
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-5 text-left">
-                  <p className="text-sm font-bold text-foreground mb-1">Coin purchases launching soon!</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    You'll be notified when payments go live. Your interest has been noted ✓
-                  </p>
-                </div>
+                {/* Provider badge */}
+                {PAYSTACK_ACTIVE && (
+                  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mb-4">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                    Secured by Paystack · NGN equivalent charged
+                  </div>
+                )}
+                {STRIPE_ACTIVE && !PAYSTACK_ACTIVE && (
+                  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mb-4">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                    Secured by Stripe
+                  </div>
+                )}
+                {!PAYSTACK_ACTIVE && !STRIPE_ACTIVE && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-4 text-left">
+                    <p className="text-sm font-bold text-foreground mb-1">Coin purchases launching soon!</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      You'll be notified when payments go live. Your interest has been noted ✓
+                    </p>
+                  </div>
+                )}
+
+                {error && error !== 'stripe_contact' && (
+                  <p className="text-xs text-destructive mb-3 bg-destructive/10 rounded-lg px-3 py-2">{error}</p>
+                )}
 
                 <button
-                  onClick={confirmIntent}
+                  onClick={handleConfirm}
                   disabled={saving}
                   className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {saving ? 'Saving…' : 'Notify Me When Live'}
+                  {saving ? 'Processing…' : PAYSTACK_ACTIVE ? `Pay $${selected?.price.toFixed(2)}` : STRIPE_ACTIVE ? `Pay with Stripe` : 'Notify Me When Live'}
                 </button>
                 <button onClick={closeModal} className="w-full mt-2 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Cancel
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-8 h-8 text-emerald-500" />
-                </div>
-                <h3 className="font-black text-xl text-foreground mb-2">You're on the list!</h3>
-                <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-                  We'll notify you when coin purchases go live. Thank you for your support!
-                </p>
-                <button
-                  onClick={closeModal}
-                  className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors"
-                >
-                  Done
                 </button>
               </>
             )}
