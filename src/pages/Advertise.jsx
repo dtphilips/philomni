@@ -10,9 +10,13 @@ import {
 } from 'lucide-react'
 import {
   PAYMENT_CONFIG,
-  isNigerianTimezone,
+  PROVIDER_BADGES,
+  getUserCountry,
+  getPaymentProvider,
   loadPaystackScript,
   openPaystackPopup,
+  loadFlutterwaveScript,
+  openFlutterwaveCheckout,
   createPaymentIntent,
   recordPayment,
 } from '../lib/payments'
@@ -113,98 +117,117 @@ export default function Advertise() {
 
   const setC = (k, v) => setCampaignForm(prev => ({ ...prev, [k]: v }))
 
-  // ── Unified payment handler for campaign "Get Started" ──────────────────
+  // ── Shared: launch whichever provider is right for the user's country ──────
+  const launchProviderPayment = async ({ amount, currency, type, metadata, onSuccess, onEmailFallback }) => {
+    const country  = await getUserCountry()
+    const provider = getPaymentProvider(country)
+
+    if (!provider) {
+      // No active keys at all → email fallback
+      onEmailFallback()
+      return
+    }
+
+    if (provider === 'paystack') {
+      setPayLoading(true)
+      try {
+        await loadPaystackScript()
+        const amountKobo = Math.round(amount * 1500 * 100)
+        const intent = await createPaymentIntent(supabase, {
+          userId: user.id, amount: amountKobo, currency: 'ngn', type, metadata,
+        })
+        openPaystackPopup({
+          email: user.email, amountKobo, currency: 'NGN',
+          metadata: { ...metadata, payment_intent_id: intent.id },
+          onSuccess: async (reference) => {
+            await recordPayment(supabase, { paymentIntentId: intent.id, providerPaymentId: reference })
+            setPayLoading(false)
+            onSuccess()
+          },
+          onClose: () => setPayLoading(false),
+        })
+      } catch {
+        toast.error('Payment failed. Please try again.')
+        setPayLoading(false)
+      }
+      return
+    }
+
+    if (provider === 'flutterwave') {
+      setPayLoading(true)
+      try {
+        await loadFlutterwaveScript()
+        openFlutterwaveCheckout({
+          email: user.email, name: user.full_name ?? user.email,
+          amount, currency: currency.toUpperCase(),
+          txRef: `phi-${type}-${Date.now()}`,
+          metadata: { ...metadata, description: `Philomni ${type}` },
+          onSuccess: async (reference) => {
+            await supabase.from('payment_intents').insert({
+              user_id: user.id, amount: Math.round(amount * 100),
+              currency: currency.toLowerCase(), type, provider: 'flutterwave',
+              status: 'completed', provider_payment_id: String(reference),
+              metadata, created_at: new Date().toISOString(), completed_at: new Date().toISOString(),
+            })
+            setPayLoading(false)
+            onSuccess()
+          },
+          onClose: () => setPayLoading(false),
+        })
+      } catch {
+        toast.error('Payment failed. Please try again.')
+        setPayLoading(false)
+      }
+      return
+    }
+
+    // Stripe → email fallback for ad packages (no embedded form needed here)
+    onEmailFallback()
+  }
+
+  // ── Campaign "Get Started" ────────────────────────────────────────────────
   const handleCampaignPayment = async () => {
     if (!selectedPkg) { toast.error('Select a package first'); return }
     const pkg = PACKAGES.find(p => p.id === selectedPkg)
     if (!pkg) return
 
-    const isNG    = isNigerianTimezone()
-    const psActive = PAYMENT_CONFIG.paystack.active
-
-    if (psActive && isNG) {
-      // Nigerian user → Paystack
-      setPayLoading(true)
-      try {
-        await loadPaystackScript()
-        const intent = await createPaymentIntent(supabase, {
-          userId:   user.id,
-          amount:   Math.round(pkg.price * 1500 * 100), // USD → kobo
-          currency: 'ngn',
-          type:     'campaign',
-          metadata: { package: pkg.id },
-        })
-        openPaystackPopup({
-          email:      user.email,
-          amountKobo: Math.round(pkg.price * 1500 * 100),
-          currency:   'NGN',
-          metadata:   { package: pkg.id, payment_intent_id: intent.id },
-          onSuccess:  async (reference) => {
-            await recordPayment(supabase, { paymentIntentId: intent.id, providerPaymentId: reference })
-            toast.success('Payment confirmed! Fill in your campaign details.')
-            setPayLoading(false)
-            setShowCampaignForm(true)
-          },
-          onClose: () => setPayLoading(false),
-        })
-      } catch (err) {
-        toast.error('Payment failed. Please try again.')
-        setPayLoading(false)
-      }
-    } else {
-      // International user → email instructions
-      setEmailModalData({
+    await launchProviderPayment({
+      amount:   pkg.price,
+      currency: 'usd',
+      type:     'campaign',
+      metadata: { package: pkg.id },
+      onSuccess: () => {
+        toast.success('Payment confirmed! Fill in your campaign details.')
+        setShowCampaignForm(true)
+      },
+      onEmailFallback: () => setEmailModalData({
         subject: `Ad Campaign - ${pkg.name} Package ($${pkg.price}/mo)`,
         pkg,
-      })
-    }
+      }),
+    })
   }
 
-  // ── Boost payment handler ─────────────────────────────────────────────────
+  // ── Boost payment ─────────────────────────────────────────────────────────
   const handleBoostPayment = async () => {
     if (!selectedPost) { toast.error('Select a post to boost'); return }
     if (!selectedBoost) { toast.error('Select a boost option'); return }
     const opt = BOOST_OPTIONS.find(o => o.id === selectedBoost)
     if (!opt) return
 
-    const isNG    = isNigerianTimezone()
-    const psActive = PAYMENT_CONFIG.paystack.active
-
-    if (psActive && isNG) {
-      setBoostLoading(true)
-      try {
-        await loadPaystackScript()
-        const intent = await createPaymentIntent(supabase, {
-          userId:   user.id,
-          amount:   Math.round(opt.price * 1500 * 100),
-          currency: 'ngn',
-          type:     'boost',
-          metadata: { post_id: selectedPost.id, boost_option: opt.id },
-        })
-        openPaystackPopup({
-          email:      user.email,
-          amountKobo: Math.round(opt.price * 1500 * 100),
-          currency:   'NGN',
-          metadata:   { post_id: selectedPost.id, payment_intent_id: intent.id },
-          onSuccess:  async (reference) => {
-            await recordPayment(supabase, { paymentIntentId: intent.id, providerPaymentId: reference })
-            // Now submit the boost record
-            await handleBoostSubmit()
-            setBoostLoading(false)
-          },
-          onClose: () => setBoostLoading(false),
-        })
-      } catch (err) {
-        toast.error('Payment failed. Please try again.')
-        setBoostLoading(false)
-      }
-    } else {
-      // International → email
-      setEmailModalData({
+    await launchProviderPayment({
+      amount:   opt.price,
+      currency: 'usd',
+      type:     'boost',
+      metadata: { post_id: selectedPost.id, boost_option: opt.id },
+      onSuccess: async () => {
+        toast.success('Payment confirmed! Submitting boost…')
+        await handleBoostSubmit()
+      },
+      onEmailFallback: () => setEmailModalData({
         subject: `Post Boost - ${opt.label} ($${opt.price})`,
         pkg: { name: opt.label, price: opt.price },
-      })
-    }
+      }),
+    })
   }
 
   // Fetch user posts for boost tab
