@@ -11,6 +11,7 @@ import {
   UserPlus, Hash, Calendar, ChevronRight, Edit3, Film, Sparkles, ArrowRight,
   ExternalLink, Megaphone, ShoppingBag, Tag,
 } from 'lucide-react'
+import EmojiPickerButton, { insertAtCursor } from '../components/EmojiPickerButton'
 import { useNavigate, Link } from 'react-router-dom'
 import MediaEditor from '@/components/editor/MediaEditor'
 import { useMusic } from '../context/MusicContext'
@@ -993,6 +994,7 @@ function CommentSection({ postId, currentUser, onCommentAdded }) {
   const [loaded, setLoaded] = useState(false)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const commentInputRef = useRef(null)
 
   useEffect(() => {
     supabase.from('comments').select('*').eq('post_id', postId)
@@ -1043,9 +1045,18 @@ function CommentSection({ postId, currentUser, onCommentAdded }) {
         <form onSubmit={submit} className="flex gap-2 pt-1">
           <Avatar src={currentUser?.avatar_url} name={currentUser?.full_name} size={7} />
           <div className="flex-1 flex gap-2">
-            <input value={text} onChange={e => setText(e.target.value)}
-              placeholder="Write a comment…"
-              className="flex-1 bg-card border border-border rounded-2xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 min-w-0" />
+            <div className="flex-1 flex items-center bg-card border border-border rounded-2xl px-3 min-w-0">
+              <input
+                ref={commentInputRef}
+                value={text}
+                onChange={e => setText(e.target.value)}
+                placeholder="Write a comment…"
+                className="flex-1 bg-transparent py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none min-w-0" />
+              <EmojiPickerButton
+                onEmojiSelect={(emoji) => insertAtCursor(text, setText, commentInputRef, emoji)}
+                pickerSide="right"
+              />
+            </div>
             <button type="submit" disabled={sending || !text.trim()}
               className="p-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex-shrink-0">
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -2246,6 +2257,11 @@ function PostComposer({ user, onCreated }) {
   const [showProductPicker, setShowProductPicker] = useState(false)
   const audienceRef = useRef()
   const feedPickerRef = useRef()
+  // Autocomplete state
+  const [hashtagSuggestions, setHashtagSuggestions] = useState([])
+  const [showHashtagSuggestions, setShowHashtagSuggestions] = useState(false)
+  const [mentionSuggestions, setMentionSuggestions] = useState([])
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false)
 
   // Auto-expand when a track is pre-selected
   useEffect(() => { if (selectedTrack) setExpanded(true) }, [selectedTrack])
@@ -2285,6 +2301,77 @@ function PostComposer({ user, onCreated }) {
     }
     setCharCount(el.innerText?.length ?? 0)
     setShowEmoji(false)
+  }, [])
+
+  const handleEditorInput = useCallback(async () => {
+    const el = editorRef.current
+    if (!el) return
+    const text = el.innerText ?? ''
+    setCharCount(text.length)
+
+    // Hashtag autocomplete
+    const hashtagMatch = text.match(/#(\w+)$/)
+    if (hashtagMatch && hashtagMatch[1].length >= 2) {
+      const query = hashtagMatch[1]
+      const { data } = await supabase.from('posts').select('hashtags').not('hashtags', 'is', null).limit(50)
+      if (data) {
+        const all = data.flatMap(p => p.hashtags ?? [])
+        const unique = [...new Set(all)]
+        const matches = unique.filter(h => h.toLowerCase().startsWith(query.toLowerCase())).slice(0, 5)
+        setHashtagSuggestions(matches)
+        setShowHashtagSuggestions(matches.length > 0)
+      }
+      setShowMentionSuggestions(false)
+      return
+    }
+    setShowHashtagSuggestions(false)
+
+    // Mention autocomplete
+    const mentionMatch = text.match(/@(\w+)$/)
+    if (mentionMatch && mentionMatch[1].length >= 2) {
+      const query = mentionMatch[1]
+      const { data } = await supabase
+        .from('users')
+        .select('id, full_name, username, avatar_url')
+        .or(`full_name.ilike.%${query}%,username.ilike.%${query}%`)
+        .limit(5)
+      setMentionSuggestions(data ?? [])
+      setShowMentionSuggestions((data?.length ?? 0) > 0)
+      return
+    }
+    setShowMentionSuggestions(false)
+  }, [])
+
+  const selectHashtag = useCallback((hashtag) => {
+    const el = editorRef.current
+    if (!el) return
+    el.innerText = el.innerText.replace(/#\w+$/, `#${hashtag} `)
+    // Move cursor to end
+    const range = document.createRange()
+    const sel = window.getSelection()
+    range.selectNodeContents(el)
+    range.collapse(false)
+    sel?.removeAllRanges()
+    sel?.addRange(range)
+    el.focus()
+    setCharCount(el.innerText.length)
+    setShowHashtagSuggestions(false)
+  }, [])
+
+  const selectMention = useCallback((mentionUser) => {
+    const el = editorRef.current
+    if (!el) return
+    const name = mentionUser.username ?? mentionUser.full_name?.replace(/\s+/g, '')
+    el.innerText = el.innerText.replace(/@\w+$/, `@${name} `)
+    const range = document.createRange()
+    const sel = window.getSelection()
+    range.selectNodeContents(el)
+    range.collapse(false)
+    sel?.removeAllRanges()
+    sel?.addRange(range)
+    el.focus()
+    setCharCount(el.innerText.length)
+    setShowMentionSuggestions(false)
   }, [])
 
   const handleFile = (e, mediaType) => {
@@ -2395,13 +2482,10 @@ function PostComposer({ user, onCreated }) {
               <div className="flex items-center gap-1 mb-2">
                 <button onClick={() => execCmd('bold')} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Bold className="w-3.5 h-3.5" /></button>
                 <button onClick={() => execCmd('italic')} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Italic className="w-3.5 h-3.5" /></button>
-                <div className="relative">
-                  <button onClick={() => setShowEmoji(v => !v)}
-                    className={`p-1.5 rounded-lg hover:bg-muted transition-colors ${showEmoji ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground'}`}>
-                    <Smile className="w-3.5 h-3.5" />
-                  </button>
-                  {showEmoji && <EmojiPicker onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
-                </div>
+                <EmojiPickerButton
+                  onEmojiSelect={insertEmoji}
+                  pickerSide="left"
+                />
                 {/* Feed type selector */}
                 <div className="relative" ref={feedPickerRef}>
                   <button
@@ -2450,11 +2534,51 @@ function PostComposer({ user, onCreated }) {
                   )}
                 </div>
               </div>
-              <div ref={editorRef} contentEditable suppressContentEditableWarning
-                data-placeholder="Share an idea, update, or insight…"
-                onInput={() => setCharCount(editorRef.current?.innerText?.length ?? 0)}
-                className="composer-editor min-h-[90px] bg-muted/60 rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                style={{ wordBreak: 'break-word' }} />
+              <div className="relative">
+                {/* Hashtag suggestions */}
+                {showHashtagSuggestions && (
+                  <div className="absolute bottom-full left-0 right-0 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50 mb-1">
+                    {hashtagSuggestions.map(tag => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onMouseDown={e => { e.preventDefault(); selectHashtag(tag) }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-muted transition-colors text-sm flex items-center gap-2"
+                      >
+                        <span className="text-primary font-medium">#{tag}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* Mention suggestions */}
+                {showMentionSuggestions && (
+                  <div className="absolute bottom-full left-0 right-0 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50 mb-1">
+                    {mentionSuggestions.map(u => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onMouseDown={e => { e.preventDefault(); selectMention(u) }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-muted transition-colors flex items-center gap-3"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-sm font-semibold overflow-hidden flex-shrink-0">
+                          {u.avatar_url
+                            ? <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
+                            : u.full_name?.[0]}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{u.full_name}</p>
+                          {u.username && <p className="text-xs text-muted-foreground">@{u.username}</p>}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div ref={editorRef} contentEditable suppressContentEditableWarning
+                  data-placeholder="Share an idea, update, or insight…"
+                  onInput={handleEditorInput}
+                  className="composer-editor min-h-[90px] bg-muted/60 rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  style={{ wordBreak: 'break-word' }} />
+              </div>
             </>
           )}
         </div>

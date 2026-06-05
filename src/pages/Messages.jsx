@@ -8,6 +8,7 @@ import {
   Smile, Download, Reply, Check, CheckCheck, Bell,
   Archive, Trash2, Shield, Users, Briefcase, Play,
 } from 'lucide-react'
+import EmojiPickerButton, { insertAtCursor } from '../components/EmojiPickerButton'
 import { format, isToday, isYesterday, isThisWeek } from 'date-fns'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -946,9 +947,10 @@ export default function Messages() {
 
                 {/* Right actions */}
                 <div className="flex items-center gap-0.5 pb-1">
-                  <button className="p-2 rounded-xl hover:bg-muted transition-colors" title="Emoji">
-                    <Smile className="w-4 h-4 text-muted-foreground" />
-                  </button>
+                  <EmojiPickerButton
+                    onEmojiSelect={(emoji) => insertAtCursor(text, setText, textareaRef, emoji)}
+                    pickerSide="right"
+                  />
                   <button onClick={handleSend} disabled={sending || (!text.trim() && !attachFile)}
                     className="p-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-all">
                     {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import EmojiPickerButton, { insertAtCursor } from '../components/EmojiPickerButton'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toggleLike, toggleSave, checkLiked, checkSaved } from '../lib/postActions'
@@ -97,6 +98,7 @@ function CommentsDrawer({ reel, onClose }) {
   const [comments, setComments] = useState([])
   const [text, setText] = useState('')
   const { user } = useAuth()
+  const commentInputRef = useRef(null)
 
   useEffect(() => {
     if (!reel?.id || reel.id.startsWith('sample')) return
@@ -143,12 +145,21 @@ function CommentsDrawer({ reel, onClose }) {
           ))}
         </div>
         <div className="flex gap-2 p-3 border-t border-white/10">
-          <input value={text} onChange={e => setText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handlePost()}
-            placeholder="Add a comment…"
-            className="flex-1 bg-white/10 text-white placeholder-white/40 rounded-full px-4 py-2 text-sm outline-none" />
+          <div className="flex-1 flex items-center bg-white/10 rounded-full px-4">
+            <input
+              ref={commentInputRef}
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handlePost()}
+              placeholder="Add a comment…"
+              className="flex-1 bg-transparent text-white placeholder-white/40 py-2 text-sm outline-none" />
+            <EmojiPickerButton
+              onEmojiSelect={(emoji) => insertAtCursor(text, setText, commentInputRef, emoji)}
+              pickerSide="right"
+            />
+          </div>
           <button onClick={handlePost}
-            className="bg-purple-600 text-white text-sm px-4 py-2 rounded-full hover:bg-purple-700 transition">
+            className="bg-purple-600 text-white text-sm px-4 py-2 rounded-full hover:bg-purple-700 transition flex-shrink-0">
             Post
           </button>
         </div>

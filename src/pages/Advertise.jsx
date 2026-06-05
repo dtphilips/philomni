@@ -8,6 +8,7 @@ import {
   Loader2, ExternalLink, ImageIcon, ChevronRight, Check,
   Rocket, TrendingUp, Users, Target,
 } from 'lucide-react'
+import PaymentButton from '../components/PaymentButton'
 
 const PACKAGES = [
   {
@@ -256,16 +257,19 @@ export default function Advertise() {
                   </div>
                 ))}
               </div>
-              <div className="flex items-center justify-between bg-muted/50 rounded-xl px-4 py-3 mb-4">
-                <p className="text-sm text-muted-foreground">
-                  Payment integration coming soon — we'll contact you to complete payment
-                </p>
-              </div>
-              <button
-                onClick={() => { if (!selectedPkg) { toast.error('Select a package first'); return } setShowCampaignForm(true) }}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors">
-                Get Started <ChevronRight className="w-4 h-4" />
-              </button>
+              <PaymentButton
+                amount={PACKAGES.find(p => p.id === selectedPkg)?.price ?? 299}
+                currency="usd"
+                type="campaign"
+                label={selectedPkg ? `Get Started — $${PACKAGES.find(p => p.id === selectedPkg)?.price}/mo` : 'Get Started'}
+                metadata={{ package: selectedPkg }}
+                onSuccess={() => {
+                  toast.success('Payment received! Proceeding to campaign setup…')
+                  setShowCampaignForm(true)
+                }}
+                onError={() => toast.error('Payment failed. Please try again.')}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              />
             </>
           ) : (
             <div className="grid lg:grid-cols-2 gap-8">
