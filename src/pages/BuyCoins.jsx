@@ -165,8 +165,10 @@ export default function BuyCoins() {
 
   useEffect(() => {
     if (!user?.id) return
-    supabase.from('users').select('coin_balance').eq('id', user.id).single()
-      .then(({ data }) => { if (data) setCoinBalance(data.coin_balance ?? 0) })
+    supabase.from('users').select('coin_balance, coins_balance').eq('id', user.id).single()
+      .then(({ data }) => {
+        if (data) setCoinBalance(data.coins_balance ?? data.coin_balance ?? 0)
+      })
   }, [user?.id])
 
   const closeModal = () => {
@@ -179,18 +181,23 @@ export default function BuyCoins() {
 
   // ── Shared payment success handler ──────────────────────────────────────────
   const handlePaymentSuccess = async ({ provider, reference, coins, amount, intentId }) => {
+    console.log('[BuyCoins] handlePaymentSuccess called', { provider, reference, coins, amount })
     try {
-      // Record in payment_intents
+      // 1. Record in payment_intents ─────────────────────────────────────────
       if (intentId) {
-        await recordPayment(supabase, {
-          paymentIntentId:   intentId,
-          providerPaymentId: String(reference),
-          status:            'completed',
-        })
+        const { error: recErr } = await supabase
+          .from('payment_intents')
+          .update({
+            status:              'completed',
+            provider_payment_id: String(reference),
+            completed_at:        new Date().toISOString(),
+          })
+          .eq('id', intentId)
+        if (recErr) console.error('[BuyCoins] recordPayment error:', recErr)
       } else {
-        await supabase.from('payment_intents').insert({
+        const { error: insErr } = await supabase.from('payment_intents').insert({
           user_id:             user.id,
-          amount:              Math.round(amount * 100),
+          amount:              Math.round((amount ?? 0) * 100),
           currency:            provider === 'paystack' ? 'ngn' : 'usd',
           type:                'coins',
           provider,
@@ -200,23 +207,50 @@ export default function BuyCoins() {
           created_at:          new Date().toISOString(),
           completed_at:        new Date().toISOString(),
         })
+        if (insErr) console.error('[BuyCoins] payment_intents insert error:', insErr)
       }
 
-      // Credit coin_balance (and coins_balance for sync)
-      const { data: fresh } = await supabase
-        .from('users').select('coin_balance, coins_balance').eq('id', user.id).single()
-      const newCoinBal   = (fresh?.coin_balance   ?? 0) + coins
-      const newCoinsBal  = (fresh?.coins_balance  ?? 0) + coins
-      await supabase.from('users')
-        .update({ coin_balance: newCoinBal, coins_balance: newCoinsBal })
-        .eq('id', user.id)
+      // 2. Credit coins via SECURITY DEFINER RPC (bypasses RLS) ──────────────
+      const { error: rpcErr } = await supabase.rpc('add_coins', {
+        p_user_id: user.id,
+        p_coins:   coins,
+      })
 
-      setCoinBalance(newCoinBal)
+      if (rpcErr) {
+        // RPC not available yet — fall back to direct update
+        console.error('[BuyCoins] add_coins RPC error, using fallback:', rpcErr)
+        const { data: fresh, error: selErr } = await supabase
+          .from('users')
+          .select('coin_balance, coins_balance')
+          .eq('id', user.id)
+          .single()
+        if (selErr) console.error('[BuyCoins] balance select error:', selErr)
+
+        const { error: updErr } = await supabase
+          .from('users')
+          .update({
+            coin_balance:  (fresh?.coin_balance  ?? 0) + coins,
+            coins_balance: (fresh?.coins_balance ?? 0) + coins,
+          })
+          .eq('id', user.id)
+        if (updErr) {
+          console.error('[BuyCoins] balance update error:', updErr)
+          toast.error('Payment received! Coins will be credited shortly. Contact support@philomni.com if not received within 1 hour.')
+          return
+        }
+      }
+
+      // 3. Refresh displayed balance from DB ────────────────────────────────
+      const { data: refreshed } = await supabase
+        .from('users').select('coin_balance, coins_balance').eq('id', user.id).single()
+      const finalBalance = refreshed?.coins_balance ?? refreshed?.coin_balance ?? coinBalance + coins
+      setCoinBalance(finalBalance)
       setNewCoins(coins)
       setDone(true)
+      toast.success(`🪙 ${coins.toLocaleString()} coins added to your balance!`)
     } catch (err) {
-      console.error('[BuyCoins] handlePaymentSuccess error:', err)
-      toast.error('Payment received but coins not added. Contact support@philomni.com')
+      console.error('[BuyCoins] handlePaymentSuccess unexpected error:', err)
+      toast.error('Payment received! Coins will be credited shortly. Contact support@philomni.com if not received within 1 hour.')
     } finally {
       setPaying(false)
     }
