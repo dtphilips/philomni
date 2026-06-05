@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { toggleLike } from '../lib/postActions'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
 import { formatDistanceToNow } from 'date-fns'
@@ -1060,7 +1059,7 @@ function CommentSection({ postId, currentUser, onCommentAdded }) {
 
 // ─── Gift Panel (post gift picker popup) ─────────────────────────────────────
 
-function GiftPanel({ post, currentUser, onClose, onGiftSent }) {
+function GiftPanel({ post, currentUser, onClose, onGiftSent, anchorRect }) {
   const navigate = useNavigate()
   const [balance, setBalance] = useState(null)
   const [sending, setSending] = useState(null)
@@ -1143,9 +1142,21 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent }) {
     setSending(null)
   }
 
+  // Fixed positioning anchored to the gift button — escapes the post card's
+  // overflow-hidden, which previously clipped the popup. Opens above the button,
+  // clamped to stay on-screen horizontally.
+  const PANEL_W = 288 // w-72
+  const style = anchorRect
+    ? {
+        position: 'fixed',
+        left: Math.max(8, Math.min(anchorRect.left, window.innerWidth - PANEL_W - 8)),
+        bottom: Math.max(8, window.innerHeight - anchorRect.top + 8),
+      }
+    : { position: 'fixed', left: 8, bottom: 8 }
+
   return (
-    <div ref={ref}
-      className="absolute bottom-full left-0 z-50 mb-2 bg-card border border-border rounded-2xl shadow-2xl w-72 overflow-hidden"
+    <div ref={ref} style={style}
+      className="z-[60] bg-card border border-border rounded-2xl shadow-2xl w-72 overflow-hidden"
       onClick={e => e.stopPropagation()}
     >
       {/* Header */}
@@ -1219,10 +1230,23 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent }) {
   )
 }
 
+// ─── Reactions ────────────────────────────────────────────────────────────────
+const REACTIONS = [
+  { type: 'like', emoji: '👍', label: 'Like',  color: 'text-blue-500'   },
+  { type: 'love', emoji: '❤️', label: 'Love',  color: 'text-red-500'    },
+  { type: 'haha', emoji: '😂', label: 'Haha',  color: 'text-yellow-500' },
+  { type: 'wow',  emoji: '😮', label: 'Wow',   color: 'text-yellow-500' },
+  { type: 'sad',  emoji: '😢', label: 'Sad',   color: 'text-yellow-500' },
+  { type: 'fire', emoji: '🔥', label: 'Fire',  color: 'text-orange-500' },
+  { type: 'clap', emoji: '👏', label: 'Clap',  color: 'text-yellow-500' },
+]
+const reactionByType = (t) => REACTIONS.find(r => r.type === t) ?? REACTIONS[0]
+
 // ─── Liker Row (who-liked modal) ──────────────────────────────────────────────
 // A standalone component so its hooks aren't created inside a .map() callback.
 function LikerRow({ liker, currentUser, navigate, onClose }) {
   const u = liker.users
+  const reaction = reactionByType(liker.reaction_type)
   const [following, setFollowing] = useState(false)
   const isMe = u && u.id === currentUser?.id
 
@@ -1251,10 +1275,13 @@ function LikerRow({ liker, currentUser, navigate, onClose }) {
   return (
     <div className="flex items-center gap-3">
       <button onClick={goProfile}
-        className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden flex-shrink-0">
-        {u.avatar_url
-          ? <img src={u.avatar_url} alt="" className="w-full h-full object-cover" />
-          : <span className="text-primary font-semibold text-sm">{u.full_name?.[0] ?? '?'}</span>}
+        className="relative w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center overflow-visible flex-shrink-0">
+        <span className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center">
+          {u.avatar_url
+            ? <img src={u.avatar_url} alt="" className="w-full h-full object-cover" />
+            : <span className="text-primary font-semibold text-sm">{u.full_name?.[0] ?? '?'}</span>}
+        </span>
+        <span className="absolute -bottom-1 -right-1 text-sm leading-none" title={reaction.label}>{reaction.emoji}</span>
       </button>
       <button onClick={goProfile} className="flex-1 min-w-0 text-left">
         <p className="font-medium text-foreground text-sm truncate">{u.full_name ?? u.username ?? 'User'}</p>
@@ -1282,7 +1309,14 @@ function LikerRow({ liker, currentUser, navigate, onClose }) {
 
 function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWinnerId }) {
   const navigate = useNavigate()
-  const [liked, setLiked] = useState(false)
+  // Reactions (replaces the single like). userReaction = null | reaction type string.
+  const [userReaction, setUserReaction] = useState(null)
+  const [reactionCounts, setReactionCounts] = useState({})
+  const [showReactionPicker, setShowReactionPicker] = useState(false)
+  const longPressTimer = useRef(null)
+  const longPressFired = useRef(false)
+  const pickerJustOpened = useRef(false)
+  const liked = !!userReaction
   const [likeChecked, setLikeChecked] = useState(false)
   const [saved, setSaved] = useState(false)
   const [likeCount, setLikeCount] = useState(post.likes_count ?? post.like_count ?? 0)
@@ -1297,6 +1331,8 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
   const [showShare, setShowShare] = useState(false)
   const [reposting, setReposting] = useState(false)
   const [showGiftPanel, setShowGiftPanel] = useState(false)
+  const giftBtnRef = useRef(null)
+  const [giftRect, setGiftRect] = useState(null)
   const [giftAnimation, setGiftAnimation] = useState(null)
   const [giftCount, setGiftCount] = useState(0)
   const [giftSummary, setGiftSummary] = useState([])
@@ -1397,14 +1433,37 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
     return () => document.removeEventListener('mousedown', fn)
   }, [])
 
-  // Check if already liked / saved
+  // Check the current user's reaction + saved state
   useEffect(() => {
     if (!currentUser) { setLikeChecked(true); return }
-    supabase.from('likes').select('id').eq('post_id', post.id).eq('user_id', currentUser.id).maybeSingle()
-      .then(({ data }) => { setLiked(!!data); setLikeChecked(true) })
+    supabase.from('likes').select('reaction_type').eq('post_id', post.id).eq('user_id', currentUser.id).maybeSingle()
+      .then(({ data }) => { if (data) setUserReaction(data.reaction_type ?? 'like'); setLikeChecked(true) })
     supabase.from('bookmarks').select('id').eq('post_id', post.id).eq('user_id', currentUser.id).maybeSingle()
       .then(({ data }) => setSaved(!!data))
   }, [post.id, currentUser])
+
+  // Aggregate reaction counts for this post
+  useEffect(() => {
+    supabase.from('likes').select('reaction_type').eq('post_id', post.id)
+      .then(({ data }) => {
+        if (!data) return
+        const counts = {}
+        data.forEach(r => { const t = r.reaction_type ?? 'like'; counts[t] = (counts[t] ?? 0) + 1 })
+        setReactionCounts(counts)
+      })
+  }, [post.id])
+
+  // Close the reaction picker on any outside click. Skip the click that
+  // immediately follows the long-press that opened it (same gesture's mouseup).
+  useEffect(() => {
+    if (!showReactionPicker) return
+    const handler = () => {
+      if (pickerJustOpened.current) { pickerJustOpened.current = false; return }
+      setShowReactionPicker(false)
+    }
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [showReactionPicker])
 
   // Increment view count when post is visible for 2 seconds
   useEffect(() => {
@@ -1428,22 +1487,65 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
     return () => { observer.disconnect(); if (timer) clearTimeout(timer) }
   }, [post.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleLike = async () => {
-    if (!currentUser) return
-    // Optimistic flip, then reconcile via shared helper (writes canonical likes_count)
-    setLiked(l => !l)
-    setLikeCount(c => Math.max(0, c + (liked ? -1 : 1)))
-    const res = await toggleLike(post.id, currentUser.id, liked, likeCount)
-    setLiked(res.liked)
-    setLikeCount(res.count)
+  const handleReaction = async (reactionType) => {
+    setShowReactionPicker(false)
+    if (!currentUser) { navigate('/login'); return }
+
+    if (userReaction === reactionType) {
+      // Same reaction tapped again → remove it (unlike)
+      setUserReaction(null)
+      setReactionCounts(prev => ({ ...prev, [reactionType]: Math.max(0, (prev[reactionType] ?? 1) - 1) }))
+      setLikeCount(c => Math.max(0, c - 1))
+      await supabase.from('likes').delete().eq('post_id', post.id).eq('user_id', currentUser.id)
+      await supabase.from('posts').update({ likes_count: Math.max(0, likeCount - 1) }).eq('id', post.id)
+      return
+    }
+
+    const isNew = !userReaction
+    const oldReaction = userReaction
+    setUserReaction(reactionType)
+
+    if (isNew) {
+      setLikeCount(c => c + 1)
+      setReactionCounts(prev => ({ ...prev, [reactionType]: (prev[reactionType] ?? 0) + 1 }))
+      await supabase.from('likes').upsert(
+        { post_id: post.id, user_id: currentUser.id, created_by: currentUser.id, reaction_type: reactionType },
+        { onConflict: 'post_id,user_id' },
+      )
+      await supabase.from('posts').update({ likes_count: likeCount + 1 }).eq('id', post.id)
+    } else {
+      // Changing reaction type — total count stays the same
+      setReactionCounts(prev => ({
+        ...prev,
+        [oldReaction]:   Math.max(0, (prev[oldReaction] ?? 1) - 1),
+        [reactionType]:  (prev[reactionType] ?? 0) + 1,
+      }))
+      await supabase.from('likes').update({ reaction_type: reactionType })
+        .eq('post_id', post.id).eq('user_id', currentUser.id)
+    }
   }
+
+  // Quick tap = like/unlike; long press = reaction picker
+  const handleQuickLike = () => {
+    if (longPressFired.current) { longPressFired.current = false; return }
+    handleReaction('like')
+  }
+  const handleMouseDown = () => {
+    longPressFired.current = false
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true
+      pickerJustOpened.current = true
+      setShowReactionPicker(true)
+    }, 500)
+  }
+  const handleMouseUp = () => clearTimeout(longPressTimer.current)
 
   const fetchLikers = async () => {
     setLikersLoading(true)
     setShowLikes(true)
     const { data } = await supabase
       .from('likes')
-      .select('user_id, created_at')
+      .select('user_id, created_at, reaction_type')
       .eq('post_id', post.id)
       .order('created_at', { ascending: false })
       .limit(100)
@@ -1728,11 +1830,19 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
         {/* Like / comment summary */}
         {(likeCount > 0 || commentCount > 0) && (
           <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground border-t border-border/40 mt-1">
-            {likeCount > 0 && (
-              <button onClick={fetchLikers} className="flex items-center gap-1 hover:underline">
-                <span className="text-base">👍</span> {fmtCount(likeCount)} {likeCount === 1 ? 'like' : 'likes'}
-              </button>
-            )}
+            {likeCount > 0 && (() => {
+              const top = Object.entries(reactionCounts).sort((a, b) => b[1] - a[1]).slice(0, 3)
+                .map(([t]) => reactionByType(t).emoji)
+              const emojis = top.length ? top : ['👍']
+              return (
+                <button onClick={fetchLikers} className="flex items-center gap-1 hover:underline">
+                  <span className="flex -space-x-0.5">
+                    {emojis.map((e, i) => <span key={i} className="text-base">{e}</span>)}
+                  </span>
+                  <span className="ml-0.5">{fmtCount(likeCount)}</span>
+                </button>
+              )
+            })()}
             {commentCount > 0 && (
               <button onClick={() => setShowComments(v => !v)} className="hover:underline ml-auto">
                 {fmtCount(commentCount)} comment{commentCount !== 1 ? 's' : ''}
@@ -1743,12 +1853,28 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
 
         {/* Engagement bar */}
         <div className="flex items-center border-t border-border/60 px-1">
-          <button onClick={handleLike} disabled={!likeChecked}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold rounded-xl transition-all disabled:opacity-60 ${liked ? 'text-[#7c3aed]' : 'text-muted-foreground hover:text-[#7c3aed] hover:bg-primary/5'}`}>
-            <span className="text-base">{liked ? '👍' : '👍'}</span>
-            <span className={liked ? 'text-[#7c3aed]' : ''}>Like</span>
-            {likeCount > 0 && <span className="text-xs opacity-70">{fmtCount(likeCount)}</span>}
-          </button>
+          <div className="relative flex-1">
+            {showReactionPicker && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 bg-card border border-border rounded-full shadow-xl flex items-center gap-1 px-3 py-2"
+                onClick={e => e.stopPropagation()}>
+                {REACTIONS.map(r => (
+                  <button key={r.type} onClick={() => handleReaction(r.type)}
+                    className="text-2xl hover:scale-125 transition-transform" title={r.label}>
+                    {r.emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onMouseDown={handleMouseDown} onMouseUp={handleMouseUp}
+              onTouchStart={handleMouseDown} onTouchEnd={handleMouseUp}
+              onClick={handleQuickLike} disabled={!likeChecked}
+              className={`w-full flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold rounded-xl transition-all disabled:opacity-60 ${userReaction ? 'text-[#7c3aed]' : 'text-muted-foreground hover:text-[#7c3aed] hover:bg-primary/5'}`}>
+              <span className="text-base">{userReaction ? reactionByType(userReaction).emoji : '👍'}</span>
+              <span>{userReaction ? reactionByType(userReaction).label : 'Like'}</span>
+              {likeCount > 0 && <span className="text-xs opacity-70">{fmtCount(likeCount)}</span>}
+            </button>
+          </div>
           <button onClick={() => setShowComments(v => !v)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold rounded-xl transition-all ${showComments ? 'text-primary' : 'text-muted-foreground hover:text-primary hover:bg-primary/5'}`}>
             <span className="text-base">💬</span>
@@ -1801,7 +1927,14 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
           {/* Gift button */}
           <div className="relative flex-1">
             <button
-              onClick={() => setShowGiftPanel(v => !v)}
+              ref={giftBtnRef}
+              onClick={() => {
+                if (giftBtnRef.current) {
+                  const r = giftBtnRef.current.getBoundingClientRect()
+                  setGiftRect({ left: r.left, top: r.top })
+                }
+                setShowGiftPanel(v => !v)
+              }}
               className={`w-full flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold rounded-xl transition-all ${
                 showGiftPanel
                   ? 'text-amber-500 bg-amber-500/10'
@@ -1816,6 +1949,7 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
               <GiftPanel
                 post={post}
                 currentUser={currentUser}
+                anchorRect={giftRect}
                 onClose={() => setShowGiftPanel(false)}
                 onGiftSent={handleGiftSent}
               />
