@@ -39,24 +39,31 @@ export const checkLiked = async (postId, userId) => {
  * Toggle a like for (postId, userId). Updates the likes table AND likes_count.
  * `currentCount` is the caller's optimistic count; returns the resolved state.
  */
-export const toggleLike = async (postId, userId, currentlyLiked, currentCount) => {
+// Recompute likes_count from the actual (deduped, unique-constrained) likes rows
+// — the source of truth — so the displayed count can never drift or double-count.
+const recountLikes = async (postId) => {
+  const { count } = await supabase
+    .from('likes')
+    .select('id', { count: 'exact', head: true })
+    .eq('post_id', postId)
+  const n = count ?? 0
+  await supabase.from('posts').update({ likes_count: n }).eq('id', postId)
+  return n
+}
+
+export const toggleLike = async (postId, userId, currentlyLiked) => {
   if (currentlyLiked) {
     await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', userId)
-    const count = await incrementCount(postId, 'likes_count', -1)
-    return { liked: false, count }
+  } else {
+    // upsert + ignoreDuplicates: a re-like (or a race) is a harmless no-op insert,
+    // never an error — so liking always succeeds, every time, this session or next.
+    await supabase.from('likes').upsert(
+      { post_id: postId, user_id: userId },
+      { onConflict: 'post_id,user_id', ignoreDuplicates: true },
+    )
   }
-  // Guard against an existing row so we never double-count (likes has a
-  // UNIQUE(post_id, user_id) constraint — a duplicate insert returns an error).
-  const already = await checkLiked(postId, userId)
-  if (already) return { liked: true, count: currentCount }
-
-  const { error } = await supabase.from('likes').insert({ post_id: postId, user_id: userId })
-  if (error) {
-    // Unique violation = already liked elsewhere; reconcile state, don't bump count.
-    return { liked: true, count: currentCount }
-  }
-  const count = await incrementCount(postId, 'likes_count', 1)
-  return { liked: true, count }
+  const count = await recountLikes(postId)
+  return { liked: !currentlyLiked, count }
 }
 
 /** Is this post currently saved by this user? */

@@ -68,26 +68,26 @@ function getVideoUrl(reel) {
   return urls[0] ?? reel.video_url ?? null
 }
 
-// Session seed — once per page load. Reel order changes on refresh but stays
-// stable within a session.
-const SESSION_SEED = Date.now()
-
-// Deterministic engagement score + per-reel seeded jitter (mirrors the Feed algorithm).
-function scoreReel(reel, index = 0) {
+// Deterministic engagement score + per-reel seeded jitter. The seed is passed in
+// (generated fresh in the fetch effect) so order varies on each load — a
+// module-level seed can be cached by the bundler and never re-evaluate.
+function scoreReel(reel, index, seed) {
   const views    = reel.views_count    ?? reel.view_count    ?? 0
   const likes    = reel.likes_count    ?? reel.like_count    ?? 0
   const comments = reel.comments_count ?? reel.comment_count ?? 0
   const saves    = reel.saves_count    ?? reel.save_count    ?? 0
   const hoursAgo = (Date.now() - new Date(reel.created_at)) / (1000 * 60 * 60)
   const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
-  const seededRandom = ((SESSION_SEED + index * 2654435761) % 1000) / 1000 * 8
+  // Well-distributed seeded jitter (0–8) — see Feed.jsx for rationale.
+  const h = Math.sin(seed * 1e-6 + index * 12.9898) * 43758.5453
+  const seededRandom = (h - Math.floor(h)) * 8
   return (views * 1) + (likes * 3) + (comments * 5) + (saves * 3) + recencyBonus + seededRandom
 }
 
-// Rank reels by seeded score — scores computed once (with index), then sorted.
-function shuffleReels(reels) {
+// Rank reels by seeded score — scores computed once (with index + seed), then sorted.
+function shuffleReels(reels, seed) {
   return reels
-    .map((reel, index) => ({ reel, score: scoreReel(reel, index) }))
+    .map((reel, index) => ({ reel, score: scoreReel(reel, index, seed) }))
     .sort((a, b) => b.score - a.score)
     .map(({ reel }) => reel)
 }
@@ -783,7 +783,8 @@ export default function Reels() {
       .order('created_at', { ascending: false })
       .limit(20)
       .then(({ data }) => {
-        const randomized = data?.length ? shuffleReels(data) : SAMPLE_REELS
+        const seed = Date.now() + Math.random() * 10000
+        const randomized = data?.length ? shuffleReels(data, seed) : SAMPLE_REELS
         setAllReels(randomized)
         setLoading(false)
       })

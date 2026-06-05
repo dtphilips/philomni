@@ -2631,15 +2631,11 @@ function ConnectionStoryCard() {
 // even if a background refetch is slow.
 let _feedPostsCache = []
 
-// Session seed — evaluated once per page load. The feed order changes on every
-// refresh but stays STABLE within a session (so posts don't jump around as you
-// scroll / refetch). A hard reload picks a new seed.
-const SESSION_SEED = Date.now()
-
-// Deterministic engagement score plus a per-post seeded jitter. The jitter is a
-// pure function of (SESSION_SEED, index), so it's stable inside a sort comparator
-// for the lifetime of the session but differs between sessions.
-function scorePost(post, index = 0) {
+// Deterministic engagement score plus a per-post seeded jitter. The seed is
+// passed in (generated fresh inside fetchPosts on every call) so the order
+// changes on each refresh — module-level constants can be cached by the bundler
+// and never re-evaluate, which is why the seed must NOT live at module scope.
+function scorePost(post, index, seed) {
   const views    = post.views_count    ?? post.view_count    ?? 0
   const likes    = post.likes_count    ?? post.like_count    ?? 0
   const comments = post.comments_count ?? post.comment_count ?? 0
@@ -2647,16 +2643,19 @@ function scorePost(post, index = 0) {
   const saves    = post.saves_count    ?? post.save_count    ?? 0
   const hoursAgo = (Date.now() - new Date(post.created_at)) / (1000 * 60 * 60)
   const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
-  const seededRandom = ((SESSION_SEED + index * 2654435761) % 1000) / 1000 * 8
+  // Well-distributed seeded jitter (0–8). Scale the seed down before sin() — at
+  // ~1e12 sin() loses precision, and a raw `% 1000` barely changes order between
+  // nearby seeds. This hash reorders near-ties differently on every fetch.
+  const h = Math.sin(seed * 1e-6 + index * 12.9898) * 43758.5453
+  const seededRandom = (h - Math.floor(h)) * 8
   return (views * 1) + (likes * 3) + (comments * 5) + (reposts * 4) + (saves * 3) + recencyBonus + seededRandom
 }
 
-// Rank posts by seeded score. Scores are computed ONCE (with index) and the
-// array is sorted on those precomputed numbers — never call a randomizing
-// comparator directly.
-function rankPosts(posts) {
+// Rank posts by seeded score. Scores are computed ONCE (with index + seed) and
+// the array is sorted on those precomputed numbers — never a randomizing comparator.
+function rankPosts(posts, seed) {
   return posts
-    .map((post, index) => ({ post, score: scorePost(post, index) }))
+    .map((post, index) => ({ post, score: scorePost(post, index, seed) }))
     .sort((a, b) => b.score - a.score)
     .map(({ post }) => post)
 }
@@ -2698,6 +2697,9 @@ export default function Feed() {
     const withTimeout = (p, ms = 12_000) =>
       Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
 
+    // Fresh seed on every fetch — keeps the order varying across refreshes.
+    const sessionSeed = Date.now() + Math.random() * 10000
+
     try {
       // ── Layer 1: Following posts (60% of feed) ──────────────────────────────
       let followedIds = []
@@ -2716,7 +2718,7 @@ export default function Feed() {
             .order('created_at', { ascending: false })
             .limit(30)
         )
-        followingPosts = rankPosts(data || [])
+        followingPosts = rankPosts(data || [], sessionSeed)
       }
 
       // ── Layer 2: Discovery posts (25% of feed) ──────────────────────────────
@@ -2728,7 +2730,7 @@ export default function Feed() {
       }
       const { data: discData, error } = await withTimeout(discoveryQuery)
       if (error) throw error
-      const discoveryPosts = rankPosts(discData || [])
+      const discoveryPosts = rankPosts(discData || [], sessionSeed)
 
       // ── Build combined post pool ──────────────────────────────────────────────
       const followingTarget = Math.ceil(FEED_LIMIT * 0.6)
