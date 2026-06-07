@@ -1,162 +1,82 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
 import { COINS_PER_DOLLAR, coinsToUSDString } from '../lib/constants'
 import {
+  detectPayoutProvider, getNextPayoutDate, MINIMUM_PAYOUT_USD,
+  NIGERIAN_BANKS, FLW_COUNTRY_CURRENCIES,
+} from '../utils/payoutProvider'
+import { getUserCountry } from '../lib/payments'
+import {
   Wallet as WalletIcon, TrendingUp, ArrowDownCircle, Clock,
-  DollarSign, Loader2, ChevronLeft, ChevronRight, ArrowUpRight,
+  DollarSign, Loader2, ChevronLeft, ChevronRight,
   ArrowDownLeft, Gift, BookOpen, ShoppingBag, Megaphone, Briefcase,
-  ShieldAlert, CheckCircle2,
+  ShieldAlert, CheckCircle2, Building2, ExternalLink, AlertCircle,
+  CalendarClock, BanknoteIcon,
 } from 'lucide-react'
 
+// ── Tax Profile Modal (unchanged) ─────────────────────────────────────────────
 const TAX_ID_TYPES = ['SSN', 'SIN', 'TIN', 'BVN', 'Other']
-
 const COUNTRIES = [
-  { code: 'US', name: 'United States' },
-  { code: 'CA', name: 'Canada' },
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'NG', name: 'Nigeria' },
-  { code: 'GH', name: 'Ghana' },
-  { code: 'KE', name: 'Kenya' },
-  { code: 'ZA', name: 'South Africa' },
-  { code: 'AU', name: 'Australia' },
-  { code: 'DE', name: 'Germany' },
-  { code: 'FR', name: 'France' },
-  { code: 'IN', name: 'India' },
-  { code: 'BR', name: 'Brazil' },
-  { code: 'MX', name: 'Mexico' },
-  { code: 'Other', name: 'Other' },
+  { code: 'US', name: 'United States' }, { code: 'CA', name: 'Canada' },
+  { code: 'GB', name: 'United Kingdom' }, { code: 'NG', name: 'Nigeria' },
+  { code: 'GH', name: 'Ghana' }, { code: 'KE', name: 'Kenya' },
+  { code: 'ZA', name: 'South Africa' }, { code: 'AU', name: 'Australia' },
+  { code: 'DE', name: 'Germany' }, { code: 'FR', name: 'France' },
+  { code: 'IN', name: 'India' }, { code: 'BR', name: 'Brazil' },
+  { code: 'MX', name: 'Mexico' }, { code: 'Other', name: 'Other' },
 ]
 
 function TaxProfileModal({ userId, onComplete, onClose }) {
-  const [form, setForm] = useState({
-    country: '',
-    tax_id_type: '',
-    tax_id_number: '',
-    legal_name: '',
-    confirmed: false,
-  })
+  const [form, setForm] = useState({ country: '', tax_id_type: '', tax_id_number: '', legal_name: '', confirmed: false })
   const [saving, setSaving] = useState(false)
-
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
-
   const handleSubmit = async () => {
-    if (!form.country) return toast.error('Select your country of tax residence')
-    if (!form.tax_id_type) return toast.error('Select your tax ID type')
+    if (!form.country)                               return toast.error('Select your country of tax residence')
+    if (!form.tax_id_type)                           return toast.error('Select your tax ID type')
     if (!form.tax_id_number || form.tax_id_number.length < 4) return toast.error('Tax ID must be at least 4 characters')
-    if (!form.legal_name.trim()) return toast.error('Enter your legal full name')
-    if (!form.confirmed) return toast.error('You must confirm the declaration')
-
+    if (!form.legal_name.trim())                     return toast.error('Enter your legal full name')
+    if (!form.confirmed)                             return toast.error('You must confirm the declaration')
     setSaving(true)
     try {
-      const tax_info = {
-        country: form.country,
-        tax_id_type: form.tax_id_type,
-        tax_id_last4: form.tax_id_number.slice(-4),
-        legal_name: form.legal_name.trim(),
-        confirmed: true,
-        confirmed_at: new Date().toISOString(),
-      }
-      const { error } = await supabase
-        .from('users')
-        .update({ tax_info, tax_verified: true })
-        .eq('id', userId)
+      const tax_info = { country: form.country, tax_id_type: form.tax_id_type, tax_id_last4: form.tax_id_number.slice(-4), legal_name: form.legal_name.trim(), confirmed: true, confirmed_at: new Date().toISOString() }
+      const { error } = await supabase.from('users').update({ tax_info, tax_verified: true }).eq('id', userId)
       if (error) throw error
       toast.success('Tax profile saved')
       onComplete()
-    } catch {
-      toast.error('Failed to save tax profile')
-    }
+    } catch { toast.error('Failed to save tax profile') }
     setSaving(false)
   }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center gap-2 mb-1">
-          <ShieldAlert className="w-5 h-5 text-primary" />
-          <h3 className="font-bold text-foreground text-lg">Tax Profile</h3>
-        </div>
+        <div className="flex items-center gap-2 mb-1"><ShieldAlert className="w-5 h-5 text-primary" /><h3 className="font-bold text-foreground text-lg">Tax Profile</h3></div>
         <p className="text-xs text-muted-foreground mb-5">Required before your first withdrawal. Your full tax ID is never stored — only the last 4 digits.</p>
-
         <div className="space-y-4">
-          {/* Country */}
-          <div>
-            <label className="block text-xs font-medium text-foreground mb-1.5">Country of Tax Residence</label>
-            <select
-              value={form.country}
-              onChange={e => set('country', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="">Select country…</option>
-              {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-            </select>
-          </div>
-
-          {/* Tax ID type */}
-          <div>
-            <label className="block text-xs font-medium text-foreground mb-1.5">Tax ID Type</label>
-            <select
-              value={form.tax_id_type}
-              onChange={e => set('tax_id_type', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="">Select type…</option>
-              {TAX_ID_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-
-          {/* Tax ID number */}
-          <div>
-            <label className="block text-xs font-medium text-foreground mb-1.5">Tax ID Number</label>
-            <input
-              type="password"
-              value={form.tax_id_number}
-              onChange={e => set('tax_id_number', e.target.value)}
-              placeholder="Enter your tax ID"
-              autoComplete="off"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <p className="text-[10px] text-muted-foreground mt-1">Only the last 4 digits will be stored for reference.</p>
-          </div>
-
-          {/* Legal name */}
-          <div>
-            <label className="block text-xs font-medium text-foreground mb-1.5">Legal Full Name</label>
-            <input
-              type="text"
-              value={form.legal_name}
-              onChange={e => set('legal_name', e.target.value)}
-              placeholder="As it appears on your bank account"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-
-          {/* Confirmation checkbox */}
+          <div><label className="block text-xs font-medium text-foreground mb-1.5">Country of Tax Residence</label>
+            <select value={form.country} onChange={e => set('country', e.target.value)} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+              <option value="">Select country…</option>{COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+            </select></div>
+          <div><label className="block text-xs font-medium text-foreground mb-1.5">Tax ID Type</label>
+            <select value={form.tax_id_type} onChange={e => set('tax_id_type', e.target.value)} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+              <option value="">Select type…</option>{TAX_ID_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select></div>
+          <div><label className="block text-xs font-medium text-foreground mb-1.5">Tax ID Number</label>
+            <input type="password" value={form.tax_id_number} onChange={e => set('tax_id_number', e.target.value)} placeholder="Enter your tax ID" autoComplete="off" className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            <p className="text-[10px] text-muted-foreground mt-1">Only the last 4 digits will be stored for reference.</p></div>
+          <div><label className="block text-xs font-medium text-foreground mb-1.5">Legal Full Name</label>
+            <input type="text" value={form.legal_name} onChange={e => set('legal_name', e.target.value)} placeholder="As it appears on your bank account" className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" /></div>
           <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.confirmed}
-              onChange={e => set('confirmed', e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded accent-primary flex-shrink-0"
-            />
-            <span className="text-xs text-muted-foreground leading-relaxed">
-              I confirm this information is accurate and I am responsible for reporting my income to my local tax authority.
-            </span>
+            <input type="checkbox" checked={form.confirmed} onChange={e => set('confirmed', e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-primary flex-shrink-0" />
+            <span className="text-xs text-muted-foreground leading-relaxed">I confirm this information is accurate and I am responsible for reporting my income to my local tax authority.</span>
           </label>
         </div>
-
         <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted">
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            className="flex-1 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50"
-          >
+          <button onClick={onClose} className="flex-1 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+          <button onClick={handleSubmit} disabled={saving} className="flex-1 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50">
             {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Save Tax Profile'}
           </button>
         </div>
@@ -165,109 +85,259 @@ function TaxProfileModal({ userId, onComplete, onClose }) {
   )
 }
 
-const TYPE_CFG = {
-  earning:        { label: 'Earning',        icon: TrendingUp,    color: 'text-green-400',  bg: 'bg-green-400/10'  },
-  course_sale:    { label: 'Course Sale',    icon: BookOpen,      color: 'text-blue-400',   bg: 'bg-blue-400/10'   },
-  product_sale:   { label: 'Product Sale',   icon: ShoppingBag,   color: 'text-purple-400', bg: 'bg-purple-400/10' },
-  consulting_fee: { label: 'Consulting',     icon: Briefcase,     color: 'text-amber-400',  bg: 'bg-amber-400/10'  },
-  ad_revenue:     { label: 'Ad Revenue',     icon: Megaphone,     color: 'text-pink-400',   bg: 'bg-pink-400/10'   },
-  bonus:          { label: 'Bonus',          icon: Gift,          color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-  withdrawal:     { label: 'Withdrawal',     icon: ArrowDownCircle, color: 'text-red-400',  bg: 'bg-red-400/10'    },
-  refund:         { label: 'Refund',         icon: ArrowDownLeft, color: 'text-orange-400', bg: 'bg-orange-400/10' },
-}
+// ── Bank Connect UI ───────────────────────────────────────────────────────────
+function BankConnectSection({ userId, userEmail, profile, onConnected }) {
+  const [provider,       setProvider]       = useState(profile?.payout_provider ?? null)
+  const [detecting,      setDetecting]      = useState(!profile?.payout_provider)
+  const [connecting,     setConnecting]     = useState(false)
+  const [connError,      setConnError]      = useState('')
+  // Paystack form
+  const [accountNumber,  setAccountNumber]  = useState('')
+  const [bankCode,       setBankCode]       = useState('')
+  const [accountName,    setAccountName]    = useState('')
+  // Flutterwave form
+  const [flwCountry,     setFlwCountry]     = useState('')
+  const [flwBank,        setFlwBank]        = useState('')
+  const [flwAccNum,      setFlwAccNum]      = useState('')
+  const [flwAccName,     setFlwAccName]     = useState('')
 
-const PIE_COLORS = ['#3b82f6','#a855f7','#f59e0b','#ec4899','#22c55e','#f97316']
+  const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-function SimplePie({ data }) {
-  if (!data || data.length === 0) return null
-  const total = data.reduce((s, d) => s + d.value, 0)
-  if (total === 0) return null
+  useEffect(() => {
+    if (profile?.payout_provider) { setProvider(profile.payout_provider); setDetecting(false); return }
+    getUserCountry().then(country => {
+      setProvider(detectPayoutProvider(country))
+      setDetecting(false)
+    })
+  }, [profile?.payout_provider])
 
-  let cumulative = 0
-  const segments = data.map((item, i) => {
-    const pct = item.value / total
-    const startAngle = cumulative * 360
-    const endAngle = (cumulative + pct) * 360
-    cumulative += pct
-    const start = polarToCartesian(50, 50, 40, startAngle)
-    const end = polarToCartesian(50, 50, 40, endAngle)
-    const largeArc = endAngle - startAngle > 180 ? 1 : 0
-    return {
-      ...item,
-      d: `M 50 50 L ${start.x} ${start.y} A 40 40 0 ${largeArc} 1 ${end.x} ${end.y} Z`,
-      color: PIE_COLORS[i % PIE_COLORS.length],
-    }
-  })
+  const callFunction = async (name, body) => {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      body:    JSON.stringify(body),
+    })
+    const data = await res.json()
+    if (data.error) throw new Error(data.error)
+    return data
+  }
+
+  const handleStripeConnect = async () => {
+    setConnecting(true); setConnError('')
+    try {
+      const { url } = await callFunction('create-stripe-connect', { userId, userEmail })
+      window.location.href = url
+    } catch (err) { setConnError(err.message); setConnecting(false) }
+  }
+
+  const handlePaystackConnect = async () => {
+    if (!accountNumber || !bankCode || !accountName) { setConnError('All fields required'); return }
+    setConnecting(true); setConnError('')
+    try {
+      await callFunction('create-paystack-recipient', { userId, accountNumber, bankCode, accountName })
+      toast.success('Bank account connected!')
+      onConnected()
+    } catch (err) { setConnError(err.message); setConnecting(false) }
+  }
+
+  const handleFlwConnect = async () => {
+    const cc = FLW_COUNTRY_CURRENCIES[flwCountry]
+    if (!flwCountry || !flwBank || !flwAccNum || !flwAccName || !cc) { setConnError('All fields required'); return }
+    setConnecting(true); setConnError('')
+    try {
+      await callFunction('create-flutterwave-recipient', { userId, accountNumber: flwAccNum, bankCode: flwBank, accountName: flwAccName, country: flwCountry, currency: cc.currency })
+      toast.success('Bank account connected!')
+      onConnected()
+    } catch (err) { setConnError(err.message); setConnecting(false) }
+  }
+
+  if (detecting) return <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
 
   return (
-    <div className="flex items-center gap-6">
-      <svg viewBox="0 0 100 100" className="w-32 h-32 flex-shrink-0">
-        {segments.map((s, i) => (
-          <path key={i} d={s.d} fill={s.color} opacity="0.85" />
-        ))}
-        <circle cx="50" cy="50" r="24" fill="hsl(var(--card))" />
-      </svg>
-      <div className="space-y-1.5">
-        {segments.map((s, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs">
-            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
-            <span className="text-muted-foreground">{s.label}</span>
-            <span className="text-foreground font-medium ml-auto pl-2">${s.value.toFixed(2)}</span>
-          </div>
+    <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <Building2 className="w-5 h-5 text-primary" />
+        <h3 className="font-semibold text-foreground">Connect Bank Account</h3>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Connect your bank to receive weekly payouts every Friday.
+        Minimum payout: <strong>${MINIMUM_PAYOUT_USD.toFixed(2)}</strong>.
+      </p>
+
+      {/* Provider selector */}
+      <div className="flex gap-2 flex-wrap">
+        {[
+          { id: 'stripe',      label: '💳 Stripe (CA / US / Europe)' },
+          { id: 'paystack',    label: '🇳🇬 Paystack (Nigeria)' },
+          { id: 'flutterwave', label: '🌍 Flutterwave (Africa)' },
+        ].map(p => (
+          <button key={p.id} onClick={() => { setProvider(p.id); setConnError('') }}
+            className={`px-3 py-1.5 text-xs rounded-full border transition-all ${provider === p.id ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/50'}`}>
+            {p.label}
+          </button>
         ))}
       </div>
+
+      {connError && <p className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">{connError}</p>}
+
+      {/* Stripe */}
+      {provider === 'stripe' && (
+        <button onClick={handleStripeConnect} disabled={connecting}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+          {connecting ? 'Redirecting…' : 'Connect with Stripe →'}
+        </button>
+      )}
+
+      {/* Paystack */}
+      {provider === 'paystack' && (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-foreground mb-1">Bank</label>
+            <select value={bankCode} onChange={e => setBankCode(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+              <option value="">Select bank…</option>
+              {NIGERIAN_BANKS.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-foreground mb-1">Account Number</label>
+            <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              placeholder="10-digit NUBAN" maxLength={10}
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-foreground mb-1">Account Name</label>
+            <input type="text" value={accountName} onChange={e => setAccountName(e.target.value)}
+              placeholder="As registered with your bank"
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <button onClick={handlePaystackConnect} disabled={connecting}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+            {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <BanknoteIcon className="w-4 h-4" />}
+            {connecting ? 'Connecting…' : 'Connect Bank Account'}
+          </button>
+        </div>
+      )}
+
+      {/* Flutterwave */}
+      {provider === 'flutterwave' && (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-foreground mb-1">Country</label>
+            <select value={flwCountry} onChange={e => { setFlwCountry(e.target.value); setFlwBank('') }}
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+              <option value="">Select country…</option>
+              {Object.entries(FLW_COUNTRY_CURRENCIES).map(([code, info]) => (
+                <option key={code} value={code}>{info.name} ({info.currency})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-foreground mb-1">Bank Code</label>
+            <input type="text" value={flwBank} onChange={e => setFlwBank(e.target.value)}
+              placeholder="e.g. GH130100 (find at flutterwave.com/developers)"
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-foreground mb-1">Account Number</label>
+            <input type="text" value={flwAccNum} onChange={e => setFlwAccNum(e.target.value)}
+              placeholder="Account number"
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-foreground mb-1">Account Name</label>
+            <input type="text" value={flwAccName} onChange={e => setFlwAccName(e.target.value)}
+              placeholder="Full name on account"
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <button onClick={handleFlwConnect} disabled={connecting}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 disabled:opacity-50 transition-colors">
+            {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <BanknoteIcon className="w-4 h-4" />}
+            {connecting ? 'Connecting…' : 'Connect Bank Account'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
 
-function polarToCartesian(cx, cy, r, angleDeg) {
-  const rad = ((angleDeg - 90) * Math.PI) / 180
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+// ── Transaction type config ───────────────────────────────────────────────────
+const TYPE_CFG = {
+  earning:        { label: 'Earning',      icon: TrendingUp,    color: 'text-green-400',  bg: 'bg-green-400/10'  },
+  course_sale:    { label: 'Course Sale',  icon: BookOpen,      color: 'text-blue-400',   bg: 'bg-blue-400/10'   },
+  product_sale:   { label: 'Product Sale', icon: ShoppingBag,   color: 'text-purple-400', bg: 'bg-purple-400/10' },
+  consulting_fee: { label: 'Consulting',   icon: Briefcase,     color: 'text-amber-400',  bg: 'bg-amber-400/10'  },
+  ad_revenue:     { label: 'Ad Revenue',   icon: Megaphone,     color: 'text-pink-400',   bg: 'bg-pink-400/10'   },
+  bonus:          { label: 'Bonus',        icon: Gift,          color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+  withdrawal:     { label: 'Withdrawal',   icon: ArrowDownCircle, color: 'text-red-400',  bg: 'bg-red-400/10'    },
+  refund:         { label: 'Refund',       icon: ArrowDownLeft, color: 'text-orange-400', bg: 'bg-orange-400/10' },
 }
 
 const PAGE_SIZE = 20
 
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function Wallet() {
-  const { user } = useAuth()
+  const { user }    = useAuth()
+  const [searchParams] = useSearchParams()
+
+  const [profile,       setProfile]       = useState(null)
   const [wallet,        setWallet]        = useState(null)
   const [taxVerified,   setTaxVerified]   = useState(null)
   const [txns,          setTxns]          = useState([])
   const [total,         setTotal]         = useState(0)
   const [page,          setPage]          = useState(0)
+  const [payouts,       setPayouts]       = useState([])
+  const [giftEarnings,  setGiftEarnings]  = useState({ coins: 0, usd: 0, count: 0 })
   const [loading,       setLoading]       = useState(true)
   const [withdrawing,   setWithdrawing]   = useState(false)
   const [showWithdraw,  setShowWithdraw]  = useState(false)
   const [showTaxModal,  setShowTaxModal]  = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState('')
-  const [giftEarnings,  setGiftEarnings]  = useState({ coins: 0, usd: 0, count: 0 })
+
+  // Handle Stripe Connect return
+  useEffect(() => {
+    const connectStatus = searchParams.get('connect')
+    if (connectStatus === 'success') {
+      // Mark bank_connected = true when Stripe returns
+      supabase.from('users').update({ bank_connected: true }).eq('id', user?.id)
+        .then(() => { toast.success('Bank account connected via Stripe! Payouts enabled.'); fetchProfile(user?.id) })
+    } else if (connectStatus === 'refresh') {
+      toast.info('Stripe onboarding incomplete. Please try again.')
+    }
+  }, [searchParams, user?.id])
+
+  const fetchProfile = useCallback(async (uid) => {
+    const { data } = await supabase.from('users')
+      .select('available_balance_usd, total_earned_usd, total_withdrawn_usd, bank_connected, payout_provider, bank_country, tax_verified, stripe_account_id, paystack_recipient_code, flutterwave_account_id')
+      .eq('id', uid).single()
+    if (data) { setProfile(data); setTaxVerified(data.tax_verified ?? false) }
+  }, [])
 
   const fetchWallet = useCallback(async (uid) => {
     const { data } = await supabase.from('wallets').select('*').eq('user_id', uid).single()
-    setWallet(data || { balance: 0, total_earned: 0, total_withdrawn: 0, pending_payout: 0 })
-  }, [])
-
-  const fetchTaxStatus = useCallback(async (uid) => {
-    const { data } = await supabase.from('users').select('tax_verified').eq('id', uid).single()
-    setTaxVerified(data?.tax_verified ?? false)
+    setWallet(data || { balance: 0, total_earned: 0, total_withdrawn: 0 })
   }, [])
 
   const fetchTxns = useCallback(async (uid) => {
     const from = page * PAGE_SIZE
     const { data, count } = await supabase
-      .from('wallet_transactions')
-      .select('*', { count: 'exact' })
-      .eq('user_id', uid)
-      .order('created_at', { ascending: false })
+      .from('wallet_transactions').select('*', { count: 'exact' })
+      .eq('user_id', uid).order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
     setTxns(data || [])
     setTotal(count || 0)
   }, [page])
 
+  const fetchPayouts = useCallback(async (uid) => {
+    const { data } = await supabase.from('payouts').select('*')
+      .eq('creator_id', uid).order('created_at', { ascending: false }).limit(10)
+    setPayouts(data || [])
+  }, [])
+
   const fetchGiftEarnings = useCallback(async (uid) => {
-    const { data } = await supabase
-      .from('post_gifts')
-      .select('coin_cost, creator_earnings')
-      .eq('creator_id', uid)
+    const { data } = await supabase.from('post_gifts').select('coin_cost, creator_earnings').eq('creator_id', uid)
     if (data?.length) {
       const coins = data.reduce((s, g) => s + Math.floor((g.coin_cost || 0) * 0.70), 0)
       const usd   = data.reduce((s, g) => s + Number(g.creator_earnings || 0), 0)
@@ -282,52 +352,39 @@ export default function Wallet() {
       if (!session?.user) { setLoading(false); clearTimeout(timeout); return }
       try {
         await Promise.all([
-          fetchWallet(session.user.id),
-          fetchTxns(session.user.id),
-          fetchTaxStatus(session.user.id),
+          fetchProfile(session.user.id), fetchWallet(session.user.id),
+          fetchTxns(session.user.id), fetchPayouts(session.user.id),
           fetchGiftEarnings(session.user.id),
         ])
-      } finally {
-        setLoading(false)
-        clearTimeout(timeout)
-      }
+      } finally { setLoading(false); clearTimeout(timeout) }
     }
     init()
     return () => clearTimeout(timeout)
-  }, [fetchWallet, fetchTxns, fetchTaxStatus, fetchGiftEarnings])
+  }, [fetchProfile, fetchWallet, fetchTxns, fetchPayouts, fetchGiftEarnings])
 
   const handleWithdrawClick = () => {
     if (!taxVerified) { setShowTaxModal(true); return }
     setShowWithdraw(true)
   }
 
-  // Pie chart data from transactions
-  const pieData = React.useMemo(() => {
-    const buckets = {}
-    txns.filter(t => t.amount > 0).forEach(t => {
-      const cfg = TYPE_CFG[t.type] || TYPE_CFG.earning
-      buckets[cfg.label] = (buckets[cfg.label] || 0) + Number(t.amount)
-    })
-    return Object.entries(buckets).map(([label, value]) => ({ label, value })).filter(d => d.value > 0)
-  }, [txns])
-
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount)
     if (!amount || amount <= 0) return toast.error('Enter a valid amount')
-    if (amount > (wallet?.balance || 0)) return toast.error('Insufficient balance')
+    const available = Number(profile?.available_balance_usd || wallet?.balance || 0)
+    if (amount > available) return toast.error('Insufficient balance')
     setWithdrawing(true)
     try {
-      const newBalance = (wallet.balance || 0) - amount
-      await supabase.from('wallet').update({
-        balance: newBalance,
-        total_withdrawn: (wallet.total_withdrawn || 0) + amount,
+      const newBalance = available - amount
+      await supabase.from('wallets').update({
+        balance:         newBalance,
+        total_withdrawn: (wallet?.total_withdrawn || 0) + amount,
       }).eq('user_id', user.id)
       await supabase.from('wallet_transactions').insert({
         user_id: user.id, amount: -amount, type: 'withdrawal',
         description: 'Manual withdrawal request',
       })
       toast.success(`Withdrawal of $${amount.toFixed(2)} submitted!`)
-      setWallet(prev => ({ ...prev, balance: newBalance, total_withdrawn: (prev.total_withdrawn || 0) + amount }))
+      setWallet(prev => ({ ...prev, balance: newBalance, total_withdrawn: (prev?.total_withdrawn || 0) + amount }))
       setShowWithdraw(false)
       setWithdrawAmount('')
       if (user?.id) fetchTxns(user.id)
@@ -341,20 +398,24 @@ export default function Wallet() {
     </div>
   )
 
-  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const availableUSD  = Number(profile?.available_balance_usd  || wallet?.balance         || 0)
+  const totalEarnedUSD = Number(profile?.total_earned_usd      || wallet?.total_earned     || 0)
+  const withdrawnUSD   = Number(profile?.total_withdrawn_usd   || wallet?.total_withdrawn  || 0)
+  const totalPages     = Math.ceil(total / PAGE_SIZE)
+  const bankConnected  = profile?.bank_connected ?? false
+  const nextFriday     = getNextPayoutDate()
 
   return (
     <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <WalletIcon className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-bold text-foreground">My Wallet</h1>
         </div>
-        <button
-          onClick={handleWithdrawClick}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
-        >
+        <button onClick={handleWithdrawClick}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
           <ArrowDownCircle className="w-4 h-4" />
           Withdraw
         </button>
@@ -362,10 +423,8 @@ export default function Wallet() {
 
       {/* Tax profile banner */}
       {taxVerified === false && (
-        <button
-          onClick={() => setShowTaxModal(true)}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-left hover:bg-yellow-500/20 transition-colors"
-        >
+        <button onClick={() => setShowTaxModal(true)}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-left hover:bg-yellow-500/20 transition-colors">
           <ShieldAlert className="w-5 h-5 text-yellow-400 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-yellow-400">Complete your tax profile to enable withdrawals</p>
@@ -374,7 +433,6 @@ export default function Wallet() {
         </button>
       )}
 
-      {/* Tax verified note */}
       {taxVerified === true && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-green-500/10 border border-green-500/20">
           <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
@@ -384,13 +442,35 @@ export default function Wallet() {
         </div>
       )}
 
+      {/* Bank connection status */}
+      {bankConnected ? (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-emerald-400">Bank connected · Payouts every Friday</p>
+            <p className="text-xs text-muted-foreground">
+              Next payout: <strong>{nextFriday}</strong> · Min ${MINIMUM_PAYOUT_USD.toFixed(2)}
+            </p>
+          </div>
+          <CalendarClock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
+          <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-yellow-400">Connect your bank to receive weekly payouts</p>
+            <p className="text-xs text-muted-foreground">Next payout: {nextFriday} · Min ${MINIMUM_PAYOUT_USD.toFixed(2)}</p>
+          </div>
+        </div>
+      )}
+
       {/* Balance cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Available Balance', value: wallet?.balance || 0,          color: 'text-green-400',        icon: WalletIcon },
-          { label: 'Total Earned',      value: wallet?.total_earned || 0,     color: 'text-blue-400',         icon: TrendingUp },
-          { label: 'Withdrawn',         value: wallet?.total_withdrawn || 0,  color: 'text-muted-foreground', icon: ArrowDownCircle },
-          { label: 'Pending Payout',    value: wallet?.pending_payout || 0,   color: 'text-yellow-400',       icon: Clock },
+          { label: 'Available Balance', value: availableUSD,  color: 'text-green-400',        icon: WalletIcon },
+          { label: 'Total Earned',      value: totalEarnedUSD, color: 'text-blue-400',         icon: TrendingUp },
+          { label: 'Withdrawn',         value: withdrawnUSD,   color: 'text-muted-foreground', icon: ArrowDownCircle },
+          { label: 'Pending Payout',    value: availableUSD,   color: 'text-yellow-400',       icon: Clock },
         ].map(card => (
           <div key={card.label} className="bg-card border border-border rounded-xl p-4">
             <card.icon className={`w-4 h-4 mb-2 ${card.color}`} />
@@ -420,11 +500,51 @@ export default function Wallet() {
         </div>
       )}
 
-      {/* Earnings breakdown pie */}
-      {pieData.length > 0 && (
-        <div className="bg-card border border-border rounded-xl p-5">
-          <p className="text-sm font-semibold text-foreground mb-4">Earnings Breakdown</p>
-          <SimplePie data={pieData} />
+      {/* Bank connect section */}
+      {!bankConnected && (
+        <BankConnectSection
+          userId={user?.id}
+          userEmail={user?.email}
+          profile={profile}
+          onConnected={() => fetchProfile(user?.id)}
+        />
+      )}
+
+      {/* Payout history */}
+      {payouts.length > 0 && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <p className="text-sm font-semibold text-foreground">Payout History</p>
+          </div>
+          <div className="divide-y divide-border">
+            {payouts.map(p => (
+              <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  p.status === 'completed' ? 'bg-green-400/10' : p.status === 'failed' ? 'bg-red-400/10' : 'bg-yellow-400/10'
+                }`}>
+                  <BanknoteIcon className={`w-4 h-4 ${
+                    p.status === 'completed' ? 'text-green-400' : p.status === 'failed' ? 'text-red-400' : 'text-yellow-400'
+                  }`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground capitalize">{p.payout_provider} payout</p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.processed_at ? new Date(p.processed_at).toLocaleDateString() : new Date(p.created_at).toLocaleDateString()}
+                    {p.local_currency && p.local_currency !== 'USD' && ` · ${p.amount_local?.toFixed(0)} ${p.local_currency}`}
+                  </p>
+                  {p.failure_reason && <p className="text-xs text-red-400 truncate">{p.failure_reason}</p>}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-sm font-bold text-green-400">+${Number(p.amount_usd).toFixed(2)}</p>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                    p.status === 'completed' ? 'bg-green-400/10 text-green-400' :
+                    p.status === 'failed'    ? 'bg-red-400/10 text-red-400' :
+                    'bg-yellow-400/10 text-yellow-400'
+                  }`}>{p.status}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -434,7 +554,6 @@ export default function Wallet() {
           <p className="text-sm font-semibold text-foreground">Transaction History</p>
           <p className="text-xs text-muted-foreground">{total} transactions</p>
         </div>
-
         {txns.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
             <DollarSign className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -456,34 +575,24 @@ export default function Wallet() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className={`text-sm font-bold ${isCredit ? 'text-green-400' : 'text-red-400'}`}>
-                      {isCredit ? '+' : ''}{Number(txn.amount).toFixed(2)}
+                      {isCredit ? '+' : ''}${Math.abs(Number(txn.amount)).toFixed(2)}
                     </p>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${cfg.bg} ${cfg.color}`}>
-                      {cfg.label}
-                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
                   </div>
                 </div>
               )
             })}
           </div>
         )}
-
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-            <button
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
-            >
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40">
               <ChevronLeft className="w-3.5 h-3.5" /> Prev
             </button>
             <span className="text-xs text-muted-foreground">Page {page + 1} of {totalPages}</span>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
-            >
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40">
               Next <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -499,21 +608,23 @@ export default function Wallet() {
         />
       )}
 
-      {/* Withdraw modal */}
+      {/* Manual withdraw modal */}
       {showWithdraw && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowWithdraw(false)} />
           <div className="relative bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
             <h3 className="font-bold text-foreground mb-1">Withdraw Funds</h3>
-            <p className="text-xs text-muted-foreground mb-4">Available: <span className="text-green-400 font-semibold">${(wallet?.balance || 0).toFixed(2)}</span></p>
-            <input
-              type="number"
-              value={withdrawAmount}
-              onChange={e => setWithdrawAmount(e.target.value)}
+            <p className="text-xs text-muted-foreground mb-4">
+              Available: <span className="text-green-400 font-semibold">${availableUSD.toFixed(2)}</span>
+            </p>
+            <input type="number" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)}
               placeholder="Amount (USD)"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary mb-4"
-            />
-            <p className="text-xs text-muted-foreground mb-4">Withdrawals are processed within 3–5 business days via your registered payment method.</p>
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary mb-4" />
+            <p className="text-xs text-muted-foreground mb-4">
+              {bankConnected
+                ? 'Your next automatic payout is on ' + nextFriday + '. Or request a manual withdrawal below.'
+                : 'Withdrawals are processed within 3–5 business days via your registered payment method.'}
+            </p>
             <div className="flex gap-3">
               <button onClick={() => setShowWithdraw(false)} className="flex-1 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted">Cancel</button>
               <button onClick={handleWithdraw} disabled={withdrawing || !withdrawAmount}

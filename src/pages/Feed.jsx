@@ -1146,7 +1146,13 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent, anchorRect }) {
         await supabase.rpc('add_coins', { p_user_id: creatorId, p_coins: creatorCoins })
           .then(({ error: e }) => { if (e) console.error('[GiftPanel] add_coins creator error:', e) })
 
-        // Wallet earnings (USD) for creator withdrawal
+        // Increment creator available_balance_usd + total_earned_usd (SECURITY DEFINER)
+        await supabase.rpc('increment_creator_balance', {
+          p_user_id:    creatorId,
+          p_amount_usd: creatorEarnings,
+        }).then(({ error: e }) => { if (e) console.error('[GiftPanel] increment_creator_balance error:', e) })
+
+        // Also update wallets table for legacy transaction history
         const { data: walletRow } = await supabase
           .from('wallets').select('balance, total_earned').eq('user_id', creatorId).single()
         if (walletRow) {
