@@ -250,7 +250,7 @@ function ScheduleModal({ onClose, onSave }) {
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
   const [generatedCode] = useState(genCode)
-  const meetingLink = `https://philomni.app/meet/${generatedCode}`
+  const meetingLink = `https://philomni.com/meet/${generatedCode}`
 
   const [searchResults, setSearchResults] = useState([])
   const [emailInvite, setEmailInvite] = useState('')
@@ -641,7 +641,7 @@ function InstantMeetingModal({ onClose, onJoin }) {
   const [instantSearch, setInstantSearch] = useState('')
   const [instantResults, setInstantResults] = useState([])
   const code = useMemo(() => 'INSTANT-' + Math.random().toString(36).slice(2, 6).toUpperCase(), [])
-  const link = `https://philomni.app/meet/${code}`
+  const link = `https://philomni.com/meet/${code}`
   const meeting = {
     id: 'instant-' + Date.now(), title: 'Instant Meeting', meeting_type: 'video',
     host_name: 'You', meeting_code: code, scheduled_at: new Date().toISOString(),
@@ -890,7 +890,7 @@ function MeetingCard({ meeting, onJoin, onDetails, isLive }) {
   const endTime = addMinutes(new Date(meeting.scheduled_at), meeting.duration_minutes)
 
   function copyLink() {
-    navigator.clipboard.writeText(`https://philomni.app/meet/${meeting.meeting_code}`).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+    navigator.clipboard.writeText(`https://philomni.com/meet/${meeting.meeting_code}`).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
   }
 
   return (
@@ -1251,7 +1251,7 @@ function ActiveMeetingView({ meeting, onEnd }) {
   const [inviteCopied, setInviteCopied] = useState(false)
 
   const participants = meeting.participants || [{ name: 'You', role: 'host', initials: 'Y', color: 'bg-primary' }]
-  const meetingLink = `https://philomni.app/meet/${meeting.meeting_code || 'meet'}`
+  const meetingLink = `https://philomni.com/meet/${meeting.meeting_code || 'meet'}`
 
   useEffect(() => {
     const t = setInterval(() => setElapsed(e => e + 1), 1000)
@@ -1744,7 +1744,7 @@ function MeetingDetailView({ meeting, onBack, onJoin }) {
   const endTime = addMinutes(new Date(meeting.scheduled_at), meeting.duration_minutes)
 
   function copyInvite() {
-    const text = `You're invited!\n\nTitle: ${meeting.title}\nDate: ${fmtDate(meeting.scheduled_at)}\nTime: ${fmtTime(meeting.scheduled_at)}\nDuration: ${durationLabel(meeting.duration_minutes)}\n\nJoin: https://philomni.app/meet/${meeting.meeting_code}\nID: ${meeting.meeting_code}${meeting.password ? `\nPassword: ${meeting.password}` : ''}`
+    const text = `You're invited!\n\nTitle: ${meeting.title}\nDate: ${fmtDate(meeting.scheduled_at)}\nTime: ${fmtTime(meeting.scheduled_at)}\nDuration: ${durationLabel(meeting.duration_minutes)}\n\nJoin: https://philomni.com/meet/${meeting.meeting_code}\nID: ${meeting.meeting_code}${meeting.password ? `\nPassword: ${meeting.password}` : ''}`
     navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
   }
 
@@ -2030,7 +2030,7 @@ function MyBookings({ user, onSetup, onManage }) {
   const [bookings, setBookings] = useState([])
   const [hasPage, setHasPage] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
-  const bookingLink = `https://philomni.app/book/${user?.username || user?.id || 'me'}`
+  const bookingLink = `https://philomni.com/book/${user?.username || user?.id || 'me'}`
 
   useEffect(() => {
     if (!user?.id) return

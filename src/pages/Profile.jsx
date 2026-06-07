@@ -527,7 +527,7 @@ function EditProfileModal({ profileUser, onClose, onSave }) {
 // ─── ShareProfileModal ────────────────────────────────────────────────────────
 function ShareProfileModal({ profileUser, onClose }) {
   const [copied, setCopied] = useState(false)
-  const link = `https://philomni.app/profile/${profileUser?.username || profileUser?.id || 'user'}`
+  const link = `https://philomni.com/profile/${profileUser?.username || profileUser?.id || 'user'}`
 
   const copy = () => {
     navigator.clipboard.writeText(link)

@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react'
 const PUBLIC_KEY = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || ''
 const IS_READY   = !!PUBLIC_KEY && !PUBLIC_KEY.includes('your-')
 
-const PHILOMNI_LOGO = 'https://philomni.app/logo.png' // update to real logo URL
+const PHILOMNI_LOGO = 'https://philomni.com/logo.png' // update to real logo URL
 
 /**
  * FlutterwaveCheckout — renders a Flutterwave payment button.

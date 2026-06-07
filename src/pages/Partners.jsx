@@ -507,8 +507,8 @@ export default function Partners() {
             <p>&copy; {new Date().getFullYear()} Philomni. All rights reserved.</p>
             <p>
               Questions?{' '}
-              <a href="mailto:partnerships@philomni.app" className="text-primary hover:underline">
-                partnerships@philomni.app
+              <a href="mailto:partnerships@philomni.com" className="text-primary hover:underline">
+                partnerships@philomni.com
               </a>
             </p>
           </div>

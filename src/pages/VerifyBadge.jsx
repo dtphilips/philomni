@@ -360,7 +360,7 @@ export default function VerifyBadge() {
         <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
         <p className="text-xs text-muted-foreground leading-relaxed">
           Badge reviews are conducted by the Philomni team. Submitting false documents will result in a permanent account ban.
-          For questions contact <span className="text-primary">support@philomni.app</span>.
+          For questions contact <span className="text-primary">support@philomni.com</span>.
         </p>
       </div>
     </div>

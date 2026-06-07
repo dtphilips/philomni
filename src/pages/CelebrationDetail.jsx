@@ -102,7 +102,7 @@ function DigitalCertificate({ celebration }) {
     ctx.font      = '12px sans-serif'
     ctx.fillStyle = '#ffffff40'
     ctx.fillText('Celebrated by the Philomni Community', W / 2, 460)
-    ctx.fillText('philomni.app', W / 2, 480)
+    ctx.fillText('philomni.com', W / 2, 480)
   }, [celebration])
 
   useEffect(() => { draw() }, [draw])

@@ -177,7 +177,7 @@ function CreateRoomModal({ onClose, onSuccess }) {
   })
 
   const fakeCode = Math.random().toString(36).slice(2, 8).toUpperCase()
-  const fakeLink = `https://philomni.app/rooms/${fakeCode}`
+  const fakeLink = `https://philomni.com/rooms/${fakeCode}`
 
   function set(key, val) { setForm(f => ({ ...f, [key]: val })) }
 
