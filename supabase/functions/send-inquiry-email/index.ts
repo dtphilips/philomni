@@ -1,14 +1,34 @@
+import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts'
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, content-type',
 }
 
+// Namecheap Private Email SMTP — same mailbox the signup confirmations use.
+// Configurable via env, with sensible Namecheap defaults.
+const SMTP_HOST = Deno.env.get('NAMECHEAP_SMTP_HOST') ?? 'smtp.privateemail.com'
+const SMTP_PORT = Number(Deno.env.get('NAMECHEAP_SMTP_PORT') ?? '465')
+const SMTP_USER = Deno.env.get('NAMECHEAP_EMAIL_USER') ?? 'noreply@philomni.com'
+const SMTP_PASS = Deno.env.get('NAMECHEAP_EMAIL_PASSWORD') ?? ''
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
+
   try {
     const { brandName, contactName, email, website, phone, packageInterest, budget, campaignGoal, message } = await req.json()
 
-    const emailContent =
+    // If the mailbox password isn't configured yet, skip gracefully —
+    // the inquiry is still saved to the DB by the caller.
+    if (!SMTP_PASS) {
+      console.warn('NAMECHEAP_EMAIL_PASSWORD not set — inquiry email skipped')
+      return new Response(
+        JSON.stringify({ success: false, skipped: true, reason: 'no_smtp_password' }),
+        { headers: { 'Content-Type': 'application/json', ...CORS } },
+      )
+    }
+
+    const text =
       `New Campaign Inquiry on Philomni!\n\n` +
       `Brand: ${brandName}\n` +
       `Contact: ${contactName}\n` +
@@ -19,33 +39,53 @@ Deno.serve(async (req) => {
       `Budget: ${budget ?? 'Not specified'}\n` +
       `Goal: ${campaignGoal ?? 'Not specified'}\n\n` +
       `Message:\n${message ?? '(none)'}\n\n` +
-      `Reply directly to: ${email}`
+      `---\nReply directly to: ${email}\n` +
+      `This inquiry was submitted via philomni.com/advertise`
 
-    const resendKey = Deno.env.get('RESEND_API_KEY')
-    if (!resendKey) {
-      console.warn('RESEND_API_KEY not set — inquiry email skipped')
-      return new Response(JSON.stringify({ success: false, skipped: true, reason: 'no_resend_key' }), { headers: { 'Content-Type': 'application/json', ...CORS } })
-    }
+    const html =
+      `<h2>New Campaign Inquiry on Philomni</h2>` +
+      `<table cellpadding="6" style="border-collapse:collapse">` +
+      `<tr><td><b>Brand</b></td><td>${brandName ?? ''}</td></tr>` +
+      `<tr><td><b>Contact</b></td><td>${contactName ?? ''}</td></tr>` +
+      `<tr><td><b>Email</b></td><td>${email ?? ''}</td></tr>` +
+      `<tr><td><b>Phone</b></td><td>${phone ?? 'Not provided'}</td></tr>` +
+      `<tr><td><b>Website</b></td><td>${website ?? 'Not provided'}</td></tr>` +
+      `<tr><td><b>Package</b></td><td>${packageInterest ?? 'Not specified'}</td></tr>` +
+      `<tr><td><b>Budget</b></td><td>${budget ?? 'Not specified'}</td></tr>` +
+      `<tr><td><b>Goal</b></td><td>${campaignGoal ?? 'Not specified'}</td></tr>` +
+      `</table>` +
+      `<h3>Message</h3><p>${(message ?? '(none)').replace(/\n/g, '<br>')}</p>` +
+      `<hr><p>Reply to: <a href="mailto:${email}">${email}</a></p>`
 
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'Philomni <noreply@philomni.com>',
-        to: 'support@philomni.com',
-        reply_to: email,
-        subject: `New Campaign Inquiry - ${brandName} (${packageInterest ?? 'general'})`,
-        text: emailContent,
-      }),
+    const client = new SMTPClient({
+      connection: {
+        hostname: SMTP_HOST,
+        port:     SMTP_PORT,
+        tls:      SMTP_PORT === 465,          // implicit TLS on 465, STARTTLS on 587
+        auth:     { username: SMTP_USER, password: SMTP_PASS },
+      },
     })
-    const result = await res.json()
-    if (!res.ok) {
-      console.error('Resend error:', result)
-      return new Response(JSON.stringify({ success: false, error: result }), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS } })
-    }
-    return new Response(JSON.stringify({ success: true, id: result.id }), { headers: { 'Content-Type': 'application/json', ...CORS } })
+
+    await client.send({
+      from:    `Philomni <${SMTP_USER}>`,
+      to:      'support@philomni.com',
+      replyTo: email,
+      subject: `New Campaign Inquiry - ${brandName} (${packageInterest ?? 'general'})`,
+      content: text,
+      html,
+    })
+    await client.close()
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      { headers: { 'Content-Type': 'application/json', ...CORS } },
+    )
   } catch (err) {
+    // Never fail the inquiry — it's already saved to the DB by the caller.
     console.error('send-inquiry-email error:', err)
-    return new Response(JSON.stringify({ success: false, error: (err as Error).message }), { status: 200, headers: { 'Content-Type': 'application/json', ...CORS } })
+    return new Response(
+      JSON.stringify({ success: true, emailError: (err as Error).message }),
+      { headers: { 'Content-Type': 'application/json', ...CORS } },
+    )
   }
 })
