@@ -17,67 +17,69 @@ import {
   CalendarClock, BanknoteIcon,
 } from 'lucide-react'
 
-// ── Tax Profile Modal (unchanged) ─────────────────────────────────────────────
-const TAX_ID_TYPES = ['SSN', 'SIN', 'TIN', 'BVN', 'Other']
-const COUNTRIES = [
-  { code: 'US', name: 'United States' }, { code: 'CA', name: 'Canada' },
-  { code: 'GB', name: 'United Kingdom' }, { code: 'NG', name: 'Nigeria' },
-  { code: 'GH', name: 'Ghana' }, { code: 'KE', name: 'Kenya' },
-  { code: 'ZA', name: 'South Africa' }, { code: 'AU', name: 'Australia' },
-  { code: 'DE', name: 'Germany' }, { code: 'FR', name: 'France' },
-  { code: 'IN', name: 'India' }, { code: 'BR', name: 'Brazil' },
-  { code: 'MX', name: 'Mexico' }, { code: 'Other', name: 'Other' },
-]
-
+// ── Tax Compliance Modal ───────────────────────────────────────────────────────
+// Philomni never stores SIN, SSN, or any tax ID.
+// Tax compliance is handled by Stripe Connect / Paystack / Flutterwave.
 function TaxProfileModal({ userId, onComplete, onClose }) {
-  const [form, setForm] = useState({ country: '', tax_id_type: '', tax_id_number: '', legal_name: '', confirmed: false })
-  const [saving, setSaving] = useState(false)
-  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
-  const handleSubmit = async () => {
-    if (!form.country)                               return toast.error('Select your country of tax residence')
-    if (!form.tax_id_type)                           return toast.error('Select your tax ID type')
-    if (!form.tax_id_number || form.tax_id_number.length < 4) return toast.error('Tax ID must be at least 4 characters')
-    if (!form.legal_name.trim())                     return toast.error('Enter your legal full name')
-    if (!form.confirmed)                             return toast.error('You must confirm the declaration')
-    setSaving(true)
+  const [confirming, setConfirming] = useState(false)
+
+  const handleAcknowledge = async () => {
+    setConfirming(true)
     try {
-      const tax_info = { country: form.country, tax_id_type: form.tax_id_type, tax_id_last4: form.tax_id_number.slice(-4), legal_name: form.legal_name.trim(), confirmed: true, confirmed_at: new Date().toISOString() }
-      const { error } = await supabase.from('users').update({ tax_info, tax_verified: true }).eq('id', userId)
-      if (error) throw error
-      toast.success('Tax profile saved')
+      // Mark tax_verified so the banner goes away — compliance is via payment partner
+      await supabase.from('users').update({ tax_verified: true }).eq('id', userId)
+      toast.success('Got it! Connect your bank account below to enable payouts.')
       onComplete()
-    } catch { toast.error('Failed to save tax profile') }
-    setSaving(false)
+    } catch { toast.error('Something went wrong. Please try again.') }
+    setConfirming(false)
   }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center gap-2 mb-1"><ShieldAlert className="w-5 h-5 text-primary" /><h3 className="font-bold text-foreground text-lg">Tax Profile</h3></div>
-        <p className="text-xs text-muted-foreground mb-5">Required before your first withdrawal. Your full tax ID is never stored — only the last 4 digits.</p>
-        <div className="space-y-4">
-          <div><label className="block text-xs font-medium text-foreground mb-1.5">Country of Tax Residence</label>
-            <select value={form.country} onChange={e => set('country', e.target.value)} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-              <option value="">Select country…</option>{COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-            </select></div>
-          <div><label className="block text-xs font-medium text-foreground mb-1.5">Tax ID Type</label>
-            <select value={form.tax_id_type} onChange={e => set('tax_id_type', e.target.value)} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-              <option value="">Select type…</option>{TAX_ID_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select></div>
-          <div><label className="block text-xs font-medium text-foreground mb-1.5">Tax ID Number</label>
-            <input type="password" value={form.tax_id_number} onChange={e => set('tax_id_number', e.target.value)} placeholder="Enter your tax ID" autoComplete="off" className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-            <p className="text-[10px] text-muted-foreground mt-1">Only the last 4 digits will be stored for reference.</p></div>
-          <div><label className="block text-xs font-medium text-foreground mb-1.5">Legal Full Name</label>
-            <input type="text" value={form.legal_name} onChange={e => set('legal_name', e.target.value)} placeholder="As it appears on your bank account" className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" /></div>
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input type="checkbox" checked={form.confirmed} onChange={e => set('confirmed', e.target.checked)} className="mt-0.5 w-4 h-4 rounded accent-primary flex-shrink-0" />
-            <span className="text-xs text-muted-foreground leading-relaxed">I confirm this information is accurate and I am responsible for reporting my income to my local tax authority.</span>
-          </label>
+      <div className="relative bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        <div className="flex items-center gap-2 mb-3">
+          <ShieldAlert className="w-5 h-5 text-primary" />
+          <h3 className="font-bold text-foreground text-lg">Tax & Compliance</h3>
         </div>
-        <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted">Cancel</button>
-          <button onClick={handleSubmit} disabled={saving} className="flex-1 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Save Tax Profile'}
+
+        <div className="space-y-3 mb-6">
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
+            <p className="text-sm font-semibold text-emerald-400 mb-1">🔒 Your tax information is protected</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Philomni <strong>never stores your SIN, SSN, or any tax identification numbers.</strong>
+              Tax compliance is handled entirely and securely by our payment partners.
+            </p>
+          </div>
+
+          <div className="space-y-2 text-xs text-muted-foreground">
+            <div className="flex items-start gap-2">
+              <span className="text-emerald-400 mt-0.5">✓</span>
+              <span><strong>Canada / US / Europe:</strong> Stripe Connect collects your tax info and issues 1099/T4A forms directly.</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-emerald-400 mt-0.5">✓</span>
+              <span><strong>Nigeria:</strong> Paystack handles CBN compliance and any required tax withholding.</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-emerald-400 mt-0.5">✓</span>
+              <span><strong>Other Africa:</strong> Flutterwave manages local regulatory requirements for your country.</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+            Philomni provides annual payment summaries for your records. You are responsible for reporting income to your local tax authority.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted">
+            Close
+          </button>
+          <button onClick={handleAcknowledge} disabled={confirming}
+            className="flex-1 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
+            {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Got it · Connect Bank →
           </button>
         </div>
       </div>

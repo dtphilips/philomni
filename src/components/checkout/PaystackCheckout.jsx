@@ -53,11 +53,18 @@ export default function PaystackCheckout({
       onSuccess: async (txn) => {
         setLoading(true)
         try {
-          const res  = await fetch('/api/payments?action=verify-paystack', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ reference: txn.reference, userId, plan: planKey }),
-          })
+          // Verify via Supabase edge function (not Vercel /api)
+          const res = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-paystack-subscription`,
+            {
+              method:  'POST',
+              headers: {
+                'Content-Type':  'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              },
+              body: JSON.stringify({ reference: txn.reference, userId, plan: planKey }),
+            },
+          )
           const data = await res.json()
           if (!data.success) throw new Error(data.error || 'Verification failed')
           onSuccess?.({ plan: data.plan })

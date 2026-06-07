@@ -74,7 +74,7 @@ export default function MultiGatewayCheckout({ planKey, billing, user, onSuccess
     toast.error(msg || 'Payment failed. Please try again.')
   }
 
-  // Stripe checkout (server-side redirect)
+  // Stripe checkout — calls Supabase edge function → Stripe Checkout Session redirect
   const handleStripeCheckout = async () => {
     if (!STRIPE_READY) {
       toast.info('Stripe payments are not configured yet.')
@@ -85,16 +85,22 @@ export default function MultiGatewayCheckout({ planKey, billing, user, onSuccess
 
     setStripeLoading(true)
     try {
-      const res  = await fetch('/api/stripe?action=checkout', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          priceId,
-          plan:      planKey,
-          userId:    user?.id,
-          userEmail: user?.email,
-        }),
-      })
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-subscription`,
+        {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            priceId,
+            plan:      planKey,
+            userId:    user?.id,
+            userEmail: user?.email,
+          }),
+        },
+      )
       const { url, error } = await res.json()
       if (error) throw new Error(error)
       if (url) window.location.href = url

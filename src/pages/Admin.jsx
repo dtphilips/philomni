@@ -32,17 +32,21 @@ export default function Admin() {
   const { data: activeAdStats     = [] } = useQuery({ queryKey: ['admin-ad-stats'],        queryFn: () => supabase.from('ads').select('spent,total_views').eq('status','active').then(r => r.data || []) })
   const { data: creatorPayouts    = [] } = useQuery({ queryKey: ['admin-payouts'],         queryFn: () => supabase.from('earnings').select('amount').eq('status','pending').then(r => r.data || []) })
   const { data: newBrandInquiries = [] } = useQuery({ queryKey: ['admin-brand-inquiries'], queryFn: () => supabase.from('brand_inquiries').select('id').eq('status','new').then(r => r.data || []) })
-  // Platform revenue from gifts
-  const { data: platformRevRows   = [] } = useQuery({ queryKey: ['admin-platform-revenue'], queryFn: () => supabase.from('platform_revenue').select('platform_cut, platform_cut_usd').then(r => r.data || []) })
+  // Platform revenue by source type
+  const { data: giftRevRows   = [] } = useQuery({ queryKey: ['admin-gift-rev'],   queryFn: () => supabase.from('platform_revenue').select('platform_cut_usd').eq('source_type','gift').then(r => r.data || []) })
+  const { data: subRevRows    = [] } = useQuery({ queryKey: ['admin-sub-rev'],    queryFn: () => supabase.from('platform_revenue').select('platform_cut_usd').eq('source_type','subscription').then(r => r.data || []) })
+  const { data: adRevRows     = [] } = useQuery({ queryKey: ['admin-ad-rev'],     queryFn: () => supabase.from('platform_revenue').select('platform_cut_usd').in('source_type',['ad','boost']).then(r => r.data || []) })
   const { data: completedPayouts  = [] } = useQuery({ queryKey: ['admin-completed-payouts'], queryFn: () => supabase.from('payouts').select('amount_usd').eq('status','completed').then(r => r.data || []) })
   const { data: pendingBalances   = [] } = useQuery({ queryKey: ['admin-pending-balances'],  queryFn: () => supabase.from('users').select('available_balance_usd').gt('available_balance_usd', 0).then(r => r.data || []) })
 
   const totalAdRevenue      = activeAdStats.reduce((s, a) => s + (a.spent || 0), 0)
   const totalPayoutsDue     = creatorPayouts.reduce((s, e) => s + (e.amount || 0), 0)
-  const totalGiftRevenue    = platformRevRows.reduce((s, r) => s + Number(r.platform_cut_usd || r.platform_cut / 100 || 0), 0)
+  const totalGiftRevenue    = giftRevRows.reduce((s, r) => s + Number(r.platform_cut_usd || 0), 0)
+  const totalSubRevenue     = subRevRows.reduce((s, r)  => s + Number(r.platform_cut_usd || 0), 0)
+  const totalBoostRevenue   = adRevRows.reduce((s, r)   => s + Number(r.platform_cut_usd || 0), 0)
   const totalPayoutsSent    = completedPayouts.reduce((s, p) => s + Number(p.amount_usd || 0), 0)
-  const netPlatformRevenue  = totalGiftRevenue - totalPayoutsSent
   const pendingPayoutTotal  = pendingBalances.reduce((s, u) => s + Number(u.available_balance_usd || 0), 0)
+  const netPlatformRevenue  = totalGiftRevenue + totalSubRevenue + totalBoostRevenue + totalAdRevenue
 
   // Top-level platform stats
   const platformStats = [
@@ -105,43 +109,32 @@ export default function Admin() {
         ))}
       </div>
 
-      {/* Revenue & payout summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-card rounded-xl border border-border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-green-400/10 flex items-center justify-center flex-shrink-0">
-            <DollarSign className="w-5 h-5 text-green-400" />
+      {/* Revenue & payout summary — 5 streams */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {[
+          { label: 'Gift Revenue',         value: totalGiftRevenue,   color: 'text-yellow-400', bg: 'bg-yellow-400/10',  desc: '30% platform cut' },
+          { label: 'Subscription Revenue', value: totalSubRevenue,    color: 'text-blue-400',   bg: 'bg-blue-400/10',    desc: 'Pro & Pro Max plans' },
+          { label: 'Ad & Boost Revenue',   value: totalBoostRevenue + totalAdRevenue, color: 'text-pink-400', bg: 'bg-pink-400/10', desc: 'Campaigns & boosts' },
+          { label: 'Creator Payouts Sent', value: totalPayoutsSent,   color: 'text-red-400',    bg: 'bg-red-400/10',     desc: 'All time completed' },
+          { label: 'Pending Payouts',      value: pendingPayoutTotal, color: 'text-purple-400', bg: 'bg-purple-400/10',  desc: 'Next Friday batch' },
+        ].map(card => (
+          <div key={card.label} className="bg-card rounded-xl border border-border p-4">
+            <div className={`w-8 h-8 rounded-lg ${card.bg} flex items-center justify-center mb-2`}>
+              <DollarSign className={`w-4 h-4 ${card.color}`} />
+            </div>
+            <p className={`text-lg font-bold ${card.color}`}>${Number(card.value).toFixed(2)}</p>
+            <p className="text-xs font-medium text-foreground mt-0.5">{card.label}</p>
+            <p className="text-[10px] text-muted-foreground">{card.desc}</p>
           </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">${totalAdRevenue.toFixed(2)}</p>
-            <p className="text-xs text-muted-foreground">Ad revenue (active campaigns)</p>
-          </div>
+        ))}
+      </div>
+      <div className="bg-card rounded-xl border border-border p-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-emerald-400/10 flex items-center justify-center flex-shrink-0">
+          <DollarSign className="w-5 h-5 text-emerald-400" />
         </div>
-        <div className="bg-card rounded-xl border border-border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-yellow-400/10 flex items-center justify-center flex-shrink-0">
-            <DollarSign className="w-5 h-5 text-yellow-400" />
-          </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">${totalGiftRevenue.toFixed(2)}</p>
-            <p className="text-xs text-muted-foreground">Gift revenue (30% platform cut)</p>
-          </div>
-        </div>
-        <div className="bg-card rounded-xl border border-border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-400/10 flex items-center justify-center flex-shrink-0">
-            <DollarSign className="w-5 h-5 text-blue-400" />
-          </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">${totalPayoutsSent.toFixed(2)}</p>
-            <p className="text-xs text-muted-foreground">Creator payouts sent (all time)</p>
-          </div>
-        </div>
-        <div className="bg-card rounded-xl border border-border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-400/10 flex items-center justify-center flex-shrink-0">
-            <DollarSign className="w-5 h-5 text-purple-400" />
-          </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">${pendingPayoutTotal.toFixed(2)}</p>
-            <p className="text-xs text-muted-foreground">Pending creator payouts (next Friday)</p>
-          </div>
+        <div>
+          <p className="text-xl font-bold text-emerald-400">${netPlatformRevenue.toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground">Net platform revenue (gifts + subscriptions + ads)</p>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useSubscription } from '../context/SubscriptionContext'
 import { PLAN_META, PRICE_IDS, annualSavingsPct } from '../lib/plans'
@@ -28,11 +28,26 @@ export default function Pricing() {
   const { user, refreshProfile } = useAuth()
   const { plan: currentPlan, isAdmin } = useSubscription()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [billing,       setBilling]       = useState('monthly') // 'monthly' | 'annual'
   const [loading,       setLoading]       = useState(null)       // planKey being processed (unused but kept for compat)
   const [openFaq,       setOpenFaq]       = useState(null)
   const [checkoutPlan,  setCheckoutPlan]  = useState(null)       // opens MultiGatewayCheckout modal
+
+  // Handle Stripe Checkout return URL (?subscribed=pro)
+  useEffect(() => {
+    const subscribed = searchParams.get('subscribed')
+    const cancelled  = searchParams.get('cancelled')
+    if (subscribed && PLAN_META[subscribed]) {
+      toast.success(`🎉 Welcome to ${PLAN_META[subscribed].name}! Your plan is now active.`)
+      refreshProfile?.()
+      navigate('/pricing', { replace: true })
+    } else if (cancelled) {
+      toast.info('Checkout cancelled. Your plan is unchanged.')
+      navigate('/pricing', { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUpgrade = (planKey) => {
     if (isAdmin) { toast.info('Admin accounts have all features unlocked — no payment needed.'); return }

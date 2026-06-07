@@ -1,9 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
+
+// ── Subscription helpers ───────────────────────────────────────────────────────
+const callEdgeFn = async (name, body) => {
+  const res = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${name}`,
+    {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify(body),
+    },
+  )
+  const data = await res.json()
+  if (data.error) throw new Error(data.error)
+  return data
+}
 import {
   User, Lock, Bell, Palette, Shield, Database, HelpCircle,
   Info, LogOut, ChevronRight, Moon, Sun, Eye, EyeOff,
@@ -84,6 +101,43 @@ function Card({ children, className = '' }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Cancel Subscription Button ─────────────────────────────────────────────────
+function CancelSubscriptionButton({ userId }) {
+  const [loading,  setLoading]  = useState(false)
+  const [confirm,  setConfirm]  = useState(false)
+  const { refreshProfile } = useAuth()
+
+  const handleCancel = async () => {
+    if (!confirm) { setConfirm(true); return }
+    setLoading(true)
+    try {
+      await callEdgeFn('cancel-subscription', { userId })
+      toast.success('Subscription will cancel at end of billing period. You keep access until then.')
+      refreshProfile?.()
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setLoading(false)
+      setConfirm(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleCancel}
+      disabled={loading}
+      className={`ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex-shrink-0 flex items-center gap-1 ${
+        confirm
+          ? 'bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500/20'
+          : 'text-muted-foreground border border-border hover:bg-muted'
+      }`}
+    >
+      {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+      {confirm ? 'Confirm cancel' : 'Cancel plan'}
+    </button>
+  )
+}
+
 export default function Settings() {
   const { user } = useAuth();
   const { logout } = useAuth();
@@ -433,35 +487,39 @@ export default function Settings() {
       case 'creator': return (
         <Section title="Creator Tools" desc="Monetization, payouts, and creator settings">
           <Card>
-            <h3 className="font-semibold text-sm">Monetization Status</h3>
+            <h3 className="font-semibold text-sm">Subscription Plan</h3>
             <div className="flex items-center gap-3 mt-3 p-3 rounded-xl border border-border bg-muted/30">
-              <div className={`w-3 h-3 rounded-full ${user?.plan === 'pro' ? 'bg-emerald-400' : 'bg-muted-foreground'}`} />
+              <div className={`w-3 h-3 rounded-full ${['pro','promax'].includes(user?.plan) ? 'bg-emerald-400' : 'bg-muted-foreground'}`} />
               <div>
-                <p className="text-sm font-medium">{user?.plan === 'pro' ? 'Monetization Active' : 'Upgrade to Pro to Monetize'}</p>
-                <p className="text-xs text-muted-foreground">{user?.plan === 'pro' ? 'You can charge for premium content and accept tips' : 'Pro plan required to enable monetization features'}</p>
+                <p className="text-sm font-medium capitalize">
+                  {user?.plan === 'promax' ? 'Pro Max' : user?.plan === 'pro' ? 'Pro' : 'Free'} Plan
+                  {user?.subscription_status === 'cancelling' && <span className="ml-2 text-xs text-amber-500">(cancels at period end)</span>}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {['pro','promax'].includes(user?.plan)
+                    ? 'Monetization active · Payouts every Friday'
+                    : 'Upgrade to Pro to unlock monetization & weekly payouts'}
+                </p>
               </div>
-              {!['pro', 'promax'].includes(user?.plan) && (
+              {!['pro', 'promax'].includes(user?.plan) ? (
                 <Link to="/pricing" className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold text-primary border border-primary/30 hover:bg-primary/5 transition-colors flex-shrink-0">
                   Upgrade
                 </Link>
+              ) : user?.subscription_status !== 'cancelling' && (
+                <CancelSubscriptionButton userId={user?.id} />
               )}
             </div>
           </Card>
 
           <Card>
-            <h3 className="font-semibold text-sm">Payout Settings</h3>
-            <FieldRow label="Payout Email (Stripe)">
-              <Input value={creatorForm.payout_email} onChange={e => setCreatorForm(p => ({ ...p, payout_email: e.target.value }))} placeholder="payout@email.com" type="email" />
-            </FieldRow>
-            <FieldRow label="Monthly Subscription Price (USD)">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                <Input value={creatorForm.subscription_price} onChange={e => setCreatorForm(p => ({ ...p, subscription_price: e.target.value }))} placeholder="9.99" type="number" className="pl-7" />
-              </div>
-            </FieldRow>
-            <Button size="sm" disabled={!user || user?.plan !== 'pro'}>
-              {creatorForm.stripe_connected ? <><CheckCircle className="w-4 h-4 mr-1" />Stripe Connected</> : <><CreditCard className="w-4 h-4 mr-1" />Connect Stripe</>}
-            </Button>
+            <h3 className="font-semibold text-sm">Bank & Payouts</h3>
+            <p className="text-xs text-muted-foreground mt-1 mb-3">
+              Connect your bank account to receive weekly creator payouts. Managed securely via your payment provider.
+            </p>
+            <Link to="/wallet" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors">
+              <Building2 className="w-4 h-4" />
+              Manage Bank Account →
+            </Link>
           </Card>
 
           <Card>
