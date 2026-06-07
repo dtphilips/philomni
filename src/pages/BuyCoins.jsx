@@ -18,6 +18,7 @@ import {
   createPaymentIntent,
   recordPayment,
 } from '../lib/payments'
+import { coinsToUSDString } from '../lib/constants'
 
 // ── Stripe singleton (only when key present) ──────────────────────────────────
 const stripePromise = PAYMENT_CONFIG.stripe.active
@@ -468,7 +469,9 @@ export default function BuyCoins() {
             <p className="text-2xl font-black text-amber-600 dark:text-amber-400 leading-none">
               {coinBalance.toLocaleString()}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">your balance</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              coins · <span className="text-amber-600/80 dark:text-amber-400/80">{coinsToUSDString(coinBalance)}</span>
+            </p>
           </div>
         </div>
       </div>

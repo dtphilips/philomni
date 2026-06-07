@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { CREATOR_REVENUE_SHARE, PLATFORM_REVENUE_SHARE, coinsToUSD } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
@@ -1100,9 +1101,11 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent, anchorRect }) {
     setSending(gift.id)
     setError('')
     try {
-      const creatorId      = post.created_by || post.author_id
-      const usdValue       = gift.cost / 100
-      const creatorEarnings = usdValue * 0.70
+      const creatorId       = post.created_by || post.author_id
+      const creatorCoins    = Math.floor(gift.cost * CREATOR_REVENUE_SHARE)  // 70%
+      const platformCoins   = gift.cost - creatorCoins                        // 30%
+      const creatorEarnings = coinsToUSD(creatorCoins)                        // USD
+      const platformUSD     = coinsToUSD(platformCoins)                       // USD
 
       // 1. Deduct coins from sender via SECURITY DEFINER RPC (bypasses RLS)
       const { data: deducted, error: deductErr } = await supabase
@@ -1114,42 +1117,53 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent, anchorRect }) {
         return
       }
 
-      // 2. Insert gift record (gift_id is now TEXT — store the slug)
-      const { error: giftErr } = await supabase.from('post_gifts').insert({
+      // 2. Insert gift record (gift_id is TEXT — store the slug)
+      const { data: giftRow, error: giftErr } = await supabase.from('post_gifts').insert({
         post_id:          post.id,
         sender_id:        currentUser.id,
         creator_id:       creatorId,
-        gift_id:          gift.id,        // TEXT slug: 'rose', 'heart' etc.
+        gift_id:          gift.id,
         gift_name:        gift.name,
         gift_emoji:       gift.emoji,
         coin_cost:        gift.cost,
-        usd_value:        usdValue,
+        usd_value:        coinsToUSD(gift.cost),
         creator_earnings: creatorEarnings,
-      })
+      }).select('id').single()
       if (giftErr) console.error('[GiftPanel] post_gifts insert error:', giftErr)
 
-      // 3. Credit creator coins + wallet earnings via add_coins RPC
+      // 3. Record platform 30% cut via SECURITY DEFINER RPC
+      await supabase.rpc('record_platform_revenue', {
+        p_source_type:   'gift',
+        p_source_id:     giftRow?.id ?? null,
+        p_gross_amount:  gift.cost,
+        p_platform_cut:  platformCoins,
+        p_sender_id:     currentUser.id,
+        p_recipient_id:  creatorId ?? null,
+      }).then(({ error: e }) => { if (e) console.error('[GiftPanel] platform_revenue error:', e) })
+
+      // 4. Credit creator 70% via add_coins RPC + wallet earnings
       if (creatorId && creatorId !== currentUser.id) {
-        // Coins credit (70% of coin value goes to creator)
-        const creatorCoins = Math.floor(gift.cost * 0.70)
         await supabase.rpc('add_coins', { p_user_id: creatorId, p_coins: creatorCoins })
           .then(({ error: e }) => { if (e) console.error('[GiftPanel] add_coins creator error:', e) })
 
-        // Wallet earnings (USD value, for creator withdrawal)
+        // Wallet earnings (USD) for creator withdrawal
         const { data: walletRow } = await supabase
-          .from('wallets').select('balance').eq('user_id', creatorId).single()
+          .from('wallets').select('balance, total_earned').eq('user_id', creatorId).single()
         if (walletRow) {
           await supabase.from('wallets')
-            .update({ balance: (walletRow.balance || 0) + creatorEarnings })
+            .update({
+              balance:      (walletRow.balance     || 0) + creatorEarnings,
+              total_earned: (walletRow.total_earned || 0) + creatorEarnings,
+            })
             .eq('user_id', creatorId)
             .then(({ error: e }) => { if (e) console.error('[GiftPanel] wallet update error:', e) })
         }
 
-        // 4. Notification — use actual column names: content, reference_id
+        // 5. Notification — correct column names for notifications table
         await supabase.from('notifications').insert({
           user_id:      creatorId,
           type:         'gift',
-          content:      `${currentUser.full_name || 'Someone'} sent you a ${gift.emoji} ${gift.name}! (+${creatorCoins} coins)`,
+          content:      `${currentUser.full_name || 'Someone'} sent you ${gift.emoji} ${gift.name} (+${creatorCoins} coins / $${creatorEarnings.toFixed(2)})`,
           reference_id: post.id,
           is_read:      false,
           created_by:   currentUser.id,
