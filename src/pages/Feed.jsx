@@ -1101,11 +1101,12 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent, anchorRect }) {
     setSending(gift.id)
     setError('')
     try {
-      const creatorId       = post.created_by || post.author_id
-      const creatorCoins    = Math.floor(gift.cost * CREATOR_REVENUE_SHARE)  // 70%
-      const platformCoins   = gift.cost - creatorCoins                        // 30%
-      const creatorEarnings = coinsToUSD(creatorCoins)                        // USD
-      const platformUSD     = coinsToUSD(platformCoins)                       // USD
+      const creatorId     = post.created_by || post.author_id
+      // Always Math.floor for creator → remainder goes to platform (no rounding drift)
+      const creatorCoins  = Math.floor(gift.cost * CREATOR_REVENUE_SHARE)  // e.g. 20→14
+      const platformCoins = gift.cost - creatorCoins                        // e.g. 20→6
+      const creatorEarnings = creatorCoins / 100                            // $0.14
+      // platformUSD = platformCoins / 100                                   // $0.06
 
       // 1. Deduct coins from sender via SECURITY DEFINER RPC (bypasses RLS)
       const { data: deducted, error: deductErr } = await supabase
@@ -1126,7 +1127,7 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent, anchorRect }) {
         gift_name:        gift.name,
         gift_emoji:       gift.emoji,
         coin_cost:        gift.cost,
-        usd_value:        coinsToUSD(gift.cost),
+        usd_value:        gift.cost / 100,
         creator_earnings: creatorEarnings,
       }).select('id').single()
       if (giftErr) console.error('[GiftPanel] post_gifts insert error:', giftErr)
@@ -1141,15 +1142,14 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent, anchorRect }) {
         p_recipient_id:  creatorId ?? null,
       }).then(({ error: e }) => { if (e) console.error('[GiftPanel] platform_revenue error:', e) })
 
-      // 4. Credit creator 70% via add_coins RPC + wallet earnings
+      // 4. Credit creator dollar balance ONLY (coins are for spending, not earning)
+      //    Creators earn USD that accumulates for Friday payouts — not coins.
       if (creatorId && creatorId !== currentUser.id) {
-        await supabase.rpc('add_coins', { p_user_id: creatorId, p_coins: creatorCoins })
-          .then(({ error: e }) => { if (e) console.error('[GiftPanel] add_coins creator error:', e) })
-
-        // Increment creator available_balance_usd + total_earned_usd (SECURITY DEFINER)
+        // Increment creator available_balance_usd + total_earned_usd
+        // NOTE: p_amount (not p_amount_usd) — matches the RPC signature
         await supabase.rpc('increment_creator_balance', {
-          p_user_id:    creatorId,
-          p_amount_usd: creatorEarnings,
+          p_user_id: creatorId,
+          p_amount:  creatorEarnings,
         }).then(({ error: e }) => { if (e) console.error('[GiftPanel] increment_creator_balance error:', e) })
 
         // Also update wallets table for legacy transaction history
@@ -1350,6 +1350,105 @@ function LikerRow({ liker, currentUser, navigate, onClose }) {
   )
 }
 
+// ─── Boost Modal ──────────────────────────────────────────────────────────────
+
+const BOOST_OPTIONS = [
+  { budget: 5,  days: 3,  reach: '500 – 1,000 people'   },
+  { budget: 10, days: 7,  reach: '1,000 – 2,500 people' },
+  { budget: 25, days: 14, reach: '3,000 – 7,000 people' },
+  { budget: 50, days: 30, reach: '8,000 – 20,000 people'},
+]
+
+function BoostModal({ post, user, onClose }) {
+  const [selected,  setSelected]  = useState(null)
+  const [loading,   setLoading]   = useState(false)
+
+  const handleBoost = async () => {
+    if (!selected || !user) return
+    setLoading(true)
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-ad-payment`,
+        {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            userId:       user.id,
+            userEmail:    user.email,
+            amount:       selected.budget,
+            adType:       'boost',
+            postId:       post.id,
+            campaignData: { days: selected.days, reach: selected.reach },
+          }),
+        },
+      )
+      const { clientSecret, error: fnErr } = await res.json()
+      if (fnErr) throw new Error(fnErr)
+
+      // Dynamically import Stripe to avoid bundle bloat on non-Stripe users
+      const { loadStripe } = await import('@stripe/stripe-js')
+      const stripe = await loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+      if (!stripe) throw new Error('Stripe not configured')
+
+      const { error: stripeErr } = await stripe.confirmPayment({
+        clientSecret,
+        confirmParams: {
+          return_url: `${window.location.origin}/feed?boosted=${post.id}&days=${selected.days}`,
+        },
+      })
+      if (stripeErr) throw new Error(stripeErr.message)
+    } catch (err) {
+      console.error('[BoostModal]', err)
+      import('sonner').then(m => m.toast.error(err.message || 'Boost failed. Try again.'))
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <h3 className="font-bold text-foreground text-lg mb-1">🚀 Boost Post</h3>
+        <p className="text-xs text-muted-foreground mb-4">
+          Boost this post to reach more people. Paid via Stripe. No contract.
+        </p>
+        <div className="space-y-2 mb-5">
+          {BOOST_OPTIONS.map(opt => (
+            <button key={opt.budget} onClick={() => setSelected(opt)}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all text-left ${
+                selected?.budget === opt.budget
+                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                  : 'border-border hover:border-primary/40 bg-card'
+              }`}>
+              <div>
+                <p className="text-sm font-semibold text-foreground">${opt.budget} · {opt.days} days</p>
+                <p className="text-xs text-muted-foreground">{opt.reach}</p>
+              </div>
+              {selected?.budget === opt.budget && (
+                <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-[10px]">✓</span>
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted">
+            Cancel
+          </button>
+          <button onClick={handleBoost} disabled={!selected || loading}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
+            {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</> : `Pay $${selected?.budget ?? '—'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
 function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWinnerId }) {
@@ -1367,6 +1466,7 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
   const [likeCount, setLikeCount] = useState(post.likes_count ?? post.like_count ?? 0)
   const [commentCount, setCommentCount] = useState(post.comments_count ?? post.comment_count ?? 0)
   const [repostCount, setRepostCount] = useState(post.reposts_count ?? post.repost_count ?? 0)
+  const [showBoostModal, setShowBoostModal] = useState(false)
   // Who-liked modal
   const [showLikes, setShowLikes] = useState(false)
   const [likers, setLikers] = useState([])
@@ -2019,7 +2119,7 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
           <span className="text-xs text-muted-foreground">🔖 {fmtCount(post.saves_count ?? post.save_count ?? 0)}</span>
           {isOwner && (
             <div className="ml-auto flex items-center gap-3 flex-shrink-0">
-              <button onClick={() => navigate(`/advertise?tab=boost&postId=${post.id}`)}
+              <button onClick={() => setShowBoostModal(true)}
                 className="text-xs text-amber-500 font-semibold hover:underline flex items-center gap-1">
                 🚀 Boost
               </button>
@@ -2036,6 +2136,11 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
           <CommentSection postId={post.id} currentUser={currentUser} onCommentAdded={() => setCommentCount(c => c + 1)} />
         )}
       </article>
+
+      {/* Boost Modal */}
+      {showBoostModal && (
+        <BoostModal post={post} user={currentUser} onClose={() => setShowBoostModal(false)} />
+      )}
 
       {/* Insights Modal */}
       {showInsights && (() => {
@@ -2956,6 +3061,29 @@ export default function Feed() {
   const { user, profile } = useAuth()
   const { mode } = useMode()
   const [posts, setPosts] = useState(_feedPostsCache)
+
+  // Handle ?boosted=postId return from Stripe — mark post as boosted
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const boostedId = params.get('boosted')
+    const days      = parseInt(params.get('days') || '7', 10)
+    if (!boostedId || !user?.id) return
+    const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
+    supabase.from('posts').update({ is_boosted: true, boost_expires_at: expiresAt })
+      .eq('id', boostedId).then(({ error }) => {
+        if (!error) {
+          import('sonner').then(m => m.toast.success('🚀 Post boosted successfully!'))
+          // Record as boost platform revenue
+          supabase.from('platform_revenue').insert({
+            source_type: 'boost', source_id: null,
+            gross_amount: 0, platform_cut: 0, platform_cut_usd: 0,
+            sender_id: user.id, recipient_id: null,
+          }).catch(() => {})
+        }
+      })
+    // Clean up URL
+    window.history.replaceState({}, '', '/feed')
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const [loading, setLoading] = useState(_feedPostsCache.length === 0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)

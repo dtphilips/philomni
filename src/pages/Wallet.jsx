@@ -291,7 +291,7 @@ export default function Wallet() {
   const [total,         setTotal]         = useState(0)
   const [page,          setPage]          = useState(0)
   const [payouts,       setPayouts]       = useState([])
-  const [giftEarnings,  setGiftEarnings]  = useState({ coins: 0, usd: 0, count: 0 })
+  const [giftEarnings,  setGiftEarnings]  = useState({ usd: 0, count: 0 })
   const [loading,       setLoading]       = useState(true)
   const [withdrawing,   setWithdrawing]   = useState(false)
   const [showWithdraw,  setShowWithdraw]  = useState(false)
@@ -341,9 +341,9 @@ export default function Wallet() {
   const fetchGiftEarnings = useCallback(async (uid) => {
     const { data } = await supabase.from('post_gifts').select('coin_cost, creator_earnings').eq('creator_id', uid)
     if (data?.length) {
-      const coins = data.reduce((s, g) => s + Math.floor((g.coin_cost || 0) * 0.70), 0)
-      const usd   = data.reduce((s, g) => s + Number(g.creator_earnings || 0), 0)
-      setGiftEarnings({ coins, usd, count: data.length })
+      // creator_earnings is already the USD amount (floor(coin_cost * 0.70) / 100)
+      const usd = data.reduce((s, g) => s + Number(g.creator_earnings || 0), 0)
+      setGiftEarnings({ usd, count: data.length })
     }
   }, [])
 
@@ -491,13 +491,12 @@ export default function Wallet() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground">Gift Earnings</p>
             <p className="text-xs text-muted-foreground">
-              {giftEarnings.count} gift{giftEarnings.count !== 1 ? 's' : ''} received ·{' '}
-              {giftEarnings.coins.toLocaleString()} coins ({coinsToUSDString(giftEarnings.coins)}) · 70% creator share
+              {giftEarnings.count} gift{giftEarnings.count !== 1 ? 's' : ''} received · 70% creator share · included in Available Balance
             </p>
           </div>
           <div className="text-right flex-shrink-0">
             <p className="text-lg font-bold text-yellow-400">${giftEarnings.usd.toFixed(2)}</p>
-            <p className="text-[10px] text-muted-foreground">= {giftEarnings.coins} coins</p>
+            <p className="text-[10px] text-muted-foreground">earned from gifts</p>
           </div>
         </div>
       )}

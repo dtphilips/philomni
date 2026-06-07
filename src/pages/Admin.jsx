@@ -33,20 +33,22 @@ export default function Admin() {
   const { data: creatorPayouts    = [] } = useQuery({ queryKey: ['admin-payouts'],         queryFn: () => supabase.from('earnings').select('amount').eq('status','pending').then(r => r.data || []) })
   const { data: newBrandInquiries = [] } = useQuery({ queryKey: ['admin-brand-inquiries'], queryFn: () => supabase.from('brand_inquiries').select('id').eq('status','new').then(r => r.data || []) })
   // Platform revenue by source type
-  const { data: giftRevRows   = [] } = useQuery({ queryKey: ['admin-gift-rev'],   queryFn: () => supabase.from('platform_revenue').select('platform_cut_usd').eq('source_type','gift').then(r => r.data || []) })
-  const { data: subRevRows    = [] } = useQuery({ queryKey: ['admin-sub-rev'],    queryFn: () => supabase.from('platform_revenue').select('platform_cut_usd').eq('source_type','subscription').then(r => r.data || []) })
-  const { data: adRevRows     = [] } = useQuery({ queryKey: ['admin-ad-rev'],     queryFn: () => supabase.from('platform_revenue').select('platform_cut_usd').in('source_type',['ad','boost']).then(r => r.data || []) })
-  const { data: completedPayouts  = [] } = useQuery({ queryKey: ['admin-completed-payouts'], queryFn: () => supabase.from('payouts').select('amount_usd').eq('status','completed').then(r => r.data || []) })
-  const { data: pendingBalances   = [] } = useQuery({ queryKey: ['admin-pending-balances'],  queryFn: () => supabase.from('users').select('available_balance_usd').gt('available_balance_usd', 0).then(r => r.data || []) })
+  const { data: giftRevRows      = [] } = useQuery({ queryKey: ['admin-gift-rev'],    queryFn: () => supabase.from('platform_revenue').select('platform_cut_usd').eq('source_type','gift').then(r => r.data || []) })
+  const { data: subRevRows       = [] } = useQuery({ queryKey: ['admin-sub-rev'],     queryFn: () => supabase.from('platform_revenue').select('platform_cut_usd').eq('source_type','subscription').then(r => r.data || []) })
+  const { data: adRevRows        = [] } = useQuery({ queryKey: ['admin-ad-rev'],      queryFn: () => supabase.from('platform_revenue').select('platform_cut_usd').in('source_type',['ad','boost']).then(r => r.data || []) })
+  const { data: contentRevRows   = [] } = useQuery({ queryKey: ['admin-content-rev'], queryFn: () => supabase.from('content_monetization').select('platform_revenue_usd').then(r => r.data || []) })
+  const { data: completedPayouts = [] } = useQuery({ queryKey: ['admin-completed-payouts'], queryFn: () => supabase.from('payouts').select('amount_usd').eq('status','completed').then(r => r.data || []) })
+  const { data: pendingBalances  = [] } = useQuery({ queryKey: ['admin-pending-balances'],  queryFn: () => supabase.from('users').select('available_balance_usd').gt('available_balance_usd', 0).then(r => r.data || []) })
 
   const totalAdRevenue      = activeAdStats.reduce((s, a) => s + (a.spent || 0), 0)
   const totalPayoutsDue     = creatorPayouts.reduce((s, e) => s + (e.amount || 0), 0)
-  const totalGiftRevenue    = giftRevRows.reduce((s, r) => s + Number(r.platform_cut_usd || 0), 0)
-  const totalSubRevenue     = subRevRows.reduce((s, r)  => s + Number(r.platform_cut_usd || 0), 0)
-  const totalBoostRevenue   = adRevRows.reduce((s, r)   => s + Number(r.platform_cut_usd || 0), 0)
+  const totalGiftRevenue    = giftRevRows.reduce((s, r)     => s + Number(r.platform_cut_usd || 0), 0)
+  const totalSubRevenue     = subRevRows.reduce((s, r)      => s + Number(r.platform_cut_usd || 0), 0)
+  const totalBoostRevenue   = adRevRows.reduce((s, r)       => s + Number(r.platform_cut_usd || 0), 0)
+  const totalContentRevenue = contentRevRows.reduce((s, r)  => s + Number(r.platform_revenue_usd || 0), 0)
   const totalPayoutsSent    = completedPayouts.reduce((s, p) => s + Number(p.amount_usd || 0), 0)
   const pendingPayoutTotal  = pendingBalances.reduce((s, u) => s + Number(u.available_balance_usd || 0), 0)
-  const netPlatformRevenue  = totalGiftRevenue + totalSubRevenue + totalBoostRevenue + totalAdRevenue
+  const netPlatformRevenue  = totalGiftRevenue + totalSubRevenue + totalBoostRevenue + totalAdRevenue + totalContentRevenue
 
   // Top-level platform stats
   const platformStats = [
@@ -115,6 +117,7 @@ export default function Admin() {
           { label: 'Gift Revenue',         value: totalGiftRevenue,   color: 'text-yellow-400', bg: 'bg-yellow-400/10',  desc: '30% platform cut' },
           { label: 'Subscription Revenue', value: totalSubRevenue,    color: 'text-blue-400',   bg: 'bg-blue-400/10',    desc: 'Pro & Pro Max plans' },
           { label: 'Ad & Boost Revenue',   value: totalBoostRevenue + totalAdRevenue, color: 'text-pink-400', bg: 'bg-pink-400/10', desc: 'Campaigns & boosts' },
+          { label: 'Content Ad Revenue',   value: totalContentRevenue, color: 'text-orange-400', bg: 'bg-orange-400/10', desc: '45% of campaign spend' },
           { label: 'Creator Payouts Sent', value: totalPayoutsSent,   color: 'text-red-400',    bg: 'bg-red-400/10',     desc: 'All time completed' },
           { label: 'Pending Payouts',      value: pendingPayoutTotal, color: 'text-purple-400', bg: 'bg-purple-400/10',  desc: 'Next Friday batch' },
         ].map(card => (
