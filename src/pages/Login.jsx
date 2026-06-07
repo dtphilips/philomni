@@ -118,7 +118,13 @@ export default function Login() {
       })
 
       if (signUpErr) {
-        setError(signUpErr.message)
+        // 500 from Supabase usually means the SMTP/email service is misconfigured.
+        // Show a helpful message instead of a raw error.
+        if (signUpErr.status === 500 || signUpErr.message?.toLowerCase().includes('sending')) {
+          setError('Account created! Our confirmation email service is being set up. Please contact support@philomni.com to activate your account, or try signing in if you have already confirmed.')
+        } else {
+          setError(signUpErr.message)
+        }
         setLoading(false)
         return
       }
@@ -136,7 +142,14 @@ export default function Login() {
         }, { onConflict: 'id', ignoreDuplicates: true })
       }
 
-      setError('Check your email to confirm your account.')
+      // If email confirmation is disabled, user is already signed in
+      if (data?.session) {
+        // AuthContext onAuthStateChange will handle navigation
+        setLoading(false)
+        return
+      }
+
+      setError('✅ Account created! Check your email to confirm, then sign in.')
       setLoading(false)
     }
   }

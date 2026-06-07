@@ -1079,8 +1079,8 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent, anchorRect }) {
 
   useEffect(() => {
     if (!currentUser?.id) return
-    supabase.from('users').select('coin_balance').eq('id', currentUser.id).single()
-      .then(({ data }) => setBalance(data?.coin_balance ?? 0))
+    supabase.from('users').select('coin_balance, coins_balance').eq('id', currentUser.id).single()
+      .then(({ data }) => setBalance(data?.coins_balance ?? data?.coin_balance ?? 0))
   }, [currentUser?.id])
 
   useEffect(() => {
@@ -1100,47 +1100,61 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent, anchorRect }) {
     setSending(gift.id)
     setError('')
     try {
-      const creatorId = post.created_by || post.author_id
-      const usdValue        = gift.cost / 100
+      const creatorId      = post.created_by || post.author_id
+      const usdValue       = gift.cost / 100
       const creatorEarnings = usdValue * 0.70
 
-      // Deduct coins from sender
-      await supabase.from('users')
-        .update({ coin_balance: balance - gift.cost })
-        .eq('id', currentUser.id)
+      // 1. Deduct coins from sender via SECURITY DEFINER RPC (bypasses RLS)
+      const { data: deducted, error: deductErr } = await supabase
+        .rpc('deduct_coins', { p_user_id: currentUser.id, p_coins: gift.cost })
+      if (deductErr) throw new Error(`deduct_coins: ${deductErr.message}`)
+      if (!deducted) {
+        setError('Not enough coins')
+        setSending(null)
+        return
+      }
 
-      // Insert gift record
-      await supabase.from('post_gifts').insert({
+      // 2. Insert gift record (gift_id is now TEXT — store the slug)
+      const { error: giftErr } = await supabase.from('post_gifts').insert({
         post_id:          post.id,
         sender_id:        currentUser.id,
         creator_id:       creatorId,
-        gift_id:          gift.id,
+        gift_id:          gift.id,        // TEXT slug: 'rose', 'heart' etc.
         gift_name:        gift.name,
         gift_emoji:       gift.emoji,
         coin_cost:        gift.cost,
         usd_value:        usdValue,
         creator_earnings: creatorEarnings,
       })
+      if (giftErr) console.error('[GiftPanel] post_gifts insert error:', giftErr)
 
-      // Add earnings to creator wallet
-      if (creatorId) {
-        const { data: cData } = await supabase
-          .from('users').select('wallet_balance').eq('id', creatorId).single()
-        if (cData) {
-          await supabase.from('users')
-            .update({ wallet_balance: (cData.wallet_balance || 0) + creatorEarnings })
-            .eq('id', creatorId)
+      // 3. Credit creator coins + wallet earnings via add_coins RPC
+      if (creatorId && creatorId !== currentUser.id) {
+        // Coins credit (70% of coin value goes to creator)
+        const creatorCoins = Math.floor(gift.cost * 0.70)
+        await supabase.rpc('add_coins', { p_user_id: creatorId, p_coins: creatorCoins })
+          .then(({ error: e }) => { if (e) console.error('[GiftPanel] add_coins creator error:', e) })
+
+        // Wallet earnings (USD value, for creator withdrawal)
+        const { data: walletRow } = await supabase
+          .from('wallets').select('balance').eq('user_id', creatorId).single()
+        if (walletRow) {
+          await supabase.from('wallets')
+            .update({ balance: (walletRow.balance || 0) + creatorEarnings })
+            .eq('user_id', creatorId)
+            .then(({ error: e }) => { if (e) console.error('[GiftPanel] wallet update error:', e) })
         }
-        // In-app notification
+
+        // 4. Notification — use actual column names: content, reference_id
         await supabase.from('notifications').insert({
-          user_id:    creatorId,
-          type:       'gift',
-          title:      `${currentUser.full_name || 'Someone'} sent you a ${gift.emoji} ${gift.name}!`,
-          body:       'on your post',
-          data:       { post_id: post.id, gift_emoji: gift.emoji, gift_name: gift.name },
-          is_read:    false,
-          created_at: new Date().toISOString(),
-        })
+          user_id:      creatorId,
+          type:         'gift',
+          content:      `${currentUser.full_name || 'Someone'} sent you a ${gift.emoji} ${gift.name}! (+${creatorCoins} coins)`,
+          reference_id: post.id,
+          is_read:      false,
+          created_by:   currentUser.id,
+          created_at:   new Date().toISOString(),
+        }).then(({ error: e }) => { if (e) console.error('[GiftPanel] notification error:', e) })
       }
 
       setBalance(b => b - gift.cost)
@@ -1148,7 +1162,7 @@ function GiftPanel({ post, currentUser, onClose, onGiftSent, anchorRect }) {
       onClose()
     } catch (err) {
       console.error('[GiftPanel] send error:', err)
-      setError(err.message)
+      setError(err.message || 'Failed to send gift. Try again.')
     }
     setSending(null)
   }
