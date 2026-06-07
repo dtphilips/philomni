@@ -167,6 +167,22 @@ export default function Partners() {
         status:           'new',
       })
       if (error) throw error
+
+      // Notify support via email — non-blocking, never fails the submission
+      supabase.functions.invoke('send-inquiry-email', {
+        body: {
+          brandName:       form.brand_name.trim(),
+          contactName:     form.contact_name.trim(),
+          email:           form.contact_email.trim(),
+          website:         form.website.trim(),
+          phone:           form.phone.trim(),
+          packageInterest: form.package_interest,
+          budget:          form.budget_range,
+          campaignGoal:    form.campaign_goal,
+          message:         form.message.trim(),
+        },
+      }).catch(err => console.error('Inquiry email failed (non-blocking):', err))
+
       setSubmitted(true)
     } catch (err) {
       toast.error(err.message || 'Submission failed. Please try again.')

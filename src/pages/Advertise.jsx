@@ -230,6 +230,16 @@ export default function Advertise() {
             provider_payment_id: paymentIntentId, metadata,
             created_at: new Date().toISOString(), completed_at: new Date().toISOString(),
           }).catch(() => {})
+          // Record platform revenue (100% of ad/boost spend → platform).
+          // Via RPC because platform_revenue RLS blocks direct user inserts.
+          await supabase.rpc('record_platform_revenue', {
+            p_source_type:  type === 'boost' ? 'boost' : 'ad',
+            p_source_id:    postId ?? null,
+            p_gross_amount: Math.round(amount * 100),
+            p_platform_cut: Math.round(amount * 100),
+            p_sender_id:    user.id,
+            p_recipient_id: null,
+          }).catch(() => {})
           setStripeCheckout(null)
           onSuccess()
         },

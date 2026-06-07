@@ -1414,11 +1414,16 @@ function BoostCardForm({ post, user, option, onDone, onBack }) {
           .update({ is_boosted: true, boost_expires_at: expiresAt, boost_budget: option.budget })
           .eq('id', post.id)
         // 4. Record platform revenue (100% of boost spend → platform)
-        await supabase.from('platform_revenue').insert({
-          source_type: 'boost', source_id: post.id,
-          gross_amount: 0, platform_cut: 0, platform_cut_usd: option.budget,
-          sender_id: user.id, recipient_id: null,
-        }).catch(() => {})
+        //    Must use the SECURITY DEFINER RPC — platform_revenue RLS blocks
+        //    direct inserts from authenticated users (USING false).
+        await supabase.rpc('record_platform_revenue', {
+          p_source_type:  'boost',
+          p_source_id:    post.id,
+          p_gross_amount: Math.round(option.budget * 100),
+          p_platform_cut: Math.round(option.budget * 100),
+          p_sender_id:    user.id,
+          p_recipient_id: null,
+        }).then(({ error: e }) => { if (e) console.error('[BoostCardForm] platform_revenue error:', e) })
         onDone()
       }
     } catch (err) {
@@ -3138,7 +3143,10 @@ export default function Feed() {
   const { mode } = useMode()
   const [posts, setPosts] = useState(_feedPostsCache)
 
-  // Handle ?boosted=postId return from Stripe — mark post as boosted
+  // Fallback: handle ?boosted=postId return from a Stripe redirect (if any).
+  // The primary boost flow (BoostCardForm) confirms in-place and already marks
+  // the post + records platform revenue, so this is a redundant safety net that
+  // only marks the post boosted. Revenue is NOT recorded here to avoid double-count.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const boostedId = params.get('boosted')
@@ -3146,19 +3154,12 @@ export default function Feed() {
     const budget    = parseFloat(params.get('budget') || '0')
     if (!boostedId || !user?.id) return
     const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
-    supabase.from('posts').update({ is_boosted: true, boost_expires_at: expiresAt, boost_budget: budget || null })
-      .eq('id', boostedId).then(({ error }) => {
-        if (!error) {
-          import('sonner').then(m => m.toast.success('🚀 Post boosted successfully!'))
-          // Record as boost platform revenue
-          supabase.from('platform_revenue').insert({
-            source_type: 'boost', source_id: null,
-            gross_amount: 0, platform_cut: 0, platform_cut_usd: 0,
-            sender_id: user.id, recipient_id: null,
-          }).catch(() => {})
-        }
+    supabase.from('posts')
+      .update({ is_boosted: true, boost_expires_at: expiresAt, boost_budget: budget || null })
+      .eq('id', boostedId)
+      .then(({ error }) => {
+        if (!error) import('sonner').then(m => m.toast.success('🚀 Post boosted successfully!'))
       })
-    // Clean up URL
     window.history.replaceState({}, '', '/feed')
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const [loading, setLoading] = useState(_feedPostsCache.length === 0)
