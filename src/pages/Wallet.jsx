@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
-import { COINS_PER_DOLLAR, coinsToUSDString } from '../lib/constants'
 import {
   detectPayoutProvider, getNextPayoutDate, MINIMUM_PAYOUT_USD,
   NIGERIAN_BANKS, FLW_COUNTRY_CURRENCIES,

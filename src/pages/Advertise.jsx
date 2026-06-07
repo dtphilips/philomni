@@ -6,8 +6,10 @@ import { toast } from 'sonner'
 import {
   Megaphone, Upload, Eye, MousePointer, Zap, Star, Crown,
   Loader2, ExternalLink, ImageIcon, ChevronRight, Check,
-  Rocket, TrendingUp, Users, Target,
+  Rocket, TrendingUp, Users, Target, CreditCard, X,
 } from 'lucide-react'
+import { loadStripe } from '@stripe/stripe-js'
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import {
   PAYMENT_CONFIG,
   PROVIDER_BADGES,
@@ -20,6 +22,100 @@ import {
   createPaymentIntent,
   recordPayment,
 } from '../lib/payments'
+
+// Stripe singleton — only when key present
+const stripePromise = PAYMENT_CONFIG.stripe.active
+  ? loadStripe(PAYMENT_CONFIG.stripe.publishableKey)
+  : null
+
+// ── In-app Stripe card payment for ads/boosts (no email, no redirect) ─────────
+function StripeAdCheckoutForm({ amount, type, postId, campaignData, user, onSuccess, onCancel }) {
+  const stripe   = useStripe()
+  const elements = useElements()
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState(null)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!stripe || !elements) return
+    setLoading(true); setError(null)
+    try {
+      // 1. Create the PaymentIntent server-side
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-ad-payment`,
+        {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            userId: user.id, userEmail: user.email,
+            amount, adType: type, postId: postId ?? null, campaignData: campaignData ?? {},
+          }),
+        },
+      )
+      const { clientSecret, error: fnErr } = await res.json()
+      if (fnErr) throw new Error(fnErr)
+
+      // 2. Confirm card payment in-place (no redirect)
+      const { error: stripeErr, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: elements.getElement(CardElement),
+          billing_details: { email: user.email, name: user.full_name ?? user.email },
+        },
+      })
+      if (stripeErr) throw new Error(stripeErr.message)
+      if (paymentIntent.status === 'succeeded') {
+        onSuccess(paymentIntent.id)
+      }
+    } catch (err) {
+      setError(err.message)
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="p-3.5 bg-white rounded-xl border border-border/40">
+        <CardElement options={{ style: { base: { fontSize: '15px', color: '#1a1a1a', '::placeholder': { color: '#9ca3af' } }, invalid: { color: '#ef4444' } } }} />
+      </div>
+      {error && <p className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">{error}</p>}
+      <button type="submit" disabled={!stripe || loading}
+        className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors">
+        {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</> : <><CreditCard className="w-4 h-4" /> Pay ${amount.toFixed(2)}</>}
+      </button>
+      <button type="button" onClick={onCancel} className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+      <p className="text-[10px] text-muted-foreground text-center">🔒 Secured by Stripe · Card never stored on Philomni</p>
+    </form>
+  )
+}
+
+function StripeAdModal({ checkout, user, onClose }) {
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-xl hover:bg-muted text-muted-foreground">
+          <X className="w-4 h-4" />
+        </button>
+        <h3 className="font-bold text-foreground text-lg mb-1">{checkout.title}</h3>
+        <p className="text-primary font-bold mb-4">${checkout.amount.toFixed(2)} USD</p>
+        <Elements stripe={stripePromise}>
+          <StripeAdCheckoutForm
+            amount={checkout.amount}
+            type={checkout.type}
+            postId={checkout.postId}
+            campaignData={checkout.campaignData}
+            user={user}
+            onSuccess={checkout.onSuccess}
+            onCancel={onClose}
+          />
+        </Elements>
+      </div>
+    </div>
+  )
+}
 
 const PACKAGES = [
   {
@@ -113,14 +209,33 @@ export default function Advertise() {
 
   // — Payment state —
   const [payLoading, setPayLoading] = useState(false)
-  const [emailModalData, setEmailModalData] = useState(null) // { subject, pkg } → show email modal
+  const [emailModalData, setEmailModalData] = useState(null)   // last-resort if no providers active
+  const [stripeCheckout, setStripeCheckout] = useState(null)   // { title, amount, type, postId, campaignData, onSuccess }
 
   const setC = (k, v) => setCampaignForm(prev => ({ ...prev, [k]: v }))
 
   // ── Shared: launch whichever provider is right for the user's country ──────
-  const launchProviderPayment = async ({ amount, currency, type, metadata, onSuccess, onEmailFallback }) => {
+  const launchProviderPayment = async ({ amount, currency, type, metadata, title, postId, campaignData, onSuccess, onEmailFallback }) => {
     const country  = await getUserCountry()
     const provider = getPaymentProvider(country)
+
+    // Stripe → real in-app card payment via create-ad-payment (NOT email)
+    if (provider === 'stripe' && PAYMENT_CONFIG.stripe.active) {
+      setStripeCheckout({
+        title, amount, type, postId: postId ?? null, campaignData: campaignData ?? metadata,
+        onSuccess: async (paymentIntentId) => {
+          await supabase.from('payment_intents').insert({
+            user_id: user.id, amount: Math.round(amount * 100), currency: 'usd',
+            type, provider: 'stripe', status: 'completed',
+            provider_payment_id: paymentIntentId, metadata,
+            created_at: new Date().toISOString(), completed_at: new Date().toISOString(),
+          }).catch(() => {})
+          setStripeCheckout(null)
+          onSuccess()
+        },
+      })
+      return
+    }
 
     if (!provider) {
       // No active keys at all → email fallback
@@ -181,7 +296,7 @@ export default function Advertise() {
       return
     }
 
-    // Stripe → email fallback for ad packages (no embedded form needed here)
+    // Unknown provider → email fallback
     onEmailFallback()
   }
 
@@ -195,6 +310,8 @@ export default function Advertise() {
       amount:   pkg.price,
       currency: 'usd',
       type:     'campaign',
+      title:    `${pkg.name} Campaign`,
+      campaignData: { package: pkg.id, name: pkg.name },
       metadata: { package: pkg.id },
       onSuccess: () => {
         toast.success('Payment confirmed! Fill in your campaign details.')
@@ -218,6 +335,9 @@ export default function Advertise() {
       amount:   opt.price,
       currency: 'usd',
       type:     'boost',
+      title:    `Boost · ${opt.label}`,
+      postId:   selectedPost.id,
+      campaignData: { boost_option: opt.id, days: opt.days },
       metadata: { post_id: selectedPost.id, boost_option: opt.id },
       onSuccess: async () => {
         toast.success('Payment confirmed! Submitting boost…')
@@ -638,7 +758,12 @@ export default function Advertise() {
           )}
         </>
       )}
-      {/* ── Email Instructions Modal (international users) ─────────────────── */}
+      {/* ── Stripe card payment modal (CA/US/Europe) ──────────────────────── */}
+      {stripeCheckout && stripePromise && (
+        <StripeAdModal checkout={stripeCheckout} user={user} onClose={() => setStripeCheckout(null)} />
+      )}
+
+      {/* ── Email Instructions Modal (only if NO payment provider active) ──── */}
       {emailModalData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEmailModalData(null)} />
