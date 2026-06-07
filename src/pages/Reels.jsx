@@ -560,6 +560,29 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
     <div className="relative h-screen w-full snap-start bg-black flex items-center justify-center flex-shrink-0"
       data-index={index}>
 
+      {/* ════════════════════════════════════════════════════════════════════
+          IN-VIDEO AD SLOTS (FOUNDATION — NOT YET ACTIVATED)
+          When in-video ads are switched on, the AdOverlay component
+          (src/components/AdOverlay.jsx) is mounted in these slots:
+
+          // PRE-ROLL AD SLOT
+          // TODO: Inject pre-roll ad here when in-video ads activated
+          //   - Check reel author's users.is_monetized = true
+          //   - Check for active in_video ad campaigns matching this content
+          //   - If yes: pause video, render <AdOverlay campaign={...}
+          //       onComplete={resumeVideo} onSkip={resumeVideo} />, then play
+
+          // MID-ROLL AD SLOT
+          // TODO: Inject at Math.floor(videoRef.current.duration * 0.5) seconds
+          //   via the onTimeUpdate handler below.
+
+          // END-ROLL AD SLOT
+          // TODO: Inject at (duration - 5) seconds via onTimeUpdate.
+
+          Impression accounting: call supabase.rpc('increment_ad_impressions',
+          { p_campaign_id }) when an ad slot renders.
+          ════════════════════════════════════════════════════════════════════ */}
+
       {/* Video */}
       {videoSrc ? (
         <video
@@ -570,6 +593,13 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
           data-index={index}
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           onClick={handleVideoClick}
+          onTimeUpdate={() => {
+            // IN-VIDEO AD HOOK (inert until activated):
+            // const d = videoRef.current?.duration
+            // const t = videoRef.current?.currentTime
+            // if (d && t >= Math.floor(d * 0.5)) { /* mid-roll slot */ }
+            // if (d && t >= d - 5)              { /* end-roll slot */ }
+          }}
           onError={e => console.warn('[Reels] video error', videoSrc, e)}
           onPlay={() => {
             setIsPlaying(true)

@@ -435,9 +435,41 @@ export default function Advertise() {
 
   return (
     <div className="max-w-5xl mx-auto py-6 px-4">
-      <div className="flex items-center gap-2 mb-6">
-        <Megaphone className="w-6 h-6 text-primary" />
-        <h1 className="text-2xl font-bold text-foreground">Advertise on Philomni</h1>
+      <div className="flex items-center justify-between gap-2 mb-6">
+        <div className="flex items-center gap-2">
+          <Megaphone className="w-6 h-6 text-primary" />
+          <h1 className="text-2xl font-bold text-foreground">Advertise on Philomni</h1>
+        </div>
+        <button onClick={() => navigate('/my-campaigns')}
+          className="text-sm font-semibold text-primary hover:underline flex items-center gap-1 flex-shrink-0">
+          My Campaigns →
+        </button>
+      </div>
+
+      {/* Placement options */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+        {[
+          { id: 'feed',     emoji: '📰', title: 'Feed Ads',      desc: 'Native posts in the main feed' },
+          { id: 'invideo',  emoji: '🎬', title: 'In-Video Ads',  desc: 'Pre/mid-roll on creator videos', soon: true },
+          { id: 'both',     emoji: '🌐', title: 'Both',          desc: 'Maximum reach across placements' },
+        ].map(p => (
+          <div key={p.id}
+            className="relative bg-card border border-border rounded-2xl p-4 hover:border-primary/40 transition-colors">
+            {p.soon && (
+              <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Soon</span>
+            )}
+            <div className="text-2xl mb-2">{p.emoji}</div>
+            <p className="font-semibold text-foreground text-sm">{p.title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{p.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Enterprise note — custom budgets over $5,000 use the contact form */}
+      <div className="mb-6 flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 rounded-xl px-4 py-2.5">
+        <Target className="w-4 h-4 text-primary flex-shrink-0" />
+        Running a large campaign (over $5,000) or need custom placements?{' '}
+        <a href="mailto:partnerships@philomni.com" className="text-primary hover:underline font-medium">Contact our team</a>.
       </div>
 
       {/* Tab switcher */}

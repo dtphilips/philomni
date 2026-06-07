@@ -380,7 +380,9 @@ export default function App() {
               {/* Monetize / Ads */}
               <Route path="/monetize"  element={<R page={CreatorMonetize} auth />} />
               <Route path="/advertise" element={<R page={Advertise} auth />} />
+              <Route path="/create-campaign" element={<R page={Advertise} auth />} />
               <Route path="/my-ads"    element={<R page={MyAds} auth />} />
+              <Route path="/my-campaigns" element={<R page={MyAds} auth />} />
 
               {/* Philomni Shop */}
               <Route path="/affiliate"          element={<R page={AffiliateMarketplace} />} />
