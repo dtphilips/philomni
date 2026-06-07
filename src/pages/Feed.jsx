@@ -13,7 +13,15 @@ import {
   ExternalLink, Megaphone, ShoppingBag, Tag,
 } from 'lucide-react'
 import EmojiPickerButton, { insertAtCursor } from '../components/EmojiPickerButton'
+import { loadStripe } from '@stripe/stripe-js'
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
+import { PAYMENT_CONFIG } from '../lib/payments'
 import { useNavigate, Link } from 'react-router-dom'
+
+// Stripe singleton for boost payments (only when key present)
+const _boostStripePromise = PAYMENT_CONFIG?.stripe?.active
+  ? loadStripe(PAYMENT_CONFIG.stripe.publishableKey)
+  : null
 import MediaEditor from '@/components/editor/MediaEditor'
 import { useMusic } from '../context/MusicContext'
 import SpotlightBanner from '../components/SpotlightBanner'
@@ -1359,14 +1367,19 @@ const BOOST_OPTIONS = [
   { budget: 50, days: 30, reach: '8,000 – 20,000 people'},
 ]
 
-function BoostModal({ post, user, onClose }) {
-  const [selected,  setSelected]  = useState(null)
-  const [loading,   setLoading]   = useState(false)
+// Card form — mounts CardElement and confirms the PaymentIntent in-place.
+function BoostCardForm({ post, user, option, onDone, onBack }) {
+  const stripe   = useStripe()
+  const elements = useElements()
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState(null)
 
-  const handleBoost = async () => {
-    if (!selected || !user) return
-    setLoading(true)
+  const handlePay = async (e) => {
+    e.preventDefault()
+    if (!stripe || !elements) return
+    setLoading(true); setError(null)
     try {
+      // 1. Create PaymentIntent server-side
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-ad-payment`,
         {
@@ -1376,74 +1389,131 @@ function BoostModal({ post, user, onClose }) {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            userId:       user.id,
-            userEmail:    user.email,
-            amount:       selected.budget,
-            adType:       'boost',
-            postId:       post.id,
-            campaignData: { days: selected.days, reach: selected.reach },
+            userId: user.id, userEmail: user.email,
+            amount: option.budget, adType: 'boost', postId: post.id,
+            campaignData: { days: option.days, reach: option.reach },
           }),
         },
       )
       const { clientSecret, error: fnErr } = await res.json()
       if (fnErr) throw new Error(fnErr)
 
-      // Dynamically import Stripe to avoid bundle bloat on non-Stripe users
-      const { loadStripe } = await import('@stripe/stripe-js')
-      const stripe = await loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
-      if (!stripe) throw new Error('Stripe not configured')
-
-      const { error: stripeErr } = await stripe.confirmPayment({
-        clientSecret,
-        confirmParams: {
-          return_url: `${window.location.origin}/feed?boosted=${post.id}&days=${selected.days}&budget=${selected.budget}`,
+      // 2. Confirm card payment in-place (no redirect, no PaymentElement needed)
+      const { error: stripeErr, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: elements.getElement(CardElement),
+          billing_details: { email: user.email, name: user.full_name ?? user.email },
         },
       })
       if (stripeErr) throw new Error(stripeErr.message)
+
+      if (paymentIntent.status === 'succeeded') {
+        // 3. Activate the boost
+        const expiresAt = new Date(Date.now() + option.days * 86_400_000).toISOString()
+        await supabase.from('posts')
+          .update({ is_boosted: true, boost_expires_at: expiresAt, boost_budget: option.budget })
+          .eq('id', post.id)
+        // 4. Record platform revenue (100% of boost spend → platform)
+        await supabase.from('platform_revenue').insert({
+          source_type: 'boost', source_id: post.id,
+          gross_amount: 0, platform_cut: 0, platform_cut_usd: option.budget,
+          sender_id: user.id, recipient_id: null,
+        }).catch(() => {})
+        onDone()
+      }
     } catch (err) {
-      console.error('[BoostModal]', err)
-      import('sonner').then(m => m.toast.error(err.message || 'Boost failed. Try again.'))
+      console.error('[BoostCardForm]', err)
+      setError(err.message || 'Payment failed. Try again.')
       setLoading(false)
     }
   }
 
   return (
+    <form onSubmit={handlePay} className="space-y-4">
+      <div className="bg-muted/40 rounded-xl px-4 py-3 text-sm">
+        <span className="font-semibold text-foreground">${option.budget}</span>
+        <span className="text-muted-foreground"> · {option.days} days · {option.reach}</span>
+      </div>
+      <div className="p-3.5 bg-white rounded-xl border border-border/40">
+        <CardElement options={{ style: { base: { fontSize: '15px', color: '#1a1a1a', '::placeholder': { color: '#9ca3af' } }, invalid: { color: '#ef4444' } } }} />
+      </div>
+      {error && <p className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">{error}</p>}
+      <div className="flex gap-3">
+        <button type="button" onClick={onBack} disabled={loading}
+          className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted">
+          Back
+        </button>
+        <button type="submit" disabled={!stripe || loading}
+          className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
+          {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</> : `Pay $${option.budget}`}
+        </button>
+      </div>
+      <p className="text-[10px] text-muted-foreground text-center">🔒 Secured by Stripe · Card never stored</p>
+    </form>
+  )
+}
+
+function BoostModal({ post, user, onClose }) {
+  const [selected, setSelected] = useState(null)
+  const [step,     setStep]     = useState('pick')   // 'pick' | 'pay' | 'done'
+
+  return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
-        <h3 className="font-bold text-foreground text-lg mb-1">🚀 Boost Post</h3>
-        <p className="text-xs text-muted-foreground mb-4">
-          Boost this post to reach more people. Paid via Stripe. No contract.
-        </p>
-        <div className="space-y-2 mb-5">
-          {BOOST_OPTIONS.map(opt => (
-            <button key={opt.budget} onClick={() => setSelected(opt)}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all text-left ${
-                selected?.budget === opt.budget
-                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                  : 'border-border hover:border-primary/40 bg-card'
-              }`}>
-              <div>
-                <p className="text-sm font-semibold text-foreground">${opt.budget} · {opt.days} days</p>
-                <p className="text-xs text-muted-foreground">{opt.reach}</p>
-              </div>
-              {selected?.budget === opt.budget && (
-                <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-[10px]">✓</span>
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted">
-            Cancel
-          </button>
-          <button onClick={handleBoost} disabled={!selected || loading}
-            className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
-            {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</> : `Pay $${selected?.budget ?? '—'}`}
-          </button>
-        </div>
+
+        {step === 'done' ? (
+          <div className="text-center">
+            <div className="text-4xl mb-3">🚀</div>
+            <h3 className="font-bold text-foreground text-lg mb-1">Post Boosted!</h3>
+            <p className="text-xs text-muted-foreground mb-5">Your post is now reaching more people for {selected?.days} days.</p>
+            <button onClick={onClose} className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90">Done</button>
+          </div>
+        ) : step === 'pay' && _boostStripePromise ? (
+          <>
+            <h3 className="font-bold text-foreground text-lg mb-4">🚀 Boost Post</h3>
+            <Elements stripe={_boostStripePromise}>
+              <BoostCardForm post={post} user={user} option={selected}
+                onDone={() => setStep('done')} onBack={() => setStep('pick')} />
+            </Elements>
+          </>
+        ) : (
+          <>
+            <h3 className="font-bold text-foreground text-lg mb-1">🚀 Boost Post</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Boost this post to reach more people. Paid via Stripe. No contract.
+            </p>
+            <div className="space-y-2 mb-5">
+              {BOOST_OPTIONS.map(opt => (
+                <button key={opt.budget} onClick={() => setSelected(opt)}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all text-left ${
+                    selected?.budget === opt.budget
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                      : 'border-border hover:border-primary/40 bg-card'
+                  }`}>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">${opt.budget} · {opt.days} days</p>
+                    <p className="text-xs text-muted-foreground">{opt.reach}</p>
+                  </div>
+                  {selected?.budget === opt.budget && (
+                    <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-[10px]">✓</span>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted">
+                Cancel
+              </button>
+              <button onClick={() => selected && setStep('pay')} disabled={!selected || !_boostStripePromise}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
+                {_boostStripePromise ? `Continue · $${selected?.budget ?? '—'}` : 'Stripe not configured'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
