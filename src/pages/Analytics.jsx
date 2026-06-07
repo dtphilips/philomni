@@ -171,6 +171,8 @@ export default function Analytics() {
   const [audienceInsights, setAudienceInsights] = useState(null)
   const [sortKey, setSortKey]       = useState('view_count')
   const [sortDir, setSortDir]       = useState('desc')
+  // Content monetization earnings (dynamic, from real campaign distributions)
+  const [contentEarnings, setContentEarnings] = useState({ month: 0, lifetime: 0, rpm: null })
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -212,6 +214,26 @@ export default function Analytics() {
 
     setStats({ posts: posts.length, views: totalViews, likes: totalLikes, comments: totalComments, followers, following })
     setAllPosts(posts)
+
+    // ── Content monetization earnings (real values only, no hardcoded CPM) ──
+    const { data: cmRows } = await safeQuery(
+      supabase.from('content_monetization')
+        .select('creator_revenue_usd, effective_rpm_usd, created_at')
+        .eq('creator_id', userId)
+    )
+    if (cmRows?.length) {
+      const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0)
+      const lifetime = cmRows.reduce((s, r) => s + Number(r.creator_revenue_usd || 0), 0)
+      const month    = cmRows
+        .filter(r => new Date(r.created_at) >= startOfMonth)
+        .reduce((s, r) => s + Number(r.creator_revenue_usd || 0), 0)
+      // Average effective RPM across records that have one
+      const rpmRows = cmRows.filter(r => r.effective_rpm_usd != null)
+      const rpm = rpmRows.length
+        ? rpmRows.reduce((s, r) => s + Number(r.effective_rpm_usd), 0) / rpmRows.length
+        : null
+      setContentEarnings({ month, lifetime, rpm })
+    }
 
     // ── Views per day (last 30 days) ──────────────────────────────────────
     const bucket = {}
@@ -529,6 +551,39 @@ export default function Analytics() {
         {STAT_CARDS.map(c => <StatCard key={c.label} {...c} />)}
       </div>
 
+      {/* ── Content Earnings (dynamic, market-driven) ───────────────────── */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <SectionHeader icon={DollarSign} title="Content Earnings" iconColor="text-emerald-500" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <p className="text-2xl font-bold text-emerald-500">${contentEarnings.month.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">This month</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-foreground">${contentEarnings.lifetime.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Lifetime</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-foreground">
+              {contentEarnings.rpm != null ? `$${contentEarnings.rpm.toFixed(2)}` : '—'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">Your effective RPM</p>
+          </div>
+        </div>
+        <div className="mt-4 space-y-1.5">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            💡 RPM varies based on advertiser campaigns running on your content.
+            Higher engagement = higher effective RPM. Rates are set by the market, not fixed.
+          </p>
+          {stats.views < 10000 && (
+            <p className="text-xs text-amber-500 bg-amber-500/10 rounded-lg px-3 py-2">
+              Content monetization activates at 10,000 monthly views.
+              You're at {fmt(stats.views)} — keep creating!
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* ── Views area chart ────────────────────────────────────────────── */}
       <div className="bg-card border border-border rounded-2xl p-5">
         <SectionHeader icon={Eye} title="Views — Last 30 Days" iconColor="text-blue-500" />
@@ -743,9 +798,13 @@ export default function Analytics() {
         <SectionHeader icon={DollarSign} title="Monetization Potential" iconColor="text-amber-500" />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
           <div className="bg-muted/40 rounded-xl p-4">
-            <p className="text-xs text-muted-foreground mb-1">Estimated CPM Earnings</p>
-            <p className="text-xl font-bold text-foreground">${monet.cpm}</p>
-            <p className="text-xs text-muted-foreground mt-1">Based on {fmt(stats.views)} total views @ $3.50 CPM</p>
+            <p className="text-xs text-muted-foreground mb-1">Content Ad Earnings</p>
+            <p className="text-xl font-bold text-emerald-500">${contentEarnings.lifetime.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {contentEarnings.rpm != null
+                ? `Effective RPM $${contentEarnings.rpm.toFixed(2)} · market-driven`
+                : 'Activates at 10k monthly views · rate set by advertiser demand'}
+            </p>
           </div>
           <div className="bg-muted/40 rounded-xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Sponsorship Value / Post</p>

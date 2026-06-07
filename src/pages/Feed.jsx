@@ -1396,7 +1396,7 @@ function BoostModal({ post, user, onClose }) {
       const { error: stripeErr } = await stripe.confirmPayment({
         clientSecret,
         confirmParams: {
-          return_url: `${window.location.origin}/feed?boosted=${post.id}&days=${selected.days}`,
+          return_url: `${window.location.origin}/feed?boosted=${post.id}&days=${selected.days}&budget=${selected.budget}`,
         },
       })
       if (stripeErr) throw new Error(stripeErr.message)
@@ -1843,6 +1843,12 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
                     <SpotlightBadge size="sm" />
                   )}
                 </button>
+                {/* Boosted badge — shown while boost is active */}
+                {post.is_boosted && (!post.boost_expires_at || new Date(post.boost_expires_at) > new Date()) && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 font-semibold flex items-center gap-0.5 flex-shrink-0">
+                    🚀 Boosted
+                  </span>
+                )}
                 {/* Follow button — only for other users' posts */}
                 {!isOwner && currentUser && (
                   <button onClick={handleFollow}
@@ -3067,9 +3073,10 @@ export default function Feed() {
     const params = new URLSearchParams(window.location.search)
     const boostedId = params.get('boosted')
     const days      = parseInt(params.get('days') || '7', 10)
+    const budget    = parseFloat(params.get('budget') || '0')
     if (!boostedId || !user?.id) return
     const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
-    supabase.from('posts').update({ is_boosted: true, boost_expires_at: expiresAt })
+    supabase.from('posts').update({ is_boosted: true, boost_expires_at: expiresAt, boost_budget: budget || null })
       .eq('id', boostedId).then(({ error }) => {
         if (!error) {
           import('sonner').then(m => m.toast.success('🚀 Post boosted successfully!'))
