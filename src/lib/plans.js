@@ -12,12 +12,12 @@
 /** Sentinel value — use for unlimited tiers */
 export const UNLIMITED = Infinity
 
-/** Stripe price IDs (override via env vars in production) */
+/** Stripe price IDs — env vars override the hardcoded live defaults */
 export const PRICE_IDS = {
-  pro_monthly:    import.meta.env.VITE_STRIPE_PRO_MONTHLY    || 'price_pro_monthly',
-  pro_annual:     import.meta.env.VITE_STRIPE_PRO_ANNUAL     || 'price_pro_annual',
-  promax_monthly: import.meta.env.VITE_STRIPE_PROMAX_MONTHLY || 'price_promax_monthly',
-  promax_annual:  import.meta.env.VITE_STRIPE_PROMAX_ANNUAL  || 'price_promax_annual',
+  pro_monthly:    import.meta.env.VITE_STRIPE_PRO_MONTHLY    || 'price_1TfgArDItBtYSeBAnwhjXUys',
+  pro_annual:     import.meta.env.VITE_STRIPE_PRO_ANNUAL     || 'price_1TfgAtDItBtYSeBADZxoA7qs',
+  promax_monthly: import.meta.env.VITE_STRIPE_PROMAX_MONTHLY || 'price_1TfgAuDItBtYSeBA0OZr6TZX',
+  promax_annual:  import.meta.env.VITE_STRIPE_PROMAX_ANNUAL  || 'price_1TfgAvDItBtYSeBAV97KgIFN',
 }
 
 /** Usage limits per plan */
