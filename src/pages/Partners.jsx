@@ -367,12 +367,30 @@ export default function Partners() {
       {/* ── CONTACT FORM ── */}
       <section ref={contactRef} id="contact" className="py-20 px-6 bg-muted/20">
         <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-10">
+          <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-3">Start Your Campaign</h2>
             <p className="text-muted-foreground text-sm">
-              Fill out the form and our team will contact you within 24 hours.
+              Launch a self-serve campaign instantly, or contact our team for enterprise.
             </p>
           </div>
+
+          {/* Self-serve CTA — instant campaign builder with card payment */}
+          <div className="mb-8 rounded-2xl border border-primary/30 bg-primary/5 p-5 flex flex-col sm:flex-row items-center gap-4">
+            <div className="flex-1 text-center sm:text-left">
+              <p className="font-semibold text-foreground">Launch instantly — no waiting</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Pick a placement, upload your creative, set a budget, and pay by card. Live within 24 h of approval.
+              </p>
+            </div>
+            <Link to="/advertise"
+              className="flex-shrink-0 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors">
+              Build a Campaign →
+            </Link>
+          </div>
+
+          <p className="text-center text-xs text-muted-foreground mb-4">
+            Or, for enterprise / custom budgets, fill out the form below and our team will contact you within 24 hours.
+          </p>
 
           {submitted ? (
             <div className="bg-card border border-green-500/30 rounded-2xl p-10 text-center">
@@ -482,7 +500,7 @@ export default function Partners() {
               <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">Company</p>
               <ul className="space-y-2 text-xs text-muted-foreground">
                 <li><Link to="/" className="hover:text-foreground transition-colors">Home</Link></li>
-                <li><Link to="/partners" className="hover:text-foreground transition-colors">Advertise</Link></li>
+                <li><Link to="/advertise" className="hover:text-foreground transition-colors">Advertise</Link></li>
                 <li><Link to="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
               </ul>
             </div>

@@ -339,7 +339,7 @@ function Sidebar({ user, profile, authLoading, mode, navSections, onModeSwitch, 
         {!collapsed && (
           <div className="mt-2 pt-2 border-t border-border/50 flex flex-wrap gap-x-3 gap-y-1 px-1">
             {[
-              { to: '/partners', label: 'Advertise' },
+              { to: '/advertise', label: 'Advertise' },
               { to: '/settings', label: 'About' },
               { to: '/settings', label: 'Privacy' },
               { to: '/settings', label: 'Terms' },
