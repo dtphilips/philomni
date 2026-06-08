@@ -23,14 +23,13 @@ const PLACEMENT_OPTIONS = [
     reachEstimate: '500–2,000 people/day', whoEarns: 'Platform only' },
   { id: 'in_video', title: 'Content Placement', icon: '🎬',
     description: 'Your ad plays on creator videos before, during or after content.',
-    bestFor: 'Targeted niche audiences', pricing: '$5 CPM (per 1,000 views)',
-    reachEstimate: 'Depends on creator audience', whoEarns: '55% creators / 45% Philomni',
-    badge: 'COMING SOON', disabled: true },
+    bestFor: 'Targeted niche audiences', pricing: '$5 CPM · $5 per 1,000 video views',
+    reachEstimate: 'Depends on creator audience', whoEarns: '55% creators / 45% Philomni' },
   { id: 'both', title: 'Premium — Both', icon: '🚀',
     description: 'Maximum reach. Feed placement + creator video ads simultaneously.',
-    bestFor: 'Product launches, max exposure', pricing: '$15 / day + $5 CPM',
+    bestFor: 'Product launches, max exposure', pricing: '$10/day feed + $5 CPM video',
     reachEstimate: '1,000–5,000+ people/day', whoEarns: 'Feed: Philomni · Video: 55% creators',
-    badge: 'BEST VALUE', disabled: true },
+    badge: 'BEST VALUE' },
 ]
 
 const GOALS = ['Brand Awareness', 'Drive Website Traffic', 'App Downloads', 'Product Sales', 'Event Promotion', 'Other']
@@ -219,15 +218,14 @@ export default function CreateCampaign() {
       {step === 1 && (
         <div className="space-y-3">
           {PLACEMENT_OPTIONS.map(opt => (
-            <button key={opt.id} disabled={opt.disabled}
-              onClick={() => !opt.disabled && setPlacementType(opt.id)}
+            <button key={opt.id}
+              onClick={() => setPlacementType(opt.id)}
               className={`w-full text-left rounded-2xl border p-5 transition-all relative ${
-                opt.disabled ? 'opacity-50 cursor-not-allowed border-border'
-                : placementType === opt.id ? 'border-primary ring-1 ring-primary bg-primary/5'
+                placementType === opt.id ? 'border-primary ring-1 ring-primary bg-primary/5'
                 : 'border-border hover:border-primary/40'
               }`}>
               {opt.badge && (
-                <span className="absolute top-4 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{opt.badge}</span>
+                <span className="absolute top-4 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary">{opt.badge}</span>
               )}
               <div className="flex items-center gap-2 mb-1"><span className="text-2xl">{opt.icon}</span>
                 <p className="font-bold text-foreground">{opt.title}</p></div>

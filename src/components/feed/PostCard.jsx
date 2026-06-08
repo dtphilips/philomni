@@ -201,12 +201,15 @@ export default function PostCard({ post, user, userLikes = [], userBookmarks = [
       </div>
 
       {/* Media */}
+      {/* TODO: Add in-video AdOverlay when feed video player is upgraded to custom controls.
+           Feed videos use native <video controls> — pre-roll ads need a custom player.
+           Wire the same way as Reels.jsx once the feed player is rebuilt. */}
       {post.media_urls?.length > 0 && (
         <div className={`${post.media_urls.length === 1 ? '' : 'grid grid-cols-2 gap-0.5'}`}>
           {post.media_urls.map((url, i) => (
             <div key={i} className="bg-muted aspect-video overflow-hidden">
               {post.media_type === 'video' ? (
-                <video 
+                <video
                   ref={videoRef}
                   src={url} 
                   poster={post.thumbnail_url}

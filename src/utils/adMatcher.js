@@ -35,4 +35,4 @@ export const selectAdForVideo = (campaigns, _post) => {
  * Returns true if the creator has monetization enabled.
  */
 export const isCreatorMonetized = (creatorProfile) =>
-  creatorProfile?.is_monetized === true
+  creatorProfile?.monetization_enabled === true || creatorProfile?.is_monetized === true

@@ -41,7 +41,16 @@ export default function AdminMonetize() {
       await supabase.from('monetization_applications').update({
         status: 'approved', reviewed_by: user.id, reviewed_at: new Date().toISOString(),
       }).eq('id', app.id)
-      await supabase.from('users').update({ monetization_enabled: true }).eq('id', app.user_id)
+      await supabase.from('users').update({
+        monetization_enabled: true,
+        is_monetized: true,
+        monetization_approved_at: new Date().toISOString(),
+      }).eq('id', app.user_id)
+      // Notify creator
+      await supabase.from('notifications').insert({
+        user_id: app.user_id, type: 'monetization', created_by: user.id,
+        content: 'Congratulations! Your content monetization has been approved. Ads may now appear on your videos and you will earn 55% of ad revenue.',
+      }).catch(() => {})
       toast.success(`✅ ${app.users?.full_name} approved for monetization`)
       fetchApps()
     } catch { toast.error('Failed') }
@@ -56,7 +65,12 @@ export default function AdminMonetize() {
         status: 'rejected', reviewed_by: user.id, reviewed_at: new Date().toISOString(),
         rejection_reason: reason,
       }).eq('id', rejectModal.app.id)
-      toast.success('Application rejected.')
+      // Notify creator
+      await supabase.from('notifications').insert({
+        user_id: rejectModal.app.user_id, type: 'monetization', created_by: user.id,
+        content: `Your monetization application was not approved. Reason: ${reason || 'Did not meet requirements'}. You may re-apply after addressing the feedback.`,
+      }).catch(() => {})
+      toast.success('Application rejected, creator notified.')
       setRejectModal(null); setReason(''); fetchApps()
     } catch { toast.error('Failed') }
     setActionId(null)

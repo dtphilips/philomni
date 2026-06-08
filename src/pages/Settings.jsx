@@ -101,6 +101,50 @@ function Card({ children, className = '' }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Ad Settings Card (monetized creators only) ────────────────────────────────
+function AdSettingsCard({ user }) {
+  const [allowPreRoll,  setAllowPreRoll]  = useState(user?.allow_pre_roll  !== false)
+  const [allowMidRoll,  setAllowMidRoll]  = useState(user?.allow_mid_roll  !== false)
+  const [allowEndRoll,  setAllowEndRoll]  = useState(user?.allow_end_roll  !== false)
+  const [saving,        setSaving]        = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    const { error } = await supabase
+      .from('users')
+      .update({ allow_pre_roll: allowPreRoll, allow_mid_roll: allowMidRoll, allow_end_roll: allowEndRoll })
+      .eq('id', user.id)
+    setSaving(false)
+    if (error) toast.error('Failed to save ad settings.')
+    else toast.success('Ad settings saved.')
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-sm">Ad Settings</h3>
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 font-medium">Monetized</span>
+      </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        Control which ad slots appear on your videos. You earn <strong>55%</strong> of revenue from each ad view.
+        Disabling slots reduces potential earnings.
+      </p>
+      <Toggle value={allowPreRoll} onChange={v => setAllowPreRoll(v)}
+        label="Pre-roll ads" desc="Ad plays before your video starts" />
+      <Toggle value={allowMidRoll} onChange={v => setAllowMidRoll(v)}
+        label="Mid-roll ads" desc="Ad plays at the 50% point of your video" />
+      <Toggle value={allowEndRoll} onChange={v => setAllowEndRoll(v)}
+        label="End-roll ads" desc="Ad plays in the last 5 seconds of your video" />
+      <button onClick={save} disabled={saving}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
+        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+        Save Ad Settings
+      </button>
+    </Card>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ── Cancel Subscription Button ─────────────────────────────────────────────────
 function CancelSubscriptionButton({ userId }) {
   const [loading,  setLoading]  = useState(false)
@@ -531,6 +575,19 @@ export default function Settings() {
               <Toggle key={item.key} value={true} onChange={() => {}} label={item.label} desc={item.desc} />
             ))}
           </Card>
+
+          {/* Ad Settings — only for monetized creators */}
+          {user?.monetization_enabled ? (
+            <AdSettingsCard user={user} />
+          ) : (
+            <Card>
+              <h3 className="font-semibold text-sm">Ad Settings</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                <Link to="/creator-monetize" className="text-primary hover:underline">Apply for content monetization</Link>
+                {' '}to control which ad slots appear on your videos and earn 55% of ad revenue.
+              </p>
+            </Card>
+          )}
         </Section>
       );
 

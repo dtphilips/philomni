@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import EmojiPickerButton, { insertAtCursor } from '../components/EmojiPickerButton'
+import AdOverlay from '../components/AdOverlay'
+import { getInVideoCampaigns, selectAdForVideo } from '../utils/adMatcher'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toggleLike, toggleSave, checkLiked, checkSaved } from '../lib/postActions'
@@ -403,7 +405,7 @@ function ReportSheet({ onClose }) {
 }
 
 // ─── Single Reel Slide ────────────────────────────────────────────────────────
-function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsCallback, onActivate, onHide }) {
+function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsCallback, onActivate, onHide, inVideoCampaigns = [] }) {
   const [reel, setReel] = useState(initialReel)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showPlayIcon, setShowPlayIcon] = useState(false)
@@ -427,6 +429,14 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
   const [showEditCaption, setShowEditCaption] = useState(false)
   const [showInsights, setShowInsights] = useState(false)
   const [showReport, setShowReport] = useState(false)
+
+  // ── In-video ad state ──────────────────────────────────────────────────
+  const [currentAd,      setCurrentAd]      = useState(null)
+  const [adSlot,         setAdSlot]         = useState(null)
+  const [preRollShown,   setPreRollShown]   = useState(false)
+  const [midRollShown,   setMidRollShown]   = useState(false)
+  const [endRollShown,   setEndRollShown]   = useState(false)
+  const [creatorMonetized, setCreatorMonetized] = useState(false)
 
   const videoRef = useRef(null)
   const viewTracked = useRef(false)
@@ -459,6 +469,47 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
     supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', authorId).maybeSingle()
       .then(({ data }) => setIsFollowing(!!data))
   }, [user, authorId, isOwnReel, isSample])
+
+  // Fetch creator monetization status for in-video ad eligibility
+  useEffect(() => {
+    if (!authorId || isSample) return
+    supabase.from('users').select('monetization_enabled,is_monetized').eq('id', authorId).single()
+      .then(({ data }) => {
+        setCreatorMonetized(data?.monetization_enabled === true || data?.is_monetized === true)
+      })
+  }, [authorId, isSample])
+
+  // ── In-video ad helpers ───────────────────────────────────────────────
+  const tryShowAd = (slot) => {
+    if (!creatorMonetized) return false
+    const ad = selectAdForVideo(inVideoCampaigns, reel)
+    if (!ad) return false
+    setCurrentAd(ad)
+    setAdSlot(slot)
+    videoRef.current?.pause()
+    return true
+  }
+
+  const handleAdComplete = () => {
+    setCurrentAd(null)
+    setAdSlot(null)
+    videoRef.current?.play().catch(() => {})
+  }
+
+  const handleTimeUpdate = (e) => {
+    const video = e.target
+    if (!video.duration) return
+    const pct = video.currentTime / video.duration
+    const remaining = video.duration - video.currentTime
+    if (pct >= 0.5 && !midRollShown) {
+      setMidRollShown(true)
+      tryShowAd('mid_roll')
+    }
+    if (remaining <= 5 && remaining > 0 && !endRollShown) {
+      setEndRollShown(true)
+      tryShowAd('end_roll')
+    }
+  }
 
   // Sync muted attribute
   useEffect(() => {
@@ -560,28 +611,17 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
     <div className="relative h-screen w-full snap-start bg-black flex items-center justify-center flex-shrink-0"
       data-index={index}>
 
-      {/* ════════════════════════════════════════════════════════════════════
-          IN-VIDEO AD SLOTS (FOUNDATION — NOT YET ACTIVATED)
-          When in-video ads are switched on, the AdOverlay component
-          (src/components/AdOverlay.jsx) is mounted in these slots:
-
-          // PRE-ROLL AD SLOT
-          // TODO: Inject pre-roll ad here when in-video ads activated
-          //   - Check reel author's users.is_monetized = true
-          //   - Check for active in_video ad campaigns matching this content
-          //   - If yes: pause video, render <AdOverlay campaign={...}
-          //       onComplete={resumeVideo} onSkip={resumeVideo} />, then play
-
-          // MID-ROLL AD SLOT
-          // TODO: Inject at Math.floor(videoRef.current.duration * 0.5) seconds
-          //   via the onTimeUpdate handler below.
-
-          // END-ROLL AD SLOT
-          // TODO: Inject at (duration - 5) seconds via onTimeUpdate.
-
-          Impression accounting: call supabase.rpc('increment_ad_impressions',
-          { p_campaign_id }) when an ad slot renders.
-          ════════════════════════════════════════════════════════════════════ */}
+      {/* ── In-video AdOverlay (pre/mid/end roll) ── */}
+      {currentAd && (
+        <AdOverlay
+          campaign={currentAd}
+          slot={adSlot}
+          postId={reel.id}
+          creatorId={authorId}
+          onComplete={handleAdComplete}
+          onSkip={handleAdComplete}
+        />
+      )}
 
       {/* Video */}
       {videoSrc ? (
@@ -593,16 +633,15 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
           data-index={index}
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           onClick={handleVideoClick}
-          onTimeUpdate={() => {
-            // IN-VIDEO AD HOOK (inert until activated):
-            // const d = videoRef.current?.duration
-            // const t = videoRef.current?.currentTime
-            // if (d && t >= Math.floor(d * 0.5)) { /* mid-roll slot */ }
-            // if (d && t >= d - 5)              { /* end-roll slot */ }
-          }}
+          onTimeUpdate={handleTimeUpdate}
           onError={e => console.warn('[Reels] video error', videoSrc, e)}
           onPlay={() => {
             setIsPlaying(true)
+            // Pre-roll ad: trigger once on first play
+            if (!preRollShown) {
+              setPreRollShown(true)
+              tryShowAd('pre_roll')
+            }
             if (!viewTracked.current && !isSample) {
               viewTimerRef.current = setTimeout(async () => {
                 if (viewTracked.current) return
@@ -802,6 +841,7 @@ export default function Reels() {
   const [loading, setLoading] = useState(true)
   const [isMuted, setIsMuted] = useState(true)
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [inVideoCampaigns, setInVideoCampaigns] = useState([])
   const containerRef = useRef(null)
   const videoRefsMap = useRef({})
   const observerRef = useRef(null)
@@ -814,6 +854,11 @@ export default function Reels() {
 
   const videoRefsCallback = useCallback((index, ref) => {
     videoRefsMap.current[index] = ref
+  }, [])
+
+  // Fetch active in-video ad campaigns once on page load
+  useEffect(() => {
+    getInVideoCampaigns().then(setInVideoCampaigns).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -912,6 +957,7 @@ export default function Reels() {
           videoRefsCallback={videoRefsCallback}
           onActivate={setCurrentIndex}
           onHide={handleHide}
+          inVideoCampaigns={inVideoCampaigns}
         />
       ))}
     </div>
