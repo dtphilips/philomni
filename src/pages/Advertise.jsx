@@ -447,23 +447,32 @@ export default function Advertise() {
       </div>
 
       {/* Placement options */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         {[
           { id: 'feed',     emoji: '📰', title: 'Feed Ads',      desc: 'Native posts in the main feed' },
           { id: 'invideo',  emoji: '🎬', title: 'In-Video Ads',  desc: 'Pre/mid-roll on creator videos', soon: true },
-          { id: 'both',     emoji: '🌐', title: 'Both',          desc: 'Maximum reach across placements' },
+          { id: 'both',     emoji: '🌐', title: 'Both',          desc: 'Maximum reach across placements', soon: true },
         ].map(p => (
-          <div key={p.id}
-            className="relative bg-card border border-border rounded-2xl p-4 hover:border-primary/40 transition-colors">
+          <button key={p.id} disabled={p.soon}
+            onClick={() => !p.soon && navigate('/create-campaign')}
+            className={`relative bg-card border rounded-2xl p-4 text-left transition-colors ${
+              p.soon ? 'opacity-50 cursor-not-allowed border-border' : 'border-border hover:border-primary/40'
+            }`}>
             {p.soon && (
               <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Soon</span>
             )}
             <div className="text-2xl mb-2">{p.emoji}</div>
             <p className="font-semibold text-foreground text-sm">{p.title}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{p.desc}</p>
-          </div>
+          </button>
         ))}
       </div>
+
+      {/* Primary CTA → multi-step campaign builder */}
+      <button onClick={() => navigate('/create-campaign')}
+        className="w-full sm:w-auto mb-6 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors">
+        <Megaphone className="w-4 h-4" /> Start Your Campaign →
+      </button>
 
       {/* Enterprise note — custom budgets over $5,000 use the contact form */}
       <div className="mb-6 flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 rounded-xl px-4 py-2.5">

@@ -50,6 +50,15 @@ export default function MyAds() {
 
   useEffect(() => { fetchAll() }, [user?.id])
 
+  // Show confirmation after a campaign is submitted from the builder
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('submitted') === 'true') {
+      toast.success('Campaign submitted! We review within 24 hours.')
+      window.history.replaceState({}, '', '/my-campaigns')
+    }
+  }, [])
+
   const toggleCampaign = async (c) => {
     setToggling(c.id)
     const newStatus = c.status === 'active' ? 'paused' : 'active'

@@ -134,6 +134,7 @@ const Partners        = lazy(() => import('./pages/Partners'))
 const VerifyBadge     = lazy(() => import('./pages/VerifyBadge'))
 const CreatorMonetize = lazy(() => import('./pages/CreatorMonetize'))
 const Advertise       = lazy(() => import('./pages/Advertise'))
+const CreateCampaign  = lazy(() => import('./pages/CreateCampaign'))
 const MyAds           = lazy(() => import('./pages/MyAds'))
 
 // Creator Economy
@@ -380,7 +381,7 @@ export default function App() {
               {/* Monetize / Ads */}
               <Route path="/monetize"  element={<R page={CreatorMonetize} auth />} />
               <Route path="/advertise" element={<R page={Advertise} auth />} />
-              <Route path="/create-campaign" element={<R page={Advertise} auth />} />
+              <Route path="/create-campaign" element={<R page={CreateCampaign} auth />} />
               <Route path="/my-ads"    element={<R page={MyAds} auth />} />
               <Route path="/my-campaigns" element={<R page={MyAds} auth />} />
 

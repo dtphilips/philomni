@@ -17,6 +17,20 @@ const STATUS_CFG = {
   completed: { color: 'text-muted-foreground bg-muted'   },
 }
 
+async function callApproveCampaign(body) {
+  const res = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/approve-campaign`,
+    {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      body:    JSON.stringify(body),
+    },
+  )
+  const data = await res.json()
+  if (data.error) throw new Error(data.error)
+  return data
+}
+
 export default function AdminAds() {
   const { user } = useAuth()
   const [tab, setTab] = useState('pending_campaigns')
@@ -24,6 +38,8 @@ export default function AdminAds() {
   const [boosts, setBoosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [actionId, setActionId] = useState(null)
+  const [rejectTarget, setRejectTarget] = useState(null)  // campaign being rejected
+  const [rejectReason, setRejectReason] = useState('')
 
   if (user && !user.is_admin) return <Navigate to="/" replace />
 
@@ -45,18 +61,41 @@ export default function AdminAds() {
   useEffect(() => { fetchData() }, [])
 
   const approveCampaign = async (c) => {
+    const budget = c.total_budget ?? c.budget ?? 0
+    if (!window.confirm(`Approve this campaign? $${Number(budget).toFixed(2)} will be captured from the advertiser's card.`)) return
     setActionId(c.id)
-    await supabase.from('ad_campaigns').update({ status: 'active', starts_at: new Date().toISOString() }).eq('id', c.id)
-    toast.success(`Campaign "${c.title}" approved.`)
-    fetchData()
+    try {
+      // Use edge function only when there's a Stripe authorization to capture;
+      // legacy campaigns (no payment intent) just flip status.
+      if (c.stripe_payment_intent_id) {
+        await callApproveCampaign({ campaignId: c.id, action: 'approve', adminId: user.id })
+      } else {
+        await supabase.from('ad_campaigns').update({ status: 'active', starts_at: new Date().toISOString() }).eq('id', c.id)
+      }
+      toast.success('Campaign approved and live!')
+      fetchData()
+    } catch (err) {
+      toast.error(err.message || 'Approval failed')
+    }
     setActionId(null)
   }
 
-  const rejectCampaign = async (c) => {
+  const submitReject = async () => {
+    const c = rejectTarget
+    if (!c) return
     setActionId(c.id)
-    await supabase.from('ad_campaigns').update({ status: 'rejected' }).eq('id', c.id)
-    toast.success('Campaign rejected.')
-    fetchData()
+    try {
+      if (c.stripe_payment_intent_id) {
+        await callApproveCampaign({ campaignId: c.id, action: 'reject', adminId: user.id, rejectionReason: rejectReason })
+      } else {
+        await supabase.from('ad_campaigns').update({ status: 'rejected', rejection_reason: rejectReason || null }).eq('id', c.id)
+      }
+      toast.success('Campaign rejected — advertiser refunded.')
+      setRejectTarget(null); setRejectReason('')
+      fetchData()
+    } catch (err) {
+      toast.error(err.message || 'Rejection failed')
+    }
     setActionId(null)
   }
 
@@ -144,7 +183,7 @@ export default function AdminAds() {
                 {pendingCampaigns.map(c => (
                   <CampaignRow key={c.id} campaign={c} actionId={actionId}
                     onApprove={() => approveCampaign(c)}
-                    onReject={() => rejectCampaign(c)} />
+                    onReject={() => { setRejectTarget(c); setRejectReason('') }} />
                 ))}
               </div>
             )
@@ -240,6 +279,29 @@ export default function AdminAds() {
           )}
         </>
       )}
+
+      {/* Reject modal */}
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setRejectTarget(null)} />
+          <div className="relative bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="font-bold text-foreground text-lg mb-1">Reject Campaign</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              The advertiser's card authorization will be released (no charge). The reason below is emailed to them.
+            </p>
+            <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+              placeholder="Reason for rejection (sent to advertiser)…" rows={3}
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none mb-4" />
+            <div className="flex gap-3">
+              <button onClick={() => setRejectTarget(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+              <button onClick={submitReject} disabled={actionId === rejectTarget.id}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2">
+                {actionId === rejectTarget.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -265,9 +327,19 @@ function CampaignRow({ campaign: c, actionId, onApprove, onReject, onPauseResume
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">{c.description}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                By: {c.users?.full_name || c.users?.email} · ${c.budget} budget ·{' '}
+                By: {c.users?.full_name || c.users?.email} · ${c.total_budget ?? c.budget} budget ·{' '}
                 {new Date(c.created_at).toLocaleDateString()}
               </p>
+              {c.stripe_payment_intent_id && (
+                <p className="text-xs mt-1">
+                  <span className={c.stripe_payment_status === 'captured' ? 'text-green-400' : 'text-amber-400'}>
+                    {c.stripe_payment_status === 'captured' ? '✓ Payment captured' : '✓ Payment authorized'} (${(c.total_budget ?? c.budget ?? 0)})
+                  </span>
+                </p>
+              )}
+              {c.website_url && (
+                <p className="text-xs text-muted-foreground">🔗 {c.website_url}</p>
+              )}
             </div>
           </div>
           {showStats && (
