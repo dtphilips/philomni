@@ -1,76 +1,239 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 /**
- * AdOverlay — in-video ad player (FOUNDATION / NOT YET ACTIVATED).
- *
- * Renders a full-bleed ad creative over a video with a skip countdown.
- * Currently unused — the video players have ad-slot hooks (see Reels.jsx)
- * that are intentionally inert until in-video ads are switched on.
+ * AdOverlay — full in-video ad player.
  *
  * Props:
- *   campaign    { creative: { file_url }, website_url, advertiser_name }
- *   onComplete  fn — ad finished playing
- *   onSkip      fn — user skipped after the skip window
- *   skipAfter   number — seconds before skip is allowed (default 5)
+ *   campaign    — ad_campaigns row (with ad_creatives[] joined)
+ *   slot        — 'pre_roll' | 'mid_roll' | 'end_roll'
+ *   postId      — UUID of the host reel
+ *   creatorId   — UUID of the reel's author (earns 55% CPM)
+ *   onComplete  — called when ad finishes playing naturally
+ *   onSkip      — called when user skips (also calls onComplete)
  */
-export default function AdOverlay({ campaign, onComplete, onSkip, skipAfter = 5 }) {
-  const [countdown, setCountdown] = useState(skipAfter)
-  const [canSkip,   setCanSkip]   = useState(false)
+const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) => {
+  const { user } = useAuth()
+  const [countdown, setCountdown]     = useState(5)
+  const [canSkip, setCanSkip]         = useState(false)
+  const [watchSeconds, setWatchSeconds] = useState(0)
+  const [impressionId, setImpressionId] = useState(null)
+  const watchTimerRef   = useRef(null)
+  const countdownRef    = useRef(null)
 
+  const creative   = campaign?.ad_creatives?.[0]
+  const adDuration = creative?.duration_seconds ?? 30
+  const cpmBid     = campaign?.cpm_bid ?? 5.00
+
+  // Record impression + start timers on mount
   useEffect(() => {
-    const timer = setInterval(() => {
+    const recordImpression = async () => {
+      const { data } = await supabase
+        .from('ad_impressions')
+        .insert({
+          campaign_id:  campaign.id,
+          ad_type:      'in_video',
+          ad_id:        campaign.id,
+          viewer_id:    user?.id ?? null,
+          post_id:      postId,
+          placement:    slot,
+          ad_slot:      slot,
+          skipped:      false,
+          earned:       false,
+          watch_seconds: 0,
+          clicked:      false,
+        })
+        .select()
+        .single()
+      if (data) setImpressionId(data.id)
+    }
+
+    recordImpression()
+
+    // Watch-time counter
+    watchTimerRef.current = setInterval(() => {
+      setWatchSeconds(prev => prev + 1)
+    }, 1000)
+
+    // Skip countdown (5 s)
+    countdownRef.current = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
           setCanSkip(true)
-          clearInterval(timer)
+          clearInterval(countdownRef.current)
           return 0
         }
         return prev - 1
       })
     }, 1000)
-    return () => clearInterval(timer)
+
+    return () => {
+      clearInterval(watchTimerRef.current)
+      clearInterval(countdownRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const recordEarning = async (watched) => {
+    if (!impressionId || !creatorId) return
+    await supabase
+      .rpc('record_invideo_ad_earning', {
+        p_campaign_id:   campaign.id,
+        p_creator_id:    creatorId,
+        p_post_id:       postId,
+        p_impression_id: impressionId,
+        p_watch_seconds: watched,
+        p_ad_duration:   adDuration,
+        p_cpm_bid:       cpmBid,
+      })
+      .catch(console.error)
+  }
+
+  const handleSkip = async () => {
+    clearInterval(watchTimerRef.current)
+    clearInterval(countdownRef.current)
+    await recordEarning(watchSeconds)
+    if (impressionId) {
+      await supabase
+        .from('ad_impressions')
+        .update({ skipped: true, watch_seconds: watchSeconds })
+        .eq('id', impressionId)
+        .catch(console.error)
+    }
+    onSkip?.()
+    onComplete?.()
+  }
+
+  const handleAdEnded = async () => {
+    clearInterval(watchTimerRef.current)
+    clearInterval(countdownRef.current)
+    await recordEarning(adDuration)
+    onComplete?.()
+  }
+
+  const handleVisitClick = () => {
+    if (!impressionId) return
+    supabase
+      .from('ad_impressions')
+      .update({ clicked: true })
+      .eq('id', impressionId)
+      .catch(console.error)
+  }
 
   if (!campaign) return null
 
   return (
-    <div className="absolute inset-0 z-30 bg-black flex items-center justify-center">
-      <video
-        src={campaign.creative?.file_url}
-        autoPlay
-        playsInline
-        className="w-full h-full object-contain"
-        onEnded={onComplete}
-      />
+    <div style={{
+      position: 'absolute', inset: 0,
+      background: '#000', zIndex: 100,
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Creative */}
+      {creative?.file_type === 'video' ? (
+        <video
+          src={creative.file_url}
+          autoPlay
+          playsInline
+          onEnded={handleAdEnded}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      ) : creative?.file_url ? (
+        <img
+          src={creative.file_url}
+          alt="Ad"
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      ) : (
+        <div style={{
+          flex: 1,
+          background: 'rgba(139,92,246,0.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontSize: 24, fontWeight: 700,
+        }}>
+          {campaign?.brand_name}
+        </div>
+      )}
 
-      {/* Ad UI */}
-      <div className="absolute inset-x-0 bottom-0 p-4 flex items-center justify-between gap-3 bg-gradient-to-t from-black/80 to-transparent">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-white/90 bg-yellow-500/90 px-2 py-0.5 rounded">
-          Ad{campaign.advertiser_name ? ` · ${campaign.advertiser_name}` : ''}
+      {/* Top bar — Ad label + brand */}
+      <div style={{
+        position: 'absolute', top: 12, left: 12, right: 12,
+        display: 'flex', gap: 8,
+      }}>
+        <span style={{
+          background: 'rgba(0,0,0,0.7)', color: '#FFD700',
+          fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4,
+        }}>
+          Ad
         </span>
+        {campaign?.brand_name && (
+          <span style={{
+            background: 'rgba(0,0,0,0.7)', color: '#fff',
+            fontSize: 12, padding: '3px 10px', borderRadius: 4,
+          }}>
+            {campaign.brand_name}
+          </span>
+        )}
+      </div>
 
-        {campaign.website_url && (
+      {/* Bottom bar — Visit Site + Skip */}
+      <div style={{
+        position: 'absolute', bottom: 20, left: 12, right: 12,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        {campaign?.website_url ? (
           <a
             href={campaign.website_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs font-semibold text-white bg-primary px-3 py-1.5 rounded-full hover:bg-primary/90 transition-colors"
+            onClick={handleVisitClick}
+            style={{
+              background: '#fff', color: '#000',
+              padding: '8px 16px', borderRadius: 6,
+              fontSize: 13, fontWeight: 700, textDecoration: 'none',
+            }}
           >
             Visit Site →
           </a>
-        )}
+        ) : <div />}
 
         {canSkip ? (
           <button
-            onClick={onSkip}
-            className="text-xs font-semibold text-white bg-white/20 px-3 py-1.5 rounded-full hover:bg-white/30 transition-colors"
+            onClick={handleSkip}
+            style={{
+              background: 'rgba(0,0,0,0.8)',
+              border: '1px solid rgba(255,255,255,0.4)',
+              color: '#fff', padding: '8px 16px',
+              borderRadius: 6, fontSize: 13, cursor: 'pointer',
+            }}
           >
-            Skip Ad →
+            Skip Ad ›
           </button>
         ) : (
-          <span className="text-xs text-white/70">Skip in {countdown}s</span>
+          <div style={{
+            background: 'rgba(0,0,0,0.7)',
+            color: 'rgba(255,255,255,0.7)',
+            padding: '8px 16px', borderRadius: 6, fontSize: 13,
+          }}>
+            Skip in {countdown}s
+          </div>
         )}
+      </div>
+
+      {/* Progress bar */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        height: 3, background: 'rgba(255,255,255,0.2)',
+      }}>
+        <div style={{
+          height: '100%',
+          width: `${Math.min(100, (watchSeconds / adDuration) * 100)}%`,
+          background: '#FFD700',
+          transition: 'width 1s linear',
+        }} />
       </div>
     </div>
   )
 }
+
+export default AdOverlay
