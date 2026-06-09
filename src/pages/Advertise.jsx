@@ -449,18 +449,13 @@ export default function Advertise() {
       {/* Placement options */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         {[
-          { id: 'feed',     emoji: '📰', title: 'Feed Ads',      desc: 'Native posts in the main feed' },
-          { id: 'invideo',  emoji: '🎬', title: 'In-Video Ads',  desc: 'Pre/mid-roll on creator videos', soon: true },
-          { id: 'both',     emoji: '🌐', title: 'Both',          desc: 'Maximum reach across placements', soon: true },
+          { id: 'feed',     emoji: '📰', title: 'Feed Ads',      desc: 'Native posts between content in the main feed' },
+          { id: 'invideo',  emoji: '🎬', title: 'In-Video Ads',  desc: 'Pre/mid/end-roll on monetized creator videos' },
+          { id: 'both',     emoji: '🚀', title: 'Both',          desc: 'Maximum reach — feed + creator videos' },
         ].map(p => (
-          <button key={p.id} disabled={p.soon}
-            onClick={() => !p.soon && navigate('/create-campaign')}
-            className={`relative bg-card border rounded-2xl p-4 text-left transition-colors ${
-              p.soon ? 'opacity-50 cursor-not-allowed border-border' : 'border-border hover:border-primary/40'
-            }`}>
-            {p.soon && (
-              <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Soon</span>
-            )}
+          <button key={p.id}
+            onClick={() => navigate('/create-campaign')}
+            className="relative bg-card border border-border rounded-2xl p-4 text-left transition-colors hover:border-primary/40">
             <div className="text-2xl mb-2">{p.emoji}</div>
             <p className="font-semibold text-foreground text-sm">{p.title}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{p.desc}</p>

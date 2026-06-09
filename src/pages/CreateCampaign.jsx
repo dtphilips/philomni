@@ -14,7 +14,9 @@ const stripePromise = PAYMENT_CONFIG?.stripe?.active
   ? loadStripe(PAYMENT_CONFIG.stripe.publishableKey)
   : null
 
-const DAILY_FEED_RATE = 10 // $/day for feed placement
+const DAILY_FEED_RATE = 10   // $/day for feed placement
+const CPM_RATE        = 5    // $ per 1,000 video views
+const MIN_CPM_BUDGET  = 50   // minimum in-video budget
 
 const PLACEMENT_OPTIONS = [
   { id: 'feed', title: 'Feed Placement', icon: '📱',
@@ -36,6 +38,13 @@ const GOALS = ['Brand Awareness', 'Drive Website Traffic', 'App Downloads', 'Pro
 
 const tomorrow = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0] }
 
+/** Daily rate for feed portion: feed=$10/d, in_video=$0/d (CPM), both=$10/d */
+const getDailyRate = (placement) => placement === 'in_video' ? 0 : DAILY_FEED_RATE
+
+const isValidUrl = (url) => {
+  try { return Boolean(new URL(url)) } catch { return false }
+}
+
 // ── Step 5 payment form ───────────────────────────────────────────────────────
 function PaymentForm({ totalBudget, campaign, creative, onDone }) {
   const stripe = useStripe()
@@ -54,7 +63,10 @@ function PaymentForm({ totalBudget, campaign, creative, onDone }) {
         body: {
           userId: user.id, userEmail: user.email, totalAmount: totalBudget,
           adType: 'campaign', captureMethod: 'manual',
-          campaignData: { name: campaign.name, brand_name: campaign.brandName, placement_type: campaign.placementType, website_url: campaign.websiteUrl },
+          campaignData: {
+            name: campaign.name, brand_name: campaign.brandName,
+            placement_type: campaign.placementType, website_url: campaign.websiteUrl,
+          },
         },
       })
       if (fnErr) throw fnErr
@@ -66,20 +78,35 @@ function PaymentForm({ totalBudget, campaign, creative, onDone }) {
       })
       if (stripeError) throw new Error(stripeError.message)
 
-      // 3. Save campaign (status pending → admin queue). Write new + legacy columns.
+      // 3. Save campaign (status pending → admin queue)
       const { data: camp, error: dbErr } = await supabase.from('ad_campaigns').insert({
         advertiser_id: user.id,
         name: campaign.name, title: campaign.name,
         brand_name: campaign.brandName,
         description: `${campaign.brandName} — ${campaign.goal}`,
-        website_url: campaign.websiteUrl, cta_url: campaign.websiteUrl, cta_text: 'Learn More',
-        campaign_goal: campaign.goal, placement_type: campaign.placementType,
-        image_url: creative.file_type === 'image' ? creative.file_url : null,
-        start_date: campaign.startDate, end_date: campaign.endDate,
-        starts_at: campaign.startDate, ends_at: campaign.endDate,
-        total_budget: totalBudget, budget: totalBudget, daily_budget: DAILY_FEED_RATE,
-        package_type: 'feed',
-        stripe_payment_intent_id: paymentIntent.id, stripe_payment_status: paymentIntent.status,
+        website_url: campaign.websiteUrl,
+        cta_url: campaign.websiteUrl,
+        cta_text: 'Learn More',
+        campaign_goal: campaign.goal,
+        placement_type: campaign.placementType,
+        // goal-specific URL columns
+        ios_url:    campaign.iosUrl    || null,
+        android_url: campaign.androidUrl || null,
+        ticket_url: campaign.ticketUrl || null,
+        image_url:  creative.file_type === 'image' ? creative.file_url : null,
+        start_date: campaign.startDate || null,
+        end_date:   campaign.endDate   || null,
+        starts_at:  campaign.startDate || null,
+        ends_at:    campaign.endDate   || null,
+        total_budget:  totalBudget,
+        budget:        totalBudget,
+        daily_budget:  getDailyRate(campaign.placementType),
+        package_type:  campaign.placementType,
+        // CPM columns
+        cpm_bid:    campaign.placementType !== 'feed' ? CPM_RATE : null,
+        cpm_budget: campaign.placementType !== 'feed' ? campaign.cpmBudget : null,
+        stripe_payment_intent_id: paymentIntent.id,
+        stripe_payment_status:    paymentIntent.status,
         status: 'pending',
       }).select().single()
       if (dbErr) throw dbErr
@@ -93,7 +120,7 @@ function PaymentForm({ totalBudget, campaign, creative, onDone }) {
         thumbnail_url: creative.file_type === 'image' ? creative.file_url : null,
       }).catch(e => console.error('creative insert', e))
 
-      // 5. Confirmation email (also notifies admin)
+      // 5. Confirmation email
       supabase.functions.invoke('send-campaign-email', {
         body: { type: 'received', campaignId: camp.id, advertiserEmail: user.email, campaignName: campaign.name },
       }).catch(() => {})
@@ -134,21 +161,87 @@ export default function CreateCampaign() {
   const [name, setName]             = useState('')
   const [brandName, setBrandName]   = useState('')
   const [websiteUrl, setWebsiteUrl] = useState('')
+  const [iosUrl, setIosUrl]         = useState('')
+  const [androidUrl, setAndroidUrl] = useState('')
+  const [ticketUrl, setTicketUrl]   = useState('')
   const [goal, setGoal]             = useState('')
   const [startDate, setStartDate]   = useState(tomorrow())
   const [endDate, setEndDate]       = useState('')
+  const [cpmBudget, setCpmBudget]   = useState(MIN_CPM_BUDGET)
 
   // Creative
-  const [creative, setCreative]   = useState(null)  // { file_url, file_type, file_name, file_size, duration }
+  const [creative, setCreative]   = useState(null)
   const [uploading, setUploading] = useState(false)
   const [uploadPct, setUploadPct] = useState(0)
+
+  const isInVideo  = placementType === 'in_video'
+  const isFeed     = placementType === 'feed'
+  const isBoth     = placementType === 'both'
+  const hasFeedPart = isFeed || isBoth
+  const hasCpmPart  = isInVideo || isBoth
 
   const durationDays = useMemo(() => {
     if (!startDate || !endDate) return 0
     const d = Math.ceil((new Date(endDate) - new Date(startDate)) / 86_400_000)
     return d > 0 ? d : 0
   }, [startDate, endDate])
-  const totalBudget = Math.max(DAILY_FEED_RATE, durationDays * DAILY_FEED_RATE)
+
+  // Placement-aware total budget
+  const totalBudget = useMemo(() => {
+    const feedCost  = hasFeedPart ? Math.max(DAILY_FEED_RATE, durationDays * DAILY_FEED_RATE) : 0
+    const videoCost = hasCpmPart  ? (cpmBudget || 0) : 0
+    return feedCost + videoCost
+  }, [hasFeedPart, hasCpmPart, durationDays, cpmBudget])
+
+  // Estimated video views from CPM budget
+  const estimatedViews = useMemo(() => {
+    if (!hasCpmPart || !cpmBudget) return 0
+    return Math.round((cpmBudget / CPM_RATE) * 1000)
+  }, [hasCpmPart, cpmBudget])
+
+  // Step 2 URL validation
+  const validateStep2 = () => {
+    if (!name.trim())      { toast.error('Campaign name is required'); return false }
+    if (!brandName.trim()) { toast.error('Brand name is required'); return false }
+    if (!goal)             { toast.error('Please select a campaign goal'); return false }
+
+    if (goal === 'App Downloads') {
+      if (!iosUrl && !androidUrl) {
+        toast.error('Add at least one app store URL (App Store or Google Play)')
+        return false
+      }
+      if (iosUrl && !isValidUrl(iosUrl)) {
+        toast.error('App Store URL is not valid — must start with https://')
+        return false
+      }
+      if (androidUrl && !isValidUrl(androidUrl)) {
+        toast.error('Google Play URL is not valid — must start with https://')
+        return false
+      }
+    } else if (goal === 'Event Promotion') {
+      if (!ticketUrl.trim()) { toast.error('Ticket URL is required for Event Promotion'); return false }
+      if (!isValidUrl(ticketUrl)) { toast.error('Ticket URL is not valid — must start with https://'); return false }
+    } else {
+      if (!websiteUrl.trim()) { toast.error('Website URL is required'); return false }
+      if (!isValidUrl(websiteUrl)) { toast.error('Website URL is not valid — must start with https://'); return false }
+    }
+    return true
+  }
+
+  const handleNext = () => {
+    if (step === 2 && !validateStep2()) return
+    setStep(step + 1)
+  }
+
+  const canNext = {
+    1: !!placementType,
+    2: true, // validated in handleNext → validateStep2
+    3: !!creative,
+    4: isInVideo ? cpmBudget >= MIN_CPM_BUDGET
+       : isFeed  ? durationDays >= 1
+       : /* both */ durationDays >= 1 && cpmBudget >= MIN_CPM_BUDGET,
+    5: true,
+  }[step]
 
   const handleFile = async (file) => {
     if (!file) return
@@ -185,14 +278,6 @@ export default function CreateCampaign() {
     }
     setUploading(false)
   }
-
-  const canNext = {
-    1: !!placementType,
-    2: name.trim() && brandName.trim() && websiteUrl.trim() && goal,
-    3: !!creative,
-    4: durationDays >= 1,
-    5: true,
-  }[step]
 
   const Progress = () => (
     <div className="mb-6">
@@ -244,17 +329,21 @@ export default function CreateCampaign() {
       {/* STEP 2 — Details */}
       {step === 2 && (
         <div className="space-y-4">
-          {[
-            { label: 'Campaign Name', val: name, set: setName, ph: 'Internal reference, e.g. Summer Launch' },
-            { label: 'Brand / Company Name', val: brandName, set: setBrandName, ph: 'Shown on the ad' },
-            { label: 'Website URL', val: websiteUrl, set: setWebsiteUrl, ph: 'https://yoursite.com', type: 'url' },
-          ].map(f => (
-            <div key={f.label}>
-              <label className="block text-sm font-medium text-foreground mb-1.5">{f.label}</label>
-              <input type={f.type || 'text'} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
-                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-            </div>
-          ))}
+          {/* Always-present fields */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Campaign Name</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)}
+              placeholder="Internal reference, e.g. Summer Launch"
+              className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Brand / Company Name</label>
+            <input type="text" value={brandName} onChange={e => setBrandName(e.target.value)}
+              placeholder="Shown on the ad"
+              className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+
+          {/* Goal selector — placed before URL fields so user picks goal first */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Campaign Goal</label>
             <select value={goal} onChange={e => setGoal(e.target.value)}
@@ -263,6 +352,51 @@ export default function CreateCampaign() {
               {GOALS.map(g => <option key={g} value={g}>{g}</option>)}
             </select>
           </div>
+
+          {/* Goal-specific URL fields */}
+          {goal === 'App Downloads' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">🍎 App Store URL (iOS)</label>
+                <input type="url" value={iosUrl} onChange={e => setIosUrl(e.target.value)}
+                  placeholder="https://apps.apple.com/…"
+                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">🤖 Google Play URL (Android)</label>
+                <input type="url" value={androidUrl} onChange={e => setAndroidUrl(e.target.value)}
+                  placeholder="https://play.google.com/store/apps/details?id=…"
+                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <p className="text-xs text-muted-foreground -mt-1">At least one store URL required. Users see the right store for their device.</p>
+            </>
+          )}
+
+          {goal === 'Event Promotion' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">🎟️ Ticket / Registration URL</label>
+                <input type="url" value={ticketUrl} onChange={e => setTicketUrl(e.target.value)}
+                  placeholder="https://eventbrite.com/… or your ticketing page"
+                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">🌐 Event Website <span className="text-muted-foreground font-normal">(optional)</span></label>
+                <input type="url" value={websiteUrl} onChange={e => setWebsiteUrl(e.target.value)}
+                  placeholder="https://myevent.com"
+                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+            </>
+          )}
+
+          {goal && goal !== 'App Downloads' && goal !== 'Event Promotion' && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">🌐 Website URL</label>
+              <input type="url" value={websiteUrl} onChange={e => setWebsiteUrl(e.target.value)}
+                placeholder="https://yoursite.com"
+                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+          )}
         </div>
       )}
 
@@ -316,28 +450,77 @@ export default function CreateCampaign() {
       {/* STEP 4 — Schedule & budget */}
       {step === 4 && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Start Date</label>
-              <input type="date" min={tomorrow()} value={startDate} onChange={e => setStartDate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+          {/* Feed date pickers (not shown for in_video) */}
+          {hasFeedPart && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Start Date</label>
+                <input type="date" min={tomorrow()} value={startDate} onChange={e => setStartDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">End Date</label>
+                <input type="date" min={startDate} value={endDate} onChange={e => setEndDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
             </div>
+          )}
+
+          {/* CPM budget input (for in_video and both) */}
+          {hasCpmPart && (
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">End Date</label>
-              <input type="date" min={startDate} value={endDate} onChange={e => setEndDate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                🎬 In-Video Ad Budget
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  (${CPM_RATE} CPM · minimum ${MIN_CPM_BUDGET})
+                </span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                <input
+                  type="number"
+                  min={MIN_CPM_BUDGET}
+                  step={10}
+                  value={cpmBudget}
+                  onChange={e => setCpmBudget(Math.max(0, Number(e.target.value)))}
+                  className="w-full pl-7 pr-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              {cpmBudget >= MIN_CPM_BUDGET && (
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  ≈ {estimatedViews.toLocaleString()} video views estimated
+                </p>
+              )}
+              {cpmBudget > 0 && cpmBudget < MIN_CPM_BUDGET && (
+                <p className="text-xs text-amber-500 mt-1.5">Minimum in-video budget is ${MIN_CPM_BUDGET}.</p>
+              )}
             </div>
-          </div>
+          )}
+
+          {/* Summary card */}
           <div className="bg-card border border-border rounded-2xl p-4 space-y-1.5 text-sm">
             <p className="font-semibold text-foreground mb-2">Campaign Summary</p>
-            <Row label="Placement" value="Feed" />
-            <Row label="Duration" value={`${durationDays} day${durationDays !== 1 ? 's' : ''}`} />
-            <Row label="Daily reach" value="500–2,000" />
-            <Row label="Daily cost" value={`$${DAILY_FEED_RATE.toFixed(2)}`} />
+            {hasFeedPart && (
+              <>
+                <Row label="Feed placement" value={durationDays > 0 ? `${durationDays} day${durationDays !== 1 ? 's' : ''}` : '—'} />
+                <Row label="Feed daily cost" value={`$${DAILY_FEED_RATE.toFixed(2)}/day`} />
+                <Row label="Feed subtotal" value={durationDays >= 1 ? `$${(durationDays * DAILY_FEED_RATE).toFixed(2)}` : '—'} />
+              </>
+            )}
+            {hasCpmPart && (
+              <>
+                <Row label="In-video budget" value={`$${(cpmBudget || 0).toFixed(2)}`} />
+                <Row label="CPM rate" value={`$${CPM_RATE.toFixed(2)} per 1k views`} />
+                {estimatedViews > 0 && <Row label="Est. video views" value={estimatedViews.toLocaleString()} />}
+              </>
+            )}
             <div className="border-t border-border my-2" />
             <Row label="Total" value={`$${totalBudget.toFixed(2)}`} bold />
           </div>
-          {durationDays < 1 && <p className="text-xs text-amber-500">Select an end date at least 1 day after start (minimum budget $10).</p>}
+
+          {hasFeedPart && durationDays < 1 && (
+            <p className="text-xs text-amber-500">Select an end date at least 1 day after start date.</p>
+          )}
         </div>
       )}
 
@@ -348,10 +531,31 @@ export default function CreateCampaign() {
             <p className="font-semibold text-foreground mb-2">Review</p>
             <Row label="Campaign" value={name} />
             <Row label="Brand" value={brandName} />
-            <Row label="Website" value={websiteUrl} />
             <Row label="Goal" value={goal} />
-            <Row label="Schedule" value={`${startDate} → ${endDate} (${durationDays}d)`} />
+            <Row label="Placement" value={
+              isInVideo ? 'In-Video (CPM)' : isFeed ? 'Feed' : 'Feed + In-Video'
+            } />
+            {/* Goal-specific URL preview */}
+            {goal === 'App Downloads' && (
+              <>
+                {iosUrl    && <Row label="App Store"    value={iosUrl.replace(/^https?:\/\//, '')} />}
+                {androidUrl && <Row label="Google Play" value={androidUrl.replace(/^https?:\/\//, '')} />}
+              </>
+            )}
+            {goal === 'Event Promotion' && ticketUrl && (
+              <Row label="Ticket URL" value={ticketUrl.replace(/^https?:\/\//, '')} />
+            )}
+            {goal !== 'App Downloads' && websiteUrl && (
+              <Row label="Website" value={websiteUrl.replace(/^https?:\/\//, '')} />
+            )}
+            {/* Schedule */}
+            {hasFeedPart && startDate && endDate && (
+              <Row label="Schedule" value={`${startDate} → ${endDate} (${durationDays}d)`} />
+            )}
             <div className="border-t border-border my-2" />
+            {/* Budget breakdown */}
+            {hasFeedPart && <Row label="Feed cost" value={`$${(durationDays * DAILY_FEED_RATE).toFixed(2)}`} />}
+            {hasCpmPart  && <Row label="In-video budget" value={`$${(cpmBudget || 0).toFixed(2)}`} />}
             <Row label="Total to authorize" value={`$${totalBudget.toFixed(2)}`} bold />
           </div>
           {creative && (
@@ -365,7 +569,14 @@ export default function CreateCampaign() {
             <Elements stripe={stripePromise}>
               <PaymentForm
                 totalBudget={totalBudget}
-                campaign={{ name, brandName, websiteUrl, goal, placementType, startDate, endDate }}
+                campaign={{
+                  name, brandName, goal, placementType,
+                  websiteUrl: websiteUrl || ticketUrl || iosUrl || androidUrl || '',
+                  iosUrl, androidUrl, ticketUrl,
+                  startDate: hasFeedPart ? startDate : null,
+                  endDate:   hasFeedPart ? endDate   : null,
+                  cpmBudget: hasCpmPart  ? cpmBudget : 0,
+                }}
                 creative={creative}
                 onDone={() => navigate('/my-campaigns?submitted=true')}
               />
@@ -383,7 +594,7 @@ export default function CreateCampaign() {
             className="flex items-center gap-1 px-4 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted">
             <ChevronLeft className="w-4 h-4" /> Back
           </button>
-          <button onClick={() => canNext && setStep(step + 1)} disabled={!canNext}
+          <button onClick={() => canNext && handleNext()} disabled={!canNext}
             className="flex items-center gap-1 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50">
             Next <ChevronRight className="w-4 h-4" />
           </button>

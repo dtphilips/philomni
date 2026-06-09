@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { getAdCTA } from '../utils/adCTA'
 
 /**
  * AdOverlay — full in-video ad player.
@@ -123,6 +124,8 @@ const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) =>
 
   if (!campaign) return null
 
+  const cta = getAdCTA(campaign)
+
   return (
     <div style={{
       position: 'absolute', inset: 0,
@@ -181,20 +184,36 @@ const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) =>
         position: 'absolute', bottom: 20, left: 12, right: 12,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        {campaign?.website_url ? (
-          <a
-            href={campaign.website_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={handleVisitClick}
-            style={{
-              background: '#fff', color: '#000',
-              padding: '8px 16px', borderRadius: 6,
-              fontSize: 13, fontWeight: 700, textDecoration: 'none',
-            }}
-          >
-            Visit Site →
-          </a>
+        {cta.url ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+            <a
+              href={cta.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleVisitClick}
+              style={{
+                background: '#fff', color: '#000',
+                padding: '8px 16px', borderRadius: 6,
+                fontSize: 13, fontWeight: 700, textDecoration: 'none',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              {cta.icon} {cta.text}
+            </a>
+            {cta.secondaryText && cta.secondaryUrl && (
+              <a
+                href={cta.secondaryUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: 'rgba(255,255,255,0.75)',
+                  fontSize: 11, textDecoration: 'underline',
+                }}
+              >
+                {cta.secondaryText}
+              </a>
+            )}
+          </div>
         ) : <div />}
 
         {canSkip ? (

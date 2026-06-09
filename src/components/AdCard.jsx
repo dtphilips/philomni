@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { getAdCTA } from '../utils/adCTA'
 
 /**
  * AdCard — a sponsored campaign card for the feed.
@@ -48,7 +49,7 @@ export default function AdCard({ campaign }) {
 
   const creative = campaign.ad_creatives?.[0]
   const brand    = campaign.brand_name || campaign.title || 'Sponsored'
-  const url      = campaign.website_url || campaign.cta_url || ''
+  const cta      = getAdCTA(campaign)
 
   return (
     <div ref={cardRef} onClick={handleClick}
@@ -80,11 +81,30 @@ export default function AdCard({ campaign }) {
       <div className="px-4 py-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground truncate">{campaign.name || campaign.title}</p>
-          <p className="text-xs text-muted-foreground truncate">{url.replace(/^https?:\/\//, '')}</p>
+          <p className="text-xs text-muted-foreground truncate">{(cta.url || '').replace(/^https?:\/\//, '')}</p>
         </div>
-        <button className="flex-shrink-0 text-xs font-semibold text-primary-foreground bg-primary px-3.5 py-2 rounded-lg hover:bg-primary/90 transition-colors">
-          {campaign.cta_text || 'Learn More'} →
-        </button>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <a
+            href={cta.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => { e.stopPropagation(); handleClick() }}
+            className="text-xs font-semibold text-primary-foreground bg-primary px-3.5 py-2 rounded-lg hover:bg-primary/90 transition-colors whitespace-nowrap"
+          >
+            {cta.icon} {cta.text}
+          </a>
+          {cta.secondaryText && cta.secondaryUrl && (
+            <a
+              href={cta.secondaryUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              className="text-[10px] text-muted-foreground hover:text-foreground underline"
+            >
+              {cta.secondaryText}
+            </a>
+          )}
+        </div>
       </div>
     </div>
   )
