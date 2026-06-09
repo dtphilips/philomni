@@ -576,8 +576,8 @@ export default function Settings() {
             ))}
           </Card>
 
-          {/* Ad Settings — only for monetized creators */}
-          {user?.monetization_enabled ? (
+          {/* Ad Settings — monetized creators OR admins (for testing) */}
+          {(user?.monetization_enabled || user?.is_monetized || user?.is_admin) ? (
             <AdSettingsCard user={user} />
           ) : (
             <Card>

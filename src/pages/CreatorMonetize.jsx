@@ -156,15 +156,16 @@ export default function CreatorMonetize() {
     })
   }, [user?.id])
 
-  // Criteria
+  // Criteria — thresholds lowered to 0 during beta so any account can apply.
+  // Re-raise these (500 followers, 1000 views, 30 days, 80% profile) before launch.
   const criteria = {
-    followers:    { label: '500 followers minimum',            met: (metrics?.total_followers || 0) >= 500,  current: metrics?.total_followers || 0,  target: 500,  color: 'bg-blue-500'   },
-    views:        { label: '1,000 views in last 30 days',      met: (metrics?.total_views     || 0) >= 1000, current: metrics?.total_views     || 0,  target: 1000, color: 'bg-purple-500' },
-    accountAge:   { label: `Account at least 30 days old (${accountAgeDays} days)`, met: accountAgeDays >= 30 },
-    profile:      { label: 'Profile completion 80%+',          met: (metrics?.profile_score   || 0) >= 80,  current: metrics?.profile_score   || 0,  target: 100,  color: 'bg-amber-500'  },
+    followers:    { label: 'Followers (beta: any)',            met: true, current: metrics?.total_followers || 0, target: 1, color: 'bg-blue-500' },
+    views:        { label: 'Views (beta: any)',                met: true, current: metrics?.total_views     || 0, target: 1, color: 'bg-purple-500' },
+    accountAge:   { label: 'Account created (beta: any age)', met: true },
+    profile:      { label: 'Profile set up (beta: any)',       met: true, current: metrics?.profile_score || 0, target: 1, color: 'bg-amber-500' },
     noViolations: { label: 'No policy violations',             met: true },
   }
-  const allMet = Object.values(criteria).every(c => c.met)
+  const allMet = true  // all criteria trivially met in beta
 
   const handleApply = async () => {
     setApplying(true)

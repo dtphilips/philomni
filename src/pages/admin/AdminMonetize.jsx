@@ -5,21 +5,59 @@ import { Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   DollarSign, CheckCircle2, XCircle, Loader2, AlertCircle,
-  TrendingUp, Users, Eye,
+  TrendingUp, Users, Eye, UserCheck, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 
 export default function AdminMonetize() {
   const { user } = useAuth()
-  const [apps,        setApps]        = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [actionId,    setActionId]    = useState(null)
-  const [rejectModal, setRejectModal] = useState(null)
-  const [reason,      setReason]      = useState('')
-  const [filter,      setFilter]      = useState('pending')
-  const [adRevenue,   setAdRevenue]   = useState('')
-  const [calcLoading, setCalcLoading] = useState(false)
+  const [apps,              setApps]              = useState([])
+  const [loading,           setLoading]           = useState(true)
+  const [actionId,          setActionId]          = useState(null)
+  const [rejectModal,       setRejectModal]       = useState(null)
+  const [reason,            setReason]            = useState('')
+  const [filter,            setFilter]            = useState('pending')
+  const [adRevenue,         setAdRevenue]         = useState('')
+  const [calcLoading,       setCalcLoading]       = useState(false)
+  const [allUsers,          setAllUsers]          = useState([])
+  const [usersLoading,      setUsersLoading]      = useState(true)
+  const [togglingUser,      setTogglingUser]      = useState(null)
+  const [userSearch,        setUserSearch]        = useState('')
 
   if (user && !user.is_admin) return <Navigate to="/" replace />
+
+  // Fetch all users for manual monetization panel
+  useEffect(() => {
+    const load = async () => {
+      setUsersLoading(true)
+      const { data } = await supabase
+        .from('users')
+        .select('id, full_name, username, email, avatar_url, is_monetized, monetization_enabled')
+        .order('full_name')
+      setAllUsers(data || [])
+      setUsersLoading(false)
+    }
+    load()
+  }, [])
+
+  const toggleMonetization = async (u) => {
+    setTogglingUser(u.id)
+    const isOn = u.is_monetized || u.monetization_enabled
+    const updates = isOn
+      ? { is_monetized: false, monetization_enabled: false }
+      : { is_monetized: true, monetization_enabled: true, monetization_approved_at: new Date().toISOString() }
+    const { error } = await supabase.from('users').update(updates).eq('id', u.id)
+    if (error) { toast.error('Failed to update'); setTogglingUser(null); return }
+    setAllUsers(prev => prev.map(x => x.id === u.id ? { ...x, ...updates } : x))
+    if (!isOn) {
+      // Notify the creator that they've been approved
+      await supabase.from('notifications').insert({
+        user_id: u.id, type: 'monetization', created_by: user.id,
+        content: 'Your content monetization has been enabled by an admin. Ads may now appear on your videos and you will earn 55% of ad revenue.',
+      }).catch(() => {})
+    }
+    toast.success(isOn ? `Monetization disabled for ${u.full_name}` : `✅ Monetization enabled for ${u.full_name}`)
+    setTogglingUser(null)
+  }
 
   const fetchApps = async () => {
     setLoading(true)
@@ -237,6 +275,66 @@ export default function AdminMonetize() {
           </div>
         </div>
       )}
+
+      {/* ── Manual Monetization Toggle (for testing / admin override) ── */}
+      <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <UserCheck className="w-5 h-5 text-primary" />
+          <h2 className="font-semibold text-foreground text-sm">Manual Monetization Override</h2>
+          <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 font-medium">Admin Only</span>
+        </div>
+        <p className="text-xs text-muted-foreground">Toggle monetization on/off for any creator directly — bypasses the eligibility requirements. Use for testing or manual approvals.</p>
+
+        <input
+          type="text"
+          value={userSearch}
+          onChange={e => setUserSearch(e.target.value)}
+          placeholder="Search by name or email…"
+          className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+
+        {usersLoading ? (
+          <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-primary" /></div>
+        ) : (
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {allUsers
+              .filter(u => {
+                const q = userSearch.toLowerCase()
+                return !q || (u.full_name?.toLowerCase().includes(q)) || (u.email?.toLowerCase().includes(q)) || (u.username?.toLowerCase().includes(q))
+              })
+              .map(u => {
+                const isOn = u.is_monetized || u.monetization_enabled
+                return (
+                  <div key={u.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {u.avatar_url
+                        ? <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
+                        : <span className="text-xs font-medium text-muted-foreground">{u.full_name?.[0] ?? '?'}</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{u.full_name || u.username || 'Unknown'}</p>
+                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                    </div>
+                    <button
+                      onClick={() => toggleMonetization(u)}
+                      disabled={togglingUser === u.id}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex-shrink-0 ${
+                        isOn
+                          ? 'bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25'
+                          : 'bg-muted text-muted-foreground border border-border hover:border-primary/40 hover:text-foreground'
+                      }`}
+                    >
+                      {togglingUser === u.id
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : isOn ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
+                      {isOn ? 'Monetized' : 'Enable'}
+                    </button>
+                  </div>
+                )
+              })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

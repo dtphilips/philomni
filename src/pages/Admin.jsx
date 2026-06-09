@@ -1,12 +1,13 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { toast } from 'sonner'
 import {
   Users, FileText, Briefcase, Lightbulb, Shield, Loader2,
   BadgeCheck, DollarSign, Megaphone, ArrowRight, Building2, Music, Star,
@@ -14,8 +15,26 @@ import {
 import { ROLE_LABELS } from '@/lib/categories'
 
 export default function Admin() {
-  const { user }   = useAuth()
-  const navigate   = useNavigate()
+  const { user }        = useAuth()
+  const navigate        = useNavigate()
+  const queryClient     = useQueryClient()
+  const [togglingMono, setTogglingMono] = useState(null)
+
+  const toggleUserMonetization = async (u) => {
+    setTogglingMono(u.id)
+    const isOn = u.is_monetized || u.monetization_enabled
+    const updates = isOn
+      ? { is_monetized: false, monetization_enabled: false }
+      : { is_monetized: true, monetization_enabled: true, monetization_approved_at: new Date().toISOString() }
+    const { error } = await supabase.from('users').update(updates).eq('id', u.id)
+    if (!error) {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      toast.success(isOn ? `Monetization off for ${u.full_name}` : `✅ Monetized ${u.full_name}`)
+    } else {
+      toast.error('Failed to update')
+    }
+    setTogglingMono(null)
+  }
 
   // Guard — require is_admin
   if (user && !user.is_admin) return <Navigate to="/" replace />
@@ -188,7 +207,7 @@ export default function Admin() {
                       <p className="text-xs text-muted-foreground">{u.email}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     {u.is_admin && <Badge className="text-xs bg-purple-500/20 text-purple-300 border-purple-500/30">Admin</Badge>}
                     <Badge variant="secondary" className="text-xs capitalize">{ROLE_LABELS[u.role] || u.role || 'none'}</Badge>
                     <Badge variant={u.plan === 'pro' || u.plan === 'promax' ? 'default' : 'outline'} className="text-xs">{u.plan || 'free'}</Badge>
@@ -197,6 +216,21 @@ export default function Admin() {
                         {u.badge_type} ✓
                       </Badge>
                     )}
+                    {/* Monetization quick-toggle */}
+                    <button
+                      onClick={() => toggleUserMonetization(u)}
+                      disabled={togglingMono === u.id}
+                      title={u.is_monetized || u.monetization_enabled ? 'Disable monetization' : 'Enable monetization'}
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border transition-colors flex items-center gap-1 ${
+                        u.is_monetized || u.monetization_enabled
+                          ? 'bg-green-500/15 text-green-400 border-green-500/30 hover:bg-red-500/15 hover:text-red-400 hover:border-red-500/30'
+                          : 'bg-muted text-muted-foreground border-border hover:bg-green-500/15 hover:text-green-400 hover:border-green-500/30'
+                      }`}
+                    >
+                      {togglingMono === u.id
+                        ? <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                        : u.is_monetized || u.monetization_enabled ? '$ On' : '$ Off'}
+                    </button>
                   </div>
                 </div>
               ))}
