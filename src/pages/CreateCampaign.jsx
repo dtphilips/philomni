@@ -107,23 +107,27 @@ function PaymentForm({ totalBudget, campaign, creative, onDone }) {
         cpm_budget: campaign.placementType !== 'feed' ? campaign.cpmBudget : null,
         stripe_payment_intent_id: paymentIntent.id,
         stripe_payment_status:    paymentIntent.status,
-        status: 'pending',
+        status: 'under_review',
       }).select().single()
-      if (dbErr) throw dbErr
+      if (dbErr) {
+        console.error('[CreateCampaign] campaign insert:', dbErr)
+        throw new Error(dbErr.message || 'Failed to save campaign. Please try again.')
+      }
 
       // 4. Save creative
-      await supabase.from('ad_creatives').insert({
+      const { error: creativeErr } = await supabase.from('ad_creatives').insert({
         campaign_id: camp.id, advertiser_id: user.id,
         file_url: creative.file_url, file_type: creative.file_type,
         file_name: creative.file_name, file_size: creative.file_size,
         duration_seconds: creative.duration ?? null,
         thumbnail_url: creative.file_type === 'image' ? creative.file_url : null,
-      }).catch(e => console.error('creative insert', e))
+      })
+      if (creativeErr) console.error('[CreateCampaign] creative insert:', creativeErr)
 
-      // 5. Confirmation email
+      // 5. Confirmation email (fire-and-forget — don't block on this)
       supabase.functions.invoke('send-campaign-email', {
         body: { type: 'received', campaignId: camp.id, advertiserEmail: user.email, campaignName: campaign.name },
-      }).catch(() => {})
+      }).then(({ error: emailErr }) => { if (emailErr) console.warn('campaign email:', emailErr) })
 
       onDone()
     } catch (err) {
