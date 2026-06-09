@@ -512,27 +512,40 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
     return true
   }
 
+  const MIN_VIDEO_LENGTH_FOR_ADS = 30 // seconds — no ads on short videos
+
   const handleAdComplete = () => {
     setCurrentAd(null)
     setAdSlot(null)
-    videoRef.current?.play().catch(() => {})
+    // Small delay ensures overlay unmounts before play() is called
+    setTimeout(() => {
+      if (videoRef.current) {
+        videoRef.current.play().catch(err => {
+          console.log('[Reels] play after ad error:', err)
+        })
+      }
+    }, 100)
   }
 
   const handleTimeUpdate = (e) => {
     const video = e.target
     if (!video.duration) return
+
+    // Skip ads on short videos
+    if (video.duration < MIN_VIDEO_LENGTH_FOR_ADS) return
+
     const dur = video.duration
     const pct = video.currentTime / dur
     const remaining = dur - video.currentTime
 
-    // Mid-roll: only on videos ≥ 30 s, fires at 50%
-    if (dur >= 30 && pct >= 0.5 && !midRollShown) {
+    // Mid-roll: videos ≥ 60 s, fires at 50%
+    if (dur >= 60 && pct >= 0.5 && !midRollShown) {
       setMidRollShown(true)
       tryShowAd('mid_roll')
     }
 
-    // End-roll: only on videos ≥ 20 s, fires at ≤ 5 s remaining
-    if (dur >= 20 && remaining <= 5 && remaining > 0 && !endRollShown) {
+    // End-roll: videos ≥ 45 s, fires at ≤ 5 s remaining
+    if (dur >= 45 && remaining <= 5 && remaining > 0 && !endRollShown) {
       setEndRollShown(true)
       tryShowAd('end_roll')
     }
@@ -664,10 +677,13 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
           onError={e => console.warn('[Reels] video error', videoSrc, e)}
           onPlay={() => {
             setIsPlaying(true)
-            // Pre-roll ad: trigger once on first play
+            // Pre-roll ad: trigger once on first play, only on videos ≥ 30 s
             if (!preRollShown) {
               setPreRollShown(true)
-              tryShowAd('pre_roll')
+              const duration = videoRef.current?.duration
+              if (duration && duration >= MIN_VIDEO_LENGTH_FOR_ADS) {
+                tryShowAd('pre_roll')
+              }
             }
             if (!viewTracked.current && !isSample) {
               viewTimerRef.current = setTimeout(async () => {

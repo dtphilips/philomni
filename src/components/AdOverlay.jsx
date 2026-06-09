@@ -16,12 +16,12 @@ import { getAdCTA } from '../utils/adCTA'
  */
 const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) => {
   const { user } = useAuth()
-  const [countdown, setCountdown]     = useState(5)
-  const [canSkip, setCanSkip]         = useState(false)
+  const [countdown, setCountdown]       = useState(5)
+  const [canSkip, setCanSkip]           = useState(false)
   const [watchSeconds, setWatchSeconds] = useState(0)
   const [impressionId, setImpressionId] = useState(null)
-  const watchTimerRef   = useRef(null)
-  const countdownRef    = useRef(null)
+  const watchTimerRef  = useRef(null)
+  const countdownRef   = useRef(null)
 
   const creative   = campaign?.ad_creatives?.[0]
   const adDuration = creative?.duration_seconds ?? 30
@@ -33,17 +33,17 @@ const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) =>
       const { data } = await supabase
         .from('ad_impressions')
         .insert({
-          campaign_id:  campaign.id,
-          ad_type:      'in_video',
-          ad_id:        campaign.id,
-          viewer_id:    user?.id ?? null,
-          post_id:      postId,
-          placement:    slot,
-          ad_slot:      slot,
-          skipped:      false,
-          earned:       false,
+          campaign_id:   campaign.id,
+          ad_type:       'in_video',
+          ad_id:         campaign.id,
+          viewer_id:     user?.id ?? null,
+          post_id:       postId,
+          placement:     slot,
+          ad_slot:       slot,
+          skipped:       false,
+          earned:        false,
           watch_seconds: 0,
-          clicked:      false,
+          clicked:       false,
         })
         .select()
         .single()
@@ -78,17 +78,16 @@ const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) =>
 
   const recordEarning = async (watched) => {
     if (!impressionId || !creatorId) return
-    await supabase
-      .rpc('record_invideo_ad_earning', {
-        p_campaign_id:   campaign.id,
-        p_creator_id:    creatorId,
-        p_post_id:       postId,
-        p_impression_id: impressionId,
-        p_watch_seconds: watched,
-        p_ad_duration:   adDuration,
-        p_cpm_bid:       cpmBid,
-      })
-      .catch(console.error)
+    const { error } = await supabase.rpc('record_invideo_ad_earning', {
+      p_campaign_id:   campaign.id,
+      p_creator_id:    creatorId,
+      p_post_id:       postId,
+      p_impression_id: impressionId,
+      p_watch_seconds: watched,
+      p_ad_duration:   adDuration,
+      p_cpm_bid:       cpmBid,
+    })
+    if (error) console.error('[AdOverlay] recordEarning error:', error)
   }
 
   const handleSkip = async () => {
@@ -96,11 +95,11 @@ const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) =>
     clearInterval(countdownRef.current)
     await recordEarning(watchSeconds)
     if (impressionId) {
-      await supabase
+      const { error } = await supabase
         .from('ad_impressions')
         .update({ skipped: true, watch_seconds: watchSeconds })
         .eq('id', impressionId)
-        .catch(console.error)
+      if (error) console.error('[AdOverlay] skip update error:', error)
     }
     onSkip?.()
     onComplete?.()
@@ -113,13 +112,13 @@ const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) =>
     onComplete?.()
   }
 
-  const handleVisitClick = () => {
+  const handleVisitClick = async () => {
     if (!impressionId) return
-    supabase
+    const { error } = await supabase
       .from('ad_impressions')
       .update({ clicked: true })
       .eq('id', impressionId)
-      .catch(console.error)
+    if (error) console.error('[AdOverlay] click update error:', error)
   }
 
   if (!campaign) return null
@@ -154,14 +153,14 @@ const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) =>
           />
         )
         return (
-        <div style={{
-          flex: 1,
-          background: 'rgba(139,92,246,0.2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', fontSize: 24, fontWeight: 700,
-        }}>
-          {campaign?.brand_name}
-        </div>
+          <div style={{
+            flex: 1,
+            background: 'rgba(139,92,246,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: 24, fontWeight: 700,
+          }}>
+            {campaign?.brand_name}
+          </div>
         )
       })()}
 
@@ -225,7 +224,16 @@ const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) =>
 
         {canSkip ? (
           <button
-            onClick={handleSkip}
+            onClick={async () => {
+              try {
+                await handleSkip()
+              } catch (err) {
+                console.error('[AdOverlay] skip button error:', err)
+                // Force close ad even if tracking fails
+                onSkip?.()
+                onComplete?.()
+              }
+            }}
             style={{
               background: 'rgba(0,0,0,0.8)',
               border: '1px solid rgba(255,255,255,0.4)',

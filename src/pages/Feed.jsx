@@ -34,6 +34,8 @@ import CelebrationsRow from '../components/celebrations/CelebrationsRow'
 import ErrorBoundary from '../components/ErrorBoundary'
 import ProductTagPicker from '../components/shop/ProductTagPicker'
 import TaggedProductsDrawer from '../components/shop/TaggedProductsDrawer'
+import AdOverlay from '../components/AdOverlay'
+import { getInVideoCampaigns, selectAdForVideo, isCreatorMonetized } from '../utils/adMatcher'
 
 // ── In-feed Sponsored Ad Card ─────────────────────────────────────────────────
 function SponsoredCard({ ad, viewerId }) {
@@ -1605,6 +1607,48 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
   const [quoteText, setQuoteText] = useState('')
   const [quoting, setQuoting] = useState(false)
 
+  // ── Feed video in-video ad state ─────────────────────────────────────────
+  const [feedAdCampaigns, setFeedAdCampaigns] = useState([])
+  const [showFeedAd, setShowFeedAd] = useState(false)
+  const [feedAdData, setFeedAdData] = useState(null)
+  const [feedAdSlot, setFeedAdSlot] = useState(null)
+  const [feedPreRollShown, setFeedPreRollShown] = useState(false)
+  const feedVideoRef = useRef(null)
+
+  useEffect(() => {
+    if (post.media_type === 'video') {
+      getInVideoCampaigns().then(setFeedAdCampaigns).catch(() => {})
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFeedVideoPlay = () => {
+    const duration = feedVideoRef.current?.duration
+    if (!duration || duration < 30) return
+    if (feedPreRollShown) return
+    const creatorProfile = { is_monetized: true, monetization_enabled: true } // rely on creator's DB record
+    // Fetch creator monetization status inline (non-blocking)
+    if (!postAuthorId) return
+    supabase.from('users').select('monetization_enabled,is_monetized').eq('id', postAuthorId).single()
+      .then(({ data }) => {
+        if (!isCreatorMonetized(data)) return
+        const ad = selectAdForVideo(feedAdCampaigns, post)
+        if (!ad) return
+        setFeedPreRollShown(true)
+        setFeedAdData(ad)
+        setFeedAdSlot('pre_roll')
+        setShowFeedAd(true)
+        feedVideoRef.current?.pause()
+      })
+  }
+
+  const handleFeedAdComplete = () => {
+    setShowFeedAd(false)
+    setFeedAdData(null)
+    setTimeout(() => {
+      feedVideoRef.current?.play().catch(() => {})
+    }, 100)
+  }
+
   useEffect(() => {
     if (!currentUser || isOwner) return
     supabase.from('follows').select('id')
@@ -2031,7 +2075,33 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
         )}
 
         {/* Media */}
-        <MediaDisplay urls={post.media_urls} type={post.media_type} />
+        {post.media_type === 'video' && post.media_urls?.length > 0 ? (
+          <div style={{ position: 'relative' }}>
+            <div className="bg-black">
+              <video
+                ref={feedVideoRef}
+                src={parseMediaUrls(post.media_urls)[0]}
+                controls
+                className="w-full max-h-[500px] object-contain"
+                playsInline
+                preload="metadata"
+                onPlay={handleFeedVideoPlay}
+              />
+            </div>
+            {showFeedAd && feedAdData && (
+              <AdOverlay
+                campaign={feedAdData}
+                slot={feedAdSlot}
+                postId={post?.id}
+                creatorId={postAuthorId}
+                onComplete={handleFeedAdComplete}
+                onSkip={handleFeedAdComplete}
+              />
+            )}
+          </div>
+        ) : (
+          <MediaDisplay urls={post.media_urls} type={post.media_type} />
+        )}
 
         {/* Tagged products — Shop this post */}
         {taggedProducts.length > 0 && (
