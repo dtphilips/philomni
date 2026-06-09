@@ -133,22 +133,27 @@ const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) =>
       display: 'flex', flexDirection: 'column',
     }}>
       {/* Creative */}
-      {creative?.file_type === 'video' ? (
-        <video
-          src={creative.file_url}
-          poster={creative.thumbnail_url ?? undefined}
-          autoPlay
-          playsInline
-          onEnded={handleAdEnded}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
-      ) : creative?.file_url ? (
-        <img
-          src={creative.file_url}
-          alt="Ad"
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
-      ) : (
+      {(() => {
+        const isVideoUrl = (url) => /\.(mp4|mov|avi|webm)(\?|$)/i.test(url ?? '')
+        const isVideo = creative?.file_type === 'video' || (!creative?.file_type && isVideoUrl(creative?.file_url))
+        if (isVideo && creative?.file_url) return (
+          <video
+            src={creative.file_url}
+            poster={creative.thumbnail_url ?? undefined}
+            autoPlay
+            playsInline
+            onEnded={handleAdEnded}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        )
+        if (creative?.file_url) return (
+          <img
+            src={creative.file_url}
+            alt="Ad"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        )
+        return (
         <div style={{
           flex: 1,
           background: 'rgba(139,92,246,0.2)',
@@ -157,7 +162,8 @@ const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) =>
         }}>
           {campaign?.brand_name}
         </div>
-      )}
+        )
+      })()}
 
       {/* Top bar — Ad label + brand */}
       <div style={{

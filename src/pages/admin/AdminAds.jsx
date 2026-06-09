@@ -320,7 +320,9 @@ function CampaignPreview({ campaign: c }) {
       </div>
     )
   }
-  if (creative.file_type === 'video') {
+  const isVideoUrl = (url) => /\.(mp4|mov|avi|webm)(\?|$)/i.test(url ?? '')
+  const isVideo = creative.file_type === 'video' || (!creative.file_type && isVideoUrl(creative.file_url))
+  if (isVideo) {
     return (
       <video
         src={creative.file_url}
@@ -335,6 +337,7 @@ function CampaignPreview({ campaign: c }) {
       src={creative.file_url}
       alt="Ad creative"
       className="w-full max-h-64 rounded-lg object-cover"
+      onError={e => { e.currentTarget.style.display = 'none' }}
     />
   )
 }

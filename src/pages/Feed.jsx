@@ -74,10 +74,17 @@ function SponsoredCard({ ad, viewerId }) {
     if (ad.cta_url) window.open(ad.cta_url, '_blank', 'noopener noreferrer')
   }
 
-  const displayName = ad.author_name || ad.advertiser_name || 'Sponsored'
+  const displayName   = ad.author_name || ad.advertiser_name || 'Sponsored'
   const displayAvatar = ad.author_avatar || null
   const displayContent = ad.content ? ad.content.replace(/<[^>]+>/g, '') : (ad.description || '')
-  const displayImage = ad.image_url || (Array.isArray(ad.media_urls) ? ad.media_urls[0] : null)
+
+  // Resolve creative — prefer ad_creatives join, fall back to image_url
+  const creative    = ad.ad_creatives?.[0] ?? null
+  const creativeSrc = creative?.file_url ?? ad.image_url ?? (Array.isArray(ad.media_urls) ? ad.media_urls[0] : null)
+  const isVideoUrl  = (url) => /\.(mp4|mov|avi|webm)(\?|$)/i.test(url ?? '')
+  const creativeType = creative?.file_type
+    ? creative.file_type
+    : isVideoUrl(creativeSrc) ? 'video' : 'image'
 
   return (
     <div ref={cardRef} className="bg-card rounded-2xl border border-border/60 overflow-hidden shadow-sm">
@@ -106,8 +113,23 @@ function SponsoredCard({ ad, viewerId }) {
         </div>
       </div>
 
-      {displayImage && (
-        <img src={displayImage} alt={ad.title} className="w-full max-h-72 object-cover mt-2" />
+      {creativeSrc && (
+        creativeType === 'video' ? (
+          <video
+            src={creativeSrc}
+            poster={creative?.thumbnail_url ?? undefined}
+            autoPlay muted loop playsInline
+            className="w-full max-h-72 object-cover mt-2 bg-black block"
+            onError={e => { e.currentTarget.style.display = 'none' }}
+          />
+        ) : (
+          <img
+            src={creativeSrc}
+            alt={ad.title}
+            className="w-full max-h-72 object-cover mt-2 block"
+            onError={e => { e.currentTarget.style.display = 'none' }}
+          />
+        )
       )}
 
       <div className="px-4 py-3">
