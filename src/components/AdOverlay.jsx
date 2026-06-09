@@ -136,6 +136,7 @@ const AdOverlay = ({ campaign, slot, postId, creatorId, onComplete, onSkip }) =>
       {creative?.file_type === 'video' ? (
         <video
           src={creative.file_url}
+          poster={creative.thumbnail_url ?? undefined}
           autoPlay
           playsInline
           onEnded={handleAdEnded}

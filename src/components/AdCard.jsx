@@ -71,7 +71,7 @@ export default function AdCard({ campaign }) {
       {/* Creative */}
       {creative
         ? creative.file_type === 'video'
-          ? <video src={creative.file_url} autoPlay muted loop playsInline className="w-full max-h-[400px] object-cover bg-black" />
+          ? <video src={creative.file_url} poster={creative.thumbnail_url ?? undefined} autoPlay muted loop playsInline className="w-full max-h-[400px] object-cover bg-black" />
           : <img src={creative.file_url} alt={brand} className="w-full max-h-[400px] object-cover" />
         : campaign.image_url
           ? <img src={campaign.image_url} alt={brand} className="w-full max-h-[400px] object-cover" />

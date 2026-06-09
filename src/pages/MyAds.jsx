@@ -23,6 +23,28 @@ const DELETABLE_STATUSES = ['pending', 'under_review', 'pending_review', 'submit
 
 const PKG_ICONS = { starter: Zap, growth: TrendingUp, premium: Crown }
 
+function CampaignThumbnail({ campaign }) {
+  const creative = campaign.ad_creatives?.[0]
+  const thumbUrl = creative?.thumbnail_url || (creative?.file_type === 'image' ? creative?.file_url : null)
+  if (!thumbUrl) {
+    return (
+      <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 text-xl">
+        📢
+      </div>
+    )
+  }
+  return (
+    <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 relative bg-muted">
+      <img src={thumbUrl} alt="" className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none' }} />
+      {creative?.file_type === 'video' && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+          <span className="text-white text-sm">▶</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ProgressBar({ value, max }) {
   const pct = max ? Math.min(100, (value / max) * 100) : 0
   return (
@@ -45,7 +67,7 @@ export default function MyAds() {
     if (!user?.id) return
     setLoading(true)
     const [{ data: camps }, { data: bsts }] = await Promise.all([
-      supabase.from('ad_campaigns').select('*').eq('advertiser_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('ad_campaigns').select('*, ad_creatives(id, file_url, file_type, thumbnail_url)').eq('advertiser_id', user.id).order('created_at', { ascending: false }),
       supabase.from('boosted_posts').select('*, posts(id, content, media_urls, media_type)').eq('creator_id', user.id).order('created_at', { ascending: false }),
     ])
     setCampaigns(camps || [])
@@ -169,9 +191,7 @@ export default function MyAds() {
                     <div key={c.id} className="bg-card border border-border rounded-2xl p-4 space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <PkgIcon className="w-4 h-4 text-primary" />
-                          </div>
+                          <CampaignThumbnail campaign={c} />
                           <div>
                             <p className="font-semibold text-foreground text-sm">{c.name || c.title}</p>
                             <p className="text-xs text-muted-foreground capitalize">

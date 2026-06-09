@@ -52,7 +52,7 @@ export default function AdminAds() {
     setLoading(true)
     const [{ data: camps }, { data: bsts }] = await Promise.all([
       supabase.from('ad_campaigns')
-        .select('*, users!ad_campaigns_advertiser_id_fkey(id, full_name, email)')
+        .select('*, users!ad_campaigns_advertiser_id_fkey(id, full_name, email), ad_creatives(id, file_url, file_type, thumbnail_url)')
         .order('created_at', { ascending: false }),
       supabase.from('boosted_posts')
         .select('*, users!boosted_posts_creator_id_fkey(id, full_name, email), posts(id, content, media_urls)')
@@ -311,17 +311,44 @@ export default function AdminAds() {
   )
 }
 
+function CampaignPreview({ campaign: c }) {
+  const creative = c.ad_creatives?.[0]
+  if (!creative) {
+    return (
+      <div className="w-full h-32 rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground italic">
+        No creative uploaded
+      </div>
+    )
+  }
+  if (creative.file_type === 'video') {
+    return (
+      <video
+        src={creative.file_url}
+        controls
+        poster={creative.thumbnail_url ?? undefined}
+        className="w-full max-h-64 rounded-lg object-cover bg-black"
+      />
+    )
+  }
+  return (
+    <img
+      src={creative.file_url}
+      alt="Ad creative"
+      className="w-full max-h-64 rounded-lg object-cover"
+    />
+  )
+}
+
 function CampaignRow({ campaign: c, actionId, onApprove, onReject, onPauseResume, showStats }) {
   const cfg = STATUS_CFG[c.status] || STATUS_CFG.pending
   const ctr = c.impressions_served > 0 ? ((c.clicks / c.impressions_served) * 100).toFixed(1) : '0.0'
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
+      {/* Creative preview — full width above the detail row */}
+      <div className="px-4 pt-4">
+        <CampaignPreview campaign={c} />
+      </div>
       <div className="flex gap-4 p-4">
-        <div className="w-20 h-16 rounded-lg bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center">
-          {c.image_url
-            ? <img src={c.image_url} className="w-full h-full object-cover" alt="" />
-            : <ImageIcon className="w-6 h-6 text-muted-foreground/40" />}
-        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-3">
             <div>

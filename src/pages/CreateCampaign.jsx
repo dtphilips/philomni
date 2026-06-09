@@ -93,7 +93,7 @@ function PaymentForm({ totalBudget, campaign, creative, onDone }) {
         ios_url:    campaign.iosUrl    || null,
         android_url: campaign.androidUrl || null,
         ticket_url: campaign.ticketUrl || null,
-        image_url:  creative.file_type === 'image' ? creative.file_url : null,
+        image_url:  creative.thumbnail_url ?? (creative.file_type === 'image' ? creative.file_url : null),
         start_date: campaign.startDate || null,
         end_date:   campaign.endDate   || null,
         starts_at:  campaign.startDate || null,
@@ -120,7 +120,7 @@ function PaymentForm({ totalBudget, campaign, creative, onDone }) {
         file_url: creative.file_url, file_type: creative.file_type,
         file_name: creative.file_name, file_size: creative.file_size,
         duration_seconds: creative.duration ?? null,
-        thumbnail_url: creative.file_type === 'image' ? creative.file_url : null,
+        thumbnail_url: creative.thumbnail_url ?? (creative.file_type === 'image' ? creative.file_url : null),
       })
       if (creativeErr) console.error('[CreateCampaign] creative insert:', creativeErr)
 
@@ -174,9 +174,26 @@ export default function CreateCampaign() {
   const [cpmBudget, setCpmBudget]   = useState(MIN_CPM_BUDGET)
 
   // Creative
-  const [creative, setCreative]   = useState(null)
+  const [creative, setCreative]   = useState(null)  // { file_url, file_type, file_name, file_size, duration, thumbnail_url }
   const [uploading, setUploading] = useState(false)
   const [uploadPct, setUploadPct] = useState(0)
+
+  /** Capture frame ~1s into a video file, return a JPEG Blob */
+  const generateVideoThumbnail = (file) => new Promise((resolve) => {
+    const video  = document.createElement('video')
+    const canvas = document.createElement('canvas')
+    video.muted = true
+    video.playsInline = true
+    video.src = URL.createObjectURL(file)
+    video.onloadeddata = () => { video.currentTime = Math.min(1, (video.duration || 0) * 0.1) }
+    video.onseeked = () => {
+      canvas.width  = video.videoWidth  || 640
+      canvas.height = video.videoHeight || 360
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(blob => { URL.revokeObjectURL(video.src); resolve(blob) }, 'image/jpeg', 0.8)
+    }
+    video.onerror = () => { URL.revokeObjectURL(video.src); resolve(null) }
+  })
 
   const isInVideo  = placementType === 'in_video'
   const isFeed     = placementType === 'feed'
@@ -267,15 +284,43 @@ export default function CreateCampaign() {
       if (duration && duration > 60) return toast.error('Video must be 60 seconds or less')
     }
 
-    setUploading(true); setUploadPct(30)
+    setUploading(true); setUploadPct(20)
     try {
+      const ts  = Date.now()
       const ext = file.name.split('.').pop()
-      const path = `${user.id}/${Date.now()}.${ext}`
+      const path = `${user.id}/${ts}.${ext}`
+
+      // Upload main file
       const { data, error } = await supabase.storage.from('ad-creatives').upload(path, file, { upsert: true })
-      setUploadPct(80)
+      setUploadPct(70)
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from('ad-creatives').getPublicUrl(data.path)
-      setCreative({ file_url: publicUrl, file_type: isVideo ? 'video' : 'image', file_name: file.name, file_size: file.size, duration })
+
+      // Generate + upload thumbnail for videos
+      let thumbnailUrl = null
+      if (isVideo) {
+        setUploadPct(80)
+        const thumbBlob = await generateVideoThumbnail(file)
+        if (thumbBlob) {
+          const thumbPath = `${user.id}/${ts}_thumb.jpg`
+          const { error: thumbErr } = await supabase.storage
+            .from('ad-creatives')
+            .upload(thumbPath, thumbBlob, { contentType: 'image/jpeg', upsert: true })
+          if (!thumbErr) {
+            const { data: { publicUrl: tUrl } } = supabase.storage.from('ad-creatives').getPublicUrl(thumbPath)
+            thumbnailUrl = tUrl
+          }
+        }
+      }
+
+      setCreative({
+        file_url: publicUrl,
+        file_type: isVideo ? 'video' : 'image',
+        file_name: file.name,
+        file_size: file.size,
+        duration,
+        thumbnail_url: thumbnailUrl || (isVideo ? null : publicUrl),
+      })
       setUploadPct(100)
     } catch (err) {
       toast.error('Upload failed: ' + err.message)
@@ -431,15 +476,31 @@ export default function CreateCampaign() {
             </div>
           ) : (
             <div className="rounded-2xl border border-border overflow-hidden bg-card">
-              {creative.file_type === 'video'
-                ? <video src={creative.file_url} controls className="w-full max-h-72 bg-black object-contain" />
-                : <img src={creative.file_url} alt="" className="w-full max-h-72 object-contain bg-black" />}
+              {/* For videos: show thumbnail with play overlay; for images: show full image */}
+              {creative.file_type === 'video' ? (
+                creative.thumbnail_url ? (
+                  <div className="relative w-full max-h-72 bg-black overflow-hidden">
+                    <img src={creative.thumbnail_url} alt="Video thumbnail"
+                      className="w-full max-h-72 object-cover" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                        <span className="text-white text-xl ml-0.5">▶</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <video src={creative.file_url} controls className="w-full max-h-72 bg-black object-contain" />
+                )
+              ) : (
+                <img src={creative.file_url} alt="" className="w-full max-h-72 object-contain bg-black" />
+              )}
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{creative.file_name}</p>
                   <p className="text-xs text-muted-foreground">
                     {(creative.file_size / 1024 / 1024).toFixed(1)}MB
                     {creative.duration ? ` · ${Math.round(creative.duration)}s` : ''}
+                    {creative.file_type === 'video' && creative.thumbnail_url && ' · thumbnail ✓'}
                   </p>
                 </div>
                 <button onClick={() => setCreative(null)} className="p-2 rounded-lg hover:bg-muted text-muted-foreground">
