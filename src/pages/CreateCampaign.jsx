@@ -93,7 +93,7 @@ function PaymentForm({ totalBudget, campaign, creative, onDone }) {
         ios_url:    campaign.iosUrl    || null,
         android_url: campaign.androidUrl || null,
         ticket_url: campaign.ticketUrl || null,
-        image_url:  creative.thumbnail_url ?? (creative.file_type === 'image' ? creative.file_url : null),
+        image_url:  creative.thumbnail_url ?? (creative.file_type === 'image' ? creative.file_url : creative.file_url ?? null),
         start_date: campaign.startDate || null,
         end_date:   campaign.endDate   || null,
         starts_at:  campaign.startDate || null,
@@ -122,7 +122,11 @@ function PaymentForm({ totalBudget, campaign, creative, onDone }) {
         duration_seconds: creative.duration ?? null,
         thumbnail_url: creative.thumbnail_url ?? (creative.file_type === 'image' ? creative.file_url : null),
       })
-      if (creativeErr) console.error('[CreateCampaign] creative insert:', creativeErr)
+      if (creativeErr) {
+        // Non-fatal — campaign is saved, creative can be re-attached by admin
+        console.error('[CreateCampaign] creative insert failed:', creativeErr)
+        toast.warning('Campaign saved, but creative upload had an issue. Contact support if the ad does not display.')
+      }
 
       // 5. Confirmation email (fire-and-forget — don't block on this)
       supabase.functions.invoke('send-campaign-email', {

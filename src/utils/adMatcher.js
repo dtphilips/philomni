@@ -2,9 +2,9 @@ import { supabase } from '../lib/supabase'
 
 /**
  * Fetch all eligible in-video ad campaigns.
- * Includes 'under_review' so admins can test before approving.
- * Date filters are skipped for campaigns that have no start/end date set
- * (CPM-only in_video campaigns don't require dates).
+ * Includes 'under_review' so admins can test before final approval.
+ * No date filtering — campaigns without dates (CPM-only) always pass,
+ * and we don't want start_date off-by-one issues blocking live testing.
  */
 export const getInVideoCampaigns = async () => {
   const { data, error } = await supabase
@@ -14,21 +14,8 @@ export const getInVideoCampaigns = async () => {
     .in('placement_type', ['in_video', 'both'])
 
   if (error) console.error('[adMatcher] getInVideoCampaigns error:', error)
-
-  // Client-side date filter: pass campaigns with no dates, or whose dates cover today
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const filtered = (data ?? []).filter(c => {
-    if (!c.start_date && !c.end_date) return true   // CPM-only, no schedule
-    const start = c.start_date ? new Date(c.start_date) : null
-    const end   = c.end_date   ? new Date(c.end_date)   : null
-    if (start && start > today) return false
-    if (end   && end   < today) return false
-    return true
-  })
-
-  console.log('[adMatcher] in-video campaigns available:', filtered.length, filtered.map(c => c.name))
-  return filtered
+  console.log('[adMatcher] in-video campaigns:', data?.length ?? 0, data?.map(c => `${c.name} (${c.status})`))
+  return data ?? []
 }
 
 /**
@@ -50,5 +37,11 @@ export const selectAdForVideo = (campaigns, _post) => {
  * Returns true if the creator has monetization enabled.
  * Checks both columns since both exist in the DB.
  */
-export const isCreatorMonetized = (creatorProfile) =>
-  creatorProfile?.monetization_enabled === true || creatorProfile?.is_monetized === true
+export const isCreatorMonetized = (creatorProfile) => {
+  const result = creatorProfile?.monetization_enabled === true || creatorProfile?.is_monetized === true
+  console.log('[adMatcher] isCreatorMonetized:', result, {
+    monetization_enabled: creatorProfile?.monetization_enabled,
+    is_monetized: creatorProfile?.is_monetized,
+  })
+  return result
+}
