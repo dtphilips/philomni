@@ -2361,7 +2361,7 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
             </div>
           </div>
         </div>
-      )}}
+      )}
 
       {/* Tagged products drawer — Buy Now flow */}
       {showShop && <TaggedProductsDrawer tags={taggedProducts} onClose={() => setShowShop(false)} />}

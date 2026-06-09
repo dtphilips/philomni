@@ -1,27 +1,29 @@
 import { supabase } from '../lib/supabase'
 
 /**
- * Fetch all eligible in-video ad campaigns.
- * Includes 'under_review' so admins can test before final approval.
- * No date filtering — campaigns without dates (CPM-only) always pass,
- * and we don't want start_date off-by-one issues blocking live testing.
+ * Fetch in-video campaigns — no status/date filters for testing.
+ * Filters only by placement_type client-side.
  */
 export const getInVideoCampaigns = async () => {
   const { data, error } = await supabase
     .from('ad_campaigns')
     .select('*, ad_creatives(*)')
-    .in('status', ['active', 'under_review'])
-    .in('placement_type', ['in_video', 'both'])
 
-  if (error) console.error('[adMatcher] getInVideoCampaigns error:', error)
-  console.log('[adMatcher] in-video campaigns:', data?.length ?? 0, data?.map(c => `${c.name} (${c.status})`))
-  return data ?? []
+  if (error) console.error('[adMatcher] error:', error)
+
+  console.log('[adMatcher] ALL campaigns from DB:', data?.length,
+    data?.map(c => ({ name: c.name, status: c.status, placement: c.placement_type, creatives: c.ad_creatives?.length })))
+
+  const invideo = (data ?? []).filter(c =>
+    c.placement_type === 'in_video' || c.placement_type === 'both'
+  )
+  console.log('[adMatcher] in-video campaigns:', invideo.length)
+  return invideo
 }
 
 /**
- * Pick one campaign to show for a given video post.
+ * Pick one campaign for a given video post.
  * Filters out over-budget campaigns, then picks randomly.
- * Returns null if no eligible campaign.
  */
 export const selectAdForVideo = (campaigns, _post) => {
   if (!campaigns?.length) return null
@@ -35,7 +37,6 @@ export const selectAdForVideo = (campaigns, _post) => {
 
 /**
  * Returns true if the creator has monetization enabled.
- * Checks both columns since both exist in the DB.
  */
 export const isCreatorMonetized = (creatorProfile) => {
   const result = creatorProfile?.monetization_enabled === true || creatorProfile?.is_monetized === true

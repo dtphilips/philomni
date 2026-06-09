@@ -470,12 +470,22 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
       .then(({ data }) => setIsFollowing(!!data))
   }, [user, authorId, isOwnReel, isSample])
 
+  // Debug: log post structure to identify field names
+  useEffect(() => {
+    if (!reel) return
+    console.log('[ReelSlide] post keys:', Object.keys(reel))
+    console.log('[ReelSlide] authorId:', authorId)
+    console.log('[ReelSlide] inVideoCampaigns count:', inVideoCampaigns?.length)
+  }, [reel?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Fetch creator monetization status for in-video ad eligibility
   useEffect(() => {
     if (!authorId || isSample) return
     supabase.from('users').select('monetization_enabled,is_monetized').eq('id', authorId).single()
       .then(({ data }) => {
-        setCreatorMonetized(data?.monetization_enabled === true || data?.is_monetized === true)
+        const monetized = data?.monetization_enabled === true || data?.is_monetized === true
+        console.log('[ReelSlide] creator monetization fetch:', { authorId, monetized, data })
+        setCreatorMonetized(monetized)
       })
   }, [authorId, isSample])
 

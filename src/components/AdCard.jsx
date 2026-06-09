@@ -68,28 +68,52 @@ export default function AdCard({ campaign }) {
         <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">Ad</span>
       </div>
 
-      {/* Creative */}
-      {creative?.file_type === 'video' ? (
-        <video
-          src={creative.file_url}
-          poster={creative.thumbnail_url ?? undefined}
-          autoPlay muted loop playsInline
-          className="w-full max-h-[400px] object-cover bg-black block"
-          onError={e => { console.error('[AdCard] video error', e); e.currentTarget.style.display = 'none' }}
-        />
-      ) : creative?.file_url || campaign.image_url ? (
-        <img
-          src={creative?.file_url ?? campaign.image_url}
-          alt={brand}
-          className="w-full max-h-[400px] object-cover block"
-          onError={e => { e.currentTarget.style.display = 'none' }}
-        />
-      ) : (
-        <div className="h-44 bg-gradient-to-br from-primary/20 to-primary/5 flex flex-col items-center justify-center gap-2">
-          <span className="text-3xl">📢</span>
-          <span className="text-primary font-bold text-sm">{brand}</span>
-        </div>
-      )}
+      {/* Creative — detect type from file_url extension if file_type missing */}
+      {(() => {
+        const isVideoUrl = (url) => /\.(mp4|mov|webm|ogg)(\?|$)/i.test(url ?? '')
+        const src = creative?.file_url ?? campaign.image_url ?? null
+        const isVideo = creative?.file_type === 'video' || (!creative?.file_type && isVideoUrl(src))
+        const thumbSrc = creative?.thumbnail_url ?? null
+
+        if (!src) return (
+          <div className="h-44 bg-gradient-to-br from-primary/20 to-primary/5 flex flex-col items-center justify-center gap-2">
+            <span className="text-3xl">📢</span>
+            <span className="text-primary font-bold text-sm">{brand}</span>
+          </div>
+        )
+
+        if (isVideo) {
+          // If we have a thumbnail, show it as a static image with a play badge
+          if (thumbSrc) return (
+            <div className="relative w-full max-h-[400px] overflow-hidden bg-black">
+              <img src={thumbSrc} alt={brand} className="w-full max-h-[400px] object-cover block" />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                  <span className="text-white text-lg ml-0.5">▶</span>
+                </div>
+              </div>
+            </div>
+          )
+          // No thumbnail — autoplay muted video
+          return (
+            <video
+              src={src}
+              autoPlay muted loop playsInline
+              className="w-full max-h-[400px] object-cover bg-black block"
+              onError={e => { e.currentTarget.style.display = 'none' }}
+            />
+          )
+        }
+
+        return (
+          <img
+            src={src}
+            alt={brand}
+            className="w-full max-h-[400px] object-cover block"
+            onError={e => { e.currentTarget.style.display = 'none' }}
+          />
+        )
+      })()}
 
       {/* Footer */}
       <div className="px-4 py-3 flex items-center justify-between gap-3">

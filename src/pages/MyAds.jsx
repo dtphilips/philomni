@@ -61,7 +61,6 @@ export default function MyAds() {
   const [campaigns, setCampaigns] = useState([])
   const [boosts,    setBoosts]    = useState([])
   const [loading,   setLoading]   = useState(true)
-  const [toggling,  setToggling]  = useState(null)
 
   const fetchAll = async () => {
     if (!user?.id) return
@@ -86,44 +85,72 @@ export default function MyAds() {
     }
   }, [])
 
-  const toggleCampaign = async (c) => {
+  const [toggling,  setToggling]  = useState(null)
+  const [deleting,  setDeleting]  = useState(null)
+  const [cancelling, setCancelling] = useState(null)
+
+  // Resume a paused campaign (direct DB update — no refund logic needed)
+  const handleResume = async (c) => {
     setToggling(c.id)
-    const newStatus = c.status === 'active' ? 'paused' : 'active'
-    const { error } = await supabase.from('ad_campaigns').update({ status: newStatus }).eq('id', c.id)
-    if (error) { toast.error('Failed to update campaign'); setToggling(null); return }
-    setCampaigns(prev => prev.map(x => x.id === c.id ? { ...x, status: newStatus } : x))
-    toast.success(`Campaign ${newStatus === 'paused' ? 'paused' : 'resumed'}.`)
+    const { error } = await supabase.from('ad_campaigns').update({ status: 'active' }).eq('id', c.id)
+    if (error) { toast.error('Failed to resume campaign'); setToggling(null); return }
+    setCampaigns(prev => prev.map(x => x.id === c.id ? { ...x, status: 'active' } : x))
+    toast.success('Campaign resumed.')
     setToggling(null)
   }
 
-  const [deleting, setDeleting] = useState(null)
+  // Pause an active campaign via cancel-campaign edge function (sets status=paused, no refund)
+  const handlePause = async (c) => {
+    setCancelling(c.id)
+    const { data, error } = await supabase.functions.invoke('cancel-campaign', {
+      body: { campaignId: c.id, userId: user.id, action: 'pause' },
+    })
+    if (error || data?.error) { toast.error('Failed to pause campaign'); setCancelling(null); return }
+    toast.success(data?.message ?? 'Campaign paused.')
+    setCampaigns(prev => prev.map(x => x.id === c.id ? { ...x, status: 'paused' } : x))
+    setCancelling(null)
+  }
 
+  // Cancel an active/paused campaign with optional partial Stripe refund
+  const handleCancelCampaign = async (c) => {
+    const today = new Date()
+    const endDate = c.end_date ? new Date(c.end_date) : null
+    const daysRemaining = endDate ? Math.max(0, Math.ceil((endDate - today) / 86_400_000)) : 0
+    const potentialRefund = daysRemaining * Number(c.daily_budget ?? 10)
+
+    const msg = potentialRefund > 0
+      ? `Cancel this campaign?\n\n${daysRemaining} days remaining = $${potentialRefund.toFixed(2)} refund.\n\nUsed days will not be refunded.`
+      : 'Cancel this campaign? This cannot be undone.'
+    if (!window.confirm(msg)) return
+
+    setCancelling(c.id)
+    const { data, error } = await supabase.functions.invoke('cancel-campaign', {
+      body: { campaignId: c.id, userId: user.id, action: 'cancel' },
+    })
+    if (error || data?.error) { toast.error('Failed to cancel campaign'); setCancelling(null); return }
+    toast.success(data?.message ?? 'Campaign cancelled.')
+    setCampaigns(prev => prev.filter(x => x.id !== c.id))
+    setCancelling(null)
+  }
+
+  // Delete campaigns that were never active (no Stripe charge to refund)
   const handleDeleteCampaign = async (c) => {
-    if (!DELETABLE_STATUSES.includes(c.status)) {
-      toast.error('Cannot delete an active campaign. Pause it first.')
-      return
-    }
+    const neverActive = ['pending', 'under_review', 'pending_review', 'submitted', 'rejected'].includes(c.status)
+    if (!neverActive) { toast.error('Use Cancel to remove active/paused campaigns.'); return }
     if (!window.confirm('Delete this campaign? This cannot be undone.')) return
     setDeleting(c.id)
 
-    // If there's a Stripe auth to cancel, invoke the reject edge function
+    // Cancel any Stripe auth that was never captured
     if (c.stripe_payment_intent_id && c.stripe_payment_status === 'requires_capture') {
       await supabase.functions.invoke('approve-campaign', {
         body: { campaignId: c.id, action: 'reject', adminId: user.id, rejectionReason: 'Cancelled by advertiser' },
       }).then(({ error: e }) => { if (e) console.warn('stripe cancel:', e) })
     }
 
-    // Delete creatives first
     await supabase.from('ad_creatives').delete().eq('campaign_id', c.id)
-
-    // Delete campaign
     const { error } = await supabase.from('ad_campaigns').delete().eq('id', c.id).eq('advertiser_id', user.id)
-    if (error) {
-      toast.error('Failed to delete campaign')
-      setDeleting(null)
-      return
-    }
-    toast.success('Campaign deleted')
+    if (error) { toast.error('Failed to delete campaign'); setDeleting(null); return }
+    toast.success('Campaign deleted.')
     setCampaigns(prev => prev.filter(x => x.id !== c.id))
     setDeleting(null)
   }
@@ -206,29 +233,44 @@ export default function MyAds() {
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${cfg.color}`}>{cfg.label}</span>
 
-                          {/* Pause / Resume for active & paused */}
-                          {(c.status === 'active' || c.status === 'paused') && (
-                            <button onClick={() => toggleCampaign(c)} disabled={toggling === c.id}
-                              title={c.status === 'active' ? 'Pause campaign' : 'Resume campaign'}
-                              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                              {toggling === c.id
-                                ? <Loader2 className="w-4 h-4 animate-spin" />
-                                : c.status === 'active'
-                                ? <Pause className="w-4 h-4" />
-                                : <Play className="w-4 h-4" />}
-                            </button>
+                          {/* Active: Pause + Cancel */}
+                          {c.status === 'active' && (
+                            <>
+                              <button onClick={() => handlePause(c)} disabled={cancelling === c.id}
+                                title="Pause campaign"
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                {cancelling === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pause className="w-4 h-4" />}
+                              </button>
+                              <button onClick={() => handleCancelCampaign(c)} disabled={cancelling === c.id}
+                                title="Cancel campaign"
+                                className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
                           )}
 
-                          {/* Delete button — review/rejected/paused statuses */}
-                          {DELETABLE_STATUSES.includes(c.status) && (
-                            <button
-                              onClick={() => handleDeleteCampaign(c)}
-                              disabled={deleting === c.id}
+                          {/* Paused: Resume + Cancel */}
+                          {c.status === 'paused' && (
+                            <>
+                              <button onClick={() => handleResume(c)} disabled={toggling === c.id}
+                                title="Resume campaign"
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                {toggling === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                              </button>
+                              <button onClick={() => handleCancelCampaign(c)} disabled={cancelling === c.id}
+                                title="Cancel campaign"
+                                className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors">
+                                {cancelling === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                              </button>
+                            </>
+                          )}
+
+                          {/* Under review / rejected: Delete only (no charge made yet) */}
+                          {['pending', 'under_review', 'pending_review', 'submitted', 'rejected'].includes(c.status) && (
+                            <button onClick={() => handleDeleteCampaign(c)} disabled={deleting === c.id}
                               title="Delete campaign"
                               className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors">
-                              {deleting === c.id
-                                ? <Loader2 className="w-4 h-4 animate-spin" />
-                                : <Trash2 className="w-4 h-4" />}
+                              {deleting === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                             </button>
                           )}
 
