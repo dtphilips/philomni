@@ -5,16 +5,21 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   Megaphone, Eye, MousePointer, Plus, Loader2,
-  Pause, Play, Rocket, Zap, TrendingUp, Crown,
+  Pause, Play, Rocket, Zap, TrendingUp, Crown, Trash2,
 } from 'lucide-react'
 
 const STATUS_CFG = {
-  pending:   { label: 'Pending Review', color: 'text-yellow-400 bg-yellow-400/10' },
-  active:    { label: 'Active',         color: 'text-green-400 bg-green-400/10'   },
-  paused:    { label: 'Paused',         color: 'text-blue-400 bg-blue-400/10'     },
-  completed: { label: 'Completed',      color: 'text-muted-foreground bg-muted'   },
-  rejected:  { label: 'Rejected',       color: 'text-red-400 bg-red-400/10'       },
+  pending:        { label: 'Pending Review', color: 'text-yellow-400 bg-yellow-400/10' },
+  under_review:   { label: 'Under Review',   color: 'text-yellow-400 bg-yellow-400/10' },
+  pending_review: { label: 'Pending Review', color: 'text-yellow-400 bg-yellow-400/10' },
+  submitted:      { label: 'Submitted',      color: 'text-yellow-400 bg-yellow-400/10' },
+  active:         { label: 'Active',         color: 'text-green-400 bg-green-400/10'   },
+  paused:         { label: 'Paused',         color: 'text-blue-400 bg-blue-400/10'     },
+  completed:      { label: 'Completed',      color: 'text-muted-foreground bg-muted'   },
+  rejected:       { label: 'Rejected',       color: 'text-red-400 bg-red-400/10'       },
 }
+
+const DELETABLE_STATUSES = ['pending', 'under_review', 'pending_review', 'submitted', 'rejected', 'paused']
 
 const PKG_ICONS = { starter: Zap, growth: TrendingUp, premium: Crown }
 
@@ -62,10 +67,43 @@ export default function MyAds() {
   const toggleCampaign = async (c) => {
     setToggling(c.id)
     const newStatus = c.status === 'active' ? 'paused' : 'active'
-    await supabase.from('ad_campaigns').update({ status: newStatus }).eq('id', c.id)
+    const { error } = await supabase.from('ad_campaigns').update({ status: newStatus }).eq('id', c.id)
+    if (error) { toast.error('Failed to update campaign'); setToggling(null); return }
     setCampaigns(prev => prev.map(x => x.id === c.id ? { ...x, status: newStatus } : x))
     toast.success(`Campaign ${newStatus === 'paused' ? 'paused' : 'resumed'}.`)
     setToggling(null)
+  }
+
+  const [deleting, setDeleting] = useState(null)
+
+  const handleDeleteCampaign = async (c) => {
+    if (!DELETABLE_STATUSES.includes(c.status)) {
+      toast.error('Cannot delete an active campaign. Pause it first.')
+      return
+    }
+    if (!window.confirm('Delete this campaign? This cannot be undone.')) return
+    setDeleting(c.id)
+
+    // If there's a Stripe auth to cancel, invoke the reject edge function
+    if (c.stripe_payment_intent_id && c.stripe_payment_status === 'requires_capture') {
+      await supabase.functions.invoke('approve-campaign', {
+        body: { campaignId: c.id, action: 'reject', adminId: user.id, rejectionReason: 'Cancelled by advertiser' },
+      }).then(({ error: e }) => { if (e) console.warn('stripe cancel:', e) })
+    }
+
+    // Delete creatives first
+    await supabase.from('ad_creatives').delete().eq('campaign_id', c.id)
+
+    // Delete campaign
+    const { error } = await supabase.from('ad_campaigns').delete().eq('id', c.id).eq('advertiser_id', user.id)
+    if (error) {
+      toast.error('Failed to delete campaign')
+      setDeleting(null)
+      return
+    }
+    toast.success('Campaign deleted')
+    setCampaigns(prev => prev.filter(x => x.id !== c.id))
+    setDeleting(null)
   }
 
   return (
@@ -135,14 +173,23 @@ export default function MyAds() {
                             <PkgIcon className="w-4 h-4 text-primary" />
                           </div>
                           <div>
-                            <p className="font-semibold text-foreground text-sm">{c.title}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{c.package_type} package · ${c.budget}/mo</p>
+                            <p className="font-semibold text-foreground text-sm">{c.name || c.title}</p>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {c.placement_type || c.package_type || 'campaign'} ·{' '}
+                              ${c.total_budget ?? c.budget ?? 0}
+                            </p>
+                            {c.status === 'rejected' && c.rejection_reason && (
+                              <p className="text-xs text-red-400 mt-1">Reason: {c.rejection_reason}</p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${cfg.color}`}>{cfg.label}</span>
+
+                          {/* Pause / Resume for active & paused */}
                           {(c.status === 'active' || c.status === 'paused') && (
                             <button onClick={() => toggleCampaign(c)} disabled={toggling === c.id}
+                              title={c.status === 'active' ? 'Pause campaign' : 'Resume campaign'}
                               className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                               {toggling === c.id
                                 ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -151,6 +198,20 @@ export default function MyAds() {
                                 : <Play className="w-4 h-4" />}
                             </button>
                           )}
+
+                          {/* Delete button — review/rejected/paused statuses */}
+                          {DELETABLE_STATUSES.includes(c.status) && (
+                            <button
+                              onClick={() => handleDeleteCampaign(c)}
+                              disabled={deleting === c.id}
+                              title="Delete campaign"
+                              className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors">
+                              {deleting === c.id
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : <Trash2 className="w-4 h-4" />}
+                            </button>
+                          )}
+
                         </div>
                       </div>
 

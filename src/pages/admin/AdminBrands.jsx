@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import {
   Building2, Loader2, X, ExternalLink, Mail, Phone,
   CheckCircle2, XCircle, MessageSquare, Clock, TrendingUp,
-  ChevronDown,
+  ChevronDown, Trash2,
 } from 'lucide-react'
 
 const STATUS_OPTIONS = ['new', 'in_discussion', 'converted', 'declined']
@@ -58,6 +58,15 @@ export default function AdminBrands() {
     setInquiries(prev => prev.map(i => i.id === id ? { ...i, status } : i))
     if (selected?.id === id) setSelected(prev => ({ ...prev, status }))
     toast.success(`Status updated to ${STATUS_CFG[status]?.label || status}`)
+  }
+
+  const handleDeleteInquiry = async (inquiryId) => {
+    if (!window.confirm('Delete this inquiry? This cannot be undone.')) return
+    const { error } = await supabase.from('brand_inquiries').delete().eq('id', inquiryId)
+    if (error) { toast.error('Failed to delete inquiry'); return }
+    toast.success('Inquiry deleted')
+    setInquiries(prev => prev.filter(i => i.id !== inquiryId))
+    if (selected?.id === inquiryId) setSelected(null)
   }
 
   const saveNotes = async () => {
@@ -150,9 +159,17 @@ export default function AdminBrands() {
                     {inq.campaign_goal && <><span>·</span><span>{inq.campaign_goal}</span></>}
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   <p className="text-xs text-muted-foreground">{new Date(inq.created_at).toLocaleDateString()}</p>
-                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground mt-1 ml-auto group-hover:text-primary transition-colors" />
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDeleteInquiry(inq.id) }}
+                      title="Delete inquiry"
+                      className="p-1 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </div>
                 </div>
               </div>
             </button>
@@ -234,11 +251,17 @@ export default function AdminBrands() {
                   rows={3}
                   placeholder="Add private notes about this inquiry…"
                   className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
-                <button onClick={saveNotes} disabled={saving}
-                  className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50">
-                  {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                  Save Notes
-                </button>
+                <div className="flex gap-2 mt-2">
+                  <button onClick={saveNotes} disabled={saving}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50">
+                    {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                    Save Notes
+                  </button>
+                  <button onClick={() => handleDeleteInquiry(selected.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 text-xs font-medium hover:bg-red-500/20 transition-colors">
+                    <Trash2 className="w-3 h-3" /> Delete Inquiry
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -10,12 +10,17 @@ import {
 } from 'lucide-react'
 
 const STATUS_CFG = {
-  pending:   { color: 'text-yellow-400 bg-yellow-400/10' },
-  active:    { color: 'text-green-400 bg-green-400/10'   },
-  paused:    { color: 'text-blue-400 bg-blue-400/10'     },
-  rejected:  { color: 'text-red-400 bg-red-400/10'       },
-  completed: { color: 'text-muted-foreground bg-muted'   },
+  pending:        { color: 'text-yellow-400 bg-yellow-400/10' },
+  under_review:   { color: 'text-yellow-400 bg-yellow-400/10' },
+  pending_review: { color: 'text-yellow-400 bg-yellow-400/10' },
+  submitted:      { color: 'text-yellow-400 bg-yellow-400/10' },
+  active:         { color: 'text-green-400 bg-green-400/10'   },
+  paused:         { color: 'text-blue-400 bg-blue-400/10'     },
+  rejected:       { color: 'text-red-400 bg-red-400/10'       },
+  completed:      { color: 'text-muted-foreground bg-muted'   },
 }
+
+const PENDING_STATUSES = ['pending', 'under_review', 'pending_review', 'submitted']
 
 async function callApproveCampaign(body) {
   const res = await fetch(
@@ -123,7 +128,7 @@ export default function AdminAds() {
     setActionId(null)
   }
 
-  const pendingCampaigns = campaigns.filter(c => c.status === 'pending')
+  const pendingCampaigns = campaigns.filter(c => PENDING_STATUSES.includes(c.status))
   const activeCampaigns  = campaigns.filter(c => c.status === 'active' || c.status === 'paused')
   const pendingBoosts    = boosts.filter(b => b.status === 'pending')
 
@@ -357,7 +362,7 @@ function CampaignRow({ campaign: c, actionId, onApprove, onReject, onPauseResume
               <ExternalLink className="w-3 h-3" /> Preview URL
             </a>
           )}
-          {c.status === 'pending' && (
+          {PENDING_STATUSES.includes(c.status) && (
             <div className="flex gap-2">
               <button onClick={onApprove} disabled={actionId === c.id}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/15 text-green-400 border border-green-500/30 text-xs font-medium hover:bg-green-500/25 disabled:opacity-50">
