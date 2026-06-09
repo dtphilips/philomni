@@ -17,6 +17,7 @@ const STATUS_CFG = {
   paused:         { label: 'Paused',         color: 'text-blue-400 bg-blue-400/10'     },
   completed:      { label: 'Completed',      color: 'text-muted-foreground bg-muted'   },
   rejected:       { label: 'Rejected',       color: 'text-red-400 bg-red-400/10'       },
+  cancelled:      { label: 'Cancelled',      color: 'text-muted-foreground bg-muted'   },
 }
 
 const DELETABLE_STATUSES = ['pending', 'under_review', 'pending_review', 'submitted', 'rejected', 'paused']
@@ -111,46 +112,62 @@ export default function MyAds() {
     setCancelling(null)
   }
 
-  // Cancel an active/paused campaign with optional partial Stripe refund
+  // Cancel an active/paused/under_review campaign — routes through cancel-campaign edge function
   const handleCancelCampaign = async (c) => {
-    const today = new Date()
-    const endDate = c.end_date ? new Date(c.end_date) : null
-    const daysRemaining = endDate ? Math.max(0, Math.ceil((endDate - today) / 86_400_000)) : 0
-    const potentialRefund = daysRemaining * Number(c.daily_budget ?? 10)
+    const REVIEW_STATUSES = ['pending', 'under_review', 'pending_review', 'submitted']
+    const isUnderReview = REVIEW_STATUSES.includes(c.status)
+    const isActive = c.status === 'active'
 
-    const msg = potentialRefund > 0
-      ? `Cancel this campaign?\n\n${daysRemaining} days remaining = $${potentialRefund.toFixed(2)} refund.\n\nUsed days will not be refunded.`
-      : 'Cancel this campaign? This cannot be undone.'
+    let msg = ''
+    if (isUnderReview) {
+      // With manual capture, card is AUTHORIZED but NOT charged until approval
+      msg =
+        'Cancel this campaign?\n\n' +
+        'Your card has an authorization hold of $' + Number(c.total_budget ?? 0).toFixed(2) + ' USD ' +
+        'but has NOT been charged.\n\n' +
+        'Cancelling releases the hold immediately — no charge will be made.\n' +
+        'Allow 1–3 business days for the hold to clear from your statement.'
+    } else if (isActive || c.status === 'paused') {
+      const today = new Date()
+      const endDate = c.end_date ? new Date(c.end_date) : null
+      const daysRemaining = endDate ? Math.max(0, Math.ceil((endDate - today) / 86_400_000)) : 0
+      const potentialRefund = daysRemaining * Number(c.daily_budget ?? 10)
+      msg = potentialRefund > 0
+        ? `Cancel this campaign?\n\n${daysRemaining} days remaining = $${potentialRefund.toFixed(2)} USD refund.\n\nDays already served will not be refunded.\nAllow 5–10 business days for the refund.`
+        : 'Cancel this campaign? All days have been served — no refund will be issued.'
+    } else {
+      msg = 'Remove this campaign?'
+    }
+
     if (!window.confirm(msg)) return
-
     setCancelling(c.id)
+
     const { data, error } = await supabase.functions.invoke('cancel-campaign', {
       body: { campaignId: c.id, userId: user.id, action: 'cancel' },
     })
-    if (error || data?.error) { toast.error('Failed to cancel campaign'); setCancelling(null); return }
+    if (error || data?.error) {
+      toast.error('Failed to cancel. Email support@philomni.com')
+      setCancelling(null); return
+    }
     toast.success(data?.message ?? 'Campaign cancelled.')
     setCampaigns(prev => prev.filter(x => x.id !== c.id))
     setCancelling(null)
   }
 
-  // Delete campaigns that were never active (no Stripe charge to refund)
+  // Delete campaigns that were never charged (rejected only — review uses handleCancelCampaign)
   const handleDeleteCampaign = async (c) => {
-    const neverActive = ['pending', 'under_review', 'pending_review', 'submitted', 'rejected'].includes(c.status)
-    if (!neverActive) { toast.error('Use Cancel to remove active/paused campaigns.'); return }
-    if (!window.confirm('Delete this campaign? This cannot be undone.')) return
-    setDeleting(c.id)
-
-    // Cancel any Stripe auth that was never captured
-    if (c.stripe_payment_intent_id && c.stripe_payment_status === 'requires_capture') {
-      await supabase.functions.invoke('approve-campaign', {
-        body: { campaignId: c.id, action: 'reject', adminId: user.id, rejectionReason: 'Cancelled by advertiser' },
-      }).then(({ error: e }) => { if (e) console.warn('stripe cancel:', e) })
+    const deletable = ['rejected', 'cancelled'].includes(c.status)
+    if (!deletable) {
+      // Under-review campaigns need proper cancel to release hold
+      handleCancelCampaign(c)
+      return
     }
-
+    if (!window.confirm('Remove this campaign from your list?')) return
+    setDeleting(c.id)
     await supabase.from('ad_creatives').delete().eq('campaign_id', c.id)
     const { error } = await supabase.from('ad_campaigns').delete().eq('id', c.id).eq('advertiser_id', user.id)
     if (error) { toast.error('Failed to delete campaign'); setDeleting(null); return }
-    toast.success('Campaign deleted.')
+    toast.success('Campaign removed.')
     setCampaigns(prev => prev.filter(x => x.id !== c.id))
     setDeleting(null)
   }
@@ -228,6 +245,27 @@ export default function MyAds() {
                             {c.status === 'rejected' && c.rejection_reason && (
                               <p className="text-xs text-red-400 mt-1">Reason: {c.rejection_reason}</p>
                             )}
+                            {/* Payment status note */}
+                            {['pending', 'under_review', 'pending_review', 'submitted'].includes(c.status) && (
+                              <p className="text-[11px] text-yellow-500/80 mt-0.5">
+                                Card hold of ${Number(c.total_budget ?? 0).toFixed(2)} — not charged until approved
+                              </p>
+                            )}
+                            {c.status === 'active' && (
+                              <p className="text-[11px] text-green-500/80 mt-0.5">
+                                ${Number(c.total_budget ?? 0).toFixed(2)} charged · campaign live
+                              </p>
+                            )}
+                            {c.status === 'paused' && (
+                              <p className="text-[11px] text-blue-400/80 mt-0.5">
+                                Paused · no further charges until resumed
+                              </p>
+                            )}
+                            {c.status === 'cancelled' && (
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                                Cancelled · refund issued if applicable
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -265,10 +303,19 @@ export default function MyAds() {
                             </>
                           )}
 
-                          {/* Under review / rejected: Delete only (no charge made yet) */}
-                          {['pending', 'under_review', 'pending_review', 'submitted', 'rejected'].includes(c.status) && (
+                          {/* Under review: Cancel button (releases hold, never charged) */}
+                          {['pending', 'under_review', 'pending_review', 'submitted'].includes(c.status) && (
+                            <button onClick={() => handleCancelCampaign(c)} disabled={cancelling === c.id}
+                              title="Cancel campaign — releases card hold"
+                              className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors">
+                              {cancelling === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                            </button>
+                          )}
+
+                          {/* Rejected / Cancelled: Remove from list */}
+                          {['rejected', 'cancelled'].includes(c.status) && (
                             <button onClick={() => handleDeleteCampaign(c)} disabled={deleting === c.id}
-                              title="Delete campaign"
+                              title="Remove from list"
                               className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors">
                               {deleting === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                             </button>

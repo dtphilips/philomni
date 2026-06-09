@@ -42,9 +42,10 @@ Deno.serve(async (req) => {
       : `Ad campaign — ${campaignData?.name ?? 'Campaign'}`
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount:      Math.round(amount * 100), // dollars → cents
-      currency:    'usd',
-      customer:    customerId,
+      amount:         Math.round(amount * 100), // dollars → cents
+      currency:       'usd',
+      customer:       customerId,
+      capture_method: 'manual', // authorize only — capture on admin approval
       description,
       metadata: {
         userId,
