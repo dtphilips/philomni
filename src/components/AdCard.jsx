@@ -69,13 +69,27 @@ export default function AdCard({ campaign }) {
       </div>
 
       {/* Creative */}
-      {creative
-        ? creative.file_type === 'video'
-          ? <video src={creative.file_url} poster={creative.thumbnail_url ?? undefined} autoPlay muted loop playsInline className="w-full max-h-[400px] object-cover bg-black" />
-          : <img src={creative.file_url} alt={brand} className="w-full max-h-[400px] object-cover" />
-        : campaign.image_url
-          ? <img src={campaign.image_url} alt={brand} className="w-full max-h-[400px] object-cover" />
-          : <div className="h-44 bg-primary/10 flex items-center justify-center text-primary font-semibold">{brand}</div>}
+      {creative?.file_type === 'video' ? (
+        <video
+          src={creative.file_url}
+          poster={creative.thumbnail_url ?? undefined}
+          autoPlay muted loop playsInline
+          className="w-full max-h-[400px] object-cover bg-black block"
+          onError={e => { console.error('[AdCard] video error', e); e.currentTarget.style.display = 'none' }}
+        />
+      ) : creative?.file_url || campaign.image_url ? (
+        <img
+          src={creative?.file_url ?? campaign.image_url}
+          alt={brand}
+          className="w-full max-h-[400px] object-cover block"
+          onError={e => { e.currentTarget.style.display = 'none' }}
+        />
+      ) : (
+        <div className="h-44 bg-gradient-to-br from-primary/20 to-primary/5 flex flex-col items-center justify-center gap-2">
+          <span className="text-3xl">📢</span>
+          <span className="text-primary font-bold text-sm">{brand}</span>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="px-4 py-3 flex items-center justify-between gap-3">

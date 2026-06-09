@@ -481,9 +481,21 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
 
   // ── In-video ad helpers ───────────────────────────────────────────────
   const tryShowAd = (slot) => {
-    if (!creatorMonetized) return false
+    console.log('[Reels] tryShowAd', slot, {
+      creatorMonetized,
+      campaigns: inVideoCampaigns?.length ?? 0,
+      authorId,
+    })
+    if (!creatorMonetized) {
+      console.log('[Reels] skipping ad — creator not monetized')
+      return false
+    }
     const ad = selectAdForVideo(inVideoCampaigns, reel)
-    if (!ad) return false
+    if (!ad) {
+      console.log('[Reels] skipping ad — no eligible campaign')
+      return false
+    }
+    console.log('[Reels] showing ad:', ad.name, 'slot:', slot)
     setCurrentAd(ad)
     setAdSlot(slot)
     videoRef.current?.pause()
@@ -499,13 +511,18 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
   const handleTimeUpdate = (e) => {
     const video = e.target
     if (!video.duration) return
-    const pct = video.currentTime / video.duration
-    const remaining = video.duration - video.currentTime
-    if (pct >= 0.5 && !midRollShown) {
+    const dur = video.duration
+    const pct = video.currentTime / dur
+    const remaining = dur - video.currentTime
+
+    // Mid-roll: only on videos ≥ 30 s, fires at 50%
+    if (dur >= 30 && pct >= 0.5 && !midRollShown) {
       setMidRollShown(true)
       tryShowAd('mid_roll')
     }
-    if (remaining <= 5 && remaining > 0 && !endRollShown) {
+
+    // End-roll: only on videos ≥ 20 s, fires at ≤ 5 s remaining
+    if (dur >= 20 && remaining <= 5 && remaining > 0 && !endRollShown) {
       setEndRollShown(true)
       tryShowAd('end_roll')
     }

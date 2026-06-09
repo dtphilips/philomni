@@ -3255,7 +3255,11 @@ export default function Feed() {
       // ── Layer 3: Fetch active ads for injection ────────────────────────────
       const now = new Date().toISOString()
       const [{ data: campAds }, { data: boostAds }] = await Promise.all([
-        supabase.from('ad_campaigns').select('*').eq('status', 'active').gt('ends_at', now).limit(10),
+        supabase.from('ad_campaigns')
+          .select('*, ad_creatives(*)')
+          .in('status', ['active', 'under_review'])
+          .in('placement_type', ['feed', 'both'])
+          .limit(10),
         supabase.from('boosted_posts').select('*, posts(*)').eq('status', 'active').gt('ends_at', now).limit(10),
       ])
 
