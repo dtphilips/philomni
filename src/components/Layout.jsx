@@ -546,7 +546,7 @@ export default function Layout({ children }) {
         <main className="flex-1 overflow-y-auto relative">
           <div className={`mx-auto px-4 py-6 ${
             location.pathname.startsWith('/watch')
-              ? 'max-w-screen-2xl'   // ~1536px — wide enough for video + sidebar
+              ? 'max-w-5xl'
               : 'max-w-4xl'
           } ${playerVisible ? 'pb-28' : ''}`}>
             {children}
