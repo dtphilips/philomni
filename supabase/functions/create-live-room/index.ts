@@ -19,14 +19,16 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     )
 
-    const { action, liveId } = await req.json()
+    const body = await req.json()
+    const { action } = body
 
+    // ── Create room + host token ──────────────────────────────────────────────
     if (action === 'create') {
+      const { liveId } = body
       if (!liveId) throw new Error('liveId required')
 
-      const expiry = Math.floor(Date.now() / 1000) + 4 * 3600 // 4hr
+      const expiry = Math.floor(Date.now() / 1000) + 4 * 3600
 
-      // Create Daily.co room
       const roomResp = await fetch(`${DAILY_BASE}/rooms`, {
         method: 'POST',
         headers: {
@@ -38,8 +40,11 @@ Deno.serve(async (req) => {
             exp: expiry,
             enable_screenshare: false,
             enable_chat: false,
-            start_video_off: false,
-            start_audio_off: false,
+            // Viewers start muted; only owner (host) can publish
+            start_video_off: true,
+            start_audio_off: true,
+            owner_only_broadcast: true,
+            hide_daily_branding: true,
             max_participants: 200,
           },
         }),
@@ -47,7 +52,7 @@ Deno.serve(async (req) => {
       const room = await roomResp.json()
       if (!room.url) throw new Error(`Daily.co room creation failed: ${JSON.stringify(room)}`)
 
-      // Create host token (owner = can broadcast)
+      // Host token — owner can broadcast video + audio
       const tokenResp = await fetch(`${DAILY_BASE}/meeting-tokens`, {
         method: 'POST',
         headers: {
@@ -66,7 +71,6 @@ Deno.serve(async (req) => {
       })
       const { token } = await tokenResp.json()
 
-      // Save room_url and room_name to lives table
       await supabase.from('lives').update({
         room_url: room.url,
         room_name: room.name,
@@ -77,10 +81,42 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
 
+    // ── Viewer join token ─────────────────────────────────────────────────────
+    } else if (action === 'join') {
+      const { roomName } = body
+      if (!roomName) throw new Error('roomName required')
+
+      const expiry = Math.floor(Date.now() / 1000) + 4 * 3600
+
+      const tokenResp = await fetch(`${DAILY_BASE}/meeting-tokens`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${DAILY_API_KEY}`,
+        },
+        body: JSON.stringify({
+          properties: {
+            room_name: roomName,
+            is_owner: false,
+            exp: expiry,
+            start_video_off: true,
+            start_audio_off: true,
+            enable_screenshare: false,
+          },
+        }),
+      })
+      const { token } = await tokenResp.json()
+
+      return new Response(
+        JSON.stringify({ token }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+
+    // ── Delete room ───────────────────────────────────────────────────────────
     } else if (action === 'delete') {
+      const { liveId } = body
       if (!liveId) throw new Error('liveId required')
 
-      // Get room_name from DB
       const { data: live } = await supabase.from('lives').select('room_name').eq('id', liveId).single()
       if (live?.room_name) {
         await fetch(`${DAILY_BASE}/rooms/${live.room_name}`, {

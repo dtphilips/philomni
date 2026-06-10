@@ -127,13 +127,14 @@ function GiftPanel({ live, user, onClose, onSent }) {
       const { data: giftRow, error: giftErr } = await supabase.from('live_gifts').insert({
         live_id: live.id,
         sender_id: user.id,
+        host_id: live.host_id,
         sender_name: user.full_name || user.email,
         sender_avatar: user.avatar_url || null,
         gift_name: selected.name,
         gift_emoji: selected.emoji,
         coin_cost: selected.coins,
         quantity: qty,
-        total_coins: totalCost,
+        // total_coins is a generated column (coin_cost * quantity) — do not insert
         usd_value: usdValue,
         host_earnings: hostEarnings,
       }).select().single()
@@ -150,10 +151,9 @@ function GiftPanel({ live, user, onClose, onSent }) {
         p_recipient_id: live.host_id,
       })
 
-      // Credit host earnings on lives row
+      // Credit gift value on lives row (total_gifts_value is USD)
       await supabase.from('lives').update({
-        total_gifts_coins: (live.total_gifts_coins || 0) + totalCost,
-        total_earnings_usd: parseFloat(((live.total_earnings_usd || 0) + Number(hostEarnings)).toFixed(4)),
+        total_gifts_value: parseFloat(((live.total_gifts_value || 0) + Number(usdValue)).toFixed(4)),
       }).eq('id', live.id)
 
       setToast(`Sent ${qty > 1 ? `${qty}× ` : ''}${selected.emoji} ${selected.name}!`)
@@ -280,6 +280,7 @@ export default function LiveViewer() {
   const [showGifts, setShowGifts] = useState(false)
   const [isFollowing, setIsFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
+  const [viewerToken, setViewerToken] = useState(null)
 
   const bottomRef = useRef(null)
 
@@ -315,6 +316,16 @@ export default function LiveViewer() {
     supabase.from('live_messages').select('*').eq('live_id', liveId).order('created_at').limit(100)
       .then(({ data }) => setMessages(data || []))
   }, [liveId])
+
+  // ─── Viewer token for watch-only embed ───────────────────────────────────
+  useEffect(() => {
+    if (!live?.room_name) return
+    supabase.functions.invoke('create-live-room', {
+      body: { action: 'join', roomName: live.room_name },
+    }).then(({ data }) => {
+      if (data?.token) setViewerToken(data.token)
+    }).catch(e => console.warn('[LiveViewer] viewer token error:', e))
+  }, [live?.room_name])
 
   // ─── Check follow ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -420,13 +431,18 @@ export default function LiveViewer() {
       <div className="flex-1 relative bg-zinc-900 flex items-center justify-center overflow-hidden">
         {/* Daily.co stream embed */}
         <div className="w-full h-full flex items-center justify-center">
-          {live.room_url ? (
+          {live.room_url && viewerToken ? (
             <iframe
-              src={`${live.room_url}?startVideoOff=true&startAudioOff=true&showLeaveButton=false&showFullscreenButton=true`}
-              allow="camera; microphone; fullscreen; autoplay"
+              src={`${live.room_url}?t=${viewerToken}`}
+              allow="camera; microphone; fullscreen; autoplay; speaker"
               className="w-full h-full border-0"
               title="Live stream"
             />
+          ) : live.room_url ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-white/50">
+              <Loader2 className="w-8 h-8 animate-spin" />
+              <p className="text-sm">Connecting to stream…</p>
+            </div>
           ) : live.thumbnail_url ? (
             <img src={live.thumbnail_url} alt="stream" className="w-full h-full object-cover" />
           ) : (
