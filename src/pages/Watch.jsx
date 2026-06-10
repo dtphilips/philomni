@@ -79,7 +79,8 @@ export default function Watch() {
 
   const fetchVideo = async () => {
     setLoading(true)
-    const { data } = await supabase
+    console.log('[Watch] videoId param:', videoId)
+    const { data, error } = await supabase
       .from('videos')
       .select(`
         *,
@@ -90,6 +91,11 @@ export default function Watch() {
       `)
       .eq('id', videoId)
       .single()
+
+    console.log('[Watch] video data:', data)
+    console.log('[Watch] cloudflare_uid:', data?.cloudflare_uid)
+    console.log('[Watch] cloudflare_status:', data?.cloudflare_status)
+    if (error) console.error('[Watch] fetch error:', error)
 
     if (data) {
       setVideo(data)
