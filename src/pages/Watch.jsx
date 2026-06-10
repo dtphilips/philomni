@@ -208,10 +208,10 @@ export default function Watch() {
 
   if (!video) return (
     <div style={{ textAlign: 'center', padding: 60, color: '#fff' }}>
-      <div style={{ fontSize: 64, marginBottom: 16 }}>📹</div>
-      <h2 style={{ marginBottom: 8 }}>Video not found</h2>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>🎬</div>
+      <h2 style={{ marginBottom: 8 }}>Video not available</h2>
       <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: 24, fontSize: 14 }}>
-        This video may still be processing or doesn't exist.
+        This video may have been removed or is unavailable.
       </p>
       <button
         onClick={() => navigate('/watch')}
@@ -221,6 +221,28 @@ export default function Watch() {
       </button>
     </div>
   )
+
+  // Show processing state for non-ready videos
+  if (video.cloudflare_status !== 'ready') {
+    const thumbUrl = video.thumbnail_url ?? video.cloudflare_thumbnail ?? null
+    return (
+      <div style={{ maxWidth: 800, margin: '40px auto', padding: '0 16px', textAlign: 'center', color: '#fff' }}>
+        <div style={{ width: '100%', paddingTop: '56.25%', position: 'relative', background: '#111', borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
+          {thumbUrl && (
+            <img src={thumbUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.4 }} />
+          )}
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+            <div style={{ width: 60, height: 60, border: '3px solid rgba(139,92,246,0.4)', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <p style={{ color: '#fff', fontWeight: 600, fontSize: 18 }}>Getting your video ready…</p>
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>This usually takes a few minutes. Come back shortly.</p>
+          </div>
+        </div>
+        <h1 style={{ fontSize: 20, marginBottom: 8 }}>{video.title}</h1>
+        <p style={{ color: 'rgba(255,255,255,0.5)' }}>by {video.creator?.full_name ?? video.creator?.username}</p>
+      </div>
+    )
+  }
 
   const embedUrl = video.cloudflare_uid
     ? `https://customer-lrknbwoduz.cloudflarestream.com/${video.cloudflare_uid}/iframe?poster=${encodeURIComponent(video.thumbnail_url ?? video.cloudflare_thumbnail ?? '')}`

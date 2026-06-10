@@ -53,7 +53,7 @@ function fmt(n) {
 const HOW_IT_WORKS = [
   { emoji: '🪙', title: 'Buy Coins',     desc: 'Purchase coin packages above to top up your balance instantly.' },
   { emoji: '🎁', title: 'Send Gifts',    desc: 'Use coins to send gifts during live streams and on any post.' },
-  { emoji: '💰', title: 'Creators Earn', desc: "70% of every gift value goes directly to the creator's wallet." },
+  { emoji: '💰', title: 'Creators Earn', desc: 'Gifts go directly to creators. Every coin you spend supports the people you love.' },
 ]
 
 // ── Stripe Embedded Checkout Form ─────────────────────────────────────────────
@@ -554,7 +554,7 @@ export default function BuyCoins() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground text-center mt-3">
-          100 coins = $1.00 USD · Creators keep 70% of gift value
+          100 coins = $1.00 USD · Gifts go directly to creators
         </p>
       </div>
 

@@ -226,10 +226,22 @@ export default function VideoUpload() {
           duration_seconds: Math.round(data.duration ?? 0),
           published_at: new Date().toISOString(),
         }).eq('id', dbId)
+
+        // Notify the creator
+        if (user?.id) {
+          await supabase.from('notifications').insert({
+            user_id: user.id,
+            type: 'video_ready',
+            content: `Your video "${title}" is ready to watch!`,
+            reference_id: dbId,
+            created_by: user.id,
+          }).then(() => {})
+        }
+
         setStep('done')
         toast.success('Video published!')
       } else if (data?.status === 'error') {
-        toast.error('Cloudflare processing failed')
+        toast.error('Video processing failed — please try uploading again')
         setStep('details')
       } else {
         setTimeout(check, 5000)
@@ -456,8 +468,8 @@ export default function VideoUpload() {
       </div>
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       <h2 style={{ color: '#fff', marginBottom: 8, fontSize: 22, fontWeight: 700 }}>Processing Video…</h2>
-      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Cloudflare is encoding your video. Usually 1–5 minutes.</p>
-      <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, marginTop: 8 }}>You can safely close this tab — we'll notify you when it's ready.</p>
+      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Your video is being prepared. This usually takes a few minutes.</p>
+      <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, marginTop: 8 }}>You can close this page — we'll let you know when it's ready.</p>
     </div>
   )
 
