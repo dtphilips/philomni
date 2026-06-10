@@ -44,6 +44,7 @@ export default function Watch() {
   const [submittingComment, setSubmittingComment] = useState(false)
   const [descExpanded, setDescExpanded] = useState(false)
   const [following, setFollowing] = useState(false)
+  const [muted, setMuted] = useState(true) // start muted for autoplay compat
 
   // Ad state
   const [campaigns, setCampaigns] = useState([])
@@ -57,6 +58,9 @@ export default function Watch() {
   const watchStartRef = useRef(Date.now())
   const iframeRef = useRef(null)
 
+  // Responsive: check viewport width
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+
   useEffect(() => {
     watchStartRef.current = Date.now()
     fetchVideo()
@@ -67,7 +71,6 @@ export default function Watch() {
     return () => {
       const watchSeconds = Math.round((Date.now() - watchStartRef.current) / 1000)
       if (watchSeconds > 5) {
-        // fire-and-forget — don't await inside cleanup
         supabase.from('video_watches').insert({
           video_id: videoId,
           viewer_id: user?.id ?? null,
@@ -79,7 +82,6 @@ export default function Watch() {
 
   const fetchVideo = async () => {
     setLoading(true)
-    console.log('[Watch] videoId param:', videoId)
     const { data, error } = await supabase
       .from('videos')
       .select(`
@@ -92,16 +94,12 @@ export default function Watch() {
       .eq('id', videoId)
       .single()
 
-    console.log('[Watch] video data:', data)
-    console.log('[Watch] cloudflare_uid:', data?.cloudflare_uid)
-    console.log('[Watch] cloudflare_status:', data?.cloudflare_status)
-    if (error) console.error('[Watch] fetch error:', error)
-
     if (data) {
       setVideo(data)
       setCreator(data.creator)
       await supabase.rpc('increment_video_views', { p_video_id: videoId })
     }
+    if (error) console.error('[Watch] fetch error:', error.message)
     setLoading(false)
   }
 
@@ -120,7 +118,7 @@ export default function Watch() {
     const { data } = await supabase
       .from('videos')
       .select(`
-        id, title, thumbnail_url, cloudflare_thumbnail,
+        id, title, thumbnail_url, cloudflare_uid, cloudflare_thumbnail,
         duration_seconds, view_count, created_at,
         creator:users!creator_id(username, full_name, avatar_url)
       `)
@@ -228,15 +226,13 @@ export default function Watch() {
     </div>
   )
 
-  // Show processing state for non-ready videos
+  // Processing state
   if (video.cloudflare_status !== 'ready') {
-    const thumbUrl = video.thumbnail_url ?? video.cloudflare_thumbnail ?? null
+    const procThumb = video.thumbnail_url ?? video.cloudflare_thumbnail ?? null
     return (
       <div style={{ maxWidth: 800, margin: '40px auto', padding: '0 16px', textAlign: 'center', color: '#fff' }}>
-        <div style={{ width: '100%', paddingTop: '56.25%', position: 'relative', background: '#111', borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
-          {thumbUrl && (
-            <img src={thumbUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.4 }} />
-          )}
+        <div style={{ width: '100%', aspectRatio: '16/9', position: 'relative', background: '#111', borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
+          {procThumb && <img src={procThumb} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.4 }} />}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
             <div style={{ width: 60, height: 60, border: '3px solid rgba(139,92,246,0.4)', borderTopColor: '#8b5cf6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -250,8 +246,9 @@ export default function Watch() {
     )
   }
 
+  // Autoplay muted (unmute button shown) — browsers block unmuted autoplay without prior interaction
   const embedUrl = video.cloudflare_uid
-    ? `https://iframe.videodelivery.net/${video.cloudflare_uid}`
+    ? `https://iframe.videodelivery.net/${video.cloudflare_uid}?autoplay=true&muted=${muted}&preload=auto`
     : null
 
   const thumbUrl = (video.thumbnail_url && !video.thumbnail_url.includes('undefined'))
@@ -260,21 +257,38 @@ export default function Watch() {
       ? `https://videodelivery.net/${video.cloudflare_uid}/thumbnails/thumbnail.jpg`
       : null
 
+  const relatedThumb = (v) =>
+    (v.thumbnail_url && !v.thumbnail_url.includes('undefined'))
+      ? v.thumbnail_url
+      : v.cloudflare_uid
+        ? `https://videodelivery.net/${v.cloudflare_uid}/thumbnails/thumbnail.jpg?time=5s`
+        : ''
+
   return (
     <>
       <style>{`
-        .watch-layout { display: flex; gap: 24px; max-width: 1400px; margin: 0 auto; padding: 24px 16px; color: #fff; }
-        .watch-main { flex: 1; min-width: 0; }
-        .watch-sidebar { width: 380px; flex-shrink: 0; }
-        @media (max-width: 1024px) { .watch-sidebar { display: none !important; } }
+        .watch-grid {
+          display: grid;
+          grid-template-columns: 1fr 360px;
+          gap: 24px;
+          align-items: start;
+          color: #fff;
+        }
+        @media (max-width: 1100px) {
+          .watch-grid { grid-template-columns: 1fr; }
+          .watch-sidebar-col { display: none; }
+        }
+        @media (max-width: 768px) {
+          .watch-grid { gap: 16px; }
+        }
       `}</style>
 
-      <div className="watch-layout">
-        {/* ── Left: main content ── */}
-        <div className="watch-main">
+      <div className="watch-grid">
+        {/* ── Left column: player + info ── */}
+        <div style={{ minWidth: 0 }}>
 
           {/* Player */}
-          <div style={{ width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+          <div style={{ width: '100%', aspectRatio: '16/9', minHeight: 280, position: 'relative', background: '#000', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
             {showAd && currentAd && (
               <div style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
                 <AdOverlay
@@ -288,19 +302,36 @@ export default function Watch() {
               </div>
             )}
             {embedUrl ? (
-              <iframe
-                ref={iframeRef}
-                src={embedUrl}
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                allowFullScreen
-                title={video.title}
-              />
+              <>
+                <iframe
+                  ref={iframeRef}
+                  src={embedUrl}
+                  style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  title={video.title}
+                />
+                {/* Unmute button — shown when autoplay starts muted */}
+                {muted && (
+                  <button
+                    onClick={() => setMuted(false)}
+                    style={{
+                      position: 'absolute', bottom: 16, right: 16,
+                      background: 'rgba(0,0,0,0.75)',
+                      backdropFilter: 'blur(4px)',
+                      color: '#fff', border: 'none',
+                      borderRadius: 20, padding: '8px 16px',
+                      cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                      zIndex: 5, display: 'flex', alignItems: 'center', gap: 6,
+                    }}
+                  >
+                    🔊 Unmute
+                  </button>
+                )}
+              </>
             ) : (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-                {thumbUrl && (
-                  <img src={thumbUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.3 }} />
-                )}
+                {thumbUrl && <img src={thumbUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.3 }} />}
                 <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
                   <p style={{ color: '#fff', fontSize: 18 }}>⚙️ Video is processing…</p>
                   <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 4 }}>Check back in a few minutes</p>
@@ -310,7 +341,7 @@ export default function Watch() {
           </div>
 
           {/* Title */}
-          <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, lineHeight: 1.3 }}>{video.title}</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, lineHeight: 1.3, color: '#fff' }}>{video.title}</h1>
 
           {/* Stats + actions */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
@@ -349,7 +380,7 @@ export default function Watch() {
               onError={e => { e.target.style.display = 'none' }}
             />
             <div style={{ flex: 1 }}>
-              <p style={{ fontWeight: 600, margin: 0, cursor: 'pointer' }} onClick={() => navigate(`/profile/${creator?.id}`)}>
+              <p style={{ fontWeight: 600, margin: 0, cursor: 'pointer', color: '#fff' }} onClick={() => navigate(`/profile/${creator?.id}`)}>
                 {creator?.full_name ?? creator?.username}
               </p>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>
@@ -394,14 +425,13 @@ export default function Watch() {
 
           {/* Comments */}
           <div>
-            <h3 style={{ marginBottom: 16, fontSize: 16 }}>{video.comment_count ?? 0} Comments</h3>
+            <h3 style={{ marginBottom: 16, fontSize: 16, color: '#fff' }}>{video.comment_count ?? 0} Comments</h3>
 
-            {/* Comment input */}
             {user ? (
               <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
                 {profile?.avatar_url
                   ? <img src={profile.avatar_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                  : <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700 }}>{(profile?.full_name || user?.email || 'U')[0].toUpperCase()}</div>
+                  : <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff' }}>{(profile?.full_name || user?.email || 'U')[0].toUpperCase()}</div>
                 }
                 <div style={{ flex: 1 }}>
                   <input
@@ -418,9 +448,7 @@ export default function Watch() {
                   />
                   {newComment && (
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-                      <button onClick={() => setNewComment('')} style={{ padding: '6px 16px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>
-                        Cancel
-                      </button>
+                      <button onClick={() => setNewComment('')} style={{ padding: '6px 16px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>Cancel</button>
                       <button
                         onClick={handleComment}
                         disabled={submittingComment}
@@ -438,16 +466,15 @@ export default function Watch() {
               </p>
             )}
 
-            {/* Comment list */}
             {comments.map(comment => (
               <div key={comment.id} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
                 {comment.user?.avatar_url
                   ? <img src={comment.user.avatar_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                  : <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(139,92,246,0.3)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{(comment.user?.full_name || comment.user?.username || '?')[0].toUpperCase()}</div>
+                  : <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(139,92,246,0.3)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff' }}>{(comment.user?.full_name || comment.user?.username || '?')[0].toUpperCase()}</div>
                 }
                 <div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>{comment.user?.full_name ?? comment.user?.username}</span>
+                    <span style={{ fontWeight: 600, fontSize: 13, color: '#fff' }}>{comment.user?.full_name ?? comment.user?.username}</span>
                     <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>{formatTime(comment.created_at)}</span>
                   </div>
                   <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.8)', fontSize: 14, lineHeight: 1.5 }}>{comment.content}</p>
@@ -463,20 +490,20 @@ export default function Watch() {
           </div>
         </div>
 
-        {/* ── Right sidebar: related videos ── */}
-        <div className="watch-sidebar">
-          <h3 style={{ marginBottom: 16, fontSize: 16 }}>Up Next</h3>
+        {/* ── Right column: related videos (hidden on mobile via CSS) ── */}
+        <div className="watch-sidebar-col" style={{ position: 'sticky', top: 24 }}>
+          <h3 style={{ marginBottom: 16, fontSize: 15, color: '#fff' }}>Up Next</h3>
           {relatedVideos.map(v => (
             <div
               key={v.id}
               onClick={() => navigate(`/watch/${v.id}`)}
-              style={{ display: 'flex', gap: 8, marginBottom: 12, cursor: 'pointer', padding: 8, borderRadius: 8, transition: 'background 0.2s' }}
+              style={{ display: 'flex', gap: 8, marginBottom: 12, cursor: 'pointer', padding: 8, borderRadius: 8, transition: 'background 0.15s' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
             >
-              <div style={{ width: 160, height: 90, borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: '#111', position: 'relative' }}>
+              <div style={{ width: 156, height: 88, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#111', position: 'relative' }}>
                 <img
-                  src={v.thumbnail_url ?? v.cloudflare_thumbnail ?? ''}
+                  src={relatedThumb(v)}
                   alt={v.title}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   onError={e => { e.target.style.display = 'none' }}
@@ -488,15 +515,11 @@ export default function Watch() {
                 )}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontWeight: 600, fontSize: 13, margin: '0 0 4px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                <p style={{ fontWeight: 600, fontSize: 13, margin: '0 0 4px', color: '#fff', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                   {v.title}
                 </p>
-                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>
-                  {v.creator?.full_name ?? v.creator?.username}
-                </p>
-                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, margin: '2px 0 0' }}>
-                  {formatViews(v.view_count)}
-                </p>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>{v.creator?.full_name ?? v.creator?.username}</p>
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, margin: '2px 0 0' }}>{formatViews(v.view_count)}</p>
               </div>
             </div>
           ))}

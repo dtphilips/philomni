@@ -51,10 +51,10 @@ function VideoCard({ video, onClick }) {
       onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
     >
       {/* Thumbnail */}
-      <div style={{ width: '100%', paddingTop: '56.25%', position: 'relative', background: '#111', borderRadius: 10, overflow: 'hidden', marginBottom: 10 }}>
+      <div style={{ width: '100%', aspectRatio: '16/9', position: 'relative', background: '#111', borderRadius: 10, overflow: 'hidden', marginBottom: 10 }}>
         {thumb
-          ? <img src={thumb} alt={video.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none' }} />
-          : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>🎬</div>
+          ? <img src={thumb} alt={video.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display = 'none' }} />
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>🎬</div>
         }
         {video.duration_seconds > 0 && (
           <span style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: 11, padding: '2px 5px', borderRadius: 4, fontWeight: 600 }}>
@@ -106,7 +106,7 @@ export default function WatchFeed() {
     let query = supabase
       .from('videos')
       .select(`
-        id, title, thumbnail_url, cloudflare_thumbnail,
+        id, title, thumbnail_url, cloudflare_uid, cloudflare_thumbnail,
         duration_seconds, view_count, published_at, category,
         creator:users!creator_id(id, username, full_name, avatar_url)
       `)
@@ -173,8 +173,8 @@ export default function WatchFeed() {
           <style>{`
             .watch-grid {
               display: grid;
-              grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-              gap: 24px 20px;
+              grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+              gap: 24px;
             }
             @media (max-width: 640px) {
               .watch-grid { grid-template-columns: 1fr; }
