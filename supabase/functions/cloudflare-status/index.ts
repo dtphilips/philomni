@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
         readyToStream: video?.readyToStream,
         duration: video?.duration,
         thumbnail: video?.thumbnail,
-        embedUrl: `https://${customerSubdomain}.cloudflarestream.com/${cloudflareUid}/iframe`,
+        embedUrl: `https://iframe.videodelivery.net/${cloudflareUid}`,
         playbackUrl: `https://${customerSubdomain}.cloudflarestream.com/${cloudflareUid}/manifest/video.m3u8`,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

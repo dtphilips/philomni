@@ -251,10 +251,14 @@ export default function Watch() {
   }
 
   const embedUrl = video.cloudflare_uid
-    ? `https://customer-lrknbwoduz.cloudflarestream.com/${video.cloudflare_uid}/iframe?poster=${encodeURIComponent(video.thumbnail_url ?? video.cloudflare_thumbnail ?? '')}`
+    ? `https://iframe.videodelivery.net/${video.cloudflare_uid}`
     : null
 
-  const thumbUrl = video.thumbnail_url ?? video.cloudflare_thumbnail ?? null
+  const thumbUrl = (video.thumbnail_url && !video.thumbnail_url.includes('undefined'))
+    ? video.thumbnail_url
+    : video.cloudflare_uid
+      ? `https://videodelivery.net/${video.cloudflare_uid}/thumbnails/thumbnail.jpg`
+      : null
 
   return (
     <>
@@ -270,7 +274,7 @@ export default function Watch() {
         <div className="watch-main">
 
           {/* Player */}
-          <div style={{ width: '100%', paddingTop: '56.25%', position: 'relative', background: '#000', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+          <div style={{ width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
             {showAd && currentAd && (
               <div style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
                 <AdOverlay

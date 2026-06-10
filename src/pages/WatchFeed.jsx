@@ -37,7 +37,11 @@ const formatAge = (date) => {
 }
 
 function VideoCard({ video, onClick }) {
-  const thumb = video.thumbnail_url ?? video.cloudflare_thumbnail ?? null
+  const thumb = (video.thumbnail_url && !video.thumbnail_url.includes('undefined'))
+    ? video.thumbnail_url
+    : video.cloudflare_uid
+      ? `https://videodelivery.net/${video.cloudflare_uid}/thumbnails/thumbnail.jpg?time=5s`
+      : null
 
   return (
     <div
