@@ -4,14 +4,16 @@ import {
   Download, Plus, X, Check,
 } from 'lucide-react'
 import MediaEditor from '@/components/editor/MediaEditor'
+import VideoUpload from '../components/VideoUpload'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'editor',    label: 'Editor',      icon: Wand2 },
-  { id: 'templates', label: 'Templates',   icon: Layers },
-  { id: 'reels',     label: 'Reels Maker', icon: Film },
-  { id: 'ai',        label: 'AI Tools',    icon: Wand2 },
+  { id: 'editor',    label: 'Editor',           icon: Wand2 },
+  { id: 'templates', label: 'Templates',        icon: Layers },
+  { id: 'reels',     label: 'Reels Maker',      icon: Film },
+  { id: 'longform',  label: 'Long-Form Video',  icon: VideoIcon },
+  { id: 'ai',        label: 'AI Tools',         icon: Wand2 },
 ]
 
 const TEMPLATES = [
@@ -242,6 +244,13 @@ export default function CreatorStudio() {
             }} />
           </label>
           <p className="text-xs text-muted-foreground mt-4">Supports MP4, MOV, WebM — up to 10 clips</p>
+        </div>
+      )}
+
+      {/* ── Long-Form Video Tab ────────────────────────────────────── */}
+      {activeTab === 'longform' && (
+        <div className="bg-card border border-border/60 rounded-3xl overflow-hidden" style={{ minHeight: 400, background: '#0a0a0a' }}>
+          <VideoUpload />
         </div>
       )}
 

@@ -38,6 +38,7 @@ const VideoMessages  = lazy(() => import('./pages/VideoMessages'))
 
 // Content
 const Reels           = lazy(() => import('./pages/Reels'))
+const Watch           = lazy(() => import('./pages/Watch'))
 const Stories         = lazy(() => import('./pages/Stories'))
 const Drafts          = lazy(() => import('./pages/Drafts'))
 const ContentCalendar = lazy(() => import('./pages/ContentCalendar'))
@@ -272,6 +273,7 @@ export default function App() {
 
               {/* Content */}
               <Route path="/reels" element={<R page={Reels} />} />
+              <Route path="/watch/:videoId" element={<R page={Watch} />} />
               <Route path="/stories" element={<R page={Stories} auth />} />
               <Route path="/drafts" element={<R page={Drafts} auth />} />
               <Route path="/content-calendar" element={<R page={ContentCalendar} auth />} />

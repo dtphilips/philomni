@@ -27,6 +27,7 @@ const CREATOR_NAV = [
     items: [
       { to: '/',         icon: Home,       label: 'Feed' },
       { to: '/reels',    icon: Film,       label: 'Reels' },
+      { to: '/watch',    icon: Video,      label: 'Watch' },
       { to: '/stories',  icon: BookOpen,   label: 'Stories' },
       { to: '/live/start',    icon: Radio,        label: 'Go Live',       badge: '🔴' },
       { to: '/celebrations', icon: Sparkles,  label: 'Celebrations',  badge: '🎉' },
