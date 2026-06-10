@@ -86,7 +86,7 @@ export default function Watch() {
         *,
         creator:users!creator_id(
           id, username, full_name, avatar_url,
-          followers_count, is_monetized, monetization_enabled
+          is_monetized, monetization_enabled
         )
       `)
       .eq('id', videoId)
@@ -349,7 +349,7 @@ export default function Watch() {
                 {creator?.full_name ?? creator?.username}
               </p>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>
-                @{creator?.username} · {(creator?.followers_count ?? 0).toLocaleString()} followers
+                @{creator?.username}
               </p>
             </div>
             {user?.id !== creator?.id && (
