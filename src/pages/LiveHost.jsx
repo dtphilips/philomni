@@ -1,14 +1,12 @@
 import React, {
   useState, useEffect, useRef, useCallback, useMemo,
 } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import {
-  Send, Loader2, Users, X, Radio, PhoneOff, Video, VideoOff,
-  Mic, MicOff, Share2, Trophy, Gift,
+  Send, Loader2, Users, Gift, PhoneOff, Share2,
 } from 'lucide-react'
-import { formatDistanceToNow, format } from 'date-fns'
 
 // ─── Gift Animation ───────────────────────────────────────────────────────────
 
@@ -57,6 +55,9 @@ export default function LiveHost() {
   const { id: liveId } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  const hostToken = location.state?.hostToken ?? null
 
   const [live, setLive] = useState(null)
   const [messages, setMessages] = useState([])
@@ -66,12 +67,8 @@ export default function LiveHost() {
   const [sending, setSending] = useState(false)
   const [ending, setEnding] = useState(false)
   const [showEndModal, setShowEndModal] = useState(false)
-  const [cameraOn, setCameraOn] = useState(true)
-  const [micOn, setMicOn] = useState(true)
-  const [activeTab, setActiveTab] = useState('chat')  // 'chat' | 'gifters'
+  const [activeTab, setActiveTab] = useState('chat') // 'chat' | 'gifters'
 
-  const videoRef = useRef(null)
-  const streamRef = useRef(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -87,7 +84,7 @@ export default function LiveHost() {
       })
   }, [liveId, user?.id, navigate])
 
-  // ─── Load messages + dedicated realtime chat channel ─────────────────────
+  // ─── Load messages + realtime ─────────────────────────────────────────────
   useEffect(() => {
     const loadMessages = async () => {
       const { data } = await supabase
@@ -103,9 +100,7 @@ export default function LiveHost() {
     const channel = supabase
       .channel('live-chat-' + liveId)
       .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'live_messages',
+        event: 'INSERT', schema: 'public', table: 'live_messages',
         filter: 'live_id=eq.' + liveId,
       }, payload => {
         setMessages(prev => {
@@ -119,38 +114,11 @@ export default function LiveHost() {
     return () => supabase.removeChannel(channel)
   }, [liveId])
 
-  // ─── Load existing gifts ──────────────────────────────────────────────────
+  // ─── Load gifts + realtime ────────────────────────────────────────────────
   useEffect(() => {
     supabase.from('live_gifts').select('*').eq('live_id', liveId).order('created_at')
       .then(({ data }) => setGifts(data || []))
-  }, [liveId])
 
-  // ─── Camera ───────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const start = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-        streamRef.current = stream
-        if (videoRef.current) videoRef.current.srcObject = stream
-      } catch (e) {
-        console.warn('Camera not available:', e)
-      }
-    }
-    start()
-    return () => streamRef.current?.getTracks().forEach(t => t.stop())
-  }, [])
-
-  const toggleCamera = () => {
-    streamRef.current?.getVideoTracks().forEach(t => { t.enabled = !t.enabled })
-    setCameraOn(v => !v)
-  }
-  const toggleMic = () => {
-    streamRef.current?.getAudioTracks().forEach(t => { t.enabled = !t.enabled })
-    setMicOn(v => !v)
-  }
-
-  // ─── Real-time subscriptions for gifts + live state ──────────────────────
-  useEffect(() => {
     const channel = supabase.channel(`live-host-${liveId}`)
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'live_gifts',
@@ -158,9 +126,10 @@ export default function LiveHost() {
       }, payload => {
         const g = payload.new
         setGifts(prev => [...prev, g])
-        // Show animation
         const animId = Date.now() + Math.random()
-        setAnimations(prev => [...prev, { id: animId, emoji: g.gift_emoji, giftName: g.gift_name, senderName: g.sender_name }])
+        setAnimations(prev => [...prev, {
+          id: animId, emoji: g.gift_emoji, giftName: g.gift_name, senderName: g.sender_name,
+        }])
         setTimeout(() => setAnimations(prev => prev.filter(a => a.id !== animId)), 3000)
       })
       .on('postgres_changes', {
@@ -172,12 +141,12 @@ export default function LiveHost() {
     return () => supabase.removeChannel(channel)
   }, [liveId])
 
-  // Auto-scroll messages
+  // Auto-scroll
   useEffect(() => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
   }, [messages])
 
-  // ─── Send chat message ────────────────────────────────────────────────────
+  // ─── Send message ─────────────────────────────────────────────────────────
   const sendMessage = useCallback(async () => {
     if (!text.trim() || sending || !user) return
     const content = text.trim()
@@ -200,13 +169,18 @@ export default function LiveHost() {
       status: 'ended',
       ended_at: new Date().toISOString(),
     }).eq('id', liveId)
-    streamRef.current?.getTracks().forEach(t => t.stop())
+
+    // Delete Daily.co room
+    supabase.functions.invoke('create-live-room', {
+      body: { action: 'delete', liveId },
+    }).catch(e => console.warn('Room delete error:', e))
+
     setEnding(false)
     setShowEndModal(false)
     navigate(`/live/${liveId}/recap`)
   }
 
-  // ─── Top Gifters ──────────────────────────────────────────────────────────
+  // ─── Derived stats ────────────────────────────────────────────────────────
   const topGifters = useMemo(() => {
     const map = {}
     gifts.forEach(g => {
@@ -218,6 +192,12 @@ export default function LiveHost() {
 
   const totalGiftCoins = useMemo(() => gifts.reduce((s, g) => s + (g.total_coins || 0), 0), [gifts])
 
+  // ─── Build Daily.co iframe URL ────────────────────────────────────────────
+  const dailyUrl = useMemo(() => {
+    if (!live?.room_url) return null
+    return hostToken ? `${live.room_url}?t=${hostToken}` : live.room_url
+  }, [live?.room_url, hostToken])
+
   if (!live) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -227,47 +207,54 @@ export default function LiveHost() {
   }
 
   return (
-    <div className="flex h-screen bg-black overflow-hidden">
-      {/* ── Camera area ── */}
-      <div className="flex-1 flex flex-col relative">
+    <div className="flex flex-col lg:flex-row h-screen bg-black overflow-hidden">
+      {/* ── Video / Stream area ── */}
+      <div className="flex-1 flex flex-col relative h-[60vh] lg:h-auto">
         {/* Top bar */}
-        <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-3 px-4 py-3 bg-gradient-to-b from-black/80 to-transparent">
-          <div className="flex items-center gap-1.5 bg-destructive rounded-full px-3 py-1">
+        <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-3 py-2 bg-gradient-to-b from-black/80 to-transparent">
+          <div className="flex items-center gap-1.5 bg-destructive rounded-full px-2.5 py-1">
             <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
             <span className="text-white text-xs font-bold uppercase tracking-wide">Live</span>
           </div>
-          <div className="flex items-center gap-1 bg-black/50 rounded-full px-3 py-1">
+          <div className="flex items-center gap-1 bg-black/50 rounded-full px-2.5 py-1">
             <Users className="w-3.5 h-3.5 text-white" />
             <span className="text-white text-xs font-bold">{live.viewer_count || 0}</span>
           </div>
-          <div className="flex items-center gap-1 bg-black/50 rounded-full px-3 py-1">
+          <div className="flex items-center gap-1 bg-black/50 rounded-full px-2.5 py-1">
             <span className="text-xs text-amber-400">🪙</span>
             <span className="text-white text-xs font-bold">{totalGiftCoins}</span>
           </div>
-          <div className="ml-auto">
-            <p className="text-white text-sm font-semibold truncate max-w-[200px]">{live.title}</p>
-          </div>
+          <p className="ml-auto text-white text-sm font-semibold truncate max-w-[160px]">{live.title}</p>
+          <button
+            onClick={() => navigator.share?.({
+              title: live.title,
+              url: `${window.location.origin}/live/${liveId}`,
+            }).catch(() => navigator.clipboard.writeText(`${window.location.origin}/live/${liveId}`))}
+            className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
           <button
             onClick={() => setShowEndModal(true)}
-            className="flex items-center gap-1.5 bg-destructive text-white text-xs font-bold px-3 py-1.5 rounded-full hover:bg-red-700 transition-colors"
+            className="flex items-center gap-1 bg-destructive text-white text-xs font-bold px-2.5 py-1.5 rounded-full hover:bg-red-700 transition-colors"
           >
-            <PhoneOff className="w-3.5 h-3.5" /> End Live
+            <PhoneOff className="w-3.5 h-3.5" /> End
           </button>
         </div>
 
-        {/* Video */}
-        <div className="flex-1 relative bg-zinc-900 flex items-center justify-center">
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            playsInline
-            className={`w-full h-full object-cover ${cameraOn ? '' : 'hidden'}`}
-          />
-          {!cameraOn && (
-            <div className="flex flex-col items-center gap-3 text-muted-foreground">
-              <VideoOff className="w-16 h-16" />
-              <p className="text-sm">Camera is off</p>
+        {/* Stream area */}
+        <div className="flex-1 relative bg-zinc-900">
+          {dailyUrl ? (
+            <iframe
+              src={dailyUrl}
+              allow="camera; microphone; fullscreen; display-capture; autoplay"
+              className="w-full h-full border-0"
+              title="Live stream"
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-white/40 gap-3">
+              <Loader2 className="w-10 h-10 animate-spin" />
+              <p className="text-sm">Setting up your stream…</p>
             </div>
           )}
           {/* Gift animations overlay */}
@@ -275,32 +262,10 @@ export default function LiveHost() {
             <GiftAnimation animations={animations} />
           </div>
         </div>
-
-        {/* Bottom controls */}
-        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-4 pb-6 bg-gradient-to-t from-black/80 to-transparent pt-8">
-          <button
-            onClick={toggleCamera}
-            className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition-colors ${cameraOn ? 'bg-white/20 hover:bg-white/30' : 'bg-destructive hover:bg-destructive/80'}`}
-          >
-            {cameraOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
-          </button>
-          <button
-            onClick={toggleMic}
-            className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition-colors ${micOn ? 'bg-white/20 hover:bg-white/30' : 'bg-destructive hover:bg-destructive/80'}`}
-          >
-            {micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-          </button>
-          <button
-            onClick={() => navigator.share?.({ title: live.title, url: `${window.location.origin}/live/${liveId}` }).catch(() => navigator.clipboard.writeText(`${window.location.origin}/live/${liveId}`))}
-            className="w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
-          >
-            <Share2 className="w-5 h-5" />
-          </button>
-        </div>
       </div>
 
       {/* ── Right sidebar: Chat + Gifts ── */}
-      <div className="w-80 flex flex-col bg-zinc-900/95 border-l border-white/10">
+      <div className="w-full lg:w-80 flex flex-col bg-zinc-900/95 border-t lg:border-t-0 lg:border-l border-white/10 flex-1 lg:flex-none min-h-0">
         {/* Tabs */}
         <div className="flex border-b border-white/10 flex-shrink-0">
           {[
@@ -310,7 +275,7 @@ export default function LiveHost() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wide transition-colors ${activeTab === tab.id ? 'text-white border-b-2 border-primary' : 'text-white/40 hover:text-white/70'}`}
+              className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wide transition-colors ${activeTab === tab.id ? 'text-white border-b-2 border-primary' : 'text-white/40 hover:text-white/70'}`}
             >
               {tab.label}
             </button>
@@ -320,7 +285,7 @@ export default function LiveHost() {
         {/* Chat */}
         {activeTab === 'chat' && (
           <>
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 min-h-0">
               {messages.map(msg => (
                 <div key={msg.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'flex-start' }}>
                   <img
@@ -330,12 +295,8 @@ export default function LiveHost() {
                     onError={e => { e.currentTarget.style.display = 'none' }}
                   />
                   <div>
-                    <span style={{ color: '#8b5cf6', fontSize: '12px', fontWeight: 'bold' }}>
-                      {msg.sender_name}
-                    </span>
-                    <p style={{ color: 'white', fontSize: '13px', margin: '2px 0 0', wordBreak: 'break-word' }}>
-                      {msg.content}
-                    </p>
+                    <span style={{ color: '#8b5cf6', fontSize: '12px', fontWeight: 'bold' }}>{msg.sender_name}</span>
+                    <p style={{ color: 'white', fontSize: '13px', margin: '2px 0 0', wordBreak: 'break-word' }}>{msg.content}</p>
                   </div>
                 </div>
               ))}
@@ -363,7 +324,7 @@ export default function LiveHost() {
 
         {/* Top Gifters */}
         {activeTab === 'gifters' && (
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
             {topGifters.length === 0 ? (
               <div className="text-center py-12 text-white/40">
                 <Gift className="w-10 h-10 mx-auto mb-2 opacity-40" />

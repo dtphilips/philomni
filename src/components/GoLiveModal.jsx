@@ -49,7 +49,14 @@ export default function GoLiveModal({ onClose }) {
         started_at: new Date().toISOString(),
       }).select().single()
       if (insertErr) throw insertErr
-      navigate(`/live/${data.id}/host`)
+
+      // Create Daily.co room and save room_url
+      const { data: roomData, error: roomErr } = await supabase.functions.invoke('create-live-room', {
+        body: { action: 'create', liveId: data.id },
+      })
+      if (roomErr) console.warn('Room creation failed (will use fallback):', roomErr)
+
+      navigate(`/live/${data.id}/host`, { state: { hostToken: roomData?.token } })
     } catch (err) {
       setError(err.message || 'Failed to start live')
     } finally {

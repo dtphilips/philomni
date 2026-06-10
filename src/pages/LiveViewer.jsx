@@ -113,14 +113,18 @@ function GiftPanel({ live, user, onClose, onSent }) {
     if (balance < totalCost) { setShowInsufficientModal(true); return }
     setSending(true)
     try {
-      // Deduct coins
-      await supabase.from('users').update({ coin_balance: balance - totalCost }).eq('id', user.id)
+      // Deduct coins via RPC (handles balance check server-side)
+      const { error: deductErr } = await supabase.rpc('deduct_coins', {
+        p_user_id: user.id,
+        p_coins: totalCost,
+      })
+      if (deductErr) throw new Error(deductErr.message)
       setBalance(b => b - totalCost)
 
-      // Insert gift
+      // Insert gift row
       const usdValue = (totalCost / 100).toFixed(4)
       const hostEarnings = (Number(usdValue) * 0.70).toFixed(4)
-      await supabase.from('live_gifts').insert({
+      const { data: giftRow, error: giftErr } = await supabase.from('live_gifts').insert({
         live_id: live.id,
         sender_id: user.id,
         sender_name: user.full_name || user.email,
@@ -132,9 +136,21 @@ function GiftPanel({ live, user, onClose, onSent }) {
         total_coins: totalCost,
         usd_value: usdValue,
         host_earnings: hostEarnings,
+      }).select().single()
+      if (giftErr) throw new Error(giftErr.message)
+
+      // Record 30% platform revenue
+      const platformCutCents = Math.round(totalCost * 0.30)
+      await supabase.rpc('record_platform_revenue', {
+        p_source_type: 'live_gift',
+        p_source_id: giftRow.id,
+        p_gross_amount: totalCost,   // coins = cents (1 coin = $0.01)
+        p_platform_cut: platformCutCents,
+        p_sender_id: user.id,
+        p_recipient_id: live.host_id,
       })
 
-      // Credit host wallet (simplified — update lives table earnings)
+      // Credit host earnings on lives row
       await supabase.from('lives').update({
         total_gifts_coins: (live.total_gifts_coins || 0) + totalCost,
         total_earnings_usd: parseFloat(((live.total_earnings_usd || 0) + Number(hostEarnings)).toFixed(4)),
@@ -402,17 +418,23 @@ export default function LiveViewer() {
     <div className="flex flex-col h-screen bg-black overflow-hidden relative">
       {/* ── Video area ── */}
       <div className="flex-1 relative bg-zinc-900 flex items-center justify-center overflow-hidden">
-        {/* Placeholder stream area */}
+        {/* Daily.co stream embed */}
         <div className="w-full h-full flex items-center justify-center">
-          {live.thumbnail_url
-            ? <img src={live.thumbnail_url} alt="stream" className="w-full h-full object-cover" />
-            : (
-              <div className="text-center text-white/30">
-                <div className="text-6xl mb-3">📺</div>
-                <p className="text-sm">Live stream</p>
-              </div>
-            )
-          }
+          {live.room_url ? (
+            <iframe
+              src={`${live.room_url}?startVideoOff=true&startAudioOff=true&showLeaveButton=false&showFullscreenButton=true`}
+              allow="camera; microphone; fullscreen; autoplay"
+              className="w-full h-full border-0"
+              title="Live stream"
+            />
+          ) : live.thumbnail_url ? (
+            <img src={live.thumbnail_url} alt="stream" className="w-full h-full object-cover" />
+          ) : (
+            <div className="text-center text-white/30">
+              <div className="text-6xl mb-3">📺</div>
+              <p className="text-sm">Stream starting…</p>
+            </div>
+          )}
         </div>
 
         {/* Overlays */}
