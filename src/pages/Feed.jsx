@@ -28,7 +28,6 @@ import SpotlightBanner from '../components/SpotlightBanner'
 import SpotlightBadge from '../components/SpotlightBadge'
 import SkeletonFeed from '../components/SkeletonFeed'
 import { fetchWithCache } from '../lib/queryCache'
-import LivesRow from '../components/LivesRow'
 import GoLiveModal from '../components/GoLiveModal'
 import CelebrationsRow from '../components/celebrations/CelebrationsRow'
 import ErrorBoundary from '../components/ErrorBoundary'
@@ -3437,9 +3436,6 @@ export default function Feed() {
       <div className="flex-1 min-w-0 max-w-[600px] mx-auto lg:mx-0">
         {/* Spotlight Banner */}
         <SpotlightBanner />
-
-        {/* Live streams row — only shown when lives exist */}
-        <LivesRow />
 
         {/* Celebrations row — only shown when celebrations exist */}
         <CelebrationsRow />

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -311,12 +312,101 @@ function CreateStoryDialog({ open, onClose, currentUser }) {
 }
 
 // ─────────────────────────────────────────────────────────
+// Live Story Ring — shown before regular stories
+// ─────────────────────────────────────────────────────────
+function LiveStoryRing({ live, onClick }) {
+  const host = live.users || {}
+  const name = host.full_name || live.host_name || 'Creator'
+  const avatar = host.avatar_url || live.host_avatar
+
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-1 flex-shrink-0"
+    >
+      <style>{`
+        @keyframes live-pulse-ring {
+          0%   { box-shadow: 0 0 0 0 rgba(239,68,68,0.7); border-color: #ef4444; }
+          50%  { box-shadow: 0 0 0 4px rgba(239,68,68,0);  border-color: #ff6b6b; }
+          100% { box-shadow: 0 0 0 0 rgba(239,68,68,0);    border-color: #ef4444; }
+        }
+      `}</style>
+      <div className="relative" style={{ width: 56, height: 56 }}>
+        {/* Pulsing red ring */}
+        <div style={{
+          position: 'absolute',
+          inset: -3,
+          borderRadius: '50%',
+          border: '2.5px solid #ef4444',
+          animation: 'live-pulse-ring 1.5s ease-in-out infinite',
+        }} />
+        {/* Avatar */}
+        <div className="w-14 h-14 rounded-full overflow-hidden bg-primary flex items-center justify-center">
+          {avatar
+            ? <img src={avatar} alt={name} className="w-full h-full object-cover" />
+            : <span className="text-white font-bold text-lg">{name[0].toUpperCase()}</span>
+          }
+        </div>
+        {/* LIVE badge */}
+        <div style={{
+          position: 'absolute',
+          bottom: -4,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#ef4444',
+          color: '#fff',
+          fontSize: 9,
+          fontWeight: 700,
+          padding: '1px 5px',
+          borderRadius: 4,
+          letterSpacing: 0.5,
+          whiteSpace: 'nowrap',
+        }}>
+          LIVE
+        </div>
+      </div>
+      <span className="text-xs text-foreground/80 truncate w-14 text-center mt-1">
+        {name.split(' ')[0]}
+      </span>
+      {live.viewer_count > 0 && (
+        <span className="text-[10px] text-destructive -mt-0.5">
+          {live.viewer_count} watching
+        </span>
+      )}
+    </button>
+  )
+}
+
+// ─────────────────────────────────────────────────────────
 // Main StoryBar — rendered at top of Feed
 // ─────────────────────────────────────────────────────────
 export default function StoryBar({ currentUser }) {
+  const navigate = useNavigate();
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerStart, setViewerStart] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
+  const [liveUsers, setLiveUsers] = useState([]);
+
+  // ── Fetch live users + realtime updates ──────────────────
+  useEffect(() => {
+    const fetchLives = async () => {
+      const { data } = await supabase
+        .from('lives')
+        .select('*, users!host_id(id, full_name, avatar_url)')
+        .eq('status', 'live')
+        .order('viewer_count', { ascending: false })
+        .limit(10)
+      setLiveUsers(data ?? [])
+    }
+    fetchLives()
+
+    const channel = supabase
+      .channel('story-bar-lives')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lives' }, fetchLives)
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
+  }, []);
 
   const { data: rawStories = [] } = useQuery({
     queryKey: ['stories'],
@@ -396,6 +486,15 @@ export default function StoryBar({ currentUser }) {
             </div>
             <span className="text-xs text-muted-foreground truncate w-14 text-center">Your story</span>
           </button>
+
+          {/* Live users — appear before regular stories with red pulsing ring */}
+          {liveUsers.map(live => (
+            <LiveStoryRing
+              key={live.id}
+              live={live}
+              onClick={() => navigate(`/live/${live.id}`)}
+            />
+          ))}
 
           {/* Story bubbles */}
           {groups.map((group, i) => {
