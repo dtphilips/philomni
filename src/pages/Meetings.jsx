@@ -146,12 +146,6 @@ const SAMPLE_SPACES = [
   },
 ]
 
-const DIRECT_CONTACTS = [
-  { id: 'dc1', name: 'Sarah Kim', initials: 'SK', color: 'bg-violet-500', last_met: new Date(Date.now() - 86400000 * 2).toISOString() },
-  { id: 'dc2', name: 'Marcus Osei', initials: 'MO', color: 'bg-pink-500', last_met: new Date(Date.now() - 86400000 * 5).toISOString() },
-  { id: 'dc3', name: 'Dr. Adaeze N.', initials: 'DA', color: 'bg-emerald-500', last_met: new Date(Date.now() - 86400000 * 7).toISOString() },
-]
-
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 function meetingTypeIcon(type) {
@@ -1684,7 +1678,9 @@ function LeftPanel({ meetings, pastMeetings, spaces, contacts, collapsed, onTogg
         <SectionHeader label="Direct" id="direct" />
         {!collapsed.direct && (
           <div className="space-y-0.5 mb-2">
-            {contacts.map(c => (
+            {contacts.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">People you meet with will appear here.</p>
+            ) : contacts.map(c => (
               <div key={c.id} className="flex items-center gap-2 px-3 py-2 hover:bg-muted group">
                 <Avatar initials={c.initials} color={c.color} size={7} />
                 <span className="text-xs text-foreground flex-1 truncate">{c.name}</span>

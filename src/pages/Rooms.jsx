@@ -688,29 +688,19 @@ export default function Rooms() {
   const [toast, setToast] = useState(null)
 
   useEffect(() => {
-    setLoading(true)
-    supabase.from('rooms')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        const rooms    = data || []
-        const live     = rooms.filter(r => r.status === 'live')
-        const upcoming = rooms.filter(r => r.status === 'upcoming')
-        const ended    = rooms.filter(r => r.status === 'ended')
-        setLiveRooms(live.length ? live : SAMPLE_LIVE_ROOMS)
-        setUpcomingRooms(upcoming.length ? upcoming : SAMPLE_UPCOMING_ROOMS)
-        setEndedRooms(ended.length ? ended : SAMPLE_ENDED_ROOMS)
-        setLoading(false)
-      })
-      .catch(() => {
-        setLiveRooms(SAMPLE_LIVE_ROOMS)
-        setUpcomingRooms(SAMPLE_UPCOMING_ROOMS)
-        setEndedRooms(SAMPLE_ENDED_ROOMS)
-        setLoading(false)
-      })
-    const t = setTimeout(() => setLoading(false), 5000)
-    return () => clearTimeout(t)
+    const load = async () => {
+      setLoading(true)
+      const { data } = await supabase.from('rooms')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      const rooms = data || []
+      setLiveRooms(rooms.filter(r => r.status === 'live'))
+      setUpcomingRooms(rooms.filter(r => r.status === 'upcoming'))
+      setEndedRooms(rooms.filter(r => r.status === 'ended'))
+      setLoading(false)
+    }
+    load()
   }, [])
 
   function showToast(msg) {
