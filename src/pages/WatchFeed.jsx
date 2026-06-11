@@ -128,27 +128,54 @@ export default function WatchFeed() {
     if (user?.id) {
       const { data: history } = await supabase
         .from('video_watches')
-        .select('video_id, videos(category)')
+        .select('video_id, watch_seconds, videos(category, duration_seconds, creator_id)')
         .eq('viewer_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(30)
+        .limit(50)
 
       if (history?.length) {
-        // Count category frequency from watch history
-        const catScore = {}
+        // Build category affinity weighted by completion rate (watch_seconds / duration_seconds)
+        // A user who watches 90% of Finance videos ranks Finance higher than one who browses 10 of them
+        const catCompletionSum = {}
+        const catCount = {}
+        const creatorScore = {}
+
         history.forEach(h => {
           const cat = h.videos?.category
-          if (cat) catScore[cat] = (catScore[cat] ?? 0) + 1
+          const duration = h.videos?.duration_seconds ?? 0
+          const watched = h.watch_seconds ?? 0
+          const completion = duration > 0 ? Math.min(watched / duration, 1) : 0.1
+          const creatorId = h.videos?.creator_id
+
+          if (cat) {
+            catCount[cat] = (catCount[cat] ?? 0) + 1
+            catCompletionSum[cat] = (catCompletionSum[cat] ?? 0) + completion
+          }
+          if (creatorId) {
+            creatorScore[creatorId] = (creatorScore[creatorId] ?? 0) + completion
+          }
         })
 
-        // Sort: preferred categories first, then by view_count within each group
-        const sorted = [...allVideos].sort((a, b) => {
-          const scoreA = catScore[a.category] ?? 0
-          const scoreB = catScore[b.category] ?? 0
-          if (scoreB !== scoreA) return scoreB - scoreA
-          return (b.view_count ?? 0) - (a.view_count ?? 0)
+        // avg completion × frequency = category affinity score
+        const catScore = {}
+        Object.keys(catCount).forEach(cat => {
+          catScore[cat] = (catCompletionSum[cat] / catCount[cat]) * catCount[cat]
         })
-        setVideos(sorted.slice(0, 40))
+
+        const hoursOld = v => (Date.now() - new Date(v.published_at)) / 3_600_000
+        const scored = allVideos.map(v => {
+          const creatorId = v.creator?.id
+          const recency = hoursOld(v) < 24 ? 5 : hoursOld(v) < 168 ? 2 : 0
+          return {
+            ...v,
+            _score: (catScore[v.category] ?? 0) * 3
+              + (creatorScore[creatorId] ?? 0) * 2
+              + (v.view_count ?? 0) * 0.001
+              + recency,
+          }
+        })
+
+        setVideos(scored.sort((a, b) => b._score - a._score).slice(0, 40))
         setLoading(false)
         return
       }

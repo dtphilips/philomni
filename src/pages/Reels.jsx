@@ -74,23 +74,30 @@ function getVideoUrl(reel) {
 // Deterministic engagement score + per-reel seeded jitter. The seed is passed in
 // (generated fresh in the fetch effect) so order varies on each load — a
 // module-level seed can be cached by the bundler and never re-evaluate.
-function scoreReel(reel, index, seed) {
+// signals = { followedCreators: Set<id>, likedReelIds: Set<id> }
+function scoreReel(reel, index, seed, signals = {}) {
   const views    = reel.views_count    ?? reel.view_count    ?? 0
   const likes    = reel.likes_count    ?? reel.like_count    ?? 0
   const comments = reel.comments_count ?? reel.comment_count ?? 0
   const saves    = reel.saves_count    ?? reel.save_count    ?? 0
   const hoursAgo = (Date.now() - new Date(reel.created_at)) / (1000 * 60 * 60)
   const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
-  // Well-distributed seeded jitter (0–8) — see Feed.jsx for rationale.
   const h = Math.sin(seed * 1e-6 + index * 12.9898) * 43758.5453
   const seededRandom = (h - Math.floor(h)) * 8
-  return (views * 1) + (likes * 3) + (comments * 5) + (saves * 3) + recencyBonus + seededRandom
+  const base = (views * 1) + (likes * 3) + (comments * 5) + (saves * 3) + recencyBonus + seededRandom
+
+  // Personalization: boost reels from creators user follows or has liked before
+  const authorId = reel.created_by || reel.author_id
+  const followBonus = signals.followedCreators?.has(authorId) ? 12 : 0
+  const likedBonus = signals.likedReelIds?.has(reel.id) ? 6 : 0
+
+  return base + followBonus + likedBonus
 }
 
 // Rank reels by seeded score — scores computed once (with index + seed), then sorted.
-function shuffleReels(reels, seed) {
+function shuffleReels(reels, seed, signals = {}) {
   return reels
-    .map((reel, index) => ({ reel, score: scoreReel(reel, index, seed) }))
+    .map((reel, index) => ({ reel, score: scoreReel(reel, index, seed, signals) }))
     .sort((a, b) => b.score - a.score)
     .map(({ reel }) => reel)
 }
@@ -913,21 +920,39 @@ export default function Reels() {
 
   useEffect(() => {
     setLoading(true)
-    supabase.from('posts')
-      .select('*')
-      .eq('media_type', 'video')
-      .order('created_at', { ascending: false })
-      .limit(20)
-      .then(({ data }) => {
+    const fetchReels = async () => {
+      try {
+        const { data } = await supabase.from('posts')
+          .select('*')
+          .eq('media_type', 'video')
+          .order('created_at', { ascending: false })
+          .limit(20)
+
         const seed = Date.now() + Math.random() * 10000
-        const randomized = data?.length ? shuffleReels(data, seed) : SAMPLE_REELS
+
+        // Build personalization signals if user is logged in
+        let signals = {}
+        if (user?.id) {
+          const [{ data: follows }, { data: likedReels }] = await Promise.all([
+            supabase.from('follows').select('following_id').eq('follower_id', user.id),
+            supabase.from('likes').select('post_id').eq('user_id', user.id).limit(50),
+          ])
+          signals.followedCreators = new Set((follows || []).map(f => f.following_id))
+          signals.likedReelIds = new Set((likedReels || []).map(l => l.post_id))
+        }
+
+        const randomized = data?.length ? shuffleReels(data, seed, signals) : SAMPLE_REELS
         setAllReels(randomized)
+      } catch {
+        setAllReels(SAMPLE_REELS)
+      } finally {
         setLoading(false)
-      })
-      .catch(() => { setAllReels(SAMPLE_REELS); setLoading(false) })
+      }
+    }
+    fetchReels()
     const t = setTimeout(() => setLoading(false), 5000)
     return () => clearTimeout(t)
-  }, [])
+  }, [user?.id])
 
   // IntersectionObserver — play visible video, pause others
   useEffect(() => {

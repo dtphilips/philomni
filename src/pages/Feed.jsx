@@ -3212,7 +3212,8 @@ let _feedPostsCache = []
 // passed in (generated fresh inside fetchPosts on every call) so the order
 // changes on each refresh — module-level constants can be cached by the bundler
 // and never re-evaluate, which is why the seed must NOT live at module scope.
-function scorePost(post, index, seed) {
+// signals = { creatorAffinity: {id: score}, mediaTypeAffinity: {type: score} }
+function scorePost(post, index, seed, signals = {}) {
   const views    = post.views_count    ?? post.view_count    ?? 0
   const likes    = post.likes_count    ?? post.like_count    ?? 0
   const comments = post.comments_count ?? post.comment_count ?? 0
@@ -3220,19 +3221,22 @@ function scorePost(post, index, seed) {
   const saves    = post.saves_count    ?? post.save_count    ?? 0
   const hoursAgo = (Date.now() - new Date(post.created_at)) / (1000 * 60 * 60)
   const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
-  // Well-distributed seeded jitter (0–8). Scale the seed down before sin() — at
-  // ~1e12 sin() loses precision, and a raw `% 1000` barely changes order between
-  // nearby seeds. This hash reorders near-ties differently on every fetch.
   const h = Math.sin(seed * 1e-6 + index * 12.9898) * 43758.5453
   const seededRandom = (h - Math.floor(h)) * 8
-  return (views * 1) + (likes * 3) + (comments * 5) + (reposts * 4) + (saves * 3) + recencyBonus + seededRandom
+  const base = (views * 1) + (likes * 3) + (comments * 5) + (reposts * 4) + (saves * 3) + recencyBonus + seededRandom
+
+  // Personalization: boost creators this user has interacted with before
+  const creatorId = post.author_id || post.created_by
+  const creatorBonus = Math.min((signals.creatorAffinity?.[creatorId] ?? 0) * 4, 20)
+  // Boost content types the user prefers (video/photo/text)
+  const typeBonus = Math.min((signals.mediaTypeAffinity?.[post.media_type ?? 'text'] ?? 0) * 2, 8)
+
+  return base + creatorBonus + typeBonus
 }
 
-// Rank posts by seeded score. Scores are computed ONCE (with index + seed) and
-// the array is sorted on those precomputed numbers — never a randomizing comparator.
-function rankPosts(posts, seed) {
+function rankPosts(posts, seed, signals = {}) {
   return posts
-    .map((post, index) => ({ post, score: scorePost(post, index, seed) }))
+    .map((post, index) => ({ post, score: scorePost(post, index, seed, signals) }))
     .sort((a, b) => b.score - a.score)
     .map(({ post }) => post)
 }
@@ -3315,7 +3319,7 @@ export default function Feed() {
             .order('created_at', { ascending: false })
             .limit(30)
         )
-        followingPosts = rankPosts(data || [], sessionSeed)
+        followingPosts = data || []
       }
 
       // ── Layer 2: Discovery posts (25% of feed) ──────────────────────────────
@@ -3327,7 +3331,30 @@ export default function Feed() {
       }
       const { data: discData, error } = await withTimeout(discoveryQuery)
       if (error) throw error
-      const discoveryPosts = rankPosts(discData || [], sessionSeed)
+
+      // ── Personalization signals: build creator + content-type affinity ──────
+      let signals = {}
+      if (user?.id) {
+        const { data: likedData } = await supabase.from('likes')
+          .select('post_id, posts(author_id, media_type)')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50)
+        if (likedData?.length) {
+          const creatorAffinity = {}
+          const mediaTypeAffinity = {}
+          likedData.forEach(l => {
+            const authorId = l.posts?.author_id
+            const mediaType = l.posts?.media_type ?? 'text'
+            if (authorId) creatorAffinity[authorId] = (creatorAffinity[authorId] ?? 0) + 1
+            mediaTypeAffinity[mediaType] = (mediaTypeAffinity[mediaType] ?? 0) + 1
+          })
+          signals.creatorAffinity = creatorAffinity
+          signals.mediaTypeAffinity = mediaTypeAffinity
+        }
+      }
+      followingPosts = rankPosts(followingPosts, sessionSeed, signals)
+      const discoveryPosts = rankPosts(discData || [], sessionSeed, signals)
 
       // ── Build combined post pool ──────────────────────────────────────────────
       const followingTarget = Math.ceil(FEED_LIMIT * 0.6)
