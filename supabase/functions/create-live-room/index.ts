@@ -89,6 +89,8 @@ Deno.serve(async (req) => {
     // ── Create generic room (for Rooms / Meetings — no DB update) ─────────────
     } else if (action === 'create-generic') {
       const expiry = Math.floor(Date.now() / 1000) + 8 * 3600
+      // Caller can pass type-specific overrides (e.g. audio-only, screenshare)
+      const overrides = body.roomProps ?? {}
 
       const roomResp = await fetch(`${DAILY_BASE}/rooms`, {
         method: 'POST',
@@ -103,6 +105,7 @@ Deno.serve(async (req) => {
             enable_chat: true,
             start_video_off: false,
             start_audio_off: false,
+            ...overrides,
           },
         }),
       })

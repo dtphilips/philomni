@@ -2214,10 +2214,10 @@ export default function Meetings() {
   const { mode } = useMode()
   const navigate = useNavigate()
 
-  const [meetings, setMeetings] = useState(SAMPLE_MEETINGS)
-  const [pastMeetings, setPastMeetings] = useState(SAMPLE_PAST_MEETINGS)
-  const [spaces, setSpaces] = useState(SAMPLE_SPACES)
-  const [loading, setLoading] = useState(false)
+  const [meetings, setMeetings] = useState([])
+  const [pastMeetings, setPastMeetings] = useState([])
+  const [spaces, setSpaces] = useState([])
+  const [loading, setLoading] = useState(true)
 
   const [selectedMeeting, setSelectedMeeting] = useState(null)
   const [selectedPast, setSelectedPast] = useState(null)
@@ -2236,34 +2236,28 @@ export default function Meetings() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true)
 
   useEffect(() => {
-    if (!user?.id) return
-    supabase.from('meetings').select('*')
-      .or(`host_id.eq.${user.id},status.eq.scheduled`)
-      .order('scheduled_at', { ascending: true })
-      .then(({ data }) => {
-        if (data?.length) setMeetings(prev => {
-          const ids = new Set(data.map(m => m.id))
-          return [...data, ...prev.filter(m => !ids.has(m.id))]
-        })
-      })
-      .catch(() => {})
-    supabase.from('meetings').select('*').eq('status', 'ended')
-      .order('ended_at', { ascending: false }).limit(10)
-      .then(({ data }) => {
-        if (data?.length) setPastMeetings(prev => {
-          const ids = new Set(data.map(m => m.id))
-          return [...data, ...prev.filter(m => !ids.has(m.id))]
-        })
-      })
-      .catch(() => {})
-    supabase.from('meeting_spaces').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (data?.length) setSpaces(prev => {
-          const ids = new Set(data.map(s => s.id))
-          return [...data.map(s => ({ ...s, messages: [], files: [], members: [], notes: '' })), ...prev.filter(s => !ids.has(s.id))]
-        })
-      })
-      .catch(() => {})
+    const load = async () => {
+      setLoading(true)
+      const [{ data: upcoming }, { data: ended }, { data: spaceData }] = await Promise.all([
+        supabase.from('meetings')
+          .select('*')
+          .neq('status', 'ended')
+          .order('scheduled_at', { ascending: true }),
+        supabase.from('meetings')
+          .select('*')
+          .eq('status', 'ended')
+          .order('ended_at', { ascending: false })
+          .limit(20),
+        supabase.from('meeting_spaces')
+          .select('*')
+          .order('created_at', { ascending: false }),
+      ])
+      setMeetings(upcoming || [])
+      setPastMeetings(ended || [])
+      setSpaces((spaceData || []).map(s => ({ ...s, messages: [], files: [], members: [], notes: s.notes || '' })))
+      setLoading(false)
+    }
+    load()
   }, [user?.id])
 
   function handleSaveMeeting(data) {
@@ -2307,30 +2301,45 @@ export default function Meetings() {
 
   async function startMeeting(meeting) {
     activeMeetingStartRef.current = new Date()
-    // If already has a Daily.co room, use it
+    // If already has a Daily.co room, use it directly
     if (meeting.daily_room_url) {
       setActiveMeeting(meeting)
       return
     }
-    // Create a Daily.co room then join
-    const { data, error } = await supabase.functions.invoke('create-live-room', {
-      body: { action: 'create-generic' },
+
+    // Map meeting type to Daily.co room properties
+    // Each type configures the room differently for its use case
+    const typeProps = {
+      audio:        { start_video_off: true,  start_audio_off: false, enable_screenshare: false },
+      presentation: { start_video_off: false, start_audio_off: false, enable_screenshare: true  },
+      workshop:     { start_video_off: false, start_audio_off: false, enable_screenshare: true  },
+      podcast:      { start_video_off: false, start_audio_off: false, enable_screenshare: false },
+      interview:    { start_video_off: false, start_audio_off: false, enable_screenshare: false },
+      video:        { start_video_off: false, start_audio_off: false, enable_screenshare: true  },
+    }
+    const roomProps = typeProps[meeting.meeting_type] ?? typeProps.video
+
+    const { data } = await supabase.functions.invoke('create-live-room', {
+      body: { action: 'create-generic', roomProps },
     })
+
     const withRoom = {
       ...meeting,
-      daily_room_url: data?.roomUrl ?? null,
+      daily_room_url:  data?.roomUrl  ?? null,
       daily_room_name: data?.roomName ?? null,
-      daily_token: data?.token ?? null,
+      daily_token:     data?.token    ?? null,
     }
-    // Persist room URL to DB if this meeting has a real DB id
-    if (data?.roomUrl && meeting.id && !meeting.id.startsWith('instant-') && !meeting.id.startsWith('m')) {
+
+    // Persist to DB for real (UUID) meeting records
+    if (data?.roomUrl && meeting.id && meeting.id.length === 36) {
       supabase.from('meetings').update({
-        daily_room_url: data.roomUrl,
+        daily_room_url:  data.roomUrl,
         daily_room_name: data.roomName,
-        status: 'live',
-        started_at: new Date().toISOString(),
+        status:          'live',
+        started_at:      new Date().toISOString(),
       }).eq('id', meeting.id).then(() => {})
     }
+
     setActiveMeeting(withRoom)
   }
 
@@ -2364,6 +2373,14 @@ export default function Meetings() {
     )
   }
 
+  if (loading) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-background">
+        <Loader2 size={28} className="animate-spin text-primary" />
+      </div>
+    )
+  }
+
   return (
     <div className="absolute inset-0 flex overflow-hidden bg-background">
       {/* Left panel with collapse toggle */}
@@ -2372,7 +2389,7 @@ export default function Meetings() {
           meetings={meetings}
           pastMeetings={pastMeetings}
           spaces={spaces}
-          contacts={DIRECT_CONTACTS}
+          contacts={[]}
           collapsed={leftCollapsed}
           onToggle={(key) => setLeftCollapsed(prev => ({ ...prev, [key]: !prev[key] }))}
           onSelectMeeting={setSelectedMeeting}
