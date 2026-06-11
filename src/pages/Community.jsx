@@ -120,31 +120,31 @@ const PRO_SAMPLE_ANNOUNCEMENTS = [
 ]
 
 const BOARDS = [
-  { id: 'all',      label: '🔥 Hot Today',           count: 127 },
-  { id: 'pinned',   label: '📌 Pinned',               count: 3 },
-  { id: 'qna',      label: '❓ Q&A',                  count: 0 },
-  { id: 'tips',     label: '💡 Creator Tips',         count: 48 },
-  { id: 'collab',   label: '🤝 Collaborations',       count: 34 },
-  { id: 'tools',    label: '🛠 Tools & Tech',          count: 29 },
-  { id: 'money',    label: '💰 Monetization',         count: 41 },
-  { id: 'showcase', label: '🎨 Showcase Your Work',   count: 22 },
-  { id: 'help',     label: '❓ Questions & Help',     count: 56 },
-  { id: 'general',  label: '🗣 General Chat',         count: 73 },
-  { id: 'opps',     label: '📢 Opportunities',        count: 18 },
+  { id: 'all',      label: '🔥 Hot Today'         },
+  { id: 'pinned',   label: '📌 Pinned'             },
+  { id: 'qna',      label: '❓ Q&A'                },
+  { id: 'tips',     label: '💡 Creator Tips'       },
+  { id: 'collab',   label: '🤝 Collaborations'     },
+  { id: 'tools',    label: '🛠 Tools & Tech'        },
+  { id: 'money',    label: '💰 Monetization'       },
+  { id: 'showcase', label: '🎨 Showcase Your Work' },
+  { id: 'help',     label: '❓ Questions & Help'   },
+  { id: 'general',  label: '🗣 General Chat'       },
+  { id: 'opps',     label: '📢 Opportunities'      },
 ]
 
 const PRO_BOARDS = [
-  { id: 'all',      label: '🔥 Hot Today',            count: 94  },
-  { id: 'pinned',   label: '📌 Pinned',                count: 2   },
-  { id: 'insights', label: '💡 Industry Insights',     count: 38  },
-  { id: 'bizdev',   label: '🤝 Business Development',  count: 29  },
-  { id: 'tools',    label: '🛠 Tools & Productivity',  count: 24  },
-  { id: 'finance',  label: '💰 Finance & Investment',  count: 31  },
-  { id: 'strategy', label: '🎯 Strategy & Growth',     count: 22  },
-  { id: 'career',   label: '❓ Career Advice',         count: 47  },
-  { id: 'exec',     label: '🗣 Executive Lounge',      count: 18  },
-  { id: 'opps',     label: '📢 Opportunities & RFPs',  count: 14  },
-  { id: 'africa',   label: '🌍 African Business',      count: 21  },
+  { id: 'all',      label: '🔥 Hot Today'              },
+  { id: 'pinned',   label: '📌 Pinned'                  },
+  { id: 'insights', label: '💡 Industry Insights'       },
+  { id: 'bizdev',   label: '🤝 Business Development'    },
+  { id: 'tools',    label: '🛠 Tools & Productivity'    },
+  { id: 'finance',  label: '💰 Finance & Investment'    },
+  { id: 'strategy', label: '🎯 Strategy & Growth'       },
+  { id: 'career',   label: '❓ Career Advice'           },
+  { id: 'exec',     label: '🗣 Executive Lounge'        },
+  { id: 'opps',     label: '📢 Opportunities & RFPs'    },
+  { id: 'africa',   label: '🌍 African Business'        },
 ]
 
 const POINTS_INFO = [
@@ -1332,7 +1332,6 @@ export default function Community() {
               <button key={b.id} onClick={() => setBoardFilter(b.id)}
                 className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm transition-all ${boardFilter === b.id ? 'bg-primary/15 text-primary font-semibold' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                 <span className="truncate">{b.label}</span>
-                <span className="text-xs opacity-60 flex-shrink-0 ml-2">{b.count}</span>
               </button>
             ))}
           </div>
