@@ -443,36 +443,26 @@ function NewPostModal({ onClose, onSubmit, saving, boards }) {
 
 // ─── Right Sidebar ────────────────────────────────────────────────────────────
 
-function RightSidebar({ events, challenges, communityMode }) {
+function RightSidebar({ events, challenges, posts, communityMode }) {
   const trending = communityMode === 'pro'
-    ? ['#BusinessStrategy','#Leadership','#Cybersecurity','#AfricanBusiness','#StartupLife','#FinTech','#CareerGrowth','#B2BSales']
-    : ['#CreatorEconomy','#AfroBeats','#VideoEditing','#BrandDeals','#Thumbnails','#AITools']
-  const onlineMembers = communityMode === 'pro'
-    ? ['Adaeze N.','Marcus D.','Simone O.','Priya N.','James L.']
-    : ['Sarah K.','Alex T.','Jordan B.','Priya S.','Tyler O.']
+    ? ['BusinessStrategy','Leadership','Cybersecurity','AfricanBusiness','StartupLife','FinTech']
+    : ['CreatorEconomy','AfroBeats','VideoEditing','BrandDeals','Thumbnails','AITools']
+  const stats = [
+    { label: 'Challenges', value: challenges.length || '—' },
+    { label: 'Events',     value: events.length || '—' },
+    { label: 'Posts',      value: posts.length || '—' },
+    { label: 'Active',     value: challenges.filter(c => c.status === 'active').length || '—' },
+  ]
   return (
     <div className="hidden xl:flex flex-col gap-4 w-64 flex-shrink-0">
-      {/* Who's Online */}
+      {/* Trending Topics */}
       <div className="bg-card border border-border rounded-2xl p-4">
-        <p className="text-xs font-bold text-foreground mb-3 flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-emerald-400" />Who's Online</p>
-        <div className="space-y-2">
-          {onlineMembers.map(name => (
-            <div key={name} className="flex items-center gap-2">
-              <div className="relative"><Avatar name={name} url={null} size={6} /><div className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 border border-card" /></div>
-              <span className="text-xs text-foreground">{name}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Trending */}
-      <div className="bg-card border border-border rounded-2xl p-4">
-        <p className="text-xs font-bold text-foreground mb-3 flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5 text-primary" />Trending Today</p>
+        <p className="text-xs font-bold text-foreground mb-3 flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5 text-primary" />Trending Topics</p>
         <div className="space-y-1.5">
           {trending.map(t => (
-            <button key={t} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors w-full">
-              <Hash className="w-3 h-3" />{t.replace('#','')}
-            </button>
+            <div key={t} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Hash className="w-3 h-3 flex-shrink-0" />{t}
+            </div>
           ))}
         </div>
       </div>
@@ -486,23 +476,33 @@ function RightSidebar({ events, challenges, communityMode }) {
             : events.slice(0, 3).map(e => (
               <div key={e.id} className="text-xs">
                 <p className="font-medium text-foreground line-clamp-1">{e.title}</p>
-                <p className="text-muted-foreground">{new Date(e.starts_at ?? e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>
+                <p className="text-muted-foreground">{new Date(e.starts_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>
               </div>
             ))
           }
         </div>
       </div>
 
+      {/* Active Challenges */}
+      {challenges.filter(c => c.status === 'active').length > 0 && (
+        <div className="bg-card border border-border rounded-2xl p-4">
+          <p className="text-xs font-bold text-foreground mb-3 flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-amber-400" />Active Challenges</p>
+          <div className="space-y-2">
+            {challenges.filter(c => c.status === 'active').slice(0, 3).map(c => (
+              <div key={c.id} className="text-xs">
+                <p className="font-medium text-foreground line-clamp-1">{c.title}</p>
+                {c.prize && <p className="text-amber-400 mt-0.5 line-clamp-1">🏆 {c.prize}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Community Stats */}
       <div className="bg-card border border-border rounded-2xl p-4">
         <p className="text-xs font-bold text-foreground mb-3 flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-violet-400" />Community Stats</p>
         <div className="grid grid-cols-2 gap-2 text-center">
-          {[
-            { label: 'Members',    value: '28.4k' },
-            { label: 'Posts',      value: '4.2k' },
-            { label: 'Challenges', value: '8' },
-            { label: 'Events',     value: '6' },
-          ].map(s => (
+          {stats.map(s => (
             <div key={s.label} className="bg-muted/30 rounded-xl p-2">
               <p className="text-sm font-bold text-foreground">{s.value}</p>
               <p className="text-xs text-muted-foreground">{s.label}</p>
@@ -529,6 +529,15 @@ const CAT_META = {
   regional: { emoji: '🌍', color: 'from-emerald-600 to-teal-600' },
   general:  { emoji: '👥', color: 'from-primary to-primary/60' },
 }
+
+// Predefined prizes — admin picks one (or more) when creating a challenge
+const PRIZE_OPTIONS = [
+  { id: 'cash_50',    label: '$50 Cash',             emoji: '💵', desc: 'Paid directly to your Philomni wallet', grand: true },
+  { id: 'featured',  label: 'Homepage Spotlight',    emoji: '⭐', desc: 'Featured on Philomni homepage for 1 week' },
+  { id: 'pro_month', label: '1 Month Pro Max Free',  emoji: '💎', desc: 'Full Pro Max subscription — free for 30 days' },
+  { id: 'coins_500', label: '500 Philomni Coins',    emoji: '🪙', desc: 'Coins added directly to your wallet' },
+  { id: 'badge',     label: 'Challenge Badge',        emoji: '🏅', desc: 'Exclusive winner badge on your creator profile' },
+]
 
 const CHALLENGE_TYPE_META = {
   video:   { emoji: '🎬', color: 'from-violet-600 to-purple-700' },
@@ -615,12 +624,17 @@ function CreateGroupModal({ onClose, onSubmit, saving }) {
 
 function CreateChallengeModal({ onClose, onSubmit, saving }) {
   const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
-  const defaultEnd = new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 10)
-  const [form, setForm] = useState({ title: '', description: '', type: 'video', prize: '', hashtag: '', rules: '', ends_at: defaultEnd })
+  const defaultEnd = new Date(Date.now() + 86400000 * 14).toISOString().slice(0, 10)
+  const [form, setForm] = useState({ title: '', description: '', type: 'video', prizes: ['cash_50'], hashtag: '', rules: '', ends_at: defaultEnd })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const togglePrize = (id) => setForm(f => ({
+    ...f,
+    prizes: f.prizes.includes(id) ? f.prizes.filter(p => p !== id) : [...f.prizes, id]
+  }))
   const autoHashtag = form.title
     ? '#' + form.title.replace(/[^a-zA-Z0-9 ]/g, '').split(' ').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join('')
     : ''
+  const prizeLabel = PRIZE_OPTIONS.filter(p => form.prizes.includes(p.id)).map(p => `${p.emoji} ${p.label}`).join(' + ') || ''
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
       <div className="bg-card border border-border rounded-3xl w-full max-w-lg shadow-2xl my-6">
@@ -647,15 +661,38 @@ function CreateChallengeModal({ onClose, onSubmit, saving }) {
           </div>
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">What participants must do *</label>
-            <textarea className={inp + ' resize-none'} rows={3} value={form.description} onChange={e => set('description', e.target.value)} placeholder="Be specific — e.g. Record a 30-second video telling your creator origin story and post it with the hashtag." />
+            <textarea className={inp + ' resize-none'} rows={3} value={form.description} onChange={e => set('description', e.target.value)} placeholder="e.g. Record a 30-second video telling your creator origin story and post it with the hashtag." />
           </div>
+
+          {/* Prize picker */}
           <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block flex items-center gap-1.5">
-              <Gift className="w-3.5 h-3.5 text-amber-400" /> Prize / Reward *
+            <label className="text-xs text-muted-foreground mb-2 block flex items-center gap-1.5">
+              <Gift className="w-3.5 h-3.5 text-amber-400" /> Prize Package * <span className="text-primary">(select all that apply)</span>
             </label>
-            <input className={inp} value={form.prize} onChange={e => set('prize', e.target.value)} placeholder="e.g. 🏅 Featured on Philomni homepage + Champion badge + $100 Marketplace credit" />
-            <p className="text-xs text-muted-foreground mt-1">Be specific about what the winner actually receives.</p>
+            <div className="grid grid-cols-1 gap-2">
+              {PRIZE_OPTIONS.map(p => {
+                const selected = form.prizes.includes(p.id)
+                return (
+                  <button key={p.id} type="button" onClick={() => togglePrize(p.id)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${selected ? 'border-amber-400 bg-amber-500/10' : 'border-border bg-muted/20 hover:border-amber-400/50'}`}>
+                    <span className="text-xl">{p.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground">{p.label}</span>
+                        {p.grand && <span className="px-1.5 py-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full">GRAND PRIZE</span>}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{p.desc}</p>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selected ? 'border-amber-400 bg-amber-400' : 'border-border'}`}>
+                      {selected && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            {form.prizes.length === 0 && <p className="text-xs text-red-400 mt-1">Select at least one prize.</p>}
           </div>
+
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Hashtag</label>
             <input className={inp} value={form.hashtag} onChange={e => set('hashtag', e.target.value)} placeholder={autoHashtag || '#YourChallengeTag'} />
@@ -667,13 +704,137 @@ function CreateChallengeModal({ onClose, onSubmit, saving }) {
           </div>
           <div className="flex gap-3 pt-1">
             <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
-            <button onClick={() => onSubmit({ ...form, hashtag: form.hashtag || autoHashtag })}
-              disabled={!form.title.trim() || !form.description.trim() || !form.prize.trim() || saving}
+            <button onClick={() => onSubmit({ ...form, prize: prizeLabel, hashtag: form.hashtag || autoHashtag })}
+              disabled={!form.title.trim() || !form.description.trim() || form.prizes.length === 0 || saving}
               className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Target className="w-4 h-4" />}
               {saving ? 'Launching…' : 'Launch Challenge'}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Challenge Entry Modal ────────────────────────────────────────────────────
+
+function ChallengeEntryModal({ challenge, onClose, onSubmit, saving }) {
+  const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
+  const [content, setContent] = useState('')
+  const [mediaUrl, setMediaUrl] = useState('')
+  const meta = CHALLENGE_TYPE_META[challenge.type] ?? CHALLENGE_TYPE_META.general
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-3xl w-full max-w-md shadow-2xl">
+        <div className={`h-20 bg-gradient-to-br ${meta.color} rounded-t-3xl flex items-center gap-3 px-5`}>
+          <span className="text-3xl">{meta.emoji}</span>
+          <div>
+            <p className="text-white font-bold text-sm">{challenge.title}</p>
+            {challenge.hashtag && <p className="text-white/70 text-xs">{challenge.hashtag}</p>}
+          </div>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="bg-muted/30 rounded-xl p-3 text-xs text-muted-foreground leading-relaxed">
+            <span className="font-semibold text-foreground block mb-1">What to do:</span>
+            {challenge.description}
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Describe your submission *</label>
+            <textarea className={inp + ' resize-none'} rows={4} value={content} onChange={e => setContent(e.target.value)}
+              placeholder="Tell us about your entry — what you created, your approach, your story…" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Link to your work (optional)</label>
+            <input className={inp} value={mediaUrl} onChange={e => setMediaUrl(e.target.value)}
+              placeholder="Paste a link to your video, photo, post, etc." />
+          </div>
+          {challenge.prize && (
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 flex items-center gap-2">
+              <span className="text-lg">🏆</span>
+              <div>
+                <p className="text-[10px] text-amber-400 font-semibold uppercase tracking-wide">Prize if you win</p>
+                <p className="text-xs text-foreground">{challenge.prize}</p>
+              </div>
+            </div>
+          )}
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
+            <button onClick={() => onSubmit(content, mediaUrl)} disabled={!content.trim() || saving}
+              className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {saving ? 'Submitting…' : 'Submit Entry'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Challenge Entries Viewer ─────────────────────────────────────────────────
+
+function ChallengeEntriesModal({ challenge, isAdmin, onClose, onPickWinner }) {
+  const [entries, setEntries]   = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [picking, setPicking]   = useState(null)
+
+  useEffect(() => {
+    supabase.from('challenge_entries').select('*').eq('challenge_id', challenge.id).order('votes', { ascending: false })
+      .then(({ data }) => { setEntries(data ?? []); setLoading(false) })
+  }, [challenge.id])
+
+  const handlePick = async (entry) => {
+    setPicking(entry.id)
+    await onPickWinner(challenge.id, entry.user_id, entry.user_name)
+    setPicking(null)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-card border border-border rounded-3xl w-full max-w-lg shadow-2xl my-6">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <div>
+            <h2 className="text-base font-bold text-foreground">Entries — {challenge.title}</h2>
+            <p className="text-xs text-muted-foreground">{entries.length} submission{entries.length !== 1 ? 's' : ''}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          {loading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+          ) : entries.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground text-sm">No entries yet. Be the first to enter!</div>
+          ) : entries.map(e => (
+            <div key={e.id} className={`bg-muted/20 rounded-2xl p-4 border ${challenge.winner_id === e.user_id ? 'border-amber-400/50 bg-amber-500/5' : 'border-border'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Avatar name={e.user_name} url={e.user_avatar} size={7} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      {e.user_name}
+                      {challenge.winner_id === e.user_id && <span className="text-amber-400">🏆 Winner</span>}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">{new Date(e.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+                {isAdmin && challenge.status !== 'ended' && (
+                  <button onClick={() => handlePick(e)} disabled={!!picking}
+                    className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-400 transition-colors disabled:opacity-50">
+                    {picking === e.id ? <Loader2 className="w-3 h-3 animate-spin" /> : '🏆 Pick Winner'}
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-foreground mt-2 leading-relaxed">{e.content}</p>
+              {e.media_url && (
+                <a href={e.media_url} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline mt-1.5 block truncate">
+                  🔗 View submission
+                </a>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -824,11 +985,14 @@ export default function Community() {
   const [userEventRsvps, setUserEventRsvps] = useState(new Set())
   const [userChallengeIds, setUserChallengeIds] = useState(new Set())
 
-  const [showCreateGroup, setShowCreateGroup]       = useState(false)
-  const [showCreateChallenge, setShowCreateChallenge] = useState(false)
-  const [showCreateEvent, setShowCreateEvent]       = useState(false)
-  const [showCreateAnn, setShowCreateAnn]           = useState(false)
-  const [savingCreate, setSavingCreate]             = useState(false)
+  const [showCreateGroup, setShowCreateGroup]           = useState(false)
+  const [showCreateChallenge, setShowCreateChallenge]   = useState(false)
+  const [showCreateEvent, setShowCreateEvent]           = useState(false)
+  const [showCreateAnn, setShowCreateAnn]               = useState(false)
+  const [savingCreate, setSavingCreate]                 = useState(false)
+  const [enteringChallenge, setEnteringChallenge]       = useState(null) // challenge object
+  const [viewingEntries, setViewingEntries]             = useState(null) // challenge object
+  const [savingEntry, setSavingEntry]                   = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -959,20 +1123,37 @@ export default function Community() {
     }
   }, [user?.id, userEventRsvps, dbEvents])
 
-  const handleEnterChallenge = useCallback(async (challengeId) => {
-    if (!user?.id || userChallengeIds.has(challengeId)) return
+  const handleSubmitEntry = useCallback(async (content, mediaUrl) => {
+    if (!user?.id || !enteringChallenge) return
+    setSavingEntry(true)
     const { error } = await supabase.from('challenge_entries').insert({
-      challenge_id: challengeId,
+      challenge_id: enteringChallenge.id,
       user_id: user.id,
-      user_name: user.user_metadata?.full_name ?? user.email ?? 'Creator',
-      user_avatar: user.user_metadata?.avatar_url ?? null,
-      content: '',
+      user_name: user.user_metadata?.full_name ?? user.full_name ?? user.email ?? 'Creator',
+      user_avatar: user.user_metadata?.avatar_url ?? user.avatar_url ?? null,
+      content,
+      media_url: mediaUrl.trim() || null,
+      votes: 0,
     })
     if (!error) {
-      setUserChallengeIds(prev => new Set([...prev, challengeId]))
-      setDbChallenges(prev => prev.map(c => c.id === challengeId ? { ...c, entry_count: (c.entry_count ?? 0) + 1 } : c))
+      setUserChallengeIds(prev => new Set([...prev, enteringChallenge.id]))
+      setDbChallenges(prev => prev.map(c => c.id === enteringChallenge.id ? { ...c, entry_count: (c.entry_count ?? 0) + 1 } : c))
+      toast.success('Entry submitted! Good luck 🏆')
+    } else {
+      toast.error('Failed to submit entry')
     }
-  }, [user, userChallengeIds])
+    setSavingEntry(false)
+    setEnteringChallenge(null)
+  }, [user, enteringChallenge])
+
+  const handlePickWinner = useCallback(async (challengeId, winnerId, winnerName) => {
+    if (!isAdmin) return
+    const { error } = await supabase.from('challenges').update({ winner_id: winnerId, status: 'ended' }).eq('id', challengeId)
+    if (!error) {
+      setDbChallenges(prev => prev.map(c => c.id === challengeId ? { ...c, winner_id: winnerId, winner_name: winnerName, status: 'ended' } : c))
+      toast.success(`🏆 ${winnerName} picked as winner!`)
+    }
+  }, [isAdmin])
 
   const handleAnnouncementReact = useCallback(async (annId, emoji, isDb) => {
     const key = `${annId}-${emoji}`
@@ -1204,7 +1385,7 @@ export default function Community() {
             )}
           </div>
 
-          <RightSidebar events={dbEvents} challenges={dbChallenges} communityMode={communityMode} />
+          <RightSidebar events={dbEvents} challenges={dbChallenges} posts={posts} communityMode={communityMode} />
         </div>
       )}
 
@@ -1331,11 +1512,18 @@ export default function Community() {
                             <span className="flex items-center gap-1"><Users className="w-3 h-3" />{c.entry_count ?? 0} entries</span>
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={() => handleEnterChallenge(c.id)}
-                              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${entered ? 'bg-emerald-500/20 text-emerald-400' : 'bg-primary text-white hover:bg-primary/90'}`}>
-                              {entered ? '✓ Entered' : 'Enter Challenge'}
+                            {entered ? (
+                              <button disabled className="flex-1 py-2 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-400">✓ Entered</button>
+                            ) : (
+                              <button onClick={() => setEnteringChallenge(c)}
+                                className="flex-1 py-2 rounded-xl text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors">
+                                Enter Challenge
+                              </button>
+                            )}
+                            <button onClick={() => setViewingEntries(c)}
+                              className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">
+                              {c.entry_count ?? 0} Entries
                             </button>
-                            <button className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">Entries</button>
                           </div>
                         </div>
                       </div>
@@ -1358,8 +1546,14 @@ export default function Community() {
                             <div className="p-3">
                               <p className="text-sm font-semibold text-foreground">{c.title}</p>
                               <p className="text-xs text-muted-foreground mt-0.5">{c.entry_count ?? 0} entries</p>
-                              {c.prize && <p className="text-xs text-amber-400 mt-1 line-clamp-1">🏆 {c.prize}</p>}
-                              <button className="w-full mt-2 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">See Entries</button>
+                              {c.prize && <p className="text-xs text-amber-400 mt-1 line-clamp-1">Prize: {c.prize}</p>}
+                              {c.winner_name && (
+                                <p className="text-xs text-amber-400 font-semibold mt-1">🏆 Winner: {c.winner_name}</p>
+                              )}
+                              <button onClick={() => setViewingEntries(c)}
+                                className="w-full mt-2 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">
+                                See Entries
+                              </button>
                             </div>
                           </div>
                         )
@@ -1601,6 +1795,8 @@ export default function Community() {
       {showCreateChallenge && <CreateChallengeModal onClose={() => setShowCreateChallenge(false)} onSubmit={handleCreateChallenge} saving={savingCreate} />}
       {showCreateEvent && <CreateEventModal onClose={() => setShowCreateEvent(false)} onSubmit={handleCreateEvent} saving={savingCreate} />}
       {showCreateAnn && <CreateAnnouncementModal onClose={() => setShowCreateAnn(false)} onSubmit={handleCreateAnn} saving={savingCreate} />}
+      {enteringChallenge && <ChallengeEntryModal challenge={enteringChallenge} onClose={() => setEnteringChallenge(null)} onSubmit={handleSubmitEntry} saving={savingEntry} />}
+      {viewingEntries && <ChallengeEntriesModal challenge={viewingEntries} isAdmin={isAdmin} onClose={() => setViewingEntries(null)} onPickWinner={handlePickWinner} />}
     </div>
   )
 }
