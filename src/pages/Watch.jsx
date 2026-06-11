@@ -217,33 +217,18 @@ export default function Watch() {
   return (
     <>
       <style>{`
-        .yt-layout {
-          display: flex;
-          gap: 24px;
-          align-items: flex-start;
-          color: #fff;
-        }
-        .yt-main {
-          flex: 1;
-          min-width: 0;
-        }
-        .yt-sidebar {
-          width: 360px;
-          flex-shrink: 0;
-        }
-        @media (max-width: 1024px) {
-          .yt-sidebar { width: 300px; }
-        }
+        .watch-layout { display: flex; gap: 24px; align-items: flex-start; color: #fff; }
+        .watch-sidebar { flex: 0 0 360px; max-height: 90vh; overflow-y: auto; }
         @media (max-width: 768px) {
-          .yt-layout { flex-direction: column; }
-          .yt-sidebar { width: 100%; }
+          .watch-layout { flex-direction: column !important; }
+          .watch-sidebar { flex: unset !important; width: 100% !important; max-height: unset !important; }
         }
       `}</style>
 
-      <div className="yt-layout">
+      <div className="watch-layout" style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', padding: '0 8px' }}>
 
         {/* ── LEFT COLUMN: player + info + comments ── */}
-        <div className="yt-main">
+        <div style={{ flex: '1 1 70%', minWidth: 0 }}>
 
           {/* Player */}
           <div style={{ width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000', borderRadius: 12, overflow: 'hidden', marginBottom: 14 }}>
@@ -414,7 +399,7 @@ export default function Watch() {
         </div>
 
         {/* ── RIGHT COLUMN: related videos ── */}
-        <div className="yt-sidebar">
+        <div className="watch-sidebar" style={{ flex: '0 0 360px', maxHeight: '90vh', overflowY: 'auto' }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12 }}>Up Next</p>
           {relatedVideos.length === 0 && (
             <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>No other videos yet.</p>
