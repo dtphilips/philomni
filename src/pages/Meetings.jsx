@@ -887,8 +887,9 @@ function FullCalendar({ meetings, onSchedule, onSelectMeeting }) {
 
 // ─── MEETING CARD ─────────────────────────────────────────────────────────────
 
-function MeetingCard({ meeting, onJoin, onDetails, isLive }) {
+function MeetingCard({ meeting, onJoin, onDetails, onDelete, isLive }) {
   const [copied, setCopied] = useState(false)
+  const [confirmDel, setConfirmDel] = useState(false)
   const endTime = addMinutes(new Date(meeting.scheduled_at), meeting.duration_minutes)
 
   function copyLink() {
@@ -918,15 +919,24 @@ function MeetingCard({ meeting, onJoin, onDetails, isLive }) {
           </div>
         </div>
       </div>
-      <div className="flex gap-2 mt-3">
-        <button onClick={() => onJoin(meeting)} className={`flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 ${isLive ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-primary hover:bg-primary/90 text-primary-foreground'}`}>
-          <Video size={13} /> {isLive ? 'Join Now' : 'Join'}
-        </button>
-        <button onClick={copyLink} className="px-3 py-2 bg-muted hover:bg-muted/80 rounded-xl text-xs text-muted-foreground flex items-center gap-1.5">
-          {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
-        </button>
-        <button onClick={() => onDetails(meeting)} className="px-3 py-2 bg-muted hover:bg-muted/80 rounded-xl text-xs text-muted-foreground">Details</button>
-      </div>
+      {confirmDel ? (
+        <div className="mt-3 flex gap-2">
+          <span className="flex-1 text-xs text-muted-foreground self-center">Delete this meeting?</span>
+          <button onClick={() => setConfirmDel(false)} className="px-3 py-1.5 rounded-lg border border-border text-xs">Cancel</button>
+          <button onClick={() => onDelete(meeting)} className="px-3 py-1.5 rounded-lg bg-destructive text-white text-xs">Delete</button>
+        </div>
+      ) : (
+        <div className="flex gap-2 mt-3">
+          <button onClick={() => onJoin(meeting)} className={`flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 ${isLive ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-primary hover:bg-primary/90 text-primary-foreground'}`}>
+            <Video size={13} /> {isLive ? 'Join Now' : 'Join'}
+          </button>
+          <button onClick={copyLink} className="px-3 py-2 bg-muted hover:bg-muted/80 rounded-xl text-xs text-muted-foreground flex items-center gap-1.5">
+            {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+          </button>
+          <button onClick={() => onDetails(meeting)} className="px-3 py-2 bg-muted hover:bg-muted/80 rounded-xl text-xs text-muted-foreground">Details</button>
+          {onDelete && <button onClick={() => setConfirmDel(true)} className="px-3 py-2 bg-muted hover:bg-destructive/10 rounded-xl text-xs text-muted-foreground hover:text-destructive"><Trash2 size={12} /></button>}
+        </div>
+      )}
     </div>
   )
 }
@@ -1618,7 +1628,7 @@ function ActiveMeetingView({ meeting, onEnd }) {
 
 // ─── LEFT PANEL ───────────────────────────────────────────────────────────────
 
-function LeftPanel({ meetings, pastMeetings, spaces, contacts, collapsed, onToggle, onSelectMeeting, onSelectPast, onSelectSpace, onJoin, onNewMeeting, onNewSpace, selectedId }) {
+function LeftPanel({ meetings, pastMeetings, spaces, contacts, collapsed, onToggle, onSelectMeeting, onSelectPast, onSelectSpace, onJoin, onNewMeeting, onNewSpace, onDeleteMeeting, onDeleteSpace, selectedId }) {
   const now = Date.now()
   const isLive = (m) => Math.abs(new Date(m.scheduled_at).getTime() - now) < 5 * 60000
 
@@ -1647,17 +1657,21 @@ function LeftPanel({ meetings, pastMeetings, spaces, contacts, collapsed, onTogg
         {!collapsed.upcoming && (
           <div className="space-y-0.5 mb-2">
             {meetings.filter(m => m.status === 'scheduled').map(m => (
-              <button key={m.id} onClick={() => onSelectMeeting(m)}
-                className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-muted text-left transition-colors ${selectedId === m.id ? 'bg-primary/10 text-primary border-l-2 border-primary' : ''}`}>
-                <span className="text-base">{meetingTypeIcon(m.meeting_type)}</span>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-medium truncate ${selectedId === m.id ? 'text-primary' : 'text-foreground'}`}>{m.title}</p>
-                  <p className="text-xs text-muted-foreground">{fmtDate(m.scheduled_at)} {fmtTime(m.scheduled_at)}</p>
-                </div>
+              <div key={m.id} className={`flex items-center group/item hover:bg-muted transition-colors ${selectedId === m.id ? 'bg-primary/10 border-l-2 border-primary' : ''}`}>
+                <button onClick={() => onSelectMeeting(m)} className="flex items-center gap-2 px-3 py-2 flex-1 min-w-0 text-left">
+                  <span className="text-base">{meetingTypeIcon(m.meeting_type)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-medium truncate ${selectedId === m.id ? 'text-primary' : 'text-foreground'}`}>{m.title}</p>
+                    <p className="text-xs text-muted-foreground">{fmtDate(m.scheduled_at)} {fmtTime(m.scheduled_at)}</p>
+                  </div>
+                </button>
                 {isLive(m) && (
-                  <button onClick={e => { e.stopPropagation(); onJoin(m) }} className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded-md flex-shrink-0">Join</button>
+                  <button onClick={e => { e.stopPropagation(); onJoin(m) }} className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded-md flex-shrink-0 mr-1">Join</button>
                 )}
-              </button>
+                <button onClick={() => onDeleteMeeting(m)} className="opacity-0 group-hover/item:opacity-100 p-1 mr-2 text-muted-foreground hover:text-destructive flex-shrink-0" title="Delete">
+                  <Trash2 size={11} />
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -1666,11 +1680,15 @@ function LeftPanel({ meetings, pastMeetings, spaces, contacts, collapsed, onTogg
         {!collapsed.spaces && (
           <div className="space-y-0.5 mb-2">
             {spaces.map(s => (
-              <button key={s.id} onClick={() => onSelectSpace(s)}
-                className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-muted text-left transition-colors ${selectedId === s.id ? 'bg-primary/10 border-l-2 border-primary' : ''}`}>
-                <span className="text-base">{s.emoji}</span>
-                <span className={`text-xs font-medium truncate ${selectedId === s.id ? 'text-primary' : 'text-foreground'}`}>{s.name}</span>
-              </button>
+              <div key={s.id} className={`flex items-center group/item hover:bg-muted transition-colors ${selectedId === s.id ? 'bg-primary/10 border-l-2 border-primary' : ''}`}>
+                <button onClick={() => onSelectSpace(s)} className="flex items-center gap-2 px-3 py-2 flex-1 min-w-0 text-left">
+                  <span className="text-base">{s.emoji}</span>
+                  <span className={`text-xs font-medium truncate ${selectedId === s.id ? 'text-primary' : 'text-foreground'}`}>{s.name}</span>
+                </button>
+                <button onClick={() => onDeleteSpace(s)} className="opacity-0 group-hover/item:opacity-100 p-1 mr-2 text-muted-foreground hover:text-destructive flex-shrink-0" title="Delete">
+                  <Trash2 size={11} />
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -2093,7 +2111,7 @@ function MyBookings({ user, onSetup, onManage }) {
 
 // ─── CENTER DASHBOARD ─────────────────────────────────────────────────────────
 
-function CenterDashboard({ meetings, pastMeetings, onSchedule, onJoinCode, onInstant, onSelectMeeting, onSelectPast, onJoin, user }) {
+function CenterDashboard({ meetings, pastMeetings, onSchedule, onJoinCode, onInstant, onSelectMeeting, onSelectPast, onJoin, onDeleteMeeting, user }) {
   const [tab, setTab] = useState('overview')
   const [showBookingSetup, setShowBookingSetup] = useState(false)
 
@@ -2163,7 +2181,7 @@ function CenterDashboard({ meetings, pastMeetings, onSchedule, onJoinCode, onIns
               <h3 className="font-semibold text-foreground mb-3">{todayMeetings.length > 0 ? "Today's Meetings" : "Upcoming Meetings"}</h3>
               <div className="space-y-3">
                 {displayMeetings.map(m => (
-                  <MeetingCard key={m.id} meeting={m} onJoin={onJoin} onDetails={onSelectMeeting} isLive={isLive(m)} />
+                  <MeetingCard key={m.id} meeting={m} onJoin={onJoin} onDetails={onSelectMeeting} onDelete={onDeleteMeeting} isLive={isLive(m)} />
                 ))}
                 {displayMeetings.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
@@ -2295,6 +2313,24 @@ export default function Meetings() {
     } catch {}
   }
 
+  async function deleteMeeting(meeting) {
+    setMeetings(prev => prev.filter(m => m.id !== meeting.id))
+    setPastMeetings(prev => prev.filter(m => m.id !== meeting.id))
+    if (selectedMeeting?.id === meeting.id) setSelectedMeeting(null)
+    if (selectedPast?.id === meeting.id) setSelectedPast(null)
+    if (meeting.id && meeting.id.length === 36) {
+      await supabase.from('meetings').delete().eq('id', meeting.id)
+    }
+  }
+
+  async function deleteSpace(space) {
+    setSpaces(prev => prev.filter(s => s.id !== space.id))
+    if (selectedSpace?.id === space.id) setSelectedSpace(null)
+    if (space.id && space.id.length === 36) {
+      await supabase.from('meeting_spaces').delete().eq('id', space.id)
+    }
+  }
+
   async function startMeeting(meeting) {
     activeMeetingStartRef.current = new Date()
     // If already has a Daily.co room, use it directly
@@ -2364,6 +2400,7 @@ export default function Meetings() {
         onSelectMeeting={setSelectedMeeting}
         onSelectPast={setSelectedPast}
         onJoin={startMeeting}
+        onDeleteMeeting={deleteMeeting}
         user={user}
       />
     )
@@ -2394,6 +2431,8 @@ export default function Meetings() {
           onJoin={(m) => { activeMeetingStartRef.current = new Date(); setActiveMeeting(m) }}
           onNewMeeting={() => setShowSchedule(true)}
           onNewSpace={() => setShowCreateSpace(true)}
+          onDeleteMeeting={deleteMeeting}
+          onDeleteSpace={deleteSpace}
           selectedId={selectedMeeting?.id || selectedPast?.id || selectedSpace?.id}
         />
         <button

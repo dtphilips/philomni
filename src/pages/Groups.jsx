@@ -28,17 +28,6 @@ function Avatar({ src, name, size = 10 }) {
     : <div className={`w-${size} h-${size} rounded-full ${color} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>{initials}</div>
 }
 
-// ─── Sample groups (shown if DB is empty) ─────────────────────────────────────
-
-const SAMPLE_GROUPS = [
-  { id: 's1', name: 'Video Creators Network', description: 'Connect with video creators worldwide. Share work, get feedback, find collabs.', group_type: 'group', is_private: false, member_count: 12430, avatar_url: null, status: 'active', created_at: new Date().toISOString() },
-  { id: 's2', name: 'African Creators Hub', description: 'The premier community for African and diaspora creators — building together.', group_type: 'group', is_private: false, member_count: 8720, avatar_url: null, status: 'active', created_at: new Date().toISOString() },
-  { id: 's3', name: 'Philomni Official', description: 'Official announcements, product updates, and platform news from the Philomni team.', group_type: 'channel', is_private: false, member_count: 45800, avatar_url: null, status: 'active', created_at: new Date().toISOString() },
-  { id: 's4', name: 'Music Producers', description: 'Producers, beatmakers, and musicians. Share tracks, find features, discuss the craft.', group_type: 'group', is_private: false, member_count: 9180, avatar_url: null, status: 'active', created_at: new Date().toISOString() },
-  { id: 's5', name: 'Brand Deals & UGC', description: 'Land brand deals, share rate cards, get contract advice. The business side of creating.', group_type: 'group', is_private: false, member_count: 6540, avatar_url: null, status: 'active', created_at: new Date().toISOString() },
-  { id: 's6', name: 'Tech & AI For Creators', description: 'AI tools, automation, tech setups. How to use technology to 10x your creative output.', group_type: 'channel', is_private: false, member_count: 5540, avatar_url: null, status: 'active', created_at: new Date().toISOString() },
-]
-
 // ─── Create Group Modal ───────────────────────────────────────────────────────
 
 function CreateGroupModal({ user, onCreated, onClose }) {
@@ -261,20 +250,17 @@ export default function Groups() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    supabase.from('groups')
+    const { data } = await supabase.from('groups')
       .select('*')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(50)
-      .then(async ({ data }) => {
-        setGroups(data?.length ? data : SAMPLE_GROUPS)
-        if (user?.id) {
-          const { data: memberships } = await supabase.from('group_members').select('group_id').eq('user_id', user.id)
-          setMyGroupIds(new Set((memberships || []).map(m => m.group_id)))
-        }
-        setLoading(false)
-      })
-      .catch(() => { setGroups(SAMPLE_GROUPS); setLoading(false) })
+    setGroups(data || [])
+    if (user?.id) {
+      const { data: memberships } = await supabase.from('group_members').select('group_id').eq('user_id', user.id)
+      setMyGroupIds(new Set((memberships || []).map(m => m.group_id)))
+    }
+    setLoading(false)
   }, [user?.id])
 
   // 5-second safety net
