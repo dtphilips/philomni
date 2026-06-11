@@ -728,6 +728,89 @@ function CreateChallengeModal({ onClose, onSubmit, saving }) {
   )
 }
 
+// ─── Create Creator Challenge Modal ──────────────────────────────────────────
+
+function CreateCreatorChallengeModal({ onClose, onSubmit, saving }) {
+  const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
+  const defaultEnd = new Date(Date.now() + 86400000 * 14).toISOString().slice(0, 10)
+  const [form, setForm] = useState({
+    title: '', description: '', type: 'video',
+    custom_prize: '', hashtag: '', rules: '', ends_at: defaultEnd,
+  })
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const autoHashtag = form.title
+    ? '#' + form.title.replace(/[^a-zA-Z0-9 ]/g, '').split(' ').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join('')
+    : ''
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-card border border-border rounded-3xl w-full max-w-lg shadow-2xl my-6">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <div>
+            <h2 className="text-base font-bold text-foreground">👤 Creator Challenge</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Challenge your followers — you set the prize</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="flex items-start gap-3 bg-primary/5 border border-primary/20 rounded-xl p-3">
+            <span className="text-lg">💡</span>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              You're creating a challenge for <strong className="text-foreground">your own community</strong>. You decide the prize — it could be a shoutout, a 1:1 session, cash you arrange yourself, or anything you choose. You are responsible for delivering it.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Challenge Title *</label>
+            <input className={inp} value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Best Short-Form Video This Week" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Type</label>
+              <select className={inp + ' cursor-pointer'} value={form.type} onChange={e => set('type', e.target.value)}>
+                {CHALLENGE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Ends On *</label>
+              <input type="date" className={inp} value={form.ends_at} onChange={e => set('ends_at', e.target.value)} min={new Date().toISOString().slice(0, 10)} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">What participants must do *</label>
+            <textarea className={inp + ' resize-none'} rows={3} value={form.description} onChange={e => set('description', e.target.value)} placeholder="e.g. Post a 60-second tutorial on any topic and tag me — I'll pick the most helpful one." />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block flex items-center gap-1.5">
+              <Gift className="w-3.5 h-3.5 text-amber-400" /> Your Prize *
+            </label>
+            <input className={inp} value={form.custom_prize} onChange={e => set('custom_prize', e.target.value)} placeholder="e.g. Free 30-min 1:1 coaching call with me" />
+            <p className="text-xs text-muted-foreground mt-1">Be specific — your followers are trusting you to deliver this.</p>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Hashtag</label>
+            <input className={inp} value={form.hashtag} onChange={e => set('hashtag', e.target.value)} placeholder={autoHashtag || '#YourChallengeTag'} />
+            {autoHashtag && !form.hashtag && <p className="text-xs text-primary mt-1">Will use: {autoHashtag}</p>}
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Rules (optional)</label>
+            <textarea className={inp + ' resize-none'} rows={2} value={form.rules} onChange={e => set('rules', e.target.value)} placeholder="e.g. Must follow me. Original content only. One entry per person." />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
+            <button
+              onClick={() => onSubmit({ ...form, hashtag: form.hashtag || autoHashtag })}
+              disabled={!form.title.trim() || !form.description.trim() || !form.custom_prize.trim() || saving}
+              className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Target className="w-4 h-4" />}
+              {saving ? 'Launching…' : 'Launch My Challenge'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Challenge Entry Modal ────────────────────────────────────────────────────
 
 function ChallengeEntryModal({ challenge, onClose, onSubmit, saving }) {
@@ -1441,7 +1524,7 @@ function ScanTicketModal({ event, onClose }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Community() {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, isPro, isProMax } = useAuth()
   const navigate  = useNavigate()
   const { mode }  = useMode()
   const [communityMode, setCommunityMode] = useState(mode === 'pro' ? 'pro' : 'creator')
@@ -1483,6 +1566,9 @@ export default function Community() {
   const [searchQuery, setSearchQuery]                   = useState('')
   const [myContentOnly, setMyContentOnly]               = useState(false)
   const [scanningEvent, setScanningEvent]               = useState(null)
+  const [groupsFilter, setGroupsFilter]                 = useState('discover') // 'mine' | 'discover'
+  const [challengeTypeFilter, setChallengeTypeFilter]   = useState('all') // 'all' | 'platform' | 'creator'
+  const [showCreateCreatorChallenge, setShowCreateCreatorChallenge] = useState(false)
 
 
   useEffect(() => {
@@ -1787,11 +1873,36 @@ export default function Community() {
       ends_at: new Date(form.ends_at).toISOString(),
       status: 'active',
       entry_count: 0,
+      challenge_type: 'platform',
       created_by: user.id,
     }).select().single()
     if (!error && data) setDbChallenges(prev => [data, ...prev])
     setSavingCreate(false)
     setShowCreateChallenge(false)
+  }, [user, isAdmin])
+
+  const handleCreateCreatorChallenge = useCallback(async (form) => {
+    if (!user?.id) return
+    setSavingCreate(true)
+    const { data, error } = await supabase.from('challenges').insert({
+      title: form.title.trim(),
+      description: form.description.trim(),
+      type: form.type,
+      prize: form.custom_prize.trim(),
+      custom_prize: form.custom_prize.trim(),
+      hashtag: form.hashtag,
+      rules: form.rules.trim() || null,
+      ends_at: new Date(form.ends_at).toISOString(),
+      status: 'active',
+      entry_count: 0,
+      challenge_type: 'creator',
+      creator_name: user.user_metadata?.full_name ?? user.full_name ?? 'Creator',
+      creator_avatar: user.user_metadata?.avatar_url ?? user.avatar_url ?? null,
+      created_by: user.id,
+    }).select().single()
+    if (!error && data) setDbChallenges(prev => [data, ...prev])
+    setSavingCreate(false)
+    setShowCreateCreatorChallenge(false)
   }, [user])
 
   const handleCreateEvent = useCallback(async (form) => {
@@ -1989,56 +2100,85 @@ export default function Community() {
       {/* ══ GROUPS ═════════════════════════════════════════════════════════ */}
       {tab === 'groups' && (
         <div className="space-y-5">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input placeholder="Find groups..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground" />
+          {/* Header: search + Mine/Discover toggle + Create */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex gap-1 bg-muted rounded-xl p-1">
+              {[{ id: 'discover', label: '🌍 Discover' }, { id: 'mine', label: '👤 Mine' }].map(f => (
+                <button key={f.id} onClick={() => setGroupsFilter(f.id)}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${groupsFilter === f.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                  {f.label}
+                </button>
+              ))}
             </div>
-            <button onClick={() => setShowCreateGroup(true)} className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+            <button onClick={() => setShowCreateGroup(true)} className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
               <Plus className="w-4 h-4" /> Create Group
             </button>
           </div>
 
-          {dbGroups.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">👥</div>
-              <div>
-                <p className="text-base font-bold text-foreground mb-1">No groups yet</p>
-                <p className="text-sm text-muted-foreground">Create the first group and invite creators to join</p>
-              </div>
-              <button onClick={() => setShowCreateGroup(true)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
-                <Plus className="w-4 h-4" /> Create a Group
-              </button>
-            </div>
-          ) : (() => {
-            const allGroups = dbGroups.map(g => ({
+          {(() => {
+            const enriched = dbGroups.map(g => ({
               ...g,
               emoji: CAT_META[g.category]?.emoji ?? '👥',
               cover_color: CAT_META[g.category]?.color ?? 'from-primary to-primary/60',
             }))
+            const myGroups      = enriched.filter(g => userGroupIds.has(g.id) || g.created_by === user?.id)
+            const discoverGroups = enriched.filter(g => !userGroupIds.has(g.id))
+            const visible = groupsFilter === 'mine' ? myGroups : discoverGroups
+
             const renderCard = (g) => {
               const isJoined = userGroupIds.has(g.id)
+              const isOwner  = g.created_by === user?.id
               return (
                 <div key={g.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group cursor-pointer" onClick={() => navigate(`/groups/${g.id}`)}>
-                  <div className={`h-24 text-4xl bg-gradient-to-br ${g.cover_color} flex items-center justify-center`}>{g.emoji}</div>
+                  <div className={`h-24 text-4xl bg-gradient-to-br ${g.cover_color} flex items-center justify-center relative`}>
+                    {g.emoji}
+                    {isOwner && <span className="absolute top-2 right-2 px-2 py-0.5 bg-black/50 text-white text-[10px] font-bold rounded-full">YOUR GROUP</span>}
+                  </div>
                   <div className="p-3">
                     <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">{g.name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{fmt(g.member_count ?? 0)} members</p>
                     {g.description && <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{g.description}</p>}
                     <button onClick={e => { e.stopPropagation(); handleJoinGroup(g.id) }}
-                      className={`w-full mt-3 py-2 rounded-xl text-xs font-semibold transition-colors ${isJoined ? 'bg-muted text-muted-foreground' : 'bg-primary text-white hover:bg-primary/90'}`}>
-                      {isJoined ? '✓ Joined' : 'Join Group'}
+                      className={`w-full mt-3 py-2 rounded-xl text-xs font-semibold transition-colors ${isJoined ? 'bg-muted text-muted-foreground hover:bg-red-500/10 hover:text-red-400' : 'bg-primary text-white hover:bg-primary/90'}`}>
+                      {isJoined ? '✓ Joined · Leave' : 'Join Group'}
                     </button>
                   </div>
                 </div>
               )
             }
+
+            if (visible.length === 0) return (
+              <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">
+                  {groupsFilter === 'mine' ? '👤' : '👥'}
+                </div>
+                <div>
+                  <p className="text-base font-bold text-foreground mb-1">
+                    {groupsFilter === 'mine' ? "You haven't joined any groups yet" : 'No groups yet'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {groupsFilter === 'mine' ? 'Discover groups below and join the ones that interest you' : 'Create the first group and invite creators to join'}
+                  </p>
+                </div>
+                {groupsFilter === 'mine' ? (
+                  <button onClick={() => setGroupsFilter('discover')} className="px-5 py-2.5 rounded-xl bg-muted text-foreground text-sm font-semibold hover:bg-muted/70 transition-colors">
+                    Browse Groups
+                  </button>
+                ) : (
+                  <button onClick={() => setShowCreateGroup(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+                    <Plus className="w-4 h-4" /> Create a Group
+                  </button>
+                )}
+              </div>
+            )
+
             return (
               <div>
-                <h2 className="text-sm font-bold text-foreground mb-3">⭐ All Groups</h2>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {groupsFilter === 'mine' ? `${myGroups.length} group${myGroups.length !== 1 ? 's' : ''} you're part of` : `${discoverGroups.length} group${discoverGroups.length !== 1 ? 's' : ''} to explore`}
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {allGroups.map(g => renderCard(g))}
+                  {visible.map(g => renderCard(g))}
                 </div>
               </div>
             )
@@ -2049,9 +2189,17 @@ export default function Community() {
       {/* ══ CHALLENGES ══════════════════════════════════════════════════════ */}
       {tab === 'challenges' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-foreground">🔥 Active Challenges</h2>
+          {/* Header */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex gap-1 bg-muted rounded-xl p-1">
+                {[{ id: 'all', label: '⚡ All' }, { id: 'platform', label: '🏅 Official' }, { id: 'creator', label: '👤 Creator' }].map(f => (
+                  <button key={f.id} onClick={() => setChallengeTypeFilter(f.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${challengeTypeFilter === f.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
               {user?.id && (
                 <button
                   onClick={() => setMyContentOnly(v => !v)}
@@ -2060,81 +2208,126 @@ export default function Community() {
                 </button>
               )}
             </div>
-            {isAdmin && (
-              <button onClick={() => setShowCreateChallenge(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors">
-                <Plus className="w-3.5 h-3.5" /> Create Challenge
-              </button>
-            )}
+            <div className="flex gap-2">
+              {/* Pro/ProMax users can create creator challenges */}
+              {(isPro || isProMax) && (
+                <button onClick={() => setShowCreateCreatorChallenge(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/10 transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> My Challenge
+                </button>
+              )}
+              {isAdmin && (
+                <button onClick={() => setShowCreateChallenge(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> Official Challenge
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Active challenges */}
+          {/* Challenges grid */}
           {(() => {
-            const active = dbChallenges.filter(c => !c.status || c.status === 'active')
-            const ended  = dbChallenges.filter(c => c.status === 'ended')
-            if (dbChallenges.length === 0) return (
+            let allC = [...dbChallenges]
+            if (challengeTypeFilter !== 'all') allC = allC.filter(c => (c.challenge_type ?? 'platform') === challengeTypeFilter)
+            if (myContentOnly && user?.id) allC = allC.filter(c => c.created_by === user.id)
+            const active = allC.filter(c => !c.status || c.status === 'active')
+            const ended  = allC.filter(c => c.status === 'ended')
+
+            if (allC.length === 0) return (
               <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">🎯</div>
                 <div>
-                  <p className="text-base font-bold text-foreground mb-1">No challenges yet</p>
-                  <p className="text-sm text-muted-foreground">Launch the first challenge — set a task, a prize, and a deadline</p>
+                  <p className="text-base font-bold text-foreground mb-1">
+                    {myContentOnly ? "You haven't created any challenges yet" : challengeTypeFilter === 'creator' ? 'No creator challenges yet' : 'No challenges yet'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {challengeTypeFilter === 'creator' ? 'Pro/ProMax creators can launch challenges for their followers' : 'Launch the first challenge — set a task, a prize, and a deadline'}
+                  </p>
                 </div>
-                <button onClick={() => setShowCreateChallenge(true)}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
-                  <Plus className="w-4 h-4" /> Create a Challenge
-                </button>
+                {isAdmin && challengeTypeFilter !== 'creator' && (
+                  <button onClick={() => setShowCreateChallenge(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+                    <Plus className="w-4 h-4" /> Create a Challenge
+                  </button>
+                )}
+                {(isPro || isProMax) && challengeTypeFilter !== 'platform' && (
+                  <button onClick={() => setShowCreateCreatorChallenge(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-primary text-primary text-sm font-semibold hover:bg-primary/10 transition-colors">
+                    <Plus className="w-4 h-4" /> Launch My Challenge
+                  </button>
+                )}
               </div>
             )
+
+            const ChallengeCard = ({ c }) => {
+              const meta    = CHALLENGE_TYPE_META[c.type] ?? CHALLENGE_TYPE_META.general
+              const entered = userChallengeIds.has(c.id)
+              const isCreatorChallenge = (c.challenge_type ?? 'platform') === 'creator'
+              return (
+                <div className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group">
+                  <div className={`h-28 bg-gradient-to-br ${meta.color} flex items-center justify-center text-5xl relative`}>
+                    {meta.emoji}
+                    <div className="absolute top-2 left-2 flex gap-1.5">
+                      {isCreatorChallenge ? (
+                        <span className="px-2 py-0.5 bg-black/50 backdrop-blur text-white text-[10px] font-bold rounded-full flex items-center gap-1">
+                          👤 Creator Challenge
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-amber-500/80 text-white text-[10px] font-bold rounded-full flex items-center gap-1">
+                          🏅 Official
+                        </span>
+                      )}
+                    </div>
+                    <span className="absolute top-2 right-2 px-2 py-0.5 bg-black/40 backdrop-blur text-white text-xs rounded-full font-medium capitalize">{c.type}</span>
+                    {c.hashtag && <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/40 backdrop-blur text-white text-xs rounded-full">{c.hashtag}</span>}
+                  </div>
+                  <div className="p-4 space-y-2.5">
+                    {/* Creator attribution for creator challenges */}
+                    {isCreatorChallenge && c.creator_name && (
+                      <div className="flex items-center gap-2">
+                        <Avatar name={c.creator_name} url={c.creator_avatar} size={5} />
+                        <span className="text-xs text-muted-foreground">by <span className="text-foreground font-medium">{c.creator_name}</span></span>
+                      </div>
+                    )}
+                    <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{c.title}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
+                    {c.prize && (
+                      <div className={`rounded-xl p-2.5 border ${isCreatorChallenge ? 'bg-blue-500/10 border-blue-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
+                        <p className={`text-xs font-semibold flex items-center gap-1 ${isCreatorChallenge ? 'text-blue-400' : 'text-amber-400'}`}><Gift className="w-3 h-3" />{isCreatorChallenge ? 'Creator Prize' : 'Prize / Reward'}</p>
+                        <p className="text-xs text-foreground mt-0.5 leading-relaxed">{c.prize}</p>
+                      </div>
+                    )}
+                    {c.rules && (
+                      <div className="bg-muted/20 rounded-xl p-2.5">
+                        <p className="text-xs text-muted-foreground font-semibold mb-0.5">Rules</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{c.rules}</p>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-amber-400" />{c.ends_at ? timeUntil(c.ends_at) : 'No deadline'}</span>
+                      <span className="flex items-center gap-1"><Users className="w-3 h-3" />{c.entry_count ?? 0} entries</span>
+                    </div>
+                    <div className="flex gap-2">
+                      {entered ? (
+                        <button disabled className="flex-1 py-2 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-400">✓ Entered</button>
+                      ) : (
+                        <button onClick={() => setEnteringChallenge(c)}
+                          className="flex-1 py-2 rounded-xl text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors">
+                          Enter Challenge
+                        </button>
+                      )}
+                      <button onClick={() => setViewingEntries(c)}
+                        className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">
+                        {c.entry_count ?? 0} Entries
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
             return (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {active.map(c => {
-                    const meta = CHALLENGE_TYPE_META[c.type] ?? CHALLENGE_TYPE_META.general
-                    const entered = userChallengeIds.has(c.id)
-                    return (
-                      <div key={c.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group">
-                        <div className={`h-28 bg-gradient-to-br ${meta.color} flex items-center justify-center text-5xl relative`}>
-                          {meta.emoji}
-                          <span className="absolute top-2 right-2 px-2 py-0.5 bg-black/40 backdrop-blur text-white text-xs rounded-full font-medium capitalize">{c.type}</span>
-                          {c.hashtag && <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/40 backdrop-blur text-white text-xs rounded-full">{c.hashtag}</span>}
-                        </div>
-                        <div className="p-4 space-y-2.5">
-                          <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{c.title}</p>
-                          <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
-                          {c.prize && (
-                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5">
-                              <p className="text-xs text-amber-400 font-semibold flex items-center gap-1"><Gift className="w-3 h-3" />Prize / Reward</p>
-                              <p className="text-xs text-foreground mt-0.5 leading-relaxed">{c.prize}</p>
-                            </div>
-                          )}
-                          {c.rules && (
-                            <div className="bg-muted/20 rounded-xl p-2.5">
-                              <p className="text-xs text-muted-foreground font-semibold mb-0.5">Rules</p>
-                              <p className="text-xs text-muted-foreground line-clamp-2">{c.rules}</p>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-amber-400" />{c.ends_at ? timeUntil(c.ends_at) : 'No deadline'}</span>
-                            <span className="flex items-center gap-1"><Users className="w-3 h-3" />{c.entry_count ?? 0} entries</span>
-                          </div>
-                          <div className="flex gap-2">
-                            {entered ? (
-                              <button disabled className="flex-1 py-2 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-400">✓ Entered</button>
-                            ) : (
-                              <button onClick={() => setEnteringChallenge(c)}
-                                className="flex-1 py-2 rounded-xl text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors">
-                                Enter Challenge
-                              </button>
-                            )}
-                            <button onClick={() => setViewingEntries(c)}
-                              className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">
-                              {c.entry_count ?? 0} Entries
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
+                  {active.map(c => <ChallengeCard key={c.id} c={c} />)}
                 </div>
 
                 {ended.length > 0 && (
@@ -2153,9 +2346,7 @@ export default function Community() {
                               <p className="text-sm font-semibold text-foreground">{c.title}</p>
                               <p className="text-xs text-muted-foreground mt-0.5">{c.entry_count ?? 0} entries</p>
                               {c.prize && <p className="text-xs text-amber-400 mt-1 line-clamp-1">Prize: {c.prize}</p>}
-                              {c.winner_name && (
-                                <p className="text-xs text-amber-400 font-semibold mt-1">🏆 Winner: {c.winner_name}</p>
-                              )}
+                              {c.winner_name && <p className="text-xs text-amber-400 font-semibold mt-1">🏆 Winner: {c.winner_name}</p>}
                               <button onClick={() => setViewingEntries(c)}
                                 className="w-full mt-2 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">
                                 See Entries
@@ -2459,6 +2650,7 @@ export default function Community() {
       {payingEvent && <EventPaymentModal event={payingEvent} user={user} onSuccess={handleEventPaymentSuccess} onClose={() => setPayingEvent(null)} />}
       {ticketEvent && <TicketModal event={ticketEvent.event} user={user} status={ticketEvent.status} onClose={() => setTicketEvent(null)} />}
       {scanningEvent && <ScanTicketModal event={scanningEvent} onClose={() => setScanningEvent(null)} />}
+      {showCreateCreatorChallenge && <CreateCreatorChallengeModal onClose={() => setShowCreateCreatorChallenge(false)} onSubmit={handleCreateCreatorChallenge} saving={savingCreate} />}
     </div>
   )
 }
