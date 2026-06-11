@@ -17,6 +17,7 @@ import {
   loadFlutterwaveScript, openFlutterwaveCheckout,
   createPaymentIntent, recordPayment, PAYMENT_CONFIG,
 } from '../lib/payments'
+import { QRCodeSVG } from 'qrcode.react'
 
 // ─── Sample Data ──────────────────────────────────────────────────────────────
 
@@ -570,9 +571,13 @@ const CHALLENGE_TYPES = [
 ]
 
 const EVENT_TYPES = [
-  { id: 'webinar', label: '🎙 Webinar' }, { id: 'workshop', label: '🛠 Workshop' },
-  { id: 'masterclass', label: '🎓 Masterclass' }, { id: 'networking', label: '🤝 Networking' },
-  { id: 'showcase', label: '🎤 Showcase' }, { id: 'conference', label: '🏛 Conference' },
+  { id: 'webinar',    label: '🎙 Webinar',      physical: false },
+  { id: 'workshop',   label: '🛠 Workshop',      physical: false },
+  { id: 'masterclass',label: '🎓 Masterclass',   physical: false },
+  { id: 'networking', label: '🤝 Networking',    physical: false },
+  { id: 'showcase',   label: '🎤 Showcase',      physical: false },
+  { id: 'conference', label: '🏛 Conference',    physical: false },
+  { id: 'in-person',  label: '📍 In-Person',     physical: true  },
 ]
 
 // ─── Create Group Modal ───────────────────────────────────────────────────────
@@ -841,6 +846,84 @@ function ChallengeEntriesModal({ challenge, isAdmin, onClose, onPickWinner }) {
               )}
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── QR Ticket Modal ─────────────────────────────────────────────────────────
+
+function TicketModal({ event, user, status, onClose }) {
+  const ticketRef  = `phi-evt-${event.id.slice(0,8)}-usr-${(user?.id ?? '').slice(0,8)}`
+  const isPhysical = event.type === 'in-person'
+  const qrPayload  = JSON.stringify({
+    ref:      ticketRef,
+    event:    event.title,
+    attendee: user?.full_name ?? user?.user_metadata?.full_name ?? 'Attendee',
+    status,
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
+        {/* Header gradient */}
+        <div className="bg-gradient-to-br from-violet-600 to-indigo-600 px-6 py-5 text-center">
+          <p className="text-white/70 text-[11px] tracking-widest uppercase mb-1">Philomni Events</p>
+          <h2 className="text-white text-xl font-bold">Your Ticket 🎟</h2>
+        </div>
+
+        <div className="p-5 space-y-3">
+          {/* Event info */}
+          <div>
+            <p className="text-sm font-bold text-foreground line-clamp-2">{event.title}</p>
+            {event.starts_at && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {new Date(event.starts_at).toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
+          </div>
+
+          {/* Status badge */}
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${status === 'PAID' ? 'bg-violet-500/20 text-violet-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+            <Check className="w-3 h-3" />
+            {status === 'PAID' ? 'Paid Ticket' : 'Free RSVP Confirmed'}
+          </div>
+
+          {/* Attendee */}
+          <div className="bg-muted/30 rounded-xl px-3 py-2.5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Attendee</p>
+            <p className="text-sm font-semibold text-foreground">{user?.full_name ?? user?.user_metadata?.full_name ?? 'You'}</p>
+          </div>
+
+          {/* Location */}
+          {(event.location || event.join_url) && (
+            <div className="bg-muted/30 rounded-xl px-3 py-2.5">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
+                {isPhysical ? '📍 Venue' : '💻 How to Join'}
+              </p>
+              <p className="text-xs text-foreground font-medium">{event.location ?? event.join_url}</p>
+            </div>
+          )}
+
+          {/* QR Code */}
+          <div className="bg-white rounded-2xl p-4 flex flex-col items-center gap-2">
+            <QRCodeSVG value={qrPayload} size={160} level="M" includeMargin={false} />
+            <p className="text-[10px] text-gray-500 font-mono">{ticketRef}</p>
+            {isPhysical && <p className="text-[10px] text-gray-400">Show this at the door</p>}
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">
+              Close
+            </button>
+            <button onClick={() => window.print()}
+              className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+              Save / Print
+            </button>
+          </div>
+          <p className="text-[10px] text-center text-muted-foreground">Ticket also sent to your email</p>
         </div>
       </div>
     </div>
@@ -1197,8 +1280,10 @@ export default function Community() {
   const [enteringChallenge, setEnteringChallenge]       = useState(null)
   const [viewingEntries, setViewingEntries]             = useState(null)
   const [savingEntry, setSavingEntry]                   = useState(false)
-  const [sharingEvent, setSharingEvent]                 = useState(null) // event object
-  const [payingEvent, setPayingEvent]                   = useState(null) // event object
+  const [sharingEvent, setSharingEvent]                 = useState(null)
+  const [payingEvent, setPayingEvent]                   = useState(null)
+  const [ticketEvent, setTicketEvent]                   = useState(null) // { event, status }
+
 
   useEffect(() => {
     const load = async () => {
@@ -1322,12 +1407,35 @@ export default function Community() {
       } else {
         await supabase.from('event_rsvps').insert({ event_id: eventId, user_id: user.id, status: 'going' })
         setDbEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendee_count: (e.attendee_count ?? 0) + 1 } : e))
+        const ev = dbEvents.find(e => e.id === eventId)
+        if (ev) {
+          setTicketEvent({ event: ev, status: 'FREE RSVP' })
+          sendTicketEmail(ev, user, 'FREE RSVP')
+        }
       }
-    } else {
-      // Sample event - local only
-      setRsvpd(prev => { const n = new Set(prev); isRsvpd ? n.delete(eventId) : n.add(eventId); return n })
     }
   }, [user?.id, userEventRsvps, dbEvents])
+
+  const sendTicketEmail = useCallback(async (ev, usr, status) => {
+    if (!usr?.email) return
+    const ticketRef = `phi-evt-${ev.id.slice(0,8)}-usr-${(usr.id ?? '').slice(0,8)}`
+    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-event-ticket`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({
+        attendeeName:  usr.full_name ?? usr.user_metadata?.full_name ?? usr.email,
+        attendeeEmail: usr.email,
+        eventTitle:    ev.title,
+        eventDate:     ev.starts_at ? new Date(ev.starts_at).toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+        eventType:     ev.type === 'in-person' ? 'in-person' : 'virtual',
+        eventLocation: ev.location ?? null,
+        joinUrl:       ev.join_url ?? null,
+        ticketRef,
+        status,
+        price:         ev.price ?? null,
+      }),
+    }).catch(() => {}) // fire and forget
+  }, [])
 
   const handleEventPaymentSuccess = useCallback(async () => {
     if (!payingEvent || !user?.id) return
@@ -1335,9 +1443,11 @@ export default function Community() {
     await supabase.from('event_rsvps').insert({ event_id: eventId, user_id: user.id, status: 'paid' })
     setUserEventRsvps(prev => new Set([...prev, eventId]))
     setDbEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendee_count: (e.attendee_count ?? 0) + 1 } : e))
-    toast.success('🎟 Ticket confirmed! Check your notifications.')
+    setTicketEvent({ event: payingEvent, status: 'PAID' })
+    sendTicketEmail(payingEvent, user, 'PAID')
+    toast.success('🎟 Ticket confirmed! Check your email.')
     setPayingEvent(null)
-  }, [payingEvent, user])
+  }, [payingEvent, user, sendTicketEmail])
 
   const handleSubmitEntry = useCallback(async (content, mediaUrl) => {
     if (!user?.id || !enteringChallenge) return
@@ -2044,6 +2154,7 @@ export default function Community() {
       {viewingEntries && <ChallengeEntriesModal challenge={viewingEntries} isAdmin={isAdmin} onClose={() => setViewingEntries(null)} onPickWinner={handlePickWinner} />}
       {sharingEvent && <EventShareModal event={sharingEvent} onClose={() => setSharingEvent(null)} />}
       {payingEvent && <EventPaymentModal event={payingEvent} user={user} onSuccess={handleEventPaymentSuccess} onClose={() => setPayingEvent(null)} />}
+      {ticketEvent && <TicketModal event={ticketEvent.event} user={user} status={ticketEvent.status} onClose={() => setTicketEvent(null)} />}
     </div>
   )
 }
