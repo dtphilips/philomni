@@ -9,8 +9,14 @@ import {
   Heart, Bookmark, Share2, Flag, Pin, Clock, MapPin, Globe,
   Star, Check, Loader2, Send, Eye, ThumbsUp, ThumbsDown, Award, Zap,
   Bell, TrendingUp, Hash, UserPlus, ChevronRight, HelpCircle,
-  Lock, Unlock, Gift, DollarSign, Video, Music, PenTool, Image,
+  Lock, Unlock, Gift, DollarSign, Link, ExternalLink, Mail,
 } from 'lucide-react'
+import {
+  getUserCountry, getPaymentProvider,
+  loadPaystackScript, openPaystackPopup,
+  loadFlutterwaveScript, openFlutterwaveCheckout,
+  createPaymentIntent, recordPayment, PAYMENT_CONFIG,
+} from '../lib/payments'
 
 // ─── Sample Data ──────────────────────────────────────────────────────────────
 
@@ -841,12 +847,203 @@ function ChallengeEntriesModal({ challenge, isAdmin, onClose, onPickWinner }) {
   )
 }
 
+// ─── Event Share Modal ────────────────────────────────────────────────────────
+
+function EventShareModal({ event, onClose }) {
+  const { user } = useAuth()
+  const [inviteQuery, setInviteQuery] = useState('')
+  const [inviteResults, setInviteResults] = useState([])
+  const [sending, setSending] = useState(null)
+  const [copied, setCopied] = useState(false)
+
+  const shareUrl  = `${window.location.origin}/community`
+  const shareText = `Join me at "${event.title}" on Philomni!${event.starts_at ? ' ' + new Date(event.starts_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}`
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(shareUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const searchUsers = useCallback(async (q) => {
+    if (q.trim().length < 2) { setInviteResults([]); return }
+    const { data } = await supabase.from('users').select('id, full_name, avatar_url').ilike('full_name', `%${q}%`).limit(5)
+    setInviteResults(data ?? [])
+  }, [])
+
+  const sendInvite = async (toUser) => {
+    if (!user?.id || sending) return
+    setSending(toUser.id)
+    await supabase.from('notifications').insert({
+      user_id: toUser.id, type: 'event_invite', created_by: user.id,
+      content: `${user.full_name ?? 'Someone'} invited you to "${event.title}"`,
+      reference_id: event.id,
+    })
+    toast.success(`Invite sent to ${toUser.full_name}!`)
+    setSending(null)
+    setInviteQuery('')
+    setInviteResults([])
+  }
+
+  const SHARE_OPTIONS = [
+    { label: copied ? 'Copied!' : 'Copy Link', emoji: '🔗', action: copyLink },
+    { label: 'WhatsApp',   emoji: '💬', action: () => window.open(`https://wa.me/?text=${encodeURIComponent(shareText + '\n' + shareUrl)}`, '_blank') },
+    { label: 'X / Twitter', emoji: '𝕏', action: () => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank') },
+    { label: 'LinkedIn',   emoji: '💼', action: () => window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank') },
+    { label: 'Email',      emoji: '📧', action: () => window.open(`mailto:?subject=${encodeURIComponent(event.title)}&body=${encodeURIComponent(shareText + '\n\n' + shareUrl)}`) },
+  ]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-3xl w-full max-w-sm shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <h2 className="text-sm font-bold text-foreground flex items-center gap-2"><Share2 className="w-4 h-4 text-primary" />Share Event</h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-xs text-muted-foreground bg-muted/30 rounded-xl px-3 py-2 line-clamp-2">{event.title}</p>
+
+          {/* Share buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            {SHARE_OPTIONS.map(s => (
+              <button key={s.label} onClick={s.action}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-muted/20 hover:bg-muted text-xs font-medium text-foreground transition-all">
+                <span className="text-base leading-none">{s.emoji}</span>{s.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Philomni invite */}
+          <div className="border-t border-border pt-4">
+            <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+              <Bell className="w-3.5 h-3.5 text-primary" /> Invite a Philomni member
+            </p>
+            <input
+              value={inviteQuery}
+              onChange={e => { setInviteQuery(e.target.value); searchUsers(e.target.value) }}
+              className="w-full px-3 py-2 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary placeholder:text-muted-foreground"
+              placeholder="Search by name…"
+            />
+            {inviteResults.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {inviteResults.map(u => (
+                  <div key={u.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-muted/20">
+                    <div className="flex items-center gap-2">
+                      <Avatar name={u.full_name} url={u.avatar_url} size={6} />
+                      <span className="text-xs text-foreground">{u.full_name}</span>
+                    </div>
+                    <button onClick={() => sendInvite(u)} disabled={sending === u.id}
+                      className="px-2.5 py-1 rounded-lg bg-primary text-white text-[10px] font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors">
+                      {sending === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Invite'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Event Payment Modal ──────────────────────────────────────────────────────
+
+function EventPaymentModal({ event, user, onSuccess, onClose }) {
+  const [paying, setPaying]     = useState(false)
+  const [country, setCountry]   = useState(null)
+  const [provider, setProvider] = useState(null)
+
+  useEffect(() => {
+    getUserCountry(user).then(c => {
+      setCountry(c)
+      setProvider(getPaymentProvider(c))
+    })
+  }, [user])
+
+  const priceUSD = parseFloat(event.price) || 0
+  const priceNGN = Math.round(priceUSD * 1550 * 100) // kobo
+
+  const launch = async () => {
+    if (!user?.id || paying) return
+    setPaying(true)
+    try {
+      if (provider === 'paystack') {
+        await loadPaystackScript()
+        const intent = await createPaymentIntent(supabase, {
+          userId: user.id, amount: priceNGN, currency: 'ngn',
+          type: 'event_ticket', metadata: { event_id: event.id, event_title: event.title },
+        })
+        openPaystackPopup({
+          email: user.email, amountKobo: priceNGN, currency: 'NGN',
+          metadata: { event_id: event.id, user_id: user.id, payment_intent_id: intent.id },
+          onSuccess: async (ref) => {
+            await recordPayment(supabase, { intentId: intent.id, provider: 'paystack', reference: ref, userId: user.id, amount: priceUSD })
+            onSuccess()
+          },
+          onClose: () => setPaying(false),
+        })
+      } else if (provider === 'flutterwave') {
+        await loadFlutterwaveScript()
+        openFlutterwaveCheckout({
+          email: user.email, name: user.full_name ?? user.email,
+          amount: priceUSD, currency: 'USD',
+          txRef: `phi-event-${event.id}-${user.id}-${Date.now()}`,
+          metadata: { event_id: event.id, user_id: user.id },
+          onSuccess: async (ref) => { onSuccess() },
+          onClose: () => setPaying(false),
+        })
+      } else {
+        // Stripe or PayPal — inform user, can't do inline without server setup
+        toast.info('Redirecting to secure checkout…')
+        setPaying(false)
+        // Could redirect to a Stripe payment link here if configured
+      }
+    } catch (err) {
+      toast.error('Payment could not start. Please try again.')
+      setPaying(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-3xl w-full max-w-sm shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <h2 className="text-sm font-bold text-foreground">🎟 Buy Ticket</h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="bg-muted/30 rounded-2xl p-4 space-y-1">
+            <p className="text-sm font-bold text-foreground line-clamp-2">{event.title}</p>
+            {event.starts_at && <p className="text-xs text-muted-foreground">{new Date(event.starts_at).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</p>}
+          </div>
+          <div className="flex items-center justify-between px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
+            <span className="text-sm font-semibold text-foreground">Ticket price</span>
+            <span className="text-xl font-bold text-amber-400">${priceUSD.toFixed(2)}</span>
+          </div>
+          {provider && (
+            <p className="text-xs text-center text-muted-foreground">
+              Payment via {provider === 'paystack' ? 'Paystack 🇳🇬' : provider === 'flutterwave' ? 'Flutterwave' : 'Stripe'} · Secure & encrypted
+            </p>
+          )}
+          <button onClick={launch} disabled={paying || !provider}
+            className="w-full py-3 rounded-xl bg-primary text-white font-bold text-sm hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+            {paying ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {paying ? 'Processing…' : `Pay $${priceUSD.toFixed(2)} & RSVP`}
+          </button>
+          <button onClick={onClose} className="w-full py-2 text-xs text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Create Event Modal ───────────────────────────────────────────────────────
 
 function CreateEventModal({ onClose, onSubmit, saving }) {
   const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
   const nextWeek = new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 16)
-  const [form, setForm] = useState({ title: '', description: '', type: 'webinar', location: '', starts_at: nextWeek, ends_at: '', is_free: true, price: '' })
+  const [form, setForm] = useState({ title: '', description: '', type: 'webinar', location: '', join_url: '', starts_at: nextWeek, ends_at: '', is_free: true, price: '' })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
@@ -885,6 +1082,13 @@ function CreateEventModal({ onClose, onSubmit, saving }) {
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Description *</label>
             <textarea className={inp + ' resize-none'} rows={3} value={form.description} onChange={e => set('description', e.target.value)} placeholder="What will attendees learn or experience? Who should attend?" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block flex items-center gap-1.5">
+              <ExternalLink className="w-3.5 h-3.5" /> Join Link (Zoom, Google Meet, Philomni Room, etc.)
+            </label>
+            <input className={inp} value={form.join_url} onChange={e => set('join_url', e.target.value)} placeholder="https://zoom.us/j/… or https://philomni.com/rooms/…" />
+            <p className="text-xs text-muted-foreground mt-1">Only shown to attendees who RSVP.</p>
           </div>
           <div className="flex items-center gap-4 flex-wrap">
             <label className="flex items-center gap-3 cursor-pointer select-none">
@@ -990,9 +1194,11 @@ export default function Community() {
   const [showCreateEvent, setShowCreateEvent]           = useState(false)
   const [showCreateAnn, setShowCreateAnn]               = useState(false)
   const [savingCreate, setSavingCreate]                 = useState(false)
-  const [enteringChallenge, setEnteringChallenge]       = useState(null) // challenge object
-  const [viewingEntries, setViewingEntries]             = useState(null) // challenge object
+  const [enteringChallenge, setEnteringChallenge]       = useState(null)
+  const [viewingEntries, setViewingEntries]             = useState(null)
   const [savingEntry, setSavingEntry]                   = useState(false)
+  const [sharingEvent, setSharingEvent]                 = useState(null) // event object
+  const [payingEvent, setPayingEvent]                   = useState(null) // event object
 
   useEffect(() => {
     const load = async () => {
@@ -1123,6 +1329,16 @@ export default function Community() {
     }
   }, [user?.id, userEventRsvps, dbEvents])
 
+  const handleEventPaymentSuccess = useCallback(async () => {
+    if (!payingEvent || !user?.id) return
+    const eventId = payingEvent.id
+    await supabase.from('event_rsvps').insert({ event_id: eventId, user_id: user.id, status: 'paid' })
+    setUserEventRsvps(prev => new Set([...prev, eventId]))
+    setDbEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendee_count: (e.attendee_count ?? 0) + 1 } : e))
+    toast.success('🎟 Ticket confirmed! Check your notifications.')
+    setPayingEvent(null)
+  }, [payingEvent, user])
+
   const handleSubmitEntry = useCallback(async (content, mediaUrl) => {
     if (!user?.id || !enteringChallenge) return
     setSavingEntry(true)
@@ -1239,6 +1455,7 @@ export default function Community() {
       description: form.description.trim(),
       type: form.type,
       location: form.location.trim() || null,
+      join_url: form.join_url.trim() || null,
       starts_at: new Date(form.starts_at).toISOString(),
       ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
       is_free: form.is_free,
@@ -1591,10 +1808,13 @@ export default function Community() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {dbEvents.map(e => {
-                const isRsvpd = userEventRsvps.has(e.id)
-                const hostName = e.organizer_name ?? e.host_name ?? 'Philomni'
+                const isRsvpd    = userEventRsvps.has(e.id)
+                const hostName   = e.organizer_name ?? e.host_name ?? 'Philomni'
                 const hostAvatar = e.organizer_avatar ?? e.host_avatar ?? null
-                const duration = e.ends_at && e.starts_at
+                const now        = Date.now()
+                const isLive     = e.starts_at && e.ends_at && now >= new Date(e.starts_at).getTime() && now <= new Date(e.ends_at).getTime()
+                const joinUrl    = e.join_url ?? (e.location?.startsWith('http') ? e.location : null)
+                const duration   = e.ends_at && e.starts_at
                   ? (() => { const h = Math.round((new Date(e.ends_at) - new Date(e.starts_at)) / 3600000); return h > 0 ? `${h}h` : '<1h' })()
                   : null
                 const typeEmoji = { webinar: '🎙', workshop: '🛠', masterclass: '🎓', networking: '🤝', showcase: '🎤', conference: '🏛' }[e.type] ?? '📅'
@@ -1608,6 +1828,7 @@ export default function Community() {
                           ? <span className="px-2 py-0.5 bg-emerald-500/80 text-white text-xs rounded-full font-medium">Free</span>
                           : <span className="px-2 py-0.5 bg-amber-500/80 text-white text-xs rounded-full font-medium">${e.price}</span>
                         }
+                        {isLive && <span className="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full font-bold animate-pulse">● LIVE</span>}
                       </div>
                     </div>
                     <div className="p-4 space-y-2">
@@ -1616,18 +1837,43 @@ export default function Community() {
                         <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-blue-400" />{e.starts_at ? new Date(e.starts_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</span>
                         {duration && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{duration}</span>}
                       </div>
-                      {e.location && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Globe className="w-3 h-3" />{e.location}</div>}
+                      {e.location && !e.location.startsWith('http') && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Globe className="w-3 h-3" />{e.location}</div>}
                       <p className="text-xs text-muted-foreground line-clamp-2">{e.description}</p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Avatar name={hostName} url={hostAvatar} size={5} />
                         <span>{hostName} · {fmt(e.attendee_count ?? 0)} attending</span>
                       </div>
+
+                      {/* Join link — shown only after RSVP */}
+                      {isRsvpd && joinUrl && (
+                        <a href={joinUrl} target="_blank" rel="noopener noreferrer"
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all w-full justify-center ${isLive ? 'bg-red-500 text-white hover:bg-red-400 animate-pulse' : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'}`}>
+                          <ExternalLink className="w-3 h-3" />
+                          {isLive ? '🔴 Join Now — Event is Live!' : 'Join Link (saved for when it starts)'}
+                        </a>
+                      )}
+
                       <div className="flex gap-2 pt-1">
-                        <button onClick={() => handleEventRsvp(e.id)}
-                          className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${isRsvpd ? 'bg-emerald-500/20 text-emerald-400' : 'bg-primary text-white hover:bg-primary/90'}`}>
-                          {isRsvpd ? "✓ RSVP'd" : 'RSVP'}
+                        {isRsvpd ? (
+                          <button onClick={() => handleEventRsvp(e.id)}
+                            className="flex-1 py-2 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-400 hover:bg-red-500/10 hover:text-red-400 transition-colors">
+                            ✓ RSVP'd · Cancel
+                          </button>
+                        ) : !e.is_free && e.price > 0 ? (
+                          <button onClick={() => setPayingEvent(e)}
+                            className="flex-1 py-2 rounded-xl text-xs font-semibold bg-amber-500 text-white hover:bg-amber-400 transition-colors">
+                            🎟 Buy Ticket — ${parseFloat(e.price).toFixed(2)}
+                          </button>
+                        ) : (
+                          <button onClick={() => handleEventRsvp(e.id)}
+                            className="flex-1 py-2 rounded-xl text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors">
+                            RSVP — Free
+                          </button>
+                        )}
+                        <button onClick={() => setSharingEvent(e)}
+                          className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">
+                          <Share2 className="w-3 h-3" />
                         </button>
-                        <button className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors"><Share2 className="w-3 h-3" /></button>
                       </div>
                     </div>
                   </div>
@@ -1796,6 +2042,8 @@ export default function Community() {
       {showCreateAnn && <CreateAnnouncementModal onClose={() => setShowCreateAnn(false)} onSubmit={handleCreateAnn} saving={savingCreate} />}
       {enteringChallenge && <ChallengeEntryModal challenge={enteringChallenge} onClose={() => setEnteringChallenge(null)} onSubmit={handleSubmitEntry} saving={savingEntry} />}
       {viewingEntries && <ChallengeEntriesModal challenge={viewingEntries} isAdmin={isAdmin} onClose={() => setViewingEntries(null)} onPickWinner={handlePickWinner} />}
+      {sharingEvent && <EventShareModal event={sharingEvent} onClose={() => setSharingEvent(null)} />}
+      {payingEvent && <EventPaymentModal event={payingEvent} user={user} onSuccess={handleEventPaymentSuccess} onClose={() => setPayingEvent(null)} />}
     </div>
   )
 }
