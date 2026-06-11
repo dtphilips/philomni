@@ -254,7 +254,7 @@ function ScheduleModal({ onClose, onSave }) {
     if (!participantSearch.trim()) { setSearchResults([]); return }
     const t = setTimeout(async () => {
       try {
-        const { data } = await supabase.from('users').select('id,full_name,email').ilike('full_name', `%${participantSearch}%`).limit(6)
+        const { data } = await supabase.from('users').select('id,full_name,username').or(`full_name.ilike.%${participantSearch}%,username.ilike.%${participantSearch}%`).limit(6)
         setSearchResults((data || []).filter(u => !participants.find(p => p.id === u.id)))
       } catch { setSearchResults([]) }
     }, 300)
@@ -420,13 +420,13 @@ function ScheduleModal({ onClose, onSave }) {
                   <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-xl shadow-lg overflow-hidden">
                     {searchResults.map(u => (
                       <button key={u.id} onClick={() => {
-                        setParticipants(prev => [...prev, { id: u.id, name: u.full_name, email: u.email, initials: (u.full_name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(), color: 'bg-violet-500', role: 'attendee' }])
+                        setParticipants(prev => [...prev, { id: u.id, name: u.full_name, initials: (u.full_name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(), color: 'bg-violet-500', role: 'attendee' }])
                         setParticipantSearch('')
                       }} className="w-full flex items-center gap-3 p-3 hover:bg-muted text-left">
                         <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold">{u.full_name?.[0]||'?'}</div>
                         <div>
                           <p className="text-sm text-foreground">{u.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{u.email}</p>
+                          {u.username && <p className="text-xs text-muted-foreground">@{u.username}</p>}
                         </div>
                       </button>
                     ))}
@@ -654,7 +654,7 @@ function InstantMeetingModal({ onClose, onJoin }) {
     if (!instantSearch.trim()) { setInstantResults([]); return }
     const t = setTimeout(async () => {
       try {
-        const { data } = await supabase.from('users').select('id,full_name,email').ilike('full_name', `%${instantSearch}%`).limit(5)
+        const { data } = await supabase.from('users').select('id,full_name,username').or(`full_name.ilike.%${instantSearch}%,username.ilike.%${instantSearch}%`).limit(5)
         setInstantResults(data || [])
       } catch { setInstantResults([]) }
     }, 300)
@@ -1271,7 +1271,7 @@ function ActiveMeetingView({ meeting, onEnd }) {
     if (!inviteSearch.trim()) { setInviteResults([]); return }
     const t = setTimeout(async () => {
       try {
-        const { data } = await supabase.from('users').select('id,full_name,email').ilike('full_name', `%${inviteSearch}%`).limit(5)
+        const { data } = await supabase.from('users').select('id,full_name,username').or(`full_name.ilike.%${inviteSearch}%,username.ilike.%${inviteSearch}%`).limit(5)
         setInviteResults(data || [])
       } catch { setInviteResults([]) }
     }, 300)
