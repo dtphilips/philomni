@@ -3115,15 +3115,39 @@ function PostComposer({ user, onCreated }) {
 // ─── Right Sidebar ─────────────────────────────────────────────────────────────
 
 function RightSidebar() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
   const [suggested, setSuggested] = useState([])
+  const [following, setFollowing] = useState(new Set())
   const [events, setEvents] = useState([])
 
   useEffect(() => {
-    supabase.from('users').select('id, full_name, avatar_url, role, bio').limit(5)
-      .then(({ data }) => setSuggested(data ?? []))
+    const load = async () => {
+      // Fetch who the current user already follows so we exclude them
+      let excludeIds = user?.id ? [user.id] : []
+      if (user?.id) {
+        const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id)
+        const followedSet = new Set((follows || []).map(f => f.following_id))
+        setFollowing(followedSet)
+        excludeIds = [user.id, ...followedSet]
+      }
+
+      let query = supabase.from('users').select('id, full_name, avatar_url, role').limit(6)
+      if (excludeIds.length > 0) query = query.not('id', 'in', `(${excludeIds.join(',')})`)
+      const { data } = await query
+      setSuggested(data ?? [])
+    }
+    load()
     supabase.from('events').select('*').gte('starts_at', new Date().toISOString()).limit(3)
       .then(({ data }) => setEvents(data ?? []))
-  }, [])
+  }, [user?.id])
+
+  const handleFollow = async (targetId) => {
+    if (!user?.id) { navigate('/login'); return }
+    setFollowing(prev => new Set([...prev, targetId]))
+    await supabase.from('follows').insert({ follower_id: user.id, following_id: targetId })
+    setSuggested(prev => prev.filter(u => u.id !== targetId))
+  }
 
   const trending = ['#creators', '#AItools', '#philomni', '#videoediting', '#contentcreators', '#growthhacking']
 
@@ -3143,20 +3167,29 @@ function RightSidebar() {
                 </div>
               </div>
             ))
-          ) : suggested.map(u => (
+          ) : suggested.slice(0, 5).map(u => (
             <div key={u.id} className="flex items-center gap-3">
-              <Avatar src={u.avatar_url} name={u.full_name} size={9} />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-foreground truncate">{u.full_name}</p>
-                <p className="text-xs text-muted-foreground truncate">{u.role ?? 'Creator'}</p>
-              </div>
-              <button className="flex-shrink-0 flex items-center gap-1 text-xs text-primary font-semibold hover:bg-primary/10 px-2.5 py-1.5 rounded-xl transition-colors">
-                <UserPlus className="w-3 h-3" /> Follow
+              <button onClick={() => navigate(`/profile/${u.id}`)} className="flex-shrink-0">
+                <Avatar src={u.avatar_url} name={u.full_name} size={9} />
               </button>
+              <button onClick={() => navigate(`/profile/${u.id}`)} className="flex-1 min-w-0 text-left">
+                <p className="text-xs font-semibold text-foreground truncate">{u.full_name}</p>
+                <p className="text-xs text-muted-foreground truncate">{u.role ?? 'creator'}</p>
+              </button>
+              {following.has(u.id) ? (
+                <span className="flex-shrink-0 text-xs text-muted-foreground px-2.5 py-1.5">Following</span>
+              ) : (
+                <button
+                  onClick={() => handleFollow(u.id)}
+                  className="flex-shrink-0 flex items-center gap-1 text-xs text-primary font-semibold hover:bg-primary/10 px-2.5 py-1.5 rounded-xl transition-colors"
+                >
+                  <UserPlus className="w-3 h-3" /> Follow
+                </button>
+              )}
             </div>
           ))}
         </div>
-        <button className="mt-3 text-xs text-primary font-medium hover:underline flex items-center gap-1">
+        <button onClick={() => navigate('/explore')} className="mt-3 text-xs text-primary font-medium hover:underline flex items-center gap-1">
           See more <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -3227,6 +3260,85 @@ function SmartMatchCTA() {
       >
         Get Matched <ArrowRight className="w-3.5 h-3.5" />
       </button>
+    </div>
+  )
+}
+
+// ─── Watch Video Strip (in-feed suggestion) ──────────────────────────────────
+
+function WatchVideoStrip() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const [videos, setVideos] = useState([])
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase
+        .from('videos')
+        .select('id, title, cloudflare_uid, thumbnail_url, cloudflare_thumbnail, view_count, duration_seconds, creator:users!creator_id(full_name)')
+        .eq('cloudflare_status', 'ready')
+        .eq('visibility', 'public')
+        .order('view_count', { ascending: false })
+        .limit(6)
+      setVideos(data ?? [])
+    }
+    load()
+  }, [])
+
+  if (videos.length === 0) return null
+
+  const fmt = (s) => {
+    if (!s) return ''
+    const m = Math.floor(s / 60), sec = s % 60
+    return `${m}:${sec.toString().padStart(2, '0')}`
+  }
+  const fmtViews = (n) => n >= 1000 ? `${(n/1000).toFixed(1)}K` : `${n ?? 0}`
+
+  return (
+    <div className="bg-card border border-border/60 rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-base">🎬</span>
+          <h3 className="text-sm font-bold text-foreground">Watch Videos</h3>
+        </div>
+        <button
+          onClick={() => navigate('/watch')}
+          className="text-xs text-primary font-medium hover:underline flex items-center gap-0.5"
+        >
+          See all <ChevronRight className="w-3 h-3" />
+        </button>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+        {videos.map(v => {
+          const thumb = (v.thumbnail_url && !v.thumbnail_url.includes('undefined'))
+            ? v.thumbnail_url
+            : v.cloudflare_uid
+              ? `https://videodelivery.net/${v.cloudflare_uid}/thumbnails/thumbnail.jpg?time=5s`
+              : null
+          return (
+            <button
+              key={v.id}
+              onClick={() => navigate(`/watch/${v.id}`)}
+              className="flex-shrink-0 text-left"
+              style={{ width: 140 }}
+            >
+              <div style={{ width: 140, aspectRatio: '16/9', position: 'relative', background: '#111', borderRadius: 8, overflow: 'hidden', marginBottom: 6 }}>
+                {thumb
+                  ? <img src={thumb} alt={v.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none' }} />
+                  : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🎬</div>
+                }
+                {v.duration_seconds > 0 && (
+                  <span style={{ position: 'absolute', bottom: 4, right: 4, background: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: 10, padding: '1px 4px', borderRadius: 3, fontWeight: 600 }}>
+                    {fmt(v.duration_seconds)}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs font-medium text-foreground line-clamp-2 leading-snug mb-0.5">{v.title}</p>
+              <p className="text-[10px] text-muted-foreground">{v.creator?.full_name} · {fmtViews(v.view_count)} views</p>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -3593,7 +3705,8 @@ export default function Feed() {
                       : <PostCard post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} spotlightWinnerId={spotlightWinnerId} />
                     }
                   </ErrorBoundary>
-                  {!post.isAd && (i + 1) % 4 === 0 && i < posts.length - 1 && <ConnectionStoryCard />}
+                  {!post.isAd && (i + 1) % 4 === 0 && (i + 1) % 8 !== 0 && i < posts.length - 1 && <ConnectionStoryCard />}
+                  {!post.isAd && (i + 1) % 8 === 0 && i < posts.length - 1 && <WatchVideoStrip />}
                 </React.Fragment>
               ))}
             </div>
