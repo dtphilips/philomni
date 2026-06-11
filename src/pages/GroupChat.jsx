@@ -10,9 +10,10 @@ import {
   Download, Play, Pause, File as FileIcon, Image as ImageIcon,
   Video as VideoIcon, Settings, Plus, Lock, Globe,
   Crown, ShieldCheck, UserMinus, Edit3, Check, ChevronDown,
-  MessageSquare, AlertTriangle, ToggleLeft, ToggleRight,
+  MessageSquare, AlertTriangle, ToggleLeft, ToggleRight, Mail,
 } from 'lucide-react'
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns'
+import InviteEmailModal from '../components/InviteEmailModal'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -397,7 +398,8 @@ function GroupSettingsModal({ group, myRole, onSaved, onClose, onDeleted }) {
 
   const deleteGroup = async () => {
     setDeleting(true)
-    await supabase.from('groups').update({ status: 'deleted' }).eq('id', group.id)
+    await supabase.from('group_members').delete().eq('group_id', group.id)
+    await supabase.from('groups').delete().eq('id', group.id)
     setDeleting(false)
     onDeleted()
   }
@@ -537,6 +539,7 @@ export default function GroupChat() {
   const [showAttach, setShowAttach] = useState(false)
   const [showMembers, setShowMembers] = useState(true)
   const [showEditGroup, setShowEditGroup] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
 
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
@@ -804,15 +807,31 @@ export default function GroupChat() {
               </div>
               {group.description && <p className="text-xs text-muted-foreground">{group.description}</p>}
               {/* Invite link */}
-              {group.invite_code && isMember && (
-                <div className="mt-3 p-2 bg-muted/50 rounded-lg">
-                  <p className="text-xs text-muted-foreground mb-1">Invite link</p>
+              {isMember && (
+                <div className="mt-3 p-2 bg-muted/50 rounded-lg space-y-2">
+                  <p className="text-xs text-muted-foreground">Invite link</p>
                   <div className="flex items-center gap-1">
-                    <code className="text-xs flex-1 truncate text-foreground">/join/{group.invite_code}</code>
-                    <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/join/${group.invite_code}`)} className="text-primary text-xs font-semibold hover:underline flex-shrink-0">
+                    <code className="text-xs flex-1 truncate text-foreground">{`philomni.com/groups/${group.id}`}</code>
+                    <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/groups/${group.id}`)} className="text-primary text-xs font-semibold hover:underline flex-shrink-0">
                       Copy
                     </button>
                   </div>
+                  <button
+                    onClick={() => setShowInviteModal(true)}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-xs text-foreground border border-border transition-colors"
+                  >
+                    <Mail className="w-3.5 h-3.5" /> Invite via Email
+                  </button>
+                  {showInviteModal && (
+                    <InviteEmailModal
+                      onClose={() => setShowInviteModal(false)}
+                      inviterName={user?.user_metadata?.full_name || user?.full_name || 'Someone'}
+                      type="group"
+                      title={group.name}
+                      description={group.description}
+                      link={`https://philomni.com/groups/${group.id}`}
+                    />
+                  )}
                 </div>
               )}
             </div>

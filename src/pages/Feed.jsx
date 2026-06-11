@@ -2075,8 +2075,8 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
                   </button>
                 )}
               </div>
-              {(post.author_role || post.author_headline) && (
-                <p className="text-xs text-primary/80 leading-tight mt-0.5">{post.author_role ?? post.author_headline}</p>
+              {post.author_headline && (
+                <p className="text-xs text-primary/80 leading-tight mt-0.5">{post.author_headline}</p>
               )}
               <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                 {timestamp}
@@ -2816,7 +2816,7 @@ function PostComposer({ user, onCreated }) {
         author_id:    user.id,
         author_name:  profile?.full_name ?? user.email,
         author_avatar: profile?.avatar_url ?? null,
-        author_role:   profile?.plan ?? null,
+        author_headline: profile?.headline ?? null,
         media_urls: mediaUrls.length > 0 ? mediaUrls : null,
         media_type: mediaType,
         likes_count: 0, comments_count: 0, reposts_count: 0, views_count: 0, saves_count: 0,
@@ -3132,7 +3132,7 @@ function RightSidebar() {
         excludeIds = [user.id, ...followedSet]
       }
 
-      let query = supabase.from('users').select('id, full_name, avatar_url, role').limit(6)
+      let query = supabase.from('users').select('id, full_name, avatar_url, headline, username').limit(6)
       if (excludeIds.length > 0) query = query.not('id', 'in', `(${excludeIds.join(',')})`)
       const { data } = await query
       setSuggested(data ?? [])
@@ -3174,7 +3174,7 @@ function RightSidebar() {
               </button>
               <button onClick={() => navigate(`/profile/${u.id}`)} className="flex-1 min-w-0 text-left">
                 <p className="text-xs font-semibold text-foreground truncate">{u.full_name}</p>
-                <p className="text-xs text-muted-foreground truncate">{u.role ?? 'creator'}</p>
+                <p className="text-xs text-muted-foreground truncate">{u.headline || (u.username ? `@${u.username}` : '')}</p>
               </button>
               {following.has(u.id) ? (
                 <span className="flex-shrink-0 text-xs text-muted-foreground px-2.5 py-1.5">Following</span>
@@ -3546,7 +3546,7 @@ export default function Feed() {
       const userIds = [...new Set(allPosts.map(p => p.created_by || p.author_id).filter(Boolean))]
       if (userIds.length > 0) {
         const { data: profiles } = await withTimeout(
-          supabase.from('users').select('id, full_name, avatar_url, plan').in('id', userIds)
+          supabase.from('users').select('id, full_name, avatar_url, headline').in('id', userIds)
         )
         if (profiles?.length) {
           enriched = allPosts.map(post => ({

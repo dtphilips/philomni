@@ -8,8 +8,9 @@ import {
   Radio, Plus, Users, Search, Mic, Video, Monitor, BookOpen,
   Headphones, ChevronRight, Calendar, Clock, Copy, Check,
   X, Bell, BellOff, Play, Lock, Globe, Unlock, ChevronDown,
-  Hash, Loader2, Zap, TrendingUp, ArrowRight
+  Hash, Loader2, Zap, TrendingUp, ArrowRight, Mail, Share2
 } from 'lucide-react'
+import InviteEmailModal from '../components/InviteEmailModal'
 import { formatDistanceToNow, format } from 'date-fns'
 
 // ─── Sample Data ───────────────────────────────────────────────────────────────
@@ -163,6 +164,7 @@ function CreateRoomModal({ onClose, onSuccess }) {
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [createdRoomId, setCreatedRoomId] = useState(null)
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -230,6 +232,7 @@ function CreateRoomModal({ onClose, onSuccess }) {
     setSubmitting(false)
 
     if (!form.startNow) {
+      if (roomData?.id) setCreatedRoomId(roomData.id)
       setStep(3)
       setDone(true)
     } else {
@@ -244,8 +247,10 @@ function CreateRoomModal({ onClose, onSuccess }) {
     }
   }
 
+  const roomInviteLink = `https://philomni.com/rooms/${createdRoomId || fakeCode}`
+
   function copyLink() {
-    navigator.clipboard.writeText(fakeLink).catch(() => {})
+    navigator.clipboard.writeText(roomInviteLink).catch(() => {})
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -435,12 +440,26 @@ function CreateRoomModal({ onClose, onSuccess }) {
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground mb-1.5">Room Invite Link</p>
                     <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-2.5">
-                      <span className="flex-1 text-xs text-foreground truncate font-mono">{fakeLink}</span>
+                      <span className="flex-1 text-xs text-foreground truncate font-mono">{roomInviteLink}</span>
                       <button onClick={copyLink} className="flex items-center gap-1 text-xs text-primary font-semibold">
                         {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                         {copied ? 'Copied' : 'Copy'}
                       </button>
                     </div>
+                    <button onClick={() => setShowInviteModal(true)}
+                      className="mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-muted hover:bg-muted/80 text-sm text-foreground border border-border transition-colors">
+                      <Mail className="w-4 h-4" /> Invite via Email
+                    </button>
+                    {showInviteModal && (
+                      <InviteEmailModal
+                        onClose={() => setShowInviteModal(false)}
+                        inviterName={user?.user_metadata?.full_name || user?.full_name || 'Someone'}
+                        type="room"
+                        title={form.name}
+                        description={form.description}
+                        link={roomInviteLink}
+                      />
+                    )}
                   </div>
                 </>
               ) : (
@@ -501,6 +520,8 @@ function Row({ label, value }) {
 // ─── LiveRoomCard ──────────────────────────────────────────────────────────────
 
 function LiveRoomCard({ room, onJoin }) {
+  const { user } = useAuth()
+  const [showInviteModal, setShowInviteModal] = useState(false)
   const colors = TYPE_COLORS[room.room_type] || TYPE_COLORS.video
 
   async function handleJoin() {
@@ -546,12 +567,29 @@ function LiveRoomCard({ room, onJoin }) {
           <Clock className="w-3.5 h-3.5" />
           <span>{formatDistanceToNow(new Date(room.started_at))}</span>
         </div>
-        <button
-          onClick={handleJoin}
-          className="w-full py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5"
-        >
-          Join Room <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleJoin}
+            className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5"
+          >
+            Join Room <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => setShowInviteModal(true)}
+            className="px-3 py-2 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+            title="Invite via Email"
+          >
+            <Mail className="w-3.5 h-3.5" />
+          </button>
+          {showInviteModal && (
+            <InviteEmailModal
+              onClose={() => setShowInviteModal(false)}
+              inviterName={user?.user_metadata?.full_name || user?.full_name || 'Someone'}
+              type="room"
+              title={room.name}
+              link={`https://philomni.com/rooms/${room.id}`}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
@@ -560,6 +598,8 @@ function LiveRoomCard({ room, onJoin }) {
 // ─── UpcomingRoomCard ──────────────────────────────────────────────────────────
 
 function UpcomingRoomCard({ room, rsvpd, onRsvp }) {
+  const { user } = useAuth()
+  const [showInviteModal, setShowInviteModal] = useState(false)
   const msDiff = new Date(room.scheduled_at) - Date.now()
   const hours = Math.floor(msDiff / 3600000)
   const minutes = Math.floor((msDiff % 3600000) / 60000)
@@ -582,12 +622,30 @@ function UpcomingRoomCard({ room, rsvpd, onRsvp }) {
           <Users className="w-3 h-3" /> {(room.rsvp_count || 0).toLocaleString()} RSVPs
         </span>
       </div>
-      <button
-        onClick={() => onRsvp(room.id)}
-        className={`w-full py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${rsvpd ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'}`}
-      >
-        {rsvpd ? <><Bell className="w-3.5 h-3.5" /> Reminder Set</> : <><BellOff className="w-3.5 h-3.5" /> Set Reminder</>}
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onRsvp(room.id)}
+          className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${rsvpd ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'}`}
+        >
+          {rsvpd ? <><Bell className="w-3.5 h-3.5" /> Reminder Set</> : <><BellOff className="w-3.5 h-3.5" /> Set Reminder</>}
+        </button>
+        <button onClick={() => setShowInviteModal(true)}
+          className="px-3 py-2 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          title="Invite via Email"
+        >
+          <Mail className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      {showInviteModal && (
+        <InviteEmailModal
+          onClose={() => setShowInviteModal(false)}
+          inviterName={user?.user_metadata?.full_name || user?.full_name || 'Someone'}
+          type="room"
+          title={room.name}
+          link={`https://philomni.com/rooms/${room.id}`}
+          scheduledAt={room.scheduled_at}
+        />
+      )}
     </div>
   )
 }

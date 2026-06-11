@@ -247,6 +247,7 @@ export default function App() {
               <Route path="/partners" element={<Partners />} />
               <Route path="/shared/video/:id" element={<SharedVideoView />} />
               <Route path="/shared/project/:id" element={<SharedProjectView />} />
+              <Route path="/reels" element={<Suspense fallback={<PageLoader />}><Reels /></Suspense>} />
 
               {/* Core */}
               <Route path="/" element={<R page={Feed} />} />
@@ -273,7 +274,6 @@ export default function App() {
               <Route path="/video-messages" element={<R page={VideoMessages} auth />} />
 
               {/* Content */}
-              <Route path="/reels" element={<R page={Reels} />} />
               <Route path="/watch" element={<R page={WatchFeed} />} />
               <Route path="/watch/:videoId" element={<R page={Watch} />} />
               <Route path="/stories" element={<R page={Stories} auth />} />

@@ -7,8 +7,9 @@ import {
   MessageSquare, Users, Target, Calendar, Trophy, Megaphone,
   Plus, X, Search, ChevronUp, ChevronDown, ArrowUp, ArrowDown,
   Heart, Bookmark, Share2, Flag, Pin, Clock, MapPin, Globe,
-  Star, Check, Loader2, Send, Eye, ThumbsUp, Award, Zap,
-  Bell, TrendingUp, Hash, UserPlus, ChevronRight,
+  Star, Check, Loader2, Send, Eye, ThumbsUp, ThumbsDown, Award, Zap,
+  Bell, TrendingUp, Hash, UserPlus, ChevronRight, HelpCircle,
+  Lock, Unlock, Gift, DollarSign, Video, Music, PenTool, Image,
 } from 'lucide-react'
 
 // ─── Sample Data ──────────────────────────────────────────────────────────────
@@ -121,6 +122,7 @@ const PRO_SAMPLE_ANNOUNCEMENTS = [
 const BOARDS = [
   { id: 'all',      label: '🔥 Hot Today',           count: 127 },
   { id: 'pinned',   label: '📌 Pinned',               count: 3 },
+  { id: 'qna',      label: '❓ Q&A',                  count: 0 },
   { id: 'tips',     label: '💡 Creator Tips',         count: 48 },
   { id: 'collab',   label: '🤝 Collaborations',       count: 34 },
   { id: 'tools',    label: '🛠 Tools & Tech',          count: 29 },
@@ -207,21 +209,24 @@ function Avatar({ name, url, size = 8 }) {
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
 function PostCard({ post, onOpen, onVote, voted }) {
-  const board = BOARDS.find(b => b.id === post.board)
+  const board = [...BOARDS, ...PRO_BOARDS].find(b => b.id === post.board)
+  const isQnA = post.board === 'qna'
   return (
     <div className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group flex">
       {/* Vote column */}
-      <div className="flex flex-col items-center gap-1 px-3 py-4 bg-muted/20 border-r border-border">
+      <div className="flex flex-col items-center gap-1.5 px-3 py-4 bg-muted/20 border-r border-border min-w-[52px]">
         <button onClick={e => { e.stopPropagation(); onVote(post.id, 1) }}
-          className={`p-1 rounded hover:bg-primary/20 transition-colors ${voted === 1 ? 'text-primary' : 'text-muted-foreground'}`}>
-          <ChevronUp className="w-4 h-4" />
+          className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-all ${voted === 1 ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'}`}>
+          <ThumbsUp className="w-4 h-4" />
+          <span className="text-[10px] font-bold leading-none">Upvote</span>
         </button>
-        <span className={`text-sm font-bold ${voted === 1 ? 'text-primary' : voted === -1 ? 'text-red-400' : 'text-foreground'}`}>
+        <span className={`text-sm font-bold leading-none ${voted === 1 ? 'text-primary' : voted === -1 ? 'text-red-400' : 'text-foreground'}`}>
           {fmt(post.score + (voted ?? 0))}
         </span>
         <button onClick={e => { e.stopPropagation(); onVote(post.id, -1) }}
-          className={`p-1 rounded hover:bg-red-500/20 transition-colors ${voted === -1 ? 'text-red-400' : 'text-muted-foreground'}`}>
-          <ChevronDown className="w-4 h-4" />
+          className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-all ${voted === -1 ? 'bg-red-500/20 text-red-400' : 'text-muted-foreground hover:bg-red-500/10 hover:text-red-400'}`}>
+          <ThumbsDown className="w-4 h-4" />
+          <span className="text-[10px] font-bold leading-none">Down</span>
         </button>
       </div>
 
@@ -229,13 +234,14 @@ function PostCard({ post, onOpen, onVote, voted }) {
       <div className="flex-1 p-4 cursor-pointer min-w-0" onClick={() => onOpen(post)}>
         <div className="flex items-center gap-2 flex-wrap mb-2">
           {post.is_pinned && <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full font-medium"><Pin className="w-2.5 h-2.5" />Pinned</span>}
-          {board && <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full font-medium">{board.label}</span>}
+          {isQnA && <span className="flex items-center gap-1 px-2 py-0.5 bg-violet-500/20 text-violet-400 text-xs rounded-full font-medium"><HelpCircle className="w-2.5 h-2.5" />Question</span>}
+          {board && !isQnA && <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full font-medium">{board.label}</span>}
           {post.tags?.slice(0, 2).map(t => <span key={t} className="px-1.5 py-0.5 bg-muted text-muted-foreground text-xs rounded-full">#{t}</span>)}
         </div>
         <h3 className="text-sm font-bold text-foreground leading-snug mb-2 group-hover:text-primary transition-colors line-clamp-2">{post.title}</h3>
         <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1"><Avatar name={post.author_name} url={post.author_avatar} size={5} />{post.author_name} · {timeAgo(post.created_at)}</span>
-          <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{fmt(post.comment_count)}</span>
+          <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{fmt(post.comment_count)} {isQnA ? 'answers' : ''}</span>
           <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{fmt(post.view_count)}</span>
           <span className="flex items-center gap-1 ml-auto cursor-pointer hover:text-primary transition-colors"><Bookmark className="w-3 h-3" />Save</span>
           <span className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"><Share2 className="w-3 h-3" />Share</span>
@@ -247,21 +253,47 @@ function PostCard({ post, onOpen, onVote, voted }) {
 
 // ─── Post Detail Modal ────────────────────────────────────────────────────────
 
+const SAMPLE_POST_COMMENTS = [
+  { id: 'cm1', author_name: 'Jordan B.', content: 'This is exactly what I needed. The niche down advice is so underrated.', score: 34, created_at: new Date(Date.now()-3600000).toISOString() },
+  { id: 'cm2', author_name: 'Devon L.', content: 'Did you use any paid tools for growth analytics or was it all native platform data?', score: 12, created_at: new Date(Date.now()-7200000).toISOString() },
+  { id: 'cm3', author_name: 'Priya S.', content: 'The collaboration point is key. I doubled my growth by doing IG Lives with creators 2x my size.', score: 28, created_at: new Date(Date.now()-10800000).toISOString() },
+]
+
 function PostModal({ post, onClose }) {
   const { user } = useAuth()
+  const isQnA = post.board === 'qna'
+  const isRealPost = typeof post.id === 'string' && post.id.length > 10 && post.id.includes('-')
   const [comment, setComment] = useState('')
-  const [comments, setComments] = useState([
-    { id: 'cm1', author_name: 'Jordan B.', content: 'This is exactly what I needed. The niche down advice is so underrated.', score: 34, created_at: new Date(Date.now()-3600000).toISOString() },
-    { id: 'cm2', author_name: 'Devon L.', content: 'Did you use any paid tools for growth analytics or was it all native platform data?', score: 12, created_at: new Date(Date.now()-7200000).toISOString() },
-    { id: 'cm3', author_name: 'Priya S.', content: 'The collaboration point is key. I doubled my growth by doing IG Lives with creators 2x my size.', score: 28, created_at: new Date(Date.now()-10800000).toISOString() },
-  ])
+  const [comments, setComments] = useState(isRealPost ? [] : SAMPLE_POST_COMMENTS)
+  const [loadingComments, setLoadingComments] = useState(isRealPost)
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!isRealPost) return
+    supabase.from('discussion_replies').select('*').eq('post_id', post.id).order('created_at', { ascending: true })
+      .then(({ data }) => {
+        setComments(data ?? [])
+        setLoadingComments(false)
+      })
+  }, [post.id, isRealPost])
 
   const submit = async () => {
     if (!comment.trim()) return
     setSubmitting(true)
-    await new Promise(r => setTimeout(r, 500))
-    setComments(prev => [{ id: Date.now(), author_name: user?.full_name ?? 'You', content: comment, score: 0, created_at: new Date().toISOString() }, ...prev])
+    if (isRealPost && user?.id) {
+      const { data } = await supabase.from('discussion_replies').insert({
+        post_id: post.id,
+        content: comment.trim(),
+        author_id: user.id,
+        author_name: user.user_metadata?.full_name ?? user.email ?? 'Creator',
+        author_avatar: user.user_metadata?.avatar_url ?? null,
+        created_by: user.id,
+      }).select().single()
+      if (data) setComments(prev => [...prev, data])
+      await supabase.from('discussion_posts').update({ reply_count: (post.reply_count ?? 0) + 1 }).eq('id', post.id)
+    } else {
+      setComments(prev => [...prev, { id: Date.now(), author_name: user?.full_name ?? 'You', content: comment.trim(), score: 0, created_at: new Date().toISOString() }])
+    }
     setComment('')
     setSubmitting(false)
   }
@@ -284,23 +316,32 @@ function PostModal({ post, onClose }) {
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <Avatar name={post.author_name} url={post.author_avatar} size={6} />
             <span>{post.author_name} · {timeAgo(post.created_at)}</span>
-            <span className="ml-auto flex items-center gap-1"><ChevronUp className="w-3 h-3" />{fmt(post.score)} upvotes</span>
+            <span className="ml-auto flex items-center gap-1 text-primary"><ThumbsUp className="w-3 h-3" />{fmt(post.score)} upvotes</span>
           </div>
           <div className="bg-muted/20 rounded-xl p-4">
             <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">{post.content}</p>
           </div>
           <div className="border-t border-border pt-4">
-            <p className="text-sm font-semibold text-foreground mb-3">{comments.length} Comments</p>
+            <p className="text-sm font-semibold text-foreground mb-3">
+              {loadingComments ? 'Loading…' : `${comments.length} ${isQnA ? 'Answer' : 'Comment'}${comments.length !== 1 ? 's' : ''}`}
+            </p>
+            {isQnA && (
+              <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-xl px-3 py-2">
+                <HelpCircle className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                <span>Quora-style: best answers rise to the top based on upvotes</span>
+              </div>
+            )}
             <div className="flex gap-2 mb-4">
               <Avatar name={user?.full_name} url={user?.avatar_url} size={7} />
               <div className="flex-1 flex gap-2">
                 <input value={comment} onChange={e => setComment(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && submit()}
-                  placeholder="Add a comment..."
+                  placeholder={isQnA ? 'Write your answer…' : 'Add a comment…'}
                   className="flex-1 px-3 py-2 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground" />
                 <button onClick={submit} disabled={!comment.trim() || submitting}
-                  className="px-3 py-2 rounded-xl bg-primary text-white text-sm hover:bg-primary/90 disabled:opacity-40 transition-colors">
+                  className="px-3 py-2 rounded-xl bg-primary text-white text-sm hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center gap-1.5">
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {isQnA && !submitting && <span className="text-xs font-semibold">Answer</span>}
                 </button>
               </div>
             </div>
@@ -315,7 +356,7 @@ function PostModal({ post, onClose }) {
                     </div>
                     <p className="text-sm text-foreground">{c.content}</p>
                     <div className="flex items-center gap-3 mt-2">
-                      <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"><ChevronUp className="w-3 h-3" />{c.score}</button>
+                      <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"><ThumbsUp className="w-3 h-3" />{c.score ?? 0} helpful</button>
                       <button className="text-xs text-muted-foreground hover:text-primary transition-colors">Reply</button>
                     </div>
                   </div>
@@ -333,18 +374,37 @@ function PostModal({ post, onClose }) {
 
 function NewPostModal({ onClose, onSubmit, saving, boards }) {
   const boardList = boards || BOARDS
-  const [form, setForm] = useState({ title: '', content: '', board: boardList.find(b => b.id !== 'all' && b.id !== 'pinned')?.id ?? 'general', tags: '' })
+  const [form, setForm] = useState({ title: '', content: '', board: boardList.find(b => b.id !== 'all' && b.id !== 'pinned')?.id ?? 'general', tags: '', postType: 'discussion' })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
+  const isQnA = form.board === 'qna' || form.postType === 'question'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="bg-card border border-border rounded-3xl w-full max-w-lg shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="text-base font-bold text-foreground">New Discussion</h2>
+          <h2 className="text-base font-bold text-foreground">{isQnA ? 'Ask a Question' : 'New Discussion'}</h2>
           <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
         </div>
         <div className="p-5 space-y-4">
+          {/* Post type toggle */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => set('postType', 'discussion')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium border transition-all ${form.postType !== 'question' ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}>
+              <MessageSquare className="w-3.5 h-3.5" /> Discussion
+            </button>
+            <button
+              onClick={() => { set('postType', 'question'); set('board', 'qna') }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium border transition-all ${form.postType === 'question' ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}>
+              <HelpCircle className="w-3.5 h-3.5" /> Question (Q&A)
+            </button>
+          </div>
+          {isQnA && (
+            <p className="text-xs text-muted-foreground bg-muted/30 rounded-xl px-3 py-2">
+              Questions get community answers. Best answers rise by upvotes — Quora style.
+            </p>
+          )}
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Board</label>
             <select className={inp + ' cursor-pointer'} value={form.board} onChange={e => set('board', e.target.value)}>
@@ -354,12 +414,14 @@ function NewPostModal({ onClose, onSubmit, saving, boards }) {
             </select>
           </div>
           <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Title *</label>
-            <input className={inp} value={form.title} onChange={e => set('title', e.target.value)} placeholder="Give your post a clear, specific title" required />
+            <label className="text-xs text-muted-foreground mb-1.5 block">{isQnA ? 'Your question *' : 'Title *'}</label>
+            <input className={inp} value={form.title} onChange={e => set('title', e.target.value)}
+              placeholder={isQnA ? 'e.g. What\'s the best way to grow on YouTube in 2026?' : 'Give your post a clear, specific title'} required />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Content</label>
-            <textarea className={inp + ' resize-none'} rows={4} value={form.content} onChange={e => set('content', e.target.value)} placeholder="Share your thoughts, tips, questions..." />
+            <label className="text-xs text-muted-foreground mb-1.5 block">{isQnA ? 'More context (optional)' : 'Content'}</label>
+            <textarea className={inp + ' resize-none'} rows={4} value={form.content} onChange={e => set('content', e.target.value)}
+              placeholder={isQnA ? 'Add details to help people give better answers…' : 'Share your thoughts, tips, questions…'} />
           </div>
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Tags (comma-separated)</label>
@@ -369,8 +431,8 @@ function NewPostModal({ onClose, onSubmit, saving, boards }) {
             <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
             <button onClick={() => onSubmit(form)} disabled={!form.title.trim() || saving}
               className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              {saving ? 'Posting…' : 'Post Discussion'}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : isQnA ? <HelpCircle className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+              {saving ? 'Posting…' : isQnA ? 'Ask Question' : 'Post Discussion'}
             </button>
           </div>
         </div>
@@ -419,12 +481,15 @@ function RightSidebar({ events, challenges, communityMode }) {
       <div className="bg-card border border-border rounded-2xl p-4">
         <p className="text-xs font-bold text-foreground mb-3 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-blue-400" />Upcoming Events</p>
         <div className="space-y-2">
-          {events.slice(0, 3).map(e => (
-            <div key={e.id} className="text-xs">
-              <p className="font-medium text-foreground line-clamp-1">{e.emoji} {e.title}</p>
-              <p className="text-muted-foreground">{new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>
-            </div>
-          ))}
+          {events.length === 0
+            ? <p className="text-xs text-muted-foreground">No upcoming events</p>
+            : events.slice(0, 3).map(e => (
+              <div key={e.id} className="text-xs">
+                <p className="font-medium text-foreground line-clamp-1">{e.title}</p>
+                <p className="text-muted-foreground">{new Date(e.starts_at ?? e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>
+              </div>
+            ))
+          }
         </div>
       </div>
 
@@ -449,33 +514,289 @@ function RightSidebar({ events, challenges, communityMode }) {
   )
 }
 
+// ─── CAT_META for group emoji/colors ─────────────────────────────────────────
+
+const CAT_META = {
+  video:    { emoji: '🎬', color: 'from-violet-600 to-blue-600' },
+  audio:    { emoji: '🎙', color: 'from-indigo-600 to-blue-600' },
+  photo:    { emoji: '📸', color: 'from-blue-600 to-cyan-600' },
+  writing:  { emoji: '✍️', color: 'from-purple-600 to-violet-600' },
+  music:    { emoji: '🎵', color: 'from-pink-600 to-rose-600' },
+  business: { emoji: '💼', color: 'from-amber-600 to-orange-600' },
+  social:   { emoji: '📱', color: 'from-rose-600 to-pink-600' },
+  tech:     { emoji: '🤖', color: 'from-teal-600 to-emerald-600' },
+  design:   { emoji: '🎨', color: 'from-orange-600 to-red-600' },
+  regional: { emoji: '🌍', color: 'from-emerald-600 to-teal-600' },
+  general:  { emoji: '👥', color: 'from-primary to-primary/60' },
+}
+
+const CHALLENGE_TYPE_META = {
+  video:   { emoji: '🎬', color: 'from-violet-600 to-purple-700' },
+  photo:   { emoji: '📸', color: 'from-amber-500 to-orange-600' },
+  music:   { emoji: '🎵', color: 'from-pink-600 to-rose-700' },
+  writing: { emoji: '✍️', color: 'from-indigo-600 to-blue-700' },
+  design:  { emoji: '🎨', color: 'from-purple-600 to-violet-700' },
+  general: { emoji: '⭐', color: 'from-emerald-600 to-teal-700' },
+}
+
+const GROUP_CATEGORIES = [
+  { id: 'video', label: 'Video Creators' }, { id: 'audio', label: 'Audio & Podcasts' },
+  { id: 'photo', label: 'Photography' },    { id: 'writing', label: 'Writing & Blogging' },
+  { id: 'music', label: 'Music & Production' }, { id: 'business', label: 'Business & Brand Deals' },
+  { id: 'social', label: 'Social Media' },  { id: 'tech', label: 'Tech & AI' },
+  { id: 'design', label: 'Design & Art' },  { id: 'regional', label: 'Regional / Cultural' },
+  { id: 'general', label: 'General' },
+]
+
+const CHALLENGE_TYPES = [
+  { id: 'video', label: '🎬 Video' }, { id: 'photo', label: '📸 Photo' },
+  { id: 'music', label: '🎵 Music / Audio' }, { id: 'writing', label: '✍️ Writing' },
+  { id: 'design', label: '🎨 Design' }, { id: 'general', label: '⭐ General' },
+]
+
+const EVENT_TYPES = [
+  { id: 'webinar', label: '🎙 Webinar' }, { id: 'workshop', label: '🛠 Workshop' },
+  { id: 'masterclass', label: '🎓 Masterclass' }, { id: 'networking', label: '🤝 Networking' },
+  { id: 'showcase', label: '🎤 Showcase' }, { id: 'conference', label: '🏛 Conference' },
+]
+
+// ─── Create Group Modal ───────────────────────────────────────────────────────
+
+function CreateGroupModal({ onClose, onSubmit, saving }) {
+  const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
+  const [form, setForm] = useState({ name: '', description: '', category: 'general', is_private: false })
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-3xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <h2 className="text-base font-bold text-foreground">Create a Group</h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Group Name *</label>
+            <input className={inp} value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Lagos Video Creators" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Description</label>
+            <textarea className={inp + ' resize-none'} rows={3} value={form.description} onChange={e => set('description', e.target.value)} placeholder="What is this group about? Who should join?" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Category</label>
+            <select className={inp + ' cursor-pointer'} value={form.category} onChange={e => set('category', e.target.value)}>
+              {GROUP_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </div>
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div onClick={() => set('is_private', !form.is_private)}
+              className={`w-10 h-5 rounded-full transition-colors flex items-center px-0.5 ${form.is_private ? 'bg-primary' : 'bg-muted'}`}>
+              <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${form.is_private ? 'translate-x-5' : 'translate-x-0'}`} />
+            </div>
+            <span className="text-sm text-foreground flex items-center gap-1.5">
+              {form.is_private ? <><Lock className="w-3.5 h-3.5" />Private — invite only</> : <><Unlock className="w-3.5 h-3.5" />Public — anyone can join</>}
+            </span>
+          </label>
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
+            <button onClick={() => onSubmit(form)} disabled={!form.name.trim() || saving}
+              className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+              {saving ? 'Creating…' : 'Create Group'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Create Challenge Modal ───────────────────────────────────────────────────
+
+function CreateChallengeModal({ onClose, onSubmit, saving }) {
+  const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
+  const defaultEnd = new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 10)
+  const [form, setForm] = useState({ title: '', description: '', type: 'video', prize: '', hashtag: '', rules: '', ends_at: defaultEnd })
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const autoHashtag = form.title
+    ? '#' + form.title.replace(/[^a-zA-Z0-9 ]/g, '').split(' ').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join('')
+    : ''
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-card border border-border rounded-3xl w-full max-w-lg shadow-2xl my-6">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <h2 className="text-base font-bold text-foreground">🎯 Create a Challenge</h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Challenge Title *</label>
+            <input className={inp} value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. 30-Second Origin Story" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Type</label>
+              <select className={inp + ' cursor-pointer'} value={form.type} onChange={e => set('type', e.target.value)}>
+                {CHALLENGE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Ends On *</label>
+              <input type="date" className={inp} value={form.ends_at} onChange={e => set('ends_at', e.target.value)} min={new Date().toISOString().slice(0, 10)} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">What participants must do *</label>
+            <textarea className={inp + ' resize-none'} rows={3} value={form.description} onChange={e => set('description', e.target.value)} placeholder="Be specific — e.g. Record a 30-second video telling your creator origin story and post it with the hashtag." />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block flex items-center gap-1.5">
+              <Gift className="w-3.5 h-3.5 text-amber-400" /> Prize / Reward *
+            </label>
+            <input className={inp} value={form.prize} onChange={e => set('prize', e.target.value)} placeholder="e.g. 🏅 Featured on Philomni homepage + Champion badge + $100 Marketplace credit" />
+            <p className="text-xs text-muted-foreground mt-1">Be specific about what the winner actually receives.</p>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Hashtag</label>
+            <input className={inp} value={form.hashtag} onChange={e => set('hashtag', e.target.value)} placeholder={autoHashtag || '#YourChallengeTag'} />
+            {autoHashtag && !form.hashtag && <p className="text-xs text-primary mt-1">Will use: {autoHashtag}</p>}
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Rules (optional)</label>
+            <textarea className={inp + ' resize-none'} rows={2} value={form.rules} onChange={e => set('rules', e.target.value)} placeholder="e.g. Original content only. Max 60 seconds. Must use the hashtag. One entry per person." />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
+            <button onClick={() => onSubmit({ ...form, hashtag: form.hashtag || autoHashtag })}
+              disabled={!form.title.trim() || !form.description.trim() || !form.prize.trim() || saving}
+              className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Target className="w-4 h-4" />}
+              {saving ? 'Launching…' : 'Launch Challenge'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Create Event Modal ───────────────────────────────────────────────────────
+
+function CreateEventModal({ onClose, onSubmit, saving }) {
+  const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
+  const nextWeek = new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 16)
+  const [form, setForm] = useState({ title: '', description: '', type: 'webinar', location: '', starts_at: nextWeek, ends_at: '', is_free: true, price: '' })
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-card border border-border rounded-3xl w-full max-w-lg shadow-2xl my-6">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <h2 className="text-base font-bold text-foreground">📅 Create an Event</h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Event Title *</label>
+            <input className={inp} value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Creator Monetization Summit 2026" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Type</label>
+              <select className={inp + ' cursor-pointer'} value={form.type} onChange={e => set('type', e.target.value)}>
+                {EVENT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Location / Platform</label>
+              <input className={inp} value={form.location} onChange={e => set('location', e.target.value)} placeholder="Virtual — Zoom / Philomni Room" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Starts At *</label>
+              <input type="datetime-local" className={inp} value={form.starts_at} onChange={e => set('starts_at', e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Ends At</label>
+              <input type="datetime-local" className={inp} value={form.ends_at} onChange={e => set('ends_at', e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Description *</label>
+            <textarea className={inp + ' resize-none'} rows={3} value={form.description} onChange={e => set('description', e.target.value)} placeholder="What will attendees learn or experience? Who should attend?" />
+          </div>
+          <div className="flex items-center gap-4 flex-wrap">
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <div onClick={() => set('is_free', !form.is_free)}
+                className={`w-10 h-5 rounded-full transition-colors flex items-center px-0.5 ${form.is_free ? 'bg-emerald-500' : 'bg-primary'}`}>
+                <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${form.is_free ? 'translate-x-0' : 'translate-x-5'}`} />
+              </div>
+              <span className="text-sm text-foreground">{form.is_free ? 'Free event' : 'Paid event'}</span>
+            </label>
+            {!form.is_free && (
+              <div className="flex-1 flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <input type="number" className={inp} value={form.price} onChange={e => set('price', e.target.value)} placeholder="Price in USD" min="0" />
+              </div>
+            )}
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
+            <button onClick={() => onSubmit(form)} disabled={!form.title.trim() || !form.description.trim() || !form.starts_at || saving}
+              className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+              {saving ? 'Creating…' : 'Create Event'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Create Announcement Modal ────────────────────────────────────────────────
+
+function CreateAnnouncementModal({ onClose, onSubmit, saving }) {
+  const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
+  const [form, setForm] = useState({ title: '', content: '' })
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-3xl w-full max-w-lg shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <h2 className="text-base font-bold text-foreground">📣 New Announcement</h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-400">
+            Announcements are shown to all community members. Use for important platform updates.
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Title *</label>
+            <input className={inp} value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. New Feature: Creator Studio is Now Live ✨" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Content *</label>
+            <textarea className={inp + ' resize-none'} rows={5} value={form.content} onChange={e => set('content', e.target.value)} placeholder="Write your announcement here. Be clear, specific, and helpful." />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
+            <button onClick={() => onSubmit(form)} disabled={!form.title.trim() || !form.content.trim() || saving}
+              className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Megaphone className="w-4 h-4" />}
+              {saving ? 'Publishing…' : 'Publish Announcement'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const PRO_COMMUNITY_GROUPS = [
-  { id: 'pg1', name: 'Marketers & Growth Hackers', emoji: '📈', member_count: 9800, cover_color: 'from-blue-600 to-indigo-700', description: 'Data-driven marketing, growth experiments, and GTM strategies.' },
-  { id: 'pg2', name: 'Developers & Engineers', emoji: '💻', member_count: 14200, cover_color: 'from-teal-600 to-emerald-700', description: 'Software engineering, open source, career advice, and code reviews.' },
-  { id: 'pg3', name: 'Designers & UX Leaders', emoji: '🎨', member_count: 7600, cover_color: 'from-violet-600 to-purple-700', description: 'UI/UX design, product design, brand strategy, and design systems.' },
-  { id: 'pg4', name: 'Cybersecurity Professionals', emoji: '🔒', member_count: 5100, cover_color: 'from-gray-700 to-slate-900', description: 'InfoSec, pen testing, CISSP/CISM prep, and security strategy.' },
-  { id: 'pg5', name: 'Entrepreneurs & Founders', emoji: '🚀', member_count: 12300, cover_color: 'from-orange-600 to-amber-700', description: 'Startup journeys, fundraising, product-market fit, and founder support.' },
-  { id: 'pg6', name: 'Finance & Investing', emoji: '💰', member_count: 6700, cover_color: 'from-green-600 to-emerald-700', description: 'Personal finance, investing, fintech, and financial independence.' },
-  { id: 'pg7', name: 'HR & People Ops', emoji: '🤝', member_count: 4200, cover_color: 'from-pink-600 to-rose-700', description: 'Talent acquisition, culture building, and people operations.' },
-  { id: 'pg8', name: 'Data & Analytics', emoji: '📊', member_count: 8900, cover_color: 'from-cyan-600 to-blue-700', description: 'Data science, analytics, BI, and AI/ML in business contexts.' },
-]
-
-const PRO_CHALLENGES = [
-  { id: 'pc1', title: '30-Day Networking Challenge', description: 'Connect with 1 new professional every day for 30 days. Share what you learned.', type: 'networking', prize: '🏅 Top Connector badge + Featured profile', hashtag: '#30DayNetworking', ends_at: new Date(Date.now()+2592000000).toISOString(), entry_count: 412, status: 'active', cover_color: 'from-blue-600 to-indigo-700', emoji: '🤝' },
-  { id: 'pc2', title: 'Launch Your Portfolio Challenge', description: 'Build and launch a professional portfolio site in 2 weeks. Share your link.', type: 'portfolio', prize: '🌟 Portfolio Spotlight + 3-month Pro free', hashtag: '#LaunchYourPortfolio', ends_at: new Date(Date.now()+1209600000).toISOString(), entry_count: 189, status: 'active', cover_color: 'from-violet-600 to-purple-700', emoji: '🚀' },
-  { id: 'pc3', title: 'Thought Leadership Article', description: 'Write a 500-word article about a trend in your industry. Most upvoted wins.', type: 'writing', prize: '📝 Featured Article + LinkedIn boost tips', hashtag: '#ThoughtLeaderPhilomni', ends_at: new Date(Date.now()+864000000).toISOString(), entry_count: 94, status: 'active', cover_color: 'from-emerald-600 to-teal-700', emoji: '💡' },
-]
-
-const PRO_EVENTS = [
-  { id: 'pe1', title: 'Cybersecurity Career Summit 2026', type: 'conference', host_name: 'Philomni Pro', date: new Date(Date.now()+1296000000).toISOString(), duration: '6 hours', location: 'Virtual — Multi-Room', attendee_count: 2800, is_free: false, price: 49, description: 'Deep dives into CISSP, ethical hacking, cloud security, and zero-trust architecture. 12 expert speakers.', emoji: '🔒', cover_color: 'from-gray-700 to-slate-900', speakers: ['Dr. Sarah Chen', 'Marcus Reid', 'Aisha Patel'] },
-  { id: 'pe2', title: 'Founder Office Hours with 3 VCs', type: 'networking', host_name: 'Startup Hub', date: new Date(Date.now()+604800000).toISOString(), duration: '2 hours', location: 'Virtual — Philomni Room', attendee_count: 340, is_free: true, description: 'Open Q&A with 3 active VCs on fundraising, pitch decks, and what they look for in founders in 2026.', emoji: '💼', cover_color: 'from-orange-600 to-amber-700', speakers: ['Jessica Lam', 'David Osei', 'Priya Nair'] },
-  { id: 'pe3', title: 'Product Design Workshop: Design Systems at Scale', type: 'workshop', host_name: 'Design Leaders', date: new Date(Date.now()+1728000000).toISOString(), duration: '3 hours', location: 'Virtual — Figma Live', attendee_count: 560, is_free: false, price: 29, description: 'Build a production-ready design system from scratch using Figma. Hands-on with tokens, components, and documentation.', emoji: '🎨', cover_color: 'from-violet-600 to-purple-700', speakers: ['Tyler Marsh'] },
-]
-
 export default function Community() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const navigate  = useNavigate()
   const { mode }  = useMode()
   const [communityMode, setCommunityMode] = useState(mode === 'pro' ? 'pro' : 'creator')
@@ -493,6 +814,21 @@ export default function Community() {
   const [rsvpd, setRsvpd]   = useState(new Set())
   const [reactionMap, setReactionMap] = useState({})
   const [leaderTab, setLeaderTab] = useState('active')
+
+  const [dbGroups, setDbGroups]           = useState([])
+  const [dbEvents, setDbEvents]           = useState([])
+  const [dbChallenges, setDbChallenges]   = useState([])
+  const [dbAnnouncements, setDbAnnouncements] = useState([])
+  const [dbLeaderboard, setDbLeaderboard] = useState([])
+  const [userGroupIds, setUserGroupIds]   = useState(new Set())
+  const [userEventRsvps, setUserEventRsvps] = useState(new Set())
+  const [userChallengeIds, setUserChallengeIds] = useState(new Set())
+
+  const [showCreateGroup, setShowCreateGroup]       = useState(false)
+  const [showCreateChallenge, setShowCreateChallenge] = useState(false)
+  const [showCreateEvent, setShowCreateEvent]       = useState(false)
+  const [showCreateAnn, setShowCreateAnn]           = useState(false)
+  const [savingCreate, setSavingCreate]             = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -513,11 +849,55 @@ export default function Community() {
     load()
   }, [])
 
+  // Load groups, events, challenges, announcements, leaderboard from DB
+  useEffect(() => {
+    supabase.from('groups').select('*').eq('is_private', false).eq('status', 'active').order('member_count', { ascending: false }).limit(30)
+      .then(({ data }) => setDbGroups(data ?? []))
+    supabase.from('events').select('*').eq('status', 'upcoming').order('starts_at', { ascending: true }).limit(20)
+      .then(({ data }) => setDbEvents(data ?? []))
+    supabase.from('challenges').select('*').order('created_at', { ascending: false }).limit(20)
+      .then(({ data }) => setDbChallenges(data ?? []))
+    supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(10)
+      .then(({ data }) => setDbAnnouncements(data ?? []))
+    supabase.from('community_points').select('user_id, points, weekly_points, badges').order('points', { ascending: false }).limit(10)
+      .then(async ({ data }) => {
+        if (!data?.length) return
+        const ids = data.map(d => d.user_id)
+        const { data: usrs } = await supabase.from('users').select('id, full_name, avatar_url, headline').in('id', ids)
+        const umap = Object.fromEntries((usrs ?? []).map(u => [u.id, u]))
+        setDbLeaderboard(data.map((d, i) => ({
+          rank: i + 1,
+          name: umap[d.user_id]?.full_name ?? 'Creator',
+          avatar: umap[d.user_id]?.avatar_url ?? null,
+          role: umap[d.user_id]?.headline ?? '',
+          points: d.points,
+          change: 0,
+          badge: i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '',
+          badges: d.badges ?? [],
+        })))
+      })
+  }, [])
+
+  // Load user memberships & RSVPs
+  useEffect(() => {
+    if (!user?.id) return
+    supabase.from('group_members').select('group_id').eq('user_id', user.id)
+      .then(({ data }) => { if (data) setUserGroupIds(new Set(data.map(m => m.group_id))) })
+    supabase.from('event_rsvps').select('event_id').eq('user_id', user.id)
+      .then(({ data }) => { if (data) setUserEventRsvps(new Set(data.map(r => r.event_id))) })
+    supabase.from('challenge_entries').select('challenge_id').eq('user_id', user.id)
+      .then(({ data }) => { if (data) setUserChallengeIds(new Set(data.map(e => e.challenge_id))) })
+  }, [user?.id])
+
   const displayPosts = useMemo(() => {
-    const sampleSet = communityMode === 'pro' ? PRO_SAMPLE_POSTS : SAMPLE_POSTS
-    const dbIds = new Set(posts.map(p => p.id))
-    return [...posts, ...sampleSet.filter(p => !dbIds.has(p.id))]
-  }, [posts, communityMode])
+    return posts.map(p => ({
+      ...p,
+      score: p.likes_count ?? p.score ?? 0,
+      comment_count: p.reply_count ?? p.comment_count ?? 0,
+      view_count: p.view_count ?? 0,
+      is_pinned: p.is_pinned ?? false,
+    }))
+  }, [posts])
 
   const filteredPosts = useMemo(() => {
     let list = [...displayPosts]
@@ -530,9 +910,84 @@ export default function Community() {
     return [...list.filter(p => p.is_pinned), ...list.filter(p => !p.is_pinned)]
   }, [displayPosts, boardFilter, sortBy])
 
-  const handleVote = useCallback((id, dir) => {
-    setVotes(v => ({ ...v, [id]: v[id] === dir ? 0 : dir }))
-  }, [])
+  const handleVote = useCallback(async (id, dir) => {
+    const prev = votes[id] ?? 0
+    const next = prev === dir ? 0 : dir
+    setVotes(v => ({ ...v, [id]: next }))
+    const dbPost = posts.find(p => p.id === id)
+    if (dbPost && user?.id) {
+      const delta = next - prev
+      await supabase.from('discussion_posts').update({ likes_count: Math.max(0, (dbPost.likes_count ?? 0) + delta) }).eq('id', id)
+      setPosts(prev => prev.map(p => p.id === id ? { ...p, likes_count: Math.max(0, (p.likes_count ?? 0) + delta) } : p))
+    }
+  }, [posts, votes, user?.id])
+
+  const handleJoinGroup = useCallback(async (groupId) => {
+    if (!user?.id) return
+    const isJoined = userGroupIds.has(groupId)
+    setUserGroupIds(prev => { const n = new Set(prev); isJoined ? n.delete(groupId) : n.add(groupId); return n })
+    // Also update legacy joinedGroups for sample data
+    setJoinedGroups(prev => { const n = new Set(prev); isJoined ? n.delete(groupId) : n.add(groupId); return n })
+    const isDbGroup = dbGroups.some(g => g.id === groupId)
+    if (isDbGroup) {
+      if (isJoined) {
+        await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', user.id)
+        setDbGroups(prev => prev.map(g => g.id === groupId ? { ...g, member_count: Math.max(0, (g.member_count ?? 0) - 1) } : g))
+      } else {
+        await supabase.from('group_members').insert({ group_id: groupId, user_id: user.id, created_by: user.id })
+        setDbGroups(prev => prev.map(g => g.id === groupId ? { ...g, member_count: (g.member_count ?? 0) + 1 } : g))
+      }
+    }
+  }, [user?.id, userGroupIds, dbGroups])
+
+  const handleEventRsvp = useCallback(async (eventId) => {
+    if (!user?.id) return
+    const isRsvpd = userEventRsvps.has(eventId)
+    setUserEventRsvps(prev => { const n = new Set(prev); isRsvpd ? n.delete(eventId) : n.add(eventId); return n })
+    const isDbEvent = dbEvents.some(e => e.id === eventId)
+    if (isDbEvent) {
+      if (isRsvpd) {
+        await supabase.from('event_rsvps').delete().eq('event_id', eventId).eq('user_id', user.id)
+        setDbEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendee_count: Math.max(0, (e.attendee_count ?? 0) - 1) } : e))
+      } else {
+        await supabase.from('event_rsvps').insert({ event_id: eventId, user_id: user.id, status: 'going' })
+        setDbEvents(prev => prev.map(e => e.id === eventId ? { ...e, attendee_count: (e.attendee_count ?? 0) + 1 } : e))
+      }
+    } else {
+      // Sample event - local only
+      setRsvpd(prev => { const n = new Set(prev); isRsvpd ? n.delete(eventId) : n.add(eventId); return n })
+    }
+  }, [user?.id, userEventRsvps, dbEvents])
+
+  const handleEnterChallenge = useCallback(async (challengeId) => {
+    if (!user?.id || userChallengeIds.has(challengeId)) return
+    const { error } = await supabase.from('challenge_entries').insert({
+      challenge_id: challengeId,
+      user_id: user.id,
+      user_name: user.user_metadata?.full_name ?? user.email ?? 'Creator',
+      user_avatar: user.user_metadata?.avatar_url ?? null,
+      content: '',
+    })
+    if (!error) {
+      setUserChallengeIds(prev => new Set([...prev, challengeId]))
+      setDbChallenges(prev => prev.map(c => c.id === challengeId ? { ...c, entry_count: (c.entry_count ?? 0) + 1 } : c))
+    }
+  }, [user, userChallengeIds])
+
+  const handleAnnouncementReact = useCallback(async (annId, emoji, isDb) => {
+    const key = `${annId}-${emoji}`
+    const wasReacted = !!reactionMap[key]
+    setReactionMap(prev => ({ ...prev, [key]: !wasReacted }))
+    if (isDb) {
+      const ann = dbAnnouncements.find(a => a.id === annId)
+      if (ann) {
+        const reactions = { ...(ann.reactions ?? {}) }
+        reactions[emoji] = Math.max(0, (reactions[emoji] ?? 0) + (wasReacted ? -1 : 1))
+        await supabase.from('announcements').update({ reactions }).eq('id', annId)
+        setDbAnnouncements(prev => prev.map(a => a.id === annId ? { ...a, reactions } : a))
+      }
+    }
+  }, [reactionMap, dbAnnouncements])
 
   const handleNewPost = useCallback(async (form) => {
     setSavingPost(true)
@@ -543,14 +998,94 @@ export default function Community() {
         board: form.board,
         tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
         author_id: user?.id,
-        author_name: user?.full_name ?? 'Creator',
-        author_avatar: user?.avatar_url ?? null,
-        score: 0, comment_count: 0, view_count: 0,
+        author_name: user?.user_metadata?.full_name ?? user?.full_name ?? 'Creator',
+        author_avatar: user?.user_metadata?.avatar_url ?? user?.avatar_url ?? null,
+        likes_count: 0, reply_count: 0, view_count: 0,
+        created_by: user?.id,
       }).select().single()
       if (data) setPosts(prev => [data, ...prev])
       setShowNewPost(false)
     } catch (e) { console.error(e) }
     setSavingPost(false)
+  }, [user])
+
+  const handleCreateGroup = useCallback(async (form) => {
+    if (!user?.id) return
+    setSavingCreate(true)
+    const { data, error } = await supabase.from('groups').insert({
+      name: form.name.trim(),
+      description: form.description.trim(),
+      category: form.category,
+      is_private: form.is_private,
+      status: 'active',
+      member_count: 1,
+      created_by: user.id,
+    }).select().single()
+    if (!error && data) {
+      setDbGroups(prev => [data, ...prev])
+      await supabase.from('group_members').insert({ group_id: data.id, user_id: user.id, created_by: user.id })
+      setUserGroupIds(prev => new Set([...prev, data.id]))
+    }
+    setSavingCreate(false)
+    setShowCreateGroup(false)
+  }, [user])
+
+  const handleCreateChallenge = useCallback(async (form) => {
+    if (!user?.id || !isAdmin) return
+    setSavingCreate(true)
+    const { data, error } = await supabase.from('challenges').insert({
+      title: form.title.trim(),
+      description: form.description.trim(),
+      type: form.type,
+      prize: form.prize.trim(),
+      hashtag: form.hashtag,
+      rules: form.rules.trim() || null,
+      ends_at: new Date(form.ends_at).toISOString(),
+      status: 'active',
+      entry_count: 0,
+      created_by: user.id,
+    }).select().single()
+    if (!error && data) setDbChallenges(prev => [data, ...prev])
+    setSavingCreate(false)
+    setShowCreateChallenge(false)
+  }, [user])
+
+  const handleCreateEvent = useCallback(async (form) => {
+    if (!user?.id) return
+    setSavingCreate(true)
+    const { data, error } = await supabase.from('events').insert({
+      title: form.title.trim(),
+      description: form.description.trim(),
+      type: form.type,
+      location: form.location.trim() || null,
+      starts_at: new Date(form.starts_at).toISOString(),
+      ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
+      is_free: form.is_free,
+      price: form.is_free ? null : parseFloat(form.price) || null,
+      status: 'upcoming',
+      attendee_count: 0,
+      organizer_id: user.id,
+      organizer_name: user.user_metadata?.full_name ?? user.full_name ?? 'Creator',
+      organizer_avatar: user.user_metadata?.avatar_url ?? user.avatar_url ?? null,
+      created_by: user.id,
+    }).select().single()
+    if (!error && data) setDbEvents(prev => [data, ...prev])
+    setSavingCreate(false)
+    setShowCreateEvent(false)
+  }, [user])
+
+  const handleCreateAnn = useCallback(async (form) => {
+    if (!user?.id || !isAdmin) return
+    setSavingCreate(true)
+    const { data, error } = await supabase.from('announcements').insert({
+      title: form.title.trim(),
+      content: form.content.trim(),
+      reactions: { '❤️': 0, '👏': 0, '🔥': 0, '🤩': 0 },
+      created_by: user.id,
+    }).select().single()
+    if (!error && data) setDbAnnouncements(prev => [{ ...data, isDb: true }, ...prev])
+    setSavingCreate(false)
+    setShowCreateAnn(false)
   }, [user])
 
   const TABS = [
@@ -641,6 +1176,27 @@ export default function Community() {
 
             {loading ? (
               Array(4).fill(0).map((_, i) => <div key={i} className="h-24 bg-muted/40 rounded-2xl animate-pulse" />)
+            ) : filteredPosts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">
+                  {boardFilter === 'qna' ? '❓' : '💬'}
+                </div>
+                <div>
+                  <p className="text-base font-bold text-foreground mb-1">
+                    {boardFilter === 'qna' ? 'No questions yet' : 'No posts yet'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {boardFilter === 'qna'
+                      ? 'Be the first to ask the community a question'
+                      : 'Be the first to start a discussion in this community'}
+                  </p>
+                </div>
+                <button onClick={() => setShowNewPost(true)}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+                  <Plus className="w-4 h-4" />
+                  {boardFilter === 'qna' ? 'Ask a Question' : 'Start a Discussion'}
+                </button>
+              </div>
             ) : (
               filteredPosts.map(p => (
                 <PostCard key={p.id} post={p} onOpen={setActivePost} onVote={handleVote} voted={votes[p.id] ?? 0} />
@@ -648,7 +1204,7 @@ export default function Community() {
             )}
           </div>
 
-          <RightSidebar events={communityMode === 'pro' ? PRO_EVENTS : SAMPLE_EVENTS} challenges={communityMode === 'pro' ? PRO_CHALLENGES : SAMPLE_CHALLENGES} communityMode={communityMode} />
+          <RightSidebar events={dbEvents} challenges={dbChallenges} communityMode={communityMode} />
         </div>
       )}
 
@@ -660,114 +1216,160 @@ export default function Community() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input placeholder="Find groups..." className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground" />
             </div>
-            <button className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+            <button onClick={() => setShowCreateGroup(true)} className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
               <Plus className="w-4 h-4" /> Create Group
             </button>
           </div>
 
-          {/* Featured */}
-          <div>
-            <h2 className="text-sm font-bold text-foreground mb-3">
-              {communityMode === 'pro' ? '🏆 Professional Groups' : '⭐ Featured Groups'}
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {(communityMode === 'pro' ? PRO_COMMUNITY_GROUPS : SAMPLE_GROUPS.filter(g => g.is_featured)).map(g => (
-                <div key={g.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group">
-                  <div className={`h-24 bg-gradient-to-br ${g.cover_color} flex items-center justify-center text-4xl`}>{g.emoji}</div>
+          {dbGroups.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">👥</div>
+              <div>
+                <p className="text-base font-bold text-foreground mb-1">No groups yet</p>
+                <p className="text-sm text-muted-foreground">Create the first group and invite creators to join</p>
+              </div>
+              <button onClick={() => setShowCreateGroup(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+                <Plus className="w-4 h-4" /> Create a Group
+              </button>
+            </div>
+          ) : (() => {
+            const allGroups = dbGroups.map(g => ({
+              ...g,
+              emoji: CAT_META[g.category]?.emoji ?? '👥',
+              cover_color: CAT_META[g.category]?.color ?? 'from-primary to-primary/60',
+            }))
+            const renderCard = (g) => {
+              const isJoined = userGroupIds.has(g.id)
+              return (
+                <div key={g.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group cursor-pointer" onClick={() => navigate(`/groups/${g.id}`)}>
+                  <div className={`h-24 text-4xl bg-gradient-to-br ${g.cover_color} flex items-center justify-center`}>{g.emoji}</div>
                   <div className="p-3">
                     <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">{g.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{fmt(g.member_count)} members</p>
-                    <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{g.description}</p>
-                    <p className="text-xs text-emerald-400 mt-1">+{g.joined_this_week} joined this week</p>
-                    <button onClick={() => setJoinedGroups(prev => { const n = new Set(prev); n.has(g.id) ? n.delete(g.id) : n.add(g.id); return n })}
-                      className={`w-full mt-3 py-2 rounded-xl text-xs font-semibold transition-colors ${joinedGroups.has(g.id) ? 'bg-muted text-muted-foreground' : 'bg-primary text-white hover:bg-primary/90'}`}>
-                      {joinedGroups.has(g.id) ? 'Joined ✓' : 'Join Group'}
+                    <p className="text-xs text-muted-foreground mt-0.5">{fmt(g.member_count ?? 0)} members</p>
+                    {g.description && <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{g.description}</p>}
+                    <button onClick={e => { e.stopPropagation(); handleJoinGroup(g.id) }}
+                      className={`w-full mt-3 py-2 rounded-xl text-xs font-semibold transition-colors ${isJoined ? 'bg-muted text-muted-foreground' : 'bg-primary text-white hover:bg-primary/90'}`}>
+                      {isJoined ? '✓ Joined' : 'Join Group'}
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* All groups */}
-          {communityMode === 'creator' && <div>
-            <h2 className="text-sm font-bold text-foreground mb-3">All Groups</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {SAMPLE_GROUPS.map(g => (
-                <div key={g.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group">
-                  <div className={`h-20 bg-gradient-to-br ${g.cover_color} flex items-center justify-center text-3xl`}>{g.emoji}</div>
-                  <div className="p-3">
-                    <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">{g.name}</p>
-                    <p className="text-xs text-muted-foreground">{fmt(g.member_count)} members</p>
-                    <button onClick={() => setJoinedGroups(prev => { const n = new Set(prev); n.has(g.id) ? n.delete(g.id) : n.add(g.id); return n })}
-                      className={`w-full mt-2 py-1.5 rounded-xl text-xs font-semibold transition-colors ${joinedGroups.has(g.id) ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'}`}>
-                      {joinedGroups.has(g.id) ? 'Joined ✓' : 'Join'}
-                    </button>
-                  </div>
+              )
+            }
+            return (
+              <div>
+                <h2 className="text-sm font-bold text-foreground mb-3">⭐ All Groups</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {allGroups.map(g => renderCard(g))}
                 </div>
-              ))}
-            </div>
-          </div>}
+              </div>
+            )
+          })()}
         </div>
       )}
 
       {/* ══ CHALLENGES ══════════════════════════════════════════════════════ */}
       {tab === 'challenges' && (
         <div className="space-y-6">
-          {/* Active */}
-          <div>
-            <h2 className="text-sm font-bold text-foreground mb-4">
-              {communityMode === 'pro' ? '🏆 Professional Challenges' : '🔥 Active Challenges'}
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {(communityMode === 'pro' ? PRO_CHALLENGES : SAMPLE_CHALLENGES.filter(c => c.status === 'active')).map(c => (
-                <div key={c.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group">
-                  <div className={`h-28 bg-gradient-to-br ${c.cover_color} flex items-center justify-center text-5xl relative`}>
-                    {c.emoji}
-                    <span className="absolute top-2 right-2 px-2 py-0.5 bg-black/40 backdrop-blur text-white text-xs rounded-full font-medium">
-                      {c.type.charAt(0).toUpperCase() + c.type.slice(1)}
-                    </span>
-                  </div>
-                  <div className="p-4 space-y-2.5">
-                    <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{c.title}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
-                    <div className="bg-muted/30 rounded-xl p-2.5">
-                      <p className="text-xs text-muted-foreground">🎁 Prize</p>
-                      <p className="text-xs font-medium text-foreground mt-0.5">{c.prize}</p>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-amber-400" />⏰ {timeUntil(c.ends_at)}</span>
-                      <span className="flex items-center gap-1"><Users className="w-3 h-3" />{c.entry_count} entries</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button className="flex-1 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors">Enter Challenge</button>
-                      <button className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">See Entries</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-foreground">🔥 Active Challenges</h2>
+            {isAdmin && (
+              <button onClick={() => setShowCreateChallenge(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors">
+                <Plus className="w-3.5 h-3.5" /> Create Challenge
+              </button>
+            )}
           </div>
 
-          {/* Past */}
-          <div>
-            <h2 className="text-sm font-bold text-foreground mb-4">🏁 Past Challenges</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {SAMPLE_CHALLENGES.filter(c => c.status === 'ended').map(c => (
-                <div key={c.id} className="bg-card border border-border rounded-2xl overflow-hidden opacity-80">
-                  <div className={`h-20 bg-gradient-to-br ${c.cover_color} flex items-center justify-center text-4xl relative`}>
-                    {c.emoji}
-                    <span className="absolute inset-0 bg-black/30 flex items-center justify-center text-white text-xs font-bold">ENDED</span>
-                  </div>
-                  <div className="p-3">
-                    <p className="text-sm font-semibold text-foreground">{c.title}</p>
-                    <p className="text-xs text-muted-foreground">{c.entry_count} entries · <span className="text-amber-400">🏆 Winner: {c.winner}</span></p>
-                    <button className="w-full mt-2 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">See Entries</button>
-                  </div>
+          {/* Active challenges */}
+          {(() => {
+            const active = dbChallenges.filter(c => !c.status || c.status === 'active')
+            const ended  = dbChallenges.filter(c => c.status === 'ended')
+            if (dbChallenges.length === 0) return (
+              <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">🎯</div>
+                <div>
+                  <p className="text-base font-bold text-foreground mb-1">No challenges yet</p>
+                  <p className="text-sm text-muted-foreground">Launch the first challenge — set a task, a prize, and a deadline</p>
                 </div>
-              ))}
-            </div>
-          </div>
+                <button onClick={() => setShowCreateChallenge(true)}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+                  <Plus className="w-4 h-4" /> Create a Challenge
+                </button>
+              </div>
+            )
+            return (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {active.map(c => {
+                    const meta = CHALLENGE_TYPE_META[c.type] ?? CHALLENGE_TYPE_META.general
+                    const entered = userChallengeIds.has(c.id)
+                    return (
+                      <div key={c.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group">
+                        <div className={`h-28 bg-gradient-to-br ${meta.color} flex items-center justify-center text-5xl relative`}>
+                          {meta.emoji}
+                          <span className="absolute top-2 right-2 px-2 py-0.5 bg-black/40 backdrop-blur text-white text-xs rounded-full font-medium capitalize">{c.type}</span>
+                          {c.hashtag && <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/40 backdrop-blur text-white text-xs rounded-full">{c.hashtag}</span>}
+                        </div>
+                        <div className="p-4 space-y-2.5">
+                          <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{c.title}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
+                          {c.prize && (
+                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5">
+                              <p className="text-xs text-amber-400 font-semibold flex items-center gap-1"><Gift className="w-3 h-3" />Prize / Reward</p>
+                              <p className="text-xs text-foreground mt-0.5 leading-relaxed">{c.prize}</p>
+                            </div>
+                          )}
+                          {c.rules && (
+                            <div className="bg-muted/20 rounded-xl p-2.5">
+                              <p className="text-xs text-muted-foreground font-semibold mb-0.5">Rules</p>
+                              <p className="text-xs text-muted-foreground line-clamp-2">{c.rules}</p>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-amber-400" />{c.ends_at ? timeUntil(c.ends_at) : 'No deadline'}</span>
+                            <span className="flex items-center gap-1"><Users className="w-3 h-3" />{c.entry_count ?? 0} entries</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleEnterChallenge(c.id)}
+                              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${entered ? 'bg-emerald-500/20 text-emerald-400' : 'bg-primary text-white hover:bg-primary/90'}`}>
+                              {entered ? '✓ Entered' : 'Enter Challenge'}
+                            </button>
+                            <button className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">Entries</button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {ended.length > 0 && (
+                  <div>
+                    <h2 className="text-sm font-bold text-foreground mb-4">🏁 Past Challenges</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {ended.map(c => {
+                        const meta = CHALLENGE_TYPE_META[c.type] ?? CHALLENGE_TYPE_META.general
+                        return (
+                          <div key={c.id} className="bg-card border border-border rounded-2xl overflow-hidden opacity-80">
+                            <div className={`h-20 bg-gradient-to-br ${meta.color} flex items-center justify-center text-4xl relative`}>
+                              {meta.emoji}
+                              <span className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-xs font-bold">ENDED</span>
+                            </div>
+                            <div className="p-3">
+                              <p className="text-sm font-semibold text-foreground">{c.title}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{c.entry_count ?? 0} entries</p>
+                              {c.prize && <p className="text-xs text-amber-400 mt-1 line-clamp-1">🏆 {c.prize}</p>}
+                              <button className="w-full mt-2 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">See Entries</button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </div>
       )}
 
@@ -775,58 +1377,71 @@ export default function Community() {
       {tab === 'events' && (
         <div className="space-y-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-foreground">Upcoming Events</h2>
-            <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors">
+            <h2 className="text-sm font-bold text-foreground">📅 Upcoming Events</h2>
+            <button onClick={() => setShowCreateEvent(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors">
               <Plus className="w-3.5 h-3.5" /> Create Event
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(communityMode === 'pro' ? PRO_EVENTS : SAMPLE_EVENTS).map(e => {
-              const isRsvpd = rsvpd.has(e.id)
-              return (
-                <div key={e.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group">
-                  <div className={`h-32 bg-gradient-to-br ${e.cover_color} flex items-center justify-center text-5xl relative`}>
-                    {e.emoji}
-                    <div className="absolute top-2 left-2 flex gap-1.5">
-                      <span className="px-2 py-0.5 bg-black/40 backdrop-blur text-white text-xs rounded-full font-medium capitalize">{e.type}</span>
-                      {e.is_free
-                        ? <span className="px-2 py-0.5 bg-emerald-500/80 text-white text-xs rounded-full font-medium">Free</span>
-                        : <span className="px-2 py-0.5 bg-amber-500/80 text-white text-xs rounded-full font-medium">${e.price}</span>
-                      }
+
+          {dbEvents.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">📅</div>
+              <div>
+                <p className="text-base font-bold text-foreground mb-1">No events yet</p>
+                <p className="text-sm text-muted-foreground">Create a webinar, workshop, or meetup for the community</p>
+              </div>
+              <button onClick={() => setShowCreateEvent(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+                <Plus className="w-4 h-4" /> Create an Event
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {dbEvents.map(e => {
+                const isRsvpd = userEventRsvps.has(e.id)
+                const hostName = e.organizer_name ?? e.host_name ?? 'Philomni'
+                const hostAvatar = e.organizer_avatar ?? e.host_avatar ?? null
+                const duration = e.ends_at && e.starts_at
+                  ? (() => { const h = Math.round((new Date(e.ends_at) - new Date(e.starts_at)) / 3600000); return h > 0 ? `${h}h` : '<1h' })()
+                  : null
+                const typeEmoji = { webinar: '🎙', workshop: '🛠', masterclass: '🎓', networking: '🤝', showcase: '🎤', conference: '🏛' }[e.type] ?? '📅'
+                return (
+                  <div key={e.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-all group">
+                    <div className="h-28 bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-5xl relative">
+                      {typeEmoji}
+                      <div className="absolute top-2 left-2 flex gap-1.5">
+                        <span className="px-2 py-0.5 bg-black/40 backdrop-blur text-white text-xs rounded-full font-medium capitalize">{e.type}</span>
+                        {e.is_free
+                          ? <span className="px-2 py-0.5 bg-emerald-500/80 text-white text-xs rounded-full font-medium">Free</span>
+                          : <span className="px-2 py-0.5 bg-amber-500/80 text-white text-xs rounded-full font-medium">${e.price}</span>
+                        }
+                      </div>
+                    </div>
+                    <div className="p-4 space-y-2">
+                      <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">{e.title}</p>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-blue-400" />{e.starts_at ? new Date(e.starts_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</span>
+                        {duration && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{duration}</span>}
+                      </div>
+                      {e.location && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Globe className="w-3 h-3" />{e.location}</div>}
+                      <p className="text-xs text-muted-foreground line-clamp-2">{e.description}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Avatar name={hostName} url={hostAvatar} size={5} />
+                        <span>{hostName} · {fmt(e.attendee_count ?? 0)} attending</span>
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => handleEventRsvp(e.id)}
+                          className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${isRsvpd ? 'bg-emerald-500/20 text-emerald-400' : 'bg-primary text-white hover:bg-primary/90'}`}>
+                          {isRsvpd ? "✓ RSVP'd" : 'RSVP'}
+                        </button>
+                        <button className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors"><Share2 className="w-3 h-3" /></button>
+                      </div>
                     </div>
                   </div>
-                  <div className="p-4 space-y-2">
-                    <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">{e.title}</p>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                      <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-blue-400" />{new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{e.duration}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Globe className="w-3 h-3" />{e.location}
-                    </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{e.description}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Avatar name={e.host_name} url={null} size={5} />
-                      <span>{e.host_name} · {fmt(e.attendee_count)} attending</span>
-                    </div>
-                    <div className="flex gap-2 pt-1">
-                      <button
-                        onClick={() => setRsvpd(prev => { const n = new Set(prev); n.has(e.id) ? n.delete(e.id) : n.add(e.id); return n })}
-                        className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${isRsvpd ? 'bg-emerald-500/20 text-emerald-400' : 'bg-primary text-white hover:bg-primary/90'}`}>
-                        {isRsvpd ? '✓ RSVP\'d' : 'RSVP'}
-                      </button>
-                      <button className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">
-                        + Cal
-                      </button>
-                      <button className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">
-                        <Share2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -850,7 +1465,13 @@ export default function Community() {
             </div>
 
             <div className="bg-card border border-border rounded-2xl overflow-hidden">
-              {(communityMode === 'pro' ? PRO_SAMPLE_LEADERBOARD : SAMPLE_LEADERBOARD).map((creator, i) => (
+              {dbLeaderboard.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
+                  <Trophy className="w-10 h-10 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">No points earned yet. Post, comment, and enter challenges to get on the board.</p>
+                </div>
+              ) : null}
+              {dbLeaderboard.map((creator, i) => (
                 <div key={i} className={`flex items-center gap-3 px-4 py-3 border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors ${i < 3 ? 'bg-primary/5' : ''}`}>
                   <div className="w-7 text-center flex-shrink-0">
                     {creator.badge
@@ -916,9 +1537,30 @@ export default function Community() {
       {/* ══ ANNOUNCEMENTS ═══════════════════════════════════════════════════ */}
       {tab === 'announcements' && (
         <div className="space-y-4 max-w-2xl">
-          {(communityMode === 'pro' ? PRO_SAMPLE_ANNOUNCEMENTS : SAMPLE_ANNOUNCEMENTS).map(a => (
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-bold text-foreground">📣 Official Announcements</h2>
+            {isAdmin && (
+              <button onClick={() => setShowCreateAnn(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors">
+                <Plus className="w-3.5 h-3.5" /> New Announcement
+              </button>
+            )}
+          </div>
+
+          {dbAnnouncements.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">📣</div>
+              <div>
+                <p className="text-base font-bold text-foreground mb-1">No announcements yet</p>
+                <p className="text-sm text-muted-foreground">Post important updates for the whole community to see</p>
+              </div>
+              <button onClick={() => setShowCreateAnn(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+                <Plus className="w-4 h-4" /> Post an Announcement
+              </button>
+            </div>
+          ) : dbAnnouncements.map(a => (
             <div key={a.id} className="bg-card border border-border rounded-2xl p-5 space-y-3">
-              {/* Header */}
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">P</div>
                 <div>
@@ -927,26 +1569,21 @@ export default function Community() {
                 </div>
                 <span className="ml-auto px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full font-medium">Official</span>
               </div>
-
               <h3 className="text-base font-bold text-foreground">{a.title}</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">{a.content}</p>
-
-              {/* Reactions */}
               <div className="flex items-center gap-2 pt-1 flex-wrap">
-                {Object.entries(a.reactions).map(([emoji, count]) => {
+                {Object.entries(a.reactions ?? {}).map(([emoji, count]) => {
                   const key = `${a.id}-${emoji}`
-                  const reacted = reactionMap[key]
+                  const reacted = !!reactionMap[key]
                   return (
                     <button key={emoji}
-                      onClick={() => setReactionMap(prev => ({ ...prev, [key]: !prev[key] }))}
+                      onClick={() => handleAnnouncementReact(a.id, emoji, true)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${reacted ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/40'}`}>
-                      {emoji} <span>{count + (reacted ? 1 : 0)}</span>
+                      {emoji} <span>{count ?? 0}</span>
                     </button>
                   )
                 })}
               </div>
-
-              {/* Comments */}
               <div className="flex items-center gap-2 pt-1 border-t border-border">
                 <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
                   <MessageSquare className="w-3.5 h-3.5" /> Add a comment
@@ -960,6 +1597,10 @@ export default function Community() {
       {/* ── Modals ────────────────────────────────────────────────────────── */}
       {activePost && <PostModal post={activePost} onClose={() => setActivePost(null)} />}
       {showNewPost && <NewPostModal onClose={() => setShowNewPost(false)} onSubmit={handleNewPost} saving={savingPost} boards={communityMode === 'pro' ? PRO_BOARDS : BOARDS} />}
+      {showCreateGroup && <CreateGroupModal onClose={() => setShowCreateGroup(false)} onSubmit={handleCreateGroup} saving={savingCreate} />}
+      {showCreateChallenge && <CreateChallengeModal onClose={() => setShowCreateChallenge(false)} onSubmit={handleCreateChallenge} saving={savingCreate} />}
+      {showCreateEvent && <CreateEventModal onClose={() => setShowCreateEvent(false)} onSubmit={handleCreateEvent} saving={savingCreate} />}
+      {showCreateAnn && <CreateAnnouncementModal onClose={() => setShowCreateAnn(false)} onSubmit={handleCreateAnn} saving={savingCreate} />}
     </div>
   )
 }

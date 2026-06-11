@@ -16,6 +16,7 @@ import {
   PanelRightClose, PenLine, ClipboardList, StickyNote, Folder,
   Mail, Link, CalendarCheck, DollarSign, BookmarkCheck
 } from 'lucide-react'
+import InviteEmailModal from '../components/InviteEmailModal'
 
 // ─── SAMPLE DATA ────────────────────────────────────────────────────────────
 
@@ -223,6 +224,8 @@ function Avatar({ initials, color = 'bg-primary', size = 8 }) {
 // ─── SCHEDULE MODAL ───────────────────────────────────────────────────────────
 
 function ScheduleModal({ onClose, onSave }) {
+  const { user } = useAuth()
+  const [showInviteModal, setShowInviteModal] = useState(false)
   const [step, setStep] = useState(1)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -254,7 +257,7 @@ function ScheduleModal({ onClose, onSave }) {
     if (!participantSearch.trim()) { setSearchResults([]); return }
     const t = setTimeout(async () => {
       try {
-        const { data } = await supabase.from('users').select('id,full_name,username').or(`full_name.ilike.%${participantSearch}%,username.ilike.%${participantSearch}%`).limit(6)
+        const { data } = await supabase.from('users').select('id,full_name,username').or(`full_name.ilike.%${participantSearch}%,username.ilike.%${participantSearch}%`).neq('id', user?.id).limit(6)
         setSearchResults((data || []).filter(u => !participants.find(p => p.id === u.id)))
       } catch { setSearchResults([]) }
     }, 300)
@@ -521,6 +524,20 @@ function ScheduleModal({ onClose, onSave }) {
                 <button onClick={copyFullInvite} className="w-full flex items-center justify-center gap-2 p-3 bg-muted rounded-xl hover:bg-muted/80 text-sm text-foreground">
                   <FileText size={16} /> Copy Full Invite
                 </button>
+                <button onClick={() => setShowInviteModal(true)} className="w-full flex items-center justify-center gap-2 p-3 bg-muted rounded-xl hover:bg-muted/80 text-sm text-foreground">
+                  <Mail size={16} /> Invite via Email
+                </button>
+                {showInviteModal && (
+                  <InviteEmailModal
+                    onClose={() => setShowInviteModal(false)}
+                    inviterName={user?.user_metadata?.full_name || 'Someone'}
+                    type="meeting"
+                    title={title}
+                    link={meetingLink}
+                    scheduledAt={date && startTime ? new Date(`${date}T${startTime}`).toISOString() : undefined}
+                    extraInfo={{ 'Meeting ID': generatedCode, ...(password ? { Password: password } : {}) }}
+                  />
+                )}
               </div>
             </>
           )}
@@ -630,6 +647,8 @@ function CreateSpaceModal({ onClose, onSave }) {
 // ─── INSTANT MEETING MODAL ────────────────────────────────────────────────────
 
 function InstantMeetingModal({ onClose, onJoin }) {
+  const { user } = useAuth()
+  const [showInviteModal, setShowInviteModal] = useState(false)
   const [step, setStep] = useState(1)
   const [copied, setCopied] = useState(false)
   const [starting, setStarting] = useState(false)
@@ -654,7 +673,7 @@ function InstantMeetingModal({ onClose, onJoin }) {
     if (!instantSearch.trim()) { setInstantResults([]); return }
     const t = setTimeout(async () => {
       try {
-        const { data } = await supabase.from('users').select('id,full_name,username').or(`full_name.ilike.%${instantSearch}%,username.ilike.%${instantSearch}%`).limit(5)
+        const { data } = await supabase.from('users').select('id,full_name,username').or(`full_name.ilike.%${instantSearch}%,username.ilike.%${instantSearch}%`).neq('id', user?.id).limit(5)
         setInstantResults(data || [])
       } catch { setInstantResults([]) }
     }, 300)
@@ -682,6 +701,18 @@ function InstantMeetingModal({ onClose, onJoin }) {
               className="w-full flex items-center justify-center gap-2 p-2.5 bg-muted rounded-xl text-sm text-foreground hover:bg-muted/80">
               {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />} Copy Link
             </button>
+            <button onClick={() => setShowInviteModal(true)} className="w-full flex items-center justify-center gap-2 p-2.5 bg-muted rounded-xl text-sm text-foreground hover:bg-muted/80">
+              <Mail size={16} /> Invite via Email
+            </button>
+            {showInviteModal && (
+              <InviteEmailModal
+                onClose={() => setShowInviteModal(false)}
+                inviterName={user?.user_metadata?.full_name || 'Someone'}
+                type="meeting"
+                title="Instant Meeting"
+                link={link}
+              />
+            )}
             <button onClick={() => setStep(2)} className="w-full py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-medium text-sm">
               Continue →
             </button>
@@ -888,8 +919,10 @@ function FullCalendar({ meetings, onSchedule, onSelectMeeting }) {
 // ─── MEETING CARD ─────────────────────────────────────────────────────────────
 
 function MeetingCard({ meeting, onJoin, onDetails, onDelete, isLive }) {
+  const { user } = useAuth()
   const [copied, setCopied] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
   const endTime = addMinutes(new Date(meeting.scheduled_at), meeting.duration_minutes)
 
   function copyLink() {
@@ -930,9 +963,23 @@ function MeetingCard({ meeting, onJoin, onDetails, onDelete, isLive }) {
           <button onClick={() => onJoin(meeting)} className={`flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 ${isLive ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-primary hover:bg-primary/90 text-primary-foreground'}`}>
             <Video size={13} /> {isLive ? 'Join Now' : 'Join'}
           </button>
-          <button onClick={copyLink} className="px-3 py-2 bg-muted hover:bg-muted/80 rounded-xl text-xs text-muted-foreground flex items-center gap-1.5">
+          <button onClick={copyLink} className="px-3 py-2 bg-muted hover:bg-muted/80 rounded-xl text-xs text-muted-foreground flex items-center gap-1.5" title="Copy link">
             {copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
           </button>
+          <button onClick={() => setShowInviteModal(true)} className="px-3 py-2 bg-muted hover:bg-muted/80 rounded-xl text-xs text-muted-foreground" title="Invite via Email">
+            <Mail size={12} />
+          </button>
+          {showInviteModal && (
+            <InviteEmailModal
+              onClose={() => setShowInviteModal(false)}
+              inviterName={user?.user_metadata?.full_name || 'Someone'}
+              type="meeting"
+              title={meeting.title}
+              link={`https://philomni.com/meet/${meeting.meeting_code}`}
+              scheduledAt={meeting.scheduled_at}
+              extraInfo={{ 'Meeting ID': meeting.meeting_code, ...(meeting.password ? { Password: meeting.password } : {}) }}
+            />
+          )}
           <button onClick={() => onDetails(meeting)} className="px-3 py-2 bg-muted hover:bg-muted/80 rounded-xl text-xs text-muted-foreground">Details</button>
           {onDelete && <button onClick={() => setConfirmDel(true)} className="px-3 py-2 bg-muted hover:bg-destructive/10 rounded-xl text-xs text-muted-foreground hover:text-destructive"><Trash2 size={12} /></button>}
         </div>
@@ -1228,6 +1275,8 @@ function SpaceView({ space, onBack }) {
 // ─── ACTIVE MEETING VIEW ──────────────────────────────────────────────────────
 
 function ActiveMeetingView({ meeting, onEnd }) {
+  const { user } = useAuth()
+  const [showInviteModal, setShowInviteModal] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [speakingIdx, setSpeakingIdx] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
@@ -1281,7 +1330,7 @@ function ActiveMeetingView({ meeting, onEnd }) {
     if (!inviteSearch.trim()) { setInviteResults([]); return }
     const t = setTimeout(async () => {
       try {
-        const { data } = await supabase.from('users').select('id,full_name,username').or(`full_name.ilike.%${inviteSearch}%,username.ilike.%${inviteSearch}%`).limit(5)
+        const { data } = await supabase.from('users').select('id,full_name,username').or(`full_name.ilike.%${inviteSearch}%,username.ilike.%${inviteSearch}%`).neq('id', user?.id).limit(5)
         setInviteResults(data || [])
       } catch { setInviteResults([]) }
     }, 300)
@@ -1488,6 +1537,19 @@ function ActiveMeetingView({ meeting, onEnd }) {
                             }} className="w-full py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs flex items-center justify-center gap-1">
                               {inviteCopied ? <><Check size={10} className="text-green-400" /> Copied!</> : <><FileText size={10} /> Copy Full Invite</>}
                             </button>
+                            <button onClick={() => setShowInviteModal(true)} className="w-full py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs flex items-center justify-center gap-1">
+                              <Mail size={10} /> Invite via Email
+                            </button>
+                            {showInviteModal && (
+                              <InviteEmailModal
+                                onClose={() => setShowInviteModal(false)}
+                                inviterName={user?.user_metadata?.full_name || 'Someone'}
+                                type="meeting"
+                                title={meeting.title}
+                                link={meetingLink}
+                                extraInfo={{ 'Meeting ID': meeting.meeting_code, ...(meeting.password ? { Password: meeting.password } : {}) }}
+                              />
+                            )}
                           </div>
                         )}
                       </div>
@@ -1733,7 +1795,9 @@ function LeftPanel({ meetings, pastMeetings, spaces, contacts, collapsed, onTogg
 // ─── MEETING DETAIL VIEW ──────────────────────────────────────────────────────
 
 function MeetingDetailView({ meeting, onBack, onJoin }) {
+  const { user } = useAuth()
   const [copied, setCopied] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
   const endTime = addMinutes(new Date(meeting.scheduled_at), meeting.duration_minutes)
 
   function copyInvite() {
@@ -1814,9 +1878,23 @@ function MeetingDetailView({ meeting, onBack, onJoin }) {
         <button onClick={() => onJoin(meeting)} className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold flex items-center justify-center gap-2">
           <Video size={18} /> Join Meeting
         </button>
-        <button onClick={copyInvite} className="px-4 py-3 bg-muted hover:bg-muted/80 rounded-xl text-sm text-foreground flex items-center gap-2">
-          {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />} Copy Invite
+        <button onClick={copyInvite} className="px-4 py-3 bg-muted hover:bg-muted/80 rounded-xl text-sm text-foreground flex items-center gap-2" title="Copy invite">
+          {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />} Copy
         </button>
+        <button onClick={() => setShowInviteModal(true)} className="px-4 py-3 bg-muted hover:bg-muted/80 rounded-xl text-sm text-foreground flex items-center gap-2" title="Invite via Email">
+          <Mail size={16} />
+        </button>
+        {showInviteModal && (
+          <InviteEmailModal
+            onClose={() => setShowInviteModal(false)}
+            inviterName={user?.user_metadata?.full_name || 'Someone'}
+            type="meeting"
+            title={meeting.title}
+            link={`https://philomni.com/meet/${meeting.meeting_code}`}
+            scheduledAt={meeting.scheduled_at}
+            extraInfo={{ 'Meeting ID': meeting.meeting_code, ...(meeting.password ? { Password: meeting.password } : {}) }}
+          />
+        )}
         <button className="px-4 py-3 bg-muted hover:bg-muted/80 rounded-xl text-sm text-foreground flex items-center gap-2">
           <Edit2 size={16} /> Edit
         </button>

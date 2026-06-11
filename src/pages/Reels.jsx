@@ -893,6 +893,7 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
 
 // ─── Main Reels Page ──────────────────────────────────────────────────────────
 export default function Reels() {
+  const { user } = useAuth()
   const [allReels, setAllReels] = useState([])
   const [hiddenIds, setHiddenIds] = useState(new Set())
   const [loading, setLoading] = useState(true)
@@ -924,7 +925,7 @@ export default function Reels() {
       try {
         const { data } = await supabase.from('posts')
           .select('*')
-          .eq('media_type', 'video')
+          .or('feed_type.eq.reel,media_type.eq.video')
           .order('created_at', { ascending: false })
           .limit(20)
 
