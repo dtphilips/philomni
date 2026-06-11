@@ -544,10 +544,10 @@ export default function Layout({ children }) {
         {/* Page content — extra bottom padding when the music player is visible
             so the last items are never hidden behind the 72px player bar */}
         <main className="flex-1 overflow-y-auto relative">
-          <div className={`mx-auto px-4 py-6 ${
+          <div className={`${
             /^\/watch\/.+/.test(location.pathname)
-              ? 'max-w-screen-xl'   // ~1280px — room for 70/30 YouTube-style split
-              : 'max-w-5xl'
+              ? 'w-full px-4 py-4'   // no max-width cap — Watch page owns its own layout
+              : 'mx-auto max-w-5xl px-4 py-6'
           } ${playerVisible ? 'pb-28' : ''}`}>
             {children}
           </div>

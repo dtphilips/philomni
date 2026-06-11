@@ -216,7 +216,7 @@ export default function Watch() {
 
   return (
     <>
-      <div style={{ display: 'flex', flexDirection: 'row', gap: '24px', padding: '0 8px', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', flexDirection: 'row', gap: '24px', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box' }}>
 
         {/* ── LEFT COLUMN: player + info + comments ── */}
         <div style={{ flex: '1 1 0%', minWidth: 0 }}>
@@ -395,7 +395,7 @@ export default function Watch() {
           {relatedVideos.length === 0 && (
             <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>No other videos yet.</p>
           )}
-          {relatedVideos.map(v => (
+          {relatedVideos.filter(v => v.id !== videoId).map(v => (
             <div
               key={v.id}
               onClick={() => navigate(`/watch/${v.id}`)}
