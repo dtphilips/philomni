@@ -215,207 +215,245 @@ export default function Watch() {
       : null
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', color: '#fff' }}>
+    <>
+      <style>{`
+        .yt-layout {
+          display: flex;
+          gap: 24px;
+          align-items: flex-start;
+          color: #fff;
+        }
+        .yt-main {
+          flex: 1;
+          min-width: 0;
+        }
+        .yt-sidebar {
+          width: 360px;
+          flex-shrink: 0;
+        }
+        @media (max-width: 1024px) {
+          .yt-sidebar { width: 300px; }
+        }
+        @media (max-width: 768px) {
+          .yt-layout { flex-direction: column; }
+          .yt-sidebar { width: 100%; }
+        }
+      `}</style>
 
-      {/* ── Full-width player ── */}
-      <div style={{ width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
-        {showAd && currentAd && (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
-            <AdOverlay campaign={currentAd} slot={adSlot} postId={videoId} creatorId={creator?.id}
-              onComplete={() => { setShowAd(false); setCurrentAd(null) }}
-              onSkip={() => { setShowAd(false); setCurrentAd(null) }} />
+      <div className="yt-layout">
+
+        {/* ── LEFT COLUMN: player + info + comments ── */}
+        <div className="yt-main">
+
+          {/* Player */}
+          <div style={{ width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000', borderRadius: 12, overflow: 'hidden', marginBottom: 14 }}>
+            {showAd && currentAd && (
+              <div style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
+                <AdOverlay campaign={currentAd} slot={adSlot} postId={videoId} creatorId={creator?.id}
+                  onComplete={() => { setShowAd(false); setCurrentAd(null) }}
+                  onSkip={() => { setShowAd(false); setCurrentAd(null) }} />
+              </div>
+            )}
+            {embedUrl ? (
+              <>
+                <iframe
+                  src={embedUrl}
+                  style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  title={video.title}
+                />
+                {muted && (
+                  <button
+                    onClick={() => setMuted(false)}
+                    style={{
+                      position: 'absolute', bottom: 14, right: 14,
+                      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+                      color: '#fff', border: 'none', borderRadius: 20,
+                      padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, zIndex: 5,
+                    }}
+                  >
+                    🔊 Unmute
+                  </button>
+                )}
+              </>
+            ) : (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {thumbUrl && <img src={thumbUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.3 }} />}
+                <p style={{ position: 'relative', color: '#fff', zIndex: 1 }}>⚙️ Processing…</p>
+              </div>
+            )}
           </div>
-        )}
-        {embedUrl ? (
-          <>
-            <iframe
-              src={embedUrl}
-              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-              allowFullScreen
-              title={video.title}
-            />
-            {muted && (
+
+          {/* Title */}
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 10px', lineHeight: 1.35 }}>{video.title}</h1>
+
+          {/* Stats + action buttons */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+              {formatViews(video.view_count)} · {formatTime(video.published_at)}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
-                onClick={() => setMuted(false)}
+                onClick={handleLike}
                 style={{
-                  position: 'absolute', bottom: 16, right: 16,
-                  background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
-                  color: '#fff', border: 'none', borderRadius: 20,
-                  padding: '8px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600, zIndex: 5,
+                  padding: '7px 16px', background: liked ? '#8b5cf6' : 'rgba(255,255,255,0.1)',
+                  border: 'none', borderRadius: 20, color: '#fff', cursor: 'pointer',
+                  fontSize: 13, fontWeight: liked ? 700 : 400,
                 }}
               >
-                🔊 Unmute
+                👍 {video.like_count ?? 0}
+              </button>
+              <button
+                onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success('Link copied!') }}
+                style={{ padding: '7px 16px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 20, color: '#fff', cursor: 'pointer', fontSize: 13 }}
+              >
+                Share
+              </button>
+            </div>
+          </div>
+
+          {/* Creator card */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'rgba(255,255,255,0.04)', borderRadius: 12, marginBottom: 14, border: '1px solid rgba(255,255,255,0.07)' }}>
+            <img
+              src={creator?.avatar_url ?? '/default-avatar.png'}
+              alt={creator?.full_name}
+              onClick={() => navigate(`/profile/${creator?.id}`)}
+              style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', flexShrink: 0 }}
+              onError={e => { e.target.style.display = 'none' }}
+            />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontWeight: 600, margin: 0, cursor: 'pointer', color: '#fff', fontSize: 14 }} onClick={() => navigate(`/profile/${creator?.id}`)}>
+                {creator?.full_name ?? creator?.username}
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, margin: 0 }}>@{creator?.username}</p>
+            </div>
+            {user?.id !== creator?.id && (
+              <button
+                onClick={() => setFollowing(!following)}
+                style={{
+                  padding: '7px 18px',
+                  background: following ? 'transparent' : '#8b5cf6',
+                  border: following ? '1px solid rgba(255,255,255,0.25)' : 'none',
+                  borderRadius: 20, color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                }}
+              >
+                {following ? 'Following' : 'Follow'}
               </button>
             )}
-          </>
-        ) : (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {thumbUrl && <img src={thumbUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.3 }} />}
-            <p style={{ position: 'relative', color: '#fff', zIndex: 1 }}>⚙️ Processing…</p>
           </div>
-        )}
-      </div>
 
-      {/* ── Title ── */}
-      <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 10px', lineHeight: 1.3 }}>{video.title}</h1>
-
-      {/* ── Stats + actions ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>
-          {formatViews(video.view_count)} · {formatTime(video.published_at)}
-        </span>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={handleLike}
-            style={{
-              padding: '8px 18px', background: liked ? '#8b5cf6' : 'rgba(255,255,255,0.1)',
-              border: 'none', borderRadius: 20, color: '#fff', cursor: 'pointer',
-              fontSize: 14, fontWeight: liked ? 700 : 400,
-            }}
-          >
-            👍 {video.like_count ?? 0}
-          </button>
-          <button
-            onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success('Link copied!') }}
-            style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 20, color: '#fff', cursor: 'pointer', fontSize: 14 }}
-          >
-            Share
-          </button>
-        </div>
-      </div>
-
-      {/* ── Creator card ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, marginBottom: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
-        <img
-          src={creator?.avatar_url ?? '/default-avatar.png'}
-          alt={creator?.full_name}
-          onClick={() => navigate(`/profile/${creator?.id}`)}
-          style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', cursor: 'pointer', flexShrink: 0 }}
-          onError={e => { e.target.style.display = 'none' }}
-        />
-        <div style={{ flex: 1 }}>
-          <p style={{ fontWeight: 600, margin: 0, cursor: 'pointer', color: '#fff' }} onClick={() => navigate(`/profile/${creator?.id}`)}>
-            {creator?.full_name ?? creator?.username}
-          </p>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>@{creator?.username}</p>
-        </div>
-        {user?.id !== creator?.id && (
-          <button
-            onClick={() => setFollowing(!following)}
-            style={{
-              padding: '8px 20px',
-              background: following ? 'transparent' : '#8b5cf6',
-              border: following ? '1px solid rgba(255,255,255,0.3)' : 'none',
-              borderRadius: 20, color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13,
-            }}
-          >
-            {following ? 'Following' : 'Follow'}
-          </button>
-        )}
-      </div>
-
-      {/* ── Description ── */}
-      {video.description && (
-        <div style={{ padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, marginBottom: 24, border: '1px solid rgba(255,255,255,0.06)' }}>
-          <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, margin: 0, whiteSpace: 'pre-wrap', overflow: 'hidden', maxHeight: descExpanded ? 'none' : 80 }}>
-            {video.description}
-          </p>
-          {video.description.length > 200 && (
-            <button onClick={() => setDescExpanded(!descExpanded)} style={{ background: 'none', border: 'none', color: '#8b5cf6', cursor: 'pointer', fontSize: 13, marginTop: 8, padding: 0 }}>
-              {descExpanded ? 'Show less' : 'Show more'}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* ── Related videos — horizontal scroll row ── */}
-      {relatedVideos.length > 0 && (
-        <div style={{ marginBottom: 32 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: '#fff' }}>More Videos</h3>
-          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 4 }}>
-            {relatedVideos.map(v => (
-              <div
-                key={v.id}
-                onClick={() => navigate(`/watch/${v.id}`)}
-                style={{ flexShrink: 0, width: 200, cursor: 'pointer' }}
-              >
-                <div style={{ width: '100%', aspectRatio: '16/9', borderRadius: 8, overflow: 'hidden', background: '#111', marginBottom: 6, position: 'relative' }}>
-                  <img
-                    src={relatedThumb(v)}
-                    alt={v.title}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                    onError={e => { e.target.style.display = 'none' }}
-                  />
-                  {v.duration_seconds > 0 && (
-                    <span style={{ position: 'absolute', bottom: 4, right: 4, background: 'rgba(0,0,0,0.8)', color: '#fff', fontSize: 10, padding: '1px 4px', borderRadius: 3 }}>
-                      {formatDuration(v.duration_seconds)}
-                    </span>
-                  )}
-                </div>
-                <p style={{ fontSize: 12, fontWeight: 600, margin: '0 0 2px', color: '#fff', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: 1.4 }}>{v.title}</p>
-                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', margin: 0 }}>{v.creator?.full_name ?? v.creator?.username}</p>
-                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', margin: '1px 0 0' }}>{formatViews(v.view_count)} · {formatAge(v.published_at)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Comments ── */}
-      <div style={{ marginBottom: 60 }}>
-        <h3 style={{ marginBottom: 16, fontSize: 16, color: '#fff' }}>{video.comment_count ?? 0} Comments</h3>
-
-        {user ? (
-          <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-            {profile?.avatar_url
-              ? <img src={profile.avatar_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-              : <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff' }}>{(profile?.full_name || user?.email || 'U')[0].toUpperCase()}</div>
-            }
-            <div style={{ flex: 1 }}>
-              <input
-                value={newComment}
-                onChange={e => setNewComment(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleComment() } }}
-                placeholder="Add a comment…"
-                style={{ width: '100%', padding: '10px 0', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-              />
-              {newComment && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-                  <button onClick={() => setNewComment('')} style={{ padding: '6px 16px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>Cancel</button>
-                  <button onClick={handleComment} disabled={submittingComment} style={{ padding: '6px 16px', background: '#8b5cf6', border: 'none', borderRadius: 20, color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
-                    {submittingComment ? '…' : 'Comment'}
-                  </button>
-                </div>
+          {/* Description */}
+          {video.description && (
+            <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.04)', borderRadius: 12, marginBottom: 24, border: '1px solid rgba(255,255,255,0.07)' }}>
+              <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, margin: 0, whiteSpace: 'pre-wrap', overflow: 'hidden', maxHeight: descExpanded ? 'none' : 72, lineHeight: 1.6 }}>
+                {video.description}
+              </p>
+              {video.description.length > 200 && (
+                <button onClick={() => setDescExpanded(!descExpanded)} style={{ background: 'none', border: 'none', color: '#8b5cf6', cursor: 'pointer', fontSize: 13, marginTop: 6, padding: 0, fontWeight: 600 }}>
+                  {descExpanded ? 'Show less' : 'Show more'}
+                </button>
               )}
             </div>
-          </div>
-        ) : (
-          <p style={{ color: 'rgba(255,255,255,0.4)', marginBottom: 24 }}>
-            <span onClick={() => navigate('/login')} style={{ color: '#8b5cf6', cursor: 'pointer' }}>Sign in</span> to comment
-          </p>
-        )}
+          )}
 
-        {comments.map(comment => (
-          <div key={comment.id} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-            {comment.user?.avatar_url
-              ? <img src={comment.user.avatar_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-              : <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(139,92,246,0.3)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff' }}>{(comment.user?.full_name || comment.user?.username || '?')[0].toUpperCase()}</div>
-            }
-            <div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                <span style={{ fontWeight: 600, fontSize: 13, color: '#fff' }}>{comment.user?.full_name ?? comment.user?.username}</span>
-                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>{formatTime(comment.created_at)}</span>
+          {/* Comments */}
+          <div style={{ marginBottom: 60 }}>
+            <h3 style={{ marginBottom: 16, fontSize: 15, fontWeight: 600, color: '#fff' }}>{video.comment_count ?? 0} Comments</h3>
+
+            {user ? (
+              <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+                {profile?.avatar_url
+                  ? <img src={profile.avatar_url} alt="" style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                  : <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff' }}>{(profile?.full_name || user?.email || 'U')[0].toUpperCase()}</div>
+                }
+                <div style={{ flex: 1 }}>
+                  <input
+                    value={newComment}
+                    onChange={e => setNewComment(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleComment() } }}
+                    placeholder="Add a comment…"
+                    style={{ width: '100%', padding: '9px 0', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.18)', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+                  />
+                  {newComment && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                      <button onClick={() => setNewComment('')} style={{ padding: '6px 14px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                      <button onClick={handleComment} disabled={submittingComment} style={{ padding: '6px 14px', background: '#8b5cf6', border: 'none', borderRadius: 20, color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+                        {submittingComment ? '…' : 'Comment'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.8)', fontSize: 14, lineHeight: 1.5 }}>{comment.content}</p>
-            </div>
-          </div>
-        ))}
+            ) : (
+              <p style={{ color: 'rgba(255,255,255,0.4)', marginBottom: 24, fontSize: 13 }}>
+                <span onClick={() => navigate('/login')} style={{ color: '#8b5cf6', cursor: 'pointer' }}>Sign in</span> to comment
+              </p>
+            )}
 
-        {comments.length === 0 && (
-          <p style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: '40px 0' }}>No comments yet. Be the first!</p>
-        )}
+            {comments.map(comment => (
+              <div key={comment.id} style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+                {comment.user?.avatar_url
+                  ? <img src={comment.user.avatar_url} alt="" style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                  : <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(139,92,246,0.3)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#fff' }}>{(comment.user?.full_name || comment.user?.username || '?')[0].toUpperCase()}</div>
+                }
+                <div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                    <span style={{ fontWeight: 600, fontSize: 13, color: '#fff' }}>{comment.user?.full_name ?? comment.user?.username}</span>
+                    <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>{formatTime(comment.created_at)}</span>
+                  </div>
+                  <p style={{ margin: '3px 0 0', color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 1.5 }}>{comment.content}</p>
+                </div>
+              </div>
+            ))}
+
+            {comments.length === 0 && (
+              <p style={{ color: 'rgba(255,255,255,0.35)', textAlign: 'center', padding: '32px 0', fontSize: 13 }}>No comments yet. Be the first!</p>
+            )}
+          </div>
+        </div>
+
+        {/* ── RIGHT COLUMN: related videos ── */}
+        <div className="yt-sidebar">
+          <p style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12 }}>Up Next</p>
+          {relatedVideos.length === 0 && (
+            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>No other videos yet.</p>
+          )}
+          {relatedVideos.map(v => (
+            <div
+              key={v.id}
+              onClick={() => navigate(`/watch/${v.id}`)}
+              style={{ display: 'flex', gap: 8, marginBottom: 10, cursor: 'pointer', borderRadius: 8, padding: 6, transition: 'background 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+            >
+              {/* Thumbnail */}
+              <div style={{ width: 160, height: 90, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#111', position: 'relative' }}>
+                <img
+                  src={relatedThumb(v)}
+                  alt={v.title}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  onError={e => { e.target.style.display = 'none' }}
+                />
+                {v.duration_seconds > 0 && (
+                  <span style={{ position: 'absolute', bottom: 4, right: 4, background: 'rgba(0,0,0,0.82)', color: '#fff', fontSize: 10, padding: '1px 4px', borderRadius: 3, fontWeight: 600 }}>
+                    {formatDuration(v.duration_seconds)}
+                  </span>
+                )}
+              </div>
+              {/* Info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 3px', color: '#fff', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: 1.35 }}>
+                  {v.title}
+                </p>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', margin: 0 }}>{v.creator?.full_name ?? v.creator?.username}</p>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>{formatViews(v.view_count)} · {formatAge(v.published_at)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
       </div>
-    </div>
+    </>
   )
 }

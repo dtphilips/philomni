@@ -545,9 +545,9 @@ export default function Layout({ children }) {
             so the last items are never hidden behind the 72px player bar */}
         <main className="flex-1 overflow-y-auto relative">
           <div className={`mx-auto px-4 py-6 ${
-            location.pathname.startsWith('/watch')
-              ? 'max-w-5xl'
-              : 'max-w-4xl'
+            /^\/watch\/.+/.test(location.pathname)
+              ? 'max-w-screen-xl'   // ~1280px — room for 70/30 YouTube-style split
+              : 'max-w-5xl'
           } ${playerVisible ? 'pb-28' : ''}`}>
             {children}
           </div>
