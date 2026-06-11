@@ -216,19 +216,10 @@ export default function Watch() {
 
   return (
     <>
-      <style>{`
-        .watch-layout { display: flex; gap: 24px; align-items: flex-start; color: #fff; }
-        .watch-sidebar { flex: 0 0 360px; max-height: 90vh; overflow-y: auto; }
-        @media (max-width: 768px) {
-          .watch-layout { flex-direction: column !important; }
-          .watch-sidebar { flex: unset !important; width: 100% !important; max-height: unset !important; }
-        }
-      `}</style>
-
-      <div className="watch-layout" style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', padding: '0 8px' }}>
+      <div style={{ display: 'flex', flexDirection: 'row', gap: '24px', padding: '0 8px', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box' }}>
 
         {/* ── LEFT COLUMN: player + info + comments ── */}
-        <div style={{ flex: '1 1 70%', minWidth: 0 }}>
+        <div style={{ flex: '1 1 0%', minWidth: 0 }}>
 
           {/* Player */}
           <div style={{ width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000', borderRadius: 12, overflow: 'hidden', marginBottom: 14 }}>
@@ -399,7 +390,7 @@ export default function Watch() {
         </div>
 
         {/* ── RIGHT COLUMN: related videos ── */}
-        <div className="watch-sidebar" style={{ flex: '0 0 360px', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ width: '360px', flexShrink: 0, overflowY: 'auto', maxHeight: '90vh' }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12 }}>Up Next</p>
           {relatedVideos.length === 0 && (
             <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>No other videos yet.</p>

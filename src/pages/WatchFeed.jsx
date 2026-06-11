@@ -183,11 +183,6 @@ function VideoCard({ video, isActive, onClick }) {
             {formatDuration(video.duration_seconds)}
           </span>
         )}
-        {isActive && (
-          <div style={{ position: 'absolute', top: 8, left: 8, background: '#8b5cf6', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
-            NOW PLAYING
-          </div>
-        )}
       </div>
 
       <div style={{ display: 'flex', gap: 10 }}>
