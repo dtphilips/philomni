@@ -170,10 +170,15 @@ export default function LiveHost() {
       ended_at: new Date().toISOString(),
     }).eq('id', liveId)
 
-    // Delete Daily.co room
+    // Delete Daily.co room (fire-and-forget)
     supabase.functions.invoke('create-live-room', {
       body: { action: 'delete', liveId },
     }).catch(e => console.warn('Room delete error:', e))
+
+    // Kick off recording save asynchronously — the recap page will show status
+    supabase.functions.invoke('save-live-recording', {
+      body: { liveId },
+    }).catch(e => console.warn('Recording save error:', e))
 
     setEnding(false)
     setShowEndModal(false)

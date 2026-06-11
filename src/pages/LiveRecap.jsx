@@ -53,6 +53,22 @@ export default function LiveRecap() {
     load()
   }, [liveId])
 
+  // Poll recording_status while it's still processing
+  useEffect(() => {
+    if (!live) return
+    if (live.recording_status !== 'processing') return
+    const interval = setInterval(async () => {
+      const { data } = await supabase.from('lives')
+        .select('recording_status, recording_cloudflare_uid')
+        .eq('id', liveId).single()
+      if (data && data.recording_status !== 'processing') {
+        setLive(prev => ({ ...prev, ...data }))
+        clearInterval(interval)
+      }
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [live?.recording_status])
+
   // ─── Derived stats ──────────────────────────────────────────────────────────
   const totalGiftValue = useMemo(() => {
     return gifts.reduce((sum, g) => sum + (g.total_coins || 0) / 100, 0)
@@ -191,6 +207,32 @@ export default function LiveRecap() {
         <div className="bg-card border border-border/60 rounded-2xl p-6 mb-4 text-center shadow-sm">
           <div className="text-4xl mb-2">🎁</div>
           <p className="text-muted-foreground text-sm">No gifts received this stream</p>
+        </div>
+      )}
+
+      {/* Recording status card */}
+      {live.recording_status && live.recording_status !== 'none' && (
+        <div className="bg-card border border-border/60 rounded-2xl p-4 mb-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">
+              {live.recording_status === 'ready' ? '🎬' : live.recording_status === 'unavailable' ? '⚠️' : '⏳'}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground">
+                {live.recording_status === 'ready' && 'Recording saved'}
+                {live.recording_status === 'processing' && 'Saving recording…'}
+                {live.recording_status === 'unavailable' && 'Recording unavailable'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {live.recording_status === 'ready' && 'Your live replay is on your Watch profile tab. It auto-deletes in 15 days.'}
+                {live.recording_status === 'processing' && 'Your stream is being uploaded to your Watch profile. This takes a few minutes.'}
+                {live.recording_status === 'unavailable' && 'The recording could not be saved (cloud recording may not be enabled on this plan).'}
+              </p>
+            </div>
+            {live.recording_status === 'processing' && (
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground flex-shrink-0" />
+            )}
+          </div>
         </div>
       )}
 
