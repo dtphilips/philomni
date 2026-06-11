@@ -868,15 +868,48 @@ function ChallengeEntryModal({ challenge, onClose, onSubmit, saving }) {
 
 // ─── Challenge Entries Viewer ─────────────────────────────────────────────────
 
-function ChallengeEntriesModal({ challenge, isAdmin, onClose, onPickWinner }) {
-  const [entries, setEntries]   = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [picking, setPicking]   = useState(null)
+function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onPickWinner }) {
+  const [entries, setEntries]     = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [picking, setPicking]     = useState(null)
+  const [myVotes, setMyVotes]     = useState(new Set()) // entry ids I've voted on
+  const [sortBy, setSortBy]       = useState('votes')   // 'votes' | 'newest' | 'oldest'
+  const [expanded, setExpanded]   = useState(null)
 
   useEffect(() => {
-    supabase.from('challenge_entries').select('*').eq('challenge_id', challenge.id).order('votes', { ascending: false })
-      .then(({ data }) => { setEntries(data ?? []); setLoading(false) })
-  }, [challenge.id])
+    const load = async () => {
+      const { data: entryData } = await supabase
+        .from('challenge_entries').select('*').eq('challenge_id', challenge.id)
+      setEntries(entryData ?? [])
+
+      if (currentUserId) {
+        const ids = (entryData ?? []).map(e => e.id)
+        if (ids.length) {
+          const { data: voteData } = await supabase
+            .from('challenge_entry_votes')
+            .select('entry_id').eq('user_id', currentUserId).in('entry_id', ids)
+          setMyVotes(new Set((voteData ?? []).map(v => v.entry_id)))
+        }
+      }
+      setLoading(false)
+    }
+    load()
+  }, [challenge.id, currentUserId])
+
+  const handleVote = async (entryId) => {
+    if (!currentUserId) return
+    const { data } = await supabase.rpc('vote_challenge_entry', { p_entry_id: entryId, p_user_id: currentUserId })
+    const action = data?.action
+    setMyVotes(prev => {
+      const n = new Set(prev)
+      action === 'voted' ? n.add(entryId) : n.delete(entryId)
+      return n
+    })
+    setEntries(prev => prev.map(e => e.id === entryId
+      ? { ...e, votes: (e.votes ?? 0) + (action === 'voted' ? 1 : -1) }
+      : e
+    ))
+  }
 
   const handlePick = async (entry) => {
     setPicking(entry.id)
@@ -885,50 +918,126 @@ function ChallengeEntriesModal({ challenge, isAdmin, onClose, onPickWinner }) {
     onClose()
   }
 
+  const sorted = [...entries].sort((a, b) => {
+    if (sortBy === 'votes')  return (b.votes ?? 0) - (a.votes ?? 0)
+    if (sortBy === 'newest') return new Date(b.created_at) - new Date(a.created_at)
+    return new Date(a.created_at) - new Date(b.created_at)
+  })
+
+  const topVotes = Math.max(...entries.map(e => e.votes ?? 0), 0)
+  const isEnded  = challenge.status === 'ended'
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-card border border-border rounded-3xl w-full max-w-lg shadow-2xl my-6">
+      <div className="bg-card border border-border rounded-3xl w-full max-w-xl shadow-2xl my-6">
+
+        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div>
-            <h2 className="text-base font-bold text-foreground">Entries — {challenge.title}</h2>
-            <p className="text-xs text-muted-foreground">{entries.length} submission{entries.length !== 1 ? 's' : ''}</p>
+            <h2 className="text-base font-bold text-foreground line-clamp-1">{challenge.title}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {entries.length} submission{entries.length !== 1 ? 's' : ''}
+              {isEnded && challenge.winner_name ? ` · 🏆 Winner: ${challenge.winner_name}` : ''}
+            </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
         </div>
-        <div className="p-5 space-y-3">
+
+        {/* How it works — always visible */}
+        <div className="px-5 pt-4 pb-0">
+          <div className="bg-primary/5 border border-primary/15 rounded-xl p-3 text-xs text-muted-foreground leading-relaxed">
+            <span className="font-semibold text-foreground block mb-1">📋 How entries are tracked</span>
+            Participants submit a description of what they did + a link to their external post (Reels, TikTok, Instagram, etc.).
+            The community votes on entries. {isAdmin ? 'As admin, you review entries and pick the winner — community votes guide your decision but the final call is yours.' : 'Upvote the entries you think deserve to win. The admin picks the final winner.'}
+          </div>
+        </div>
+
+        {/* Sort + admin summary */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-2 flex-wrap gap-2">
+          <div className="flex gap-1 bg-muted rounded-xl p-1">
+            {[{ id: 'votes', label: '🔥 Top Voted' }, { id: 'newest', label: '🆕 Newest' }, { id: 'oldest', label: '📅 Oldest' }].map(s => (
+              <button key={s.id} onClick={() => setSortBy(s.id)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${sortBy === s.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+          {isAdmin && entries.length > 0 && !isEnded && (
+            <span className="text-xs text-amber-400 font-medium">Pick a winner below ↓</span>
+          )}
+        </div>
+
+        {/* Entries list */}
+        <div className="px-5 pb-5 space-y-3">
           {loading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
           ) : entries.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">No entries yet. Be the first to enter!</div>
-          ) : entries.map(e => (
-            <div key={e.id} className={`bg-muted/20 rounded-2xl p-4 border ${challenge.winner_id === e.user_id ? 'border-amber-400/50 bg-amber-500/5' : 'border-border'}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Avatar name={e.user_name} url={e.user_avatar} size={7} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                      {e.user_name}
-                      {challenge.winner_id === e.user_id && <span className="text-amber-400">🏆 Winner</span>}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">{new Date(e.created_at).toLocaleDateString()}</p>
+            <div className="text-center py-12 space-y-2">
+              <p className="text-3xl">🎯</p>
+              <p className="text-sm font-semibold text-foreground">No entries yet</p>
+              <p className="text-xs text-muted-foreground">Be the first to participate!</p>
+            </div>
+          ) : sorted.map((e, idx) => {
+            const isWinner   = challenge.winner_id === e.user_id
+            const isTopVoted = !isEnded && (e.votes ?? 0) === topVotes && topVotes > 0
+            const iVoted     = myVotes.has(e.id)
+            const isExpanded = expanded === e.id
+
+            return (
+              <div key={e.id} className={`rounded-2xl border transition-all ${isWinner ? 'border-amber-400/60 bg-amber-500/5' : isTopVoted ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted/20'}`}>
+                <div className="p-4">
+                  {/* Rank + top badge */}
+                  <div className="flex items-start gap-3">
+                    {/* Vote button */}
+                    <button
+                      onClick={() => handleVote(e.id)}
+                      disabled={isEnded || !currentUserId}
+                      className={`flex flex-col items-center gap-0.5 flex-shrink-0 px-2 py-1.5 rounded-xl border transition-all ${iVoted ? 'bg-primary/15 border-primary/40 text-primary' : 'border-border text-muted-foreground hover:border-primary/30 hover:text-primary'} disabled:opacity-40 disabled:cursor-default`}>
+                      <ChevronUp className="w-4 h-4" />
+                      <span className="text-xs font-bold">{e.votes ?? 0}</span>
+                    </button>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Avatar name={e.user_name} url={e.user_avatar} size={6} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
+                            {e.user_name}
+                            {isWinner && <span className="text-amber-400 font-bold">🏆 Winner</span>}
+                            {isTopVoted && !isWinner && <span className="text-primary text-[10px] font-bold bg-primary/15 px-1.5 py-0.5 rounded-full">⭐ Top Voted</span>}
+                            {idx === 0 && sortBy === 'votes' && !isWinner && entries.length > 1 && <span className="text-[10px] text-muted-foreground">#{idx + 1}</span>}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">{new Date(e.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                        </div>
+                        {isAdmin && !isEnded && (
+                          <button onClick={() => handlePick(e)} disabled={!!picking}
+                            className="flex-shrink-0 px-2.5 py-1.5 rounded-xl bg-amber-500 text-white text-[10px] font-bold hover:bg-amber-400 transition-colors disabled:opacity-50 flex items-center gap-1">
+                            {picking === e.id ? <Loader2 className="w-3 h-3 animate-spin" /> : '🏆 Pick Winner'}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Content — expandable */}
+                      <p className={`text-xs text-foreground mt-2 leading-relaxed ${isExpanded ? '' : 'line-clamp-3'}`}>{e.content}</p>
+                      {e.content?.length > 160 && (
+                        <button onClick={() => setExpanded(isExpanded ? null : e.id)} className="text-[10px] text-primary mt-0.5 hover:underline">
+                          {isExpanded ? 'Show less' : 'Read more'}
+                        </button>
+                      )}
+
+                      {/* Proof link */}
+                      {e.media_url && (
+                        <a href={e.media_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-2 text-[10px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-colors">
+                          <ExternalLink className="w-3 h-3" /> View Proof / Submission
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
-                {isAdmin && challenge.status !== 'ended' && (
-                  <button onClick={() => handlePick(e)} disabled={!!picking}
-                    className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-400 transition-colors disabled:opacity-50">
-                    {picking === e.id ? <Loader2 className="w-3 h-3 animate-spin" /> : '🏆 Pick Winner'}
-                  </button>
-                )}
               </div>
-              <p className="text-xs text-foreground mt-2 leading-relaxed">{e.content}</p>
-              {e.media_url && (
-                <a href={e.media_url} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline mt-1.5 block truncate">
-                  🔗 View submission
-                </a>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>
@@ -1630,6 +1739,64 @@ export default function Community() {
       .then(({ data }) => { if (data) setUserChallengeIds(new Set(data.map(e => e.challenge_id))) })
   }, [user?.id])
 
+  // ── Algorithmic scoring for Groups ───────────────────────────────────────
+  // Score = member_count weighted by recency + joined-group bonus
+  const scoredGroups = useMemo(() => {
+    const now = Date.now()
+    return [...dbGroups].sort((a, b) => {
+      const ageA = (now - new Date(a.created_at ?? 0).getTime()) / 86400000 // days
+      const ageB = (now - new Date(b.created_at ?? 0).getTime()) / 86400000
+      // Joined bonus: groups you're a member of float up when on Discover
+      const joinedA = userGroupIds.has(a.id) ? 0 : 0
+      const joinedB = userGroupIds.has(b.id) ? 0 : 0
+      const scoreA = ((a.member_count ?? 0) / Math.pow(ageA + 2, 0.4)) + joinedA
+      const scoreB = ((b.member_count ?? 0) / Math.pow(ageB + 2, 0.4)) + joinedB
+      return scoreB - scoreA
+    })
+  }, [dbGroups, userGroupIds])
+
+  // ── Algorithmic scoring for Challenges ───────────────────────────────────
+  // Score = entry_count + recency decay — newest with most engagement rise
+  const scoredChallenges = useMemo(() => {
+    const now = Date.now()
+    const active = [...dbChallenges.filter(c => !c.status || c.status === 'active')]
+      .sort((a, b) => {
+        const ageA = (now - new Date(a.created_at).getTime()) / 3600000
+        const ageB = (now - new Date(b.created_at).getTime()) / 3600000
+        // Deadline urgency boost: challenges ending soon score higher
+        const daysLeftA = a.ends_at ? (new Date(a.ends_at) - now) / 86400000 : 999
+        const daysLeftB = b.ends_at ? (new Date(b.ends_at) - now) / 86400000 : 999
+        const urgencyA = daysLeftA < 3 ? 30 : daysLeftA < 7 ? 15 : 0
+        const urgencyB = daysLeftB < 3 ? 30 : daysLeftB < 7 ? 15 : 0
+        const scoreA = ((a.entry_count ?? 0) * 4 + urgencyA) / Math.pow(ageA + 2, 0.6)
+        const scoreB = ((b.entry_count ?? 0) * 4 + urgencyB) / Math.pow(ageB + 2, 0.6)
+        return scoreB - scoreA
+      })
+    const ended = dbChallenges.filter(c => c.status === 'ended')
+    return { active, ended }
+  }, [dbChallenges])
+
+  // ── Algorithmic scoring for Events ───────────────────────────────────────
+  // Score = proximity in time (soonest first) + attendee count boost
+  const scoredEvents = useMemo(() => {
+    const now = Date.now()
+    return [...dbEvents].sort((a, b) => {
+      const msA  = new Date(a.starts_at).getTime() - now
+      const msB  = new Date(b.starts_at).getTime() - now
+      // If happening now (live), float to absolute top
+      const liveA = msA < 0 && a.ends_at && new Date(a.ends_at).getTime() > now ? 1 : 0
+      const liveB = msB < 0 && b.ends_at && new Date(b.ends_at).getTime() > now ? 1 : 0
+      if (liveA !== liveB) return liveB - liveA
+      // RSVPd events float above non-RSVPd
+      const rsvpA = userEventRsvps.has(a.id) ? -86400000 * 7 : 0 // equivalent to 7 days closer
+      const rsvpB = userEventRsvps.has(b.id) ? -86400000 * 7 : 0
+      // Attendee tiebreaker: more popular events surface for same date
+      const timeA = Math.max(0, msA) + rsvpA
+      const timeB = Math.max(0, msB) + rsvpB
+      return timeA - timeB || (b.attendee_count ?? 0) - (a.attendee_count ?? 0)
+    })
+  }, [dbEvents, userEventRsvps])
+
   const displayPosts = useMemo(() => {
     return posts.map(p => ({
       ...p,
@@ -2116,7 +2283,7 @@ export default function Community() {
           </div>
 
           {(() => {
-            const enriched = dbGroups.map(g => ({
+            const enriched = scoredGroups.map(g => ({
               ...g,
               emoji: CAT_META[g.category]?.emoji ?? '👥',
               cover_color: CAT_META[g.category]?.color ?? 'from-primary to-primary/60',
@@ -2227,11 +2394,18 @@ export default function Community() {
 
           {/* Challenges grid */}
           {(() => {
-            let allC = [...dbChallenges]
-            if (challengeTypeFilter !== 'all') allC = allC.filter(c => (c.challenge_type ?? 'platform') === challengeTypeFilter)
-            if (myContentOnly && user?.id) allC = allC.filter(c => c.created_by === user.id)
-            const active = allC.filter(c => !c.status || c.status === 'active')
-            const ended  = allC.filter(c => c.status === 'ended')
+            // Use algorithmically-scored arrays, then apply filters on top
+            let active = [...scoredChallenges.active]
+            let ended  = [...scoredChallenges.ended]
+            if (challengeTypeFilter !== 'all') {
+              active = active.filter(c => (c.challenge_type ?? 'platform') === challengeTypeFilter)
+              ended  = ended.filter(c => (c.challenge_type ?? 'platform') === challengeTypeFilter)
+            }
+            if (myContentOnly && user?.id) {
+              active = active.filter(c => c.created_by === user.id)
+              ended  = ended.filter(c => c.created_by === user.id)
+            }
+            const allC = [...active, ...ended]
 
             if (allC.length === 0) return (
               <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
@@ -2385,8 +2559,8 @@ export default function Community() {
 
           {(() => {
             const visibleEvents = myContentOnly && user?.id
-              ? dbEvents.filter(e => e.created_by === user.id || e.organizer_id === user.id)
-              : dbEvents
+              ? scoredEvents.filter(e => e.created_by === user.id || e.organizer_id === user.id)
+              : scoredEvents
             if (visibleEvents.length === 0) return (
             <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">📅</div>
@@ -2645,7 +2819,7 @@ export default function Community() {
       {showCreateEvent && <CreateEventModal onClose={() => setShowCreateEvent(false)} onSubmit={handleCreateEvent} saving={savingCreate} />}
       {showCreateAnn && <CreateAnnouncementModal onClose={() => setShowCreateAnn(false)} onSubmit={handleCreateAnn} saving={savingCreate} />}
       {enteringChallenge && <ChallengeEntryModal challenge={enteringChallenge} onClose={() => setEnteringChallenge(null)} onSubmit={handleSubmitEntry} saving={savingEntry} />}
-      {viewingEntries && <ChallengeEntriesModal challenge={viewingEntries} isAdmin={isAdmin} onClose={() => setViewingEntries(null)} onPickWinner={handlePickWinner} />}
+      {viewingEntries && <ChallengeEntriesModal challenge={viewingEntries} isAdmin={isAdmin} currentUserId={user?.id} onClose={() => setViewingEntries(null)} onPickWinner={handlePickWinner} />}
       {sharingEvent && <EventShareModal event={sharingEvent} onClose={() => setSharingEvent(null)} />}
       {payingEvent && <EventPaymentModal event={payingEvent} user={user} onSuccess={handleEventPaymentSuccess} onClose={() => setPayingEvent(null)} />}
       {ticketEvent && <TicketModal event={ticketEvent.event} user={user} status={ticketEvent.status} onClose={() => setTicketEvent(null)} />}
