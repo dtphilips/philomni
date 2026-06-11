@@ -1750,9 +1750,16 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
     return () => document.removeEventListener('click', handler)
   }, [showReactionPicker])
 
-  // Increment view count when post is visible for 2 seconds
+  // Increment view count when post is visible for 3 seconds — once per 24h per post
   useEffect(() => {
     if (viewedRef.current) return
+    const viewKey = `philomni_view_post_${post.id}`
+    const lastViewed = localStorage.getItem(viewKey)
+    const TWENTY_FOUR_H = 24 * 60 * 60 * 1000
+    if (lastViewed && Date.now() - parseInt(lastViewed) < TWENTY_FOUR_H) {
+      viewedRef.current = true // already counted recently, skip
+      return
+    }
     const el = cardRef.current
     if (!el) return
     let timer = null
@@ -1761,9 +1768,10 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
         timer = setTimeout(async () => {
           if (!viewedRef.current) {
             viewedRef.current = true
+            localStorage.setItem(viewKey, Date.now().toString())
             await supabase.rpc('increment_views', { post_id: post.id })
           }
-        }, 2000)
+        }, 3000)
       } else {
         if (timer) { clearTimeout(timer); timer = null }
       }

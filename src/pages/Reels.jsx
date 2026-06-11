@@ -686,18 +686,25 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
               }
             }
             if (!viewTracked.current && !isSample) {
-              viewTimerRef.current = setTimeout(async () => {
-                if (viewTracked.current) return
-                viewTracked.current = true
-                await supabase.from('posts')
-                  .update({ views_count: (reel.views_count ?? 0) + 1 })
-                  .eq('id', reel.id)
-                try {
-                  await supabase.from('video_analytics').insert({
-                    video_id: reel.id, views: 1, watch_time: 3, created_by: user?.id ?? null,
-                  })
-                } catch { /* fail silently */ }
-              }, 3000)
+              const viewKey = `philomni_view_reel_${reel.id}`
+              const lastViewed = localStorage.getItem(viewKey)
+              const TWENTY_FOUR_H = 24 * 60 * 60 * 1000
+              const alreadyCounted = lastViewed && Date.now() - parseInt(lastViewed) < TWENTY_FOUR_H
+              if (!alreadyCounted) {
+                viewTimerRef.current = setTimeout(async () => {
+                  if (viewTracked.current) return
+                  viewTracked.current = true
+                  localStorage.setItem(viewKey, Date.now().toString())
+                  await supabase.from('posts')
+                    .update({ views_count: (reel.views_count ?? 0) + 1 })
+                    .eq('id', reel.id)
+                  try {
+                    await supabase.from('video_analytics').insert({
+                      video_id: reel.id, views: 1, watch_time: 3, created_by: user?.id ?? null,
+                    })
+                  } catch { /* fail silently */ }
+                }, 5000)
+              }
             }
           }}
           onPause={() => {

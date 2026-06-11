@@ -94,7 +94,16 @@ export default function Watch() {
     if (data) {
       setVideo(data)
       setCreator(data.creator)
-      await supabase.rpc('increment_video_views', { p_video_id: videoId })
+      // Count view only once per 24h per video — after 5 seconds of watch time
+      const viewKey = `philomni_view_video_${videoId}`
+      const lastViewed = localStorage.getItem(viewKey)
+      const TWENTY_FOUR_H = 24 * 60 * 60 * 1000
+      if (!lastViewed || Date.now() - parseInt(lastViewed) > TWENTY_FOUR_H) {
+        setTimeout(async () => {
+          await supabase.rpc('increment_video_views', { p_video_id: videoId })
+          localStorage.setItem(viewKey, Date.now().toString())
+        }, 5000)
+      }
     }
     if (error) console.error('[Watch] fetch error:', error.message)
     setLoading(false)

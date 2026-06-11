@@ -642,6 +642,7 @@ export default function Profile() {
 
   const [profileUser, setProfileUser] = useState(isOwnProfile ? user : null)
   const [posts, setPosts] = useState([])
+  const [watchVideos, setWatchVideos] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('posts')
   const [viewMode, setViewMode] = useState('list')
@@ -698,6 +699,19 @@ export default function Profile() {
       setLoading(false)
     }
     load()
+  }, [userId, user?.id, isOwnProfile])
+
+  // Load watch videos from the videos table
+  useEffect(() => {
+    const targetId = isOwnProfile ? user?.id : userId
+    if (!targetId) return
+    supabase
+      .from('videos')
+      .select('id, title, thumbnail_url, cloudflare_uid, cloudflare_thumbnail, duration_seconds, view_count, published_at, cloudflare_status')
+      .eq('creator_id', targetId)
+      .order('created_at', { ascending: false })
+      .limit(30)
+      .then(({ data }) => setWatchVideos(data ?? []))
   }, [userId, user?.id, isOwnProfile])
 
   // Load stats
@@ -808,6 +822,7 @@ export default function Profile() {
     { key: 'posts', label: '📝 Posts', count: posts.length },
     { key: 'videos', label: '🎬 Videos', count: videoPosts.length },
     { key: 'photos', label: '📸 Photos', count: photoPosts.length },
+    { key: 'watch', label: '▶ Watch', count: watchVideos.length },
     ...(isOwnProfile ? [{ key: 'saved', label: '🔖 Saved' }] : []),
     ...(mode === 'pro' ? [{ key: 'professional', label: '💼 Professional' }] : []),
     { key: 'celebrations', label: '🎉 Celebrations' },
@@ -1022,6 +1037,56 @@ export default function Profile() {
         photoPosts.length === 0
           ? <div className="text-center py-14 text-muted-foreground"><p className="text-4xl mb-3">📸</p><p>No photos yet</p></div>
           : <div className="grid grid-cols-3 gap-1">{photoPosts.map(p => <PostCard key={p.id} post={p} viewMode="grid" />)}</div>
+      )}
+
+      {/* ── WATCH VIDEOS TAB ── */}
+      {activeTab === 'watch' && (
+        watchVideos.length === 0
+          ? (
+            <div className="text-center py-14 text-muted-foreground">
+              <p className="text-4xl mb-3">▶</p>
+              <p className="font-medium">No long-form videos yet</p>
+              <p className="text-sm mt-1 opacity-60">Videos uploaded to Watch will appear here</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+              {watchVideos.map(v => {
+                const thumb = (v.thumbnail_url && !v.thumbnail_url.includes('undefined'))
+                  ? v.thumbnail_url
+                  : v.cloudflare_uid
+                    ? `https://videodelivery.net/${v.cloudflare_uid}/thumbnails/thumbnail.jpg`
+                    : null
+                const dur = v.duration_seconds
+                  ? (() => {
+                      const h = Math.floor(dur / 3600), m = Math.floor((dur % 3600) / 60), s = dur % 60
+                      return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`
+                    })()
+                  : null
+                return (
+                  <a key={v.id} href={`/watch/${v.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div style={{ borderRadius: 10, overflow: 'hidden', background: 'var(--card)', border: '1px solid var(--border)' }}>
+                      <div style={{ width: '100%', aspectRatio: '16/9', background: '#111', position: 'relative', overflow: 'hidden' }}>
+                        {thumb
+                          ? <img src={thumb} alt={v.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display = 'none' }} />
+                          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🎬</div>
+                        }
+                        {dur && <span style={{ position: 'absolute', bottom: 5, right: 5, background: 'rgba(0,0,0,0.8)', color: '#fff', fontSize: 11, padding: '1px 5px', borderRadius: 4, fontWeight: 600 }}>{dur}</span>}
+                        {v.cloudflare_status !== 'ready' && (
+                          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ color: '#fff', fontSize: 11, background: 'rgba(139,92,246,0.85)', padding: '3px 8px', borderRadius: 20 }}>Processing…</span>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ padding: '8px 10px 10px' }}>
+                        <p style={{ fontWeight: 600, fontSize: 13, margin: '0 0 2px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: 1.35 }}>{v.title}</p>
+                        <p style={{ fontSize: 11, color: 'var(--muted-foreground)', margin: 0 }}>{(v.view_count ?? 0).toLocaleString()} views</p>
+                      </div>
+                    </div>
+                  </a>
+                )
+              })}
+            </div>
+          )
       )}
 
       {/* ── SAVED TAB ── */}

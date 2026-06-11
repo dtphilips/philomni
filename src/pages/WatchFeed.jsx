@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 const CATEGORIES = [
   'All', 'Education', 'Entertainment', 'Music', 'Tech',
@@ -87,30 +88,74 @@ function VideoCard({ video, onClick }) {
 
 export default function WatchFeed() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [videos, setVideos] = useState([])
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState('All')
 
-  useEffect(() => { fetchVideos() }, [category])
+  useEffect(() => { fetchVideos() }, [category, user?.id])
 
   const fetchVideos = async () => {
     setLoading(true)
-    let query = supabase
+
+    // If filtering by category, just fetch that category
+    if (category !== 'All') {
+      const { data } = await supabase
+        .from('videos')
+        .select(`id, title, thumbnail_url, cloudflare_uid, cloudflare_thumbnail, duration_seconds, view_count, published_at, category, creator:users!creator_id(id, username, full_name, avatar_url)`)
+        .eq('cloudflare_status', 'ready')
+        .eq('visibility', 'public')
+        .eq('category', category)
+        .order('view_count', { ascending: false })
+        .limit(40)
+      setVideos(data ?? [])
+      setLoading(false)
+      return
+    }
+
+    // Fetch all ready public videos
+    const { data: allVideos } = await supabase
       .from('videos')
-      .select(`
-        id, title, thumbnail_url, cloudflare_uid, cloudflare_thumbnail,
-        duration_seconds, view_count, published_at, category,
-        creator:users!creator_id(id, username, full_name, avatar_url)
-      `)
+      .select(`id, title, thumbnail_url, cloudflare_uid, cloudflare_thumbnail, duration_seconds, view_count, published_at, category, creator:users!creator_id(id, username, full_name, avatar_url)`)
       .eq('cloudflare_status', 'ready')
       .eq('visibility', 'public')
       .order('published_at', { ascending: false })
-      .limit(40)
+      .limit(60)
 
-    if (category !== 'All') query = query.eq('category', category)
+    if (!allVideos?.length) { setVideos([]); setLoading(false); return }
 
-    const { data } = await query
-    setVideos(data ?? [])
+    // If logged in, personalize by watch history
+    if (user?.id) {
+      const { data: history } = await supabase
+        .from('video_watches')
+        .select('video_id, videos(category)')
+        .eq('viewer_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(30)
+
+      if (history?.length) {
+        // Count category frequency from watch history
+        const catScore = {}
+        history.forEach(h => {
+          const cat = h.videos?.category
+          if (cat) catScore[cat] = (catScore[cat] ?? 0) + 1
+        })
+
+        // Sort: preferred categories first, then by view_count within each group
+        const sorted = [...allVideos].sort((a, b) => {
+          const scoreA = catScore[a.category] ?? 0
+          const scoreB = catScore[b.category] ?? 0
+          if (scoreB !== scoreA) return scoreB - scoreA
+          return (b.view_count ?? 0) - (a.view_count ?? 0)
+        })
+        setVideos(sorted.slice(0, 40))
+        setLoading(false)
+        return
+      }
+    }
+
+    // Fallback: sort by view count (popular first)
+    setVideos([...allVideos].sort((a, b) => (b.view_count ?? 0) - (a.view_count ?? 0)).slice(0, 40))
     setLoading(false)
   }
 
