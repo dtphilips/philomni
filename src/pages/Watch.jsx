@@ -390,7 +390,7 @@ export default function Watch() {
         </div>
 
         {/* ── RIGHT COLUMN: related videos ── */}
-        <div style={{ width: '360px', flexShrink: 0, overflowY: 'auto', maxHeight: '90vh' }}>
+        <div style={{ width: '280px', flexShrink: 0, overflowY: 'auto', maxHeight: '90vh' }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12 }}>Up Next</p>
           {relatedVideos.length === 0 && (
             <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>No other videos yet.</p>
@@ -404,7 +404,7 @@ export default function Watch() {
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
             >
               {/* Thumbnail */}
-              <div style={{ width: 160, height: 90, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#111', position: 'relative' }}>
+              <div style={{ width: 120, height: 68, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: '#111', position: 'relative' }}>
                 <img
                   src={relatedThumb(v)}
                   alt={v.title}
