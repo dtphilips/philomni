@@ -275,6 +275,7 @@ export default function LiveViewer() {
   const [host, setHost] = useState(null)
   const [messages, setMessages] = useState([])
   const [animations, setAnimations] = useState([])
+  const [commentFloats, setCommentFloats] = useState([])
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [showGifts, setShowGifts] = useState(false)
@@ -341,8 +342,13 @@ export default function LiveViewer() {
         event: 'INSERT', schema: 'public', table: 'live_messages',
         filter: `live_id=eq.${liveId}`,
       }, payload => {
-        setMessages(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
+        const msg = payload.new
+        setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg])
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+        // Float the comment up over the video
+        const floatId = Date.now() + Math.random()
+        setCommentFloats(prev => [...prev, { id: floatId, sender: msg.sender_name, text: msg.content }])
+        setTimeout(() => setCommentFloats(prev => prev.filter(f => f.id !== floatId)), 4000)
       })
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'live_gifts',
@@ -498,6 +504,42 @@ export default function LiveViewer() {
         {/* Gift animations */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <GiftAnimation animations={animations} />
+        </div>
+
+        {/* Floating comment bubbles — rise from bottom-left like TikTok/IG Live */}
+        <div className="absolute bottom-[190px] left-3 right-16 pointer-events-none overflow-hidden" style={{ maxHeight: 200 }}>
+          <style>{`
+            @keyframes commentRise {
+              0%   { opacity: 0; transform: translateY(20px); }
+              15%  { opacity: 1; transform: translateY(0); }
+              70%  { opacity: 1; transform: translateY(-10px); }
+              100% { opacity: 0; transform: translateY(-30px); }
+            }
+          `}</style>
+          {commentFloats.map(f => (
+            <div
+              key={f.id}
+              style={{
+                animation: 'commentRise 4s ease-out forwards',
+                background: 'rgba(0,0,0,0.55)',
+                backdropFilter: 'blur(4px)',
+                borderRadius: 20,
+                padding: '5px 12px',
+                marginBottom: 6,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                maxWidth: '85%',
+              }}
+            >
+              <span style={{ color: '#a78bfa', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                {f.sender}
+              </span>
+              <span style={{ color: '#fff', fontSize: 12, wordBreak: 'break-word' }}>
+                {f.text}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 

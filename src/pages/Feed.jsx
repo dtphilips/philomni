@@ -813,6 +813,7 @@ function TextStoryCreator({ currentUser, onDone, onClose }) {
 // ─── Stories Bar ──────────────────────────────────────────────────────────────
 
 function StoriesBar({ currentUser }) {
+  const navigate = useNavigate()
   const [allStories, setAllStories]     = useState([])
   const [viewerList,  setViewerList]    = useState(null)
   const [viewerStart, setViewerStart]   = useState(0)
@@ -820,7 +821,26 @@ function StoriesBar({ currentUser }) {
   const [toast,      setToast]          = useState('')
   const [showOptions,    setShowOptions]    = useState(false)
   const [showTextCreator, setShowTextCreator] = useState(false)
+  const [liveUsers,  setLiveUsers]      = useState([])
   const fileRef = useRef()
+
+  // ── Fetch live users ───────────────────────────────────────────────────────
+  useEffect(() => {
+    const fetchLives = async () => {
+      const { data } = await supabase
+        .from('lives')
+        .select('id, host_id, host_name, host_avatar, title, viewer_count')
+        .eq('status', 'live')
+        .order('viewer_count', { ascending: false })
+        .limit(10)
+      setLiveUsers(data ?? [])
+    }
+    fetchLives()
+    const ch = supabase.channel('feed-lives-bar')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lives' }, fetchLives)
+      .subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [])
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchStories = useCallback(async () => {
@@ -932,6 +952,14 @@ function StoriesBar({ currentUser }) {
     <>
       {toast && <Toast message={toast} onDone={() => setToast('')} />}
 
+      <style>{`
+        @keyframes live-pulse-ring {
+          0%   { box-shadow: 0 0 0 0 rgba(239,68,68,0.7); border-color: #ef4444; }
+          50%  { box-shadow: 0 0 0 4px rgba(239,68,68,0);  border-color: #ff6b6b; }
+          100% { box-shadow: 0 0 0 0 rgba(239,68,68,0);    border-color: #ef4444; }
+        }
+      `}</style>
+
       <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
         {/* ── My story circle ── */}
         <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
@@ -967,6 +995,44 @@ function StoriesBar({ currentUser }) {
         </div>
 
         <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFile} />
+
+        {/* ── Live user rings — appear before stories with red pulse ── */}
+        {liveUsers.map(live => {
+          const name = live.host_name || 'Creator'
+          return (
+            <button
+              key={live.id}
+              onClick={() => navigate(`/live/${live.id}`)}
+              className="flex flex-col items-center gap-1 flex-shrink-0"
+            >
+              <div className="relative" style={{ width: 64, height: 64 }}>
+                <div style={{
+                  position: 'absolute', inset: -3, borderRadius: '50%',
+                  border: '2.5px solid #ef4444',
+                  animation: 'live-pulse-ring 1.5s ease-in-out infinite',
+                }} />
+                <div className="w-16 h-16 rounded-full overflow-hidden bg-primary flex items-center justify-center">
+                  {live.host_avatar
+                    ? <img src={live.host_avatar} alt={name} className="w-full h-full object-cover" />
+                    : <span className="text-white font-bold text-lg">{name[0].toUpperCase()}</span>}
+                </div>
+                <div style={{
+                  position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)',
+                  background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 700,
+                  padding: '1px 5px', borderRadius: 4, whiteSpace: 'nowrap',
+                }}>LIVE</div>
+              </div>
+              <span className="text-xs text-foreground/80 w-16 text-center truncate mt-1">
+                {name.split(' ')[0]}
+              </span>
+              {live.viewer_count > 0 && (
+                <span className="text-[10px] text-destructive -mt-0.5">
+                  {live.viewer_count} watching
+                </span>
+              )}
+            </button>
+          )
+        })}
 
         {/* ── Other users' story circles ── */}
         {otherGroups.map((group, i) => (
