@@ -638,15 +638,22 @@ function CreateSpaceModal({ onClose, onSave }) {
 function InstantMeetingModal({ onClose, onJoin }) {
   const [step, setStep] = useState(1)
   const [copied, setCopied] = useState(false)
+  const [starting, setStarting] = useState(false)
   const [instantSearch, setInstantSearch] = useState('')
   const [instantResults, setInstantResults] = useState([])
   const code = useMemo(() => 'INSTANT-' + Math.random().toString(36).slice(2, 6).toUpperCase(), [])
   const link = `https://philomni.com/meet/${code}`
-  const meeting = {
+  const baseMeeting = {
     id: 'instant-' + Date.now(), title: 'Instant Meeting', meeting_type: 'video',
     host_name: 'You', meeting_code: code, scheduled_at: new Date().toISOString(),
     duration_minutes: 60, status: 'live', allow_recording: false,
     participants: [{ name: 'You', role: 'host', initials: 'Y', color: 'bg-primary' }],
+  }
+
+  async function handleStart() {
+    setStarting(true)
+    onClose()
+    onJoin(baseMeeting)
   }
 
   useEffect(() => {
@@ -703,10 +710,11 @@ function InstantMeetingModal({ onClose, onJoin }) {
                 </div>
               ))}
             </div>
-            <button onClick={() => onJoin(meeting)} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium text-sm">
+            <button onClick={handleStart} disabled={starting} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium text-sm flex items-center justify-center gap-2">
+              {starting && <Loader2 size={14} className="animate-spin" />}
               Start Meeting
             </button>
-            <button onClick={() => onJoin(meeting)} className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1">
+            <button onClick={handleStart} className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1">
               Skip for now
             </button>
           </>
@@ -1371,49 +1379,20 @@ function ActiveMeetingView({ meeting, onEnd }) {
 
       {/* MAIN AREA */}
       <div className="flex flex-1 overflow-hidden">
-        {/* VIDEO GRID */}
+        {/* VIDEO / DAILY.CO AREA */}
         <div className="flex-1 bg-black relative flex flex-col">
-          <div className="absolute top-3 right-3 z-10 flex gap-2">
-            <button onClick={() => setViewMode(v => v === 'grid' ? 'speaker' : 'grid')} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs flex items-center gap-1.5">
-              <LayoutGrid size={13} /> {viewMode === 'grid' ? 'Speaker' : 'Grid'}
-            </button>
-          </div>
-          {viewMode === 'grid' ? (
-            <div className={`flex-1 p-4 grid gap-3 ${participants.length <= 1 ? 'grid-cols-1' : participants.length <= 2 ? 'grid-cols-2' : 'grid-cols-2'}`}>
-              {participants.map((p, i) => (
-                <div key={i} className={`relative rounded-2xl overflow-hidden bg-gradient-to-br ${tileGradients[i % tileGradients.length]} ${speakingIdx === i ? 'ring-2 ring-green-400' : ''}`}>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                    <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center text-white text-2xl font-bold">{p.initials}</div>
-                    <div className="flex flex-col items-center gap-0.5">
-                      <span className="text-white text-sm font-medium">{p.name}</span>
-                      <span className="text-white/60 text-xs capitalize">{p.role}</span>
-                    </div>
-                    {speakingIdx === i && <span className="text-xs text-green-400 font-medium">Speaking</span>}
-                  </div>
-                  <div className="absolute bottom-2 right-2">
-                    {isMuted && p.name === 'You' && <MicOff size={14} className="text-red-400" />}
-                  </div>
-                </div>
-              ))}
-            </div>
+          {meeting.daily_room_url ? (
+            <iframe
+              src={meeting.daily_token ? `${meeting.daily_room_url}?t=${meeting.daily_token}` : meeting.daily_room_url}
+              allow="camera; microphone; fullscreen; display-capture; autoplay"
+              className="w-full h-full border-0"
+              title="Meeting"
+            />
           ) : (
-            <div className="flex-1 flex flex-col p-4 gap-3">
-              <div className={`flex-1 relative rounded-2xl overflow-hidden bg-gradient-to-br ${tileGradients[speakingIdx % tileGradients.length]}`}>
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                  <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center text-white text-4xl font-bold">{participants[speakingIdx]?.initials}</div>
-                  <span className="text-white text-lg font-semibold">{participants[speakingIdx]?.name}</span>
-                  <span className="text-green-400 text-sm font-medium">Speaking</span>
-                </div>
-              </div>
-              <div className="flex gap-2 overflow-x-auto">
-                {participants.map((p, i) => (
-                  <div key={i} className={`w-32 h-20 flex-shrink-0 relative rounded-xl overflow-hidden bg-gradient-to-br ${tileGradients[i % tileGradients.length]} ${speakingIdx === i ? 'ring-2 ring-green-400' : ''}`}>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-sm font-bold">{p.initials}</div>
-                      <span className="text-white text-xs">{p.name?.split(' ')[0]}</span>
-                    </div>
-                  </div>
-                ))}
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center text-white/40 space-y-3">
+                <Loader2 size={32} className="animate-spin mx-auto" />
+                <p className="text-sm">Setting up your meeting room…</p>
               </div>
             </div>
           )}
@@ -2326,6 +2305,35 @@ export default function Meetings() {
     } catch {}
   }
 
+  async function startMeeting(meeting) {
+    activeMeetingStartRef.current = new Date()
+    // If already has a Daily.co room, use it
+    if (meeting.daily_room_url) {
+      setActiveMeeting(meeting)
+      return
+    }
+    // Create a Daily.co room then join
+    const { data, error } = await supabase.functions.invoke('create-live-room', {
+      body: { action: 'create-generic' },
+    })
+    const withRoom = {
+      ...meeting,
+      daily_room_url: data?.roomUrl ?? null,
+      daily_room_name: data?.roomName ?? null,
+      daily_token: data?.token ?? null,
+    }
+    // Persist room URL to DB if this meeting has a real DB id
+    if (data?.roomUrl && meeting.id && !meeting.id.startsWith('instant-') && !meeting.id.startsWith('m')) {
+      supabase.from('meetings').update({
+        daily_room_url: data.roomUrl,
+        daily_room_name: data.roomName,
+        status: 'live',
+        started_at: new Date().toISOString(),
+      }).eq('id', meeting.id).then(() => {})
+    }
+    setActiveMeeting(withRoom)
+  }
+
   if (activeMeeting) {
     return <ActiveMeetingView
       meeting={activeMeeting}
@@ -2339,7 +2347,7 @@ export default function Meetings() {
   } else if (selectedPast) {
     centerContent = <PastMeetingDetail meeting={selectedPast} onBack={() => setSelectedPast(null)} onScheduleFollowup={() => setShowSchedule(true)} />
   } else if (selectedMeeting) {
-    centerContent = <MeetingDetailView meeting={selectedMeeting} onBack={() => setSelectedMeeting(null)} onJoin={() => { activeMeetingStartRef.current = new Date(); setActiveMeeting(selectedMeeting) }} />
+    centerContent = <MeetingDetailView meeting={selectedMeeting} onBack={() => setSelectedMeeting(null)} onJoin={() => startMeeting(selectedMeeting)} />
   } else {
     centerContent = (
       <CenterDashboard
@@ -2350,7 +2358,7 @@ export default function Meetings() {
         onInstant={() => setShowInstant(true)}
         onSelectMeeting={setSelectedMeeting}
         onSelectPast={setSelectedPast}
-        onJoin={(m) => { activeMeetingStartRef.current = new Date(); setActiveMeeting(m) }}
+        onJoin={startMeeting}
         user={user}
       />
     )

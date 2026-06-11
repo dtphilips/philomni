@@ -194,24 +194,54 @@ function CreateRoomModal({ onClose, onSuccess }) {
     const scheduledAt = (!form.startNow && form.scheduledDate && form.scheduledTime)
       ? new Date(`${form.scheduledDate}T${form.scheduledTime}`).toISOString()
       : null
-    try {
-      await supabase.from('rooms').insert({
-        name: form.name.trim(),
-        description: form.description.trim() || null,
-        host_id: user?.id,
-        host_name: user?.full_name || user?.email || 'You',
-        room_type: form.roomType,
-        status: form.startNow ? 'live' : 'upcoming',
-        is_private: form.privacy !== 'public',
-        mode: form.mode,
-        rsvp_count: 0,
-        viewer_count: 0,
-        scheduled_at: scheduledAt,
-        started_at: form.startNow ? new Date().toISOString() : null,
+
+    let dailyRoomUrl = null
+    let dailyRoomName = null
+    let hostToken = null
+
+    if (form.startNow) {
+      const { data: dailyData, error: dailyError } = await supabase.functions.invoke('create-live-room', {
+        body: { action: 'create-generic' },
       })
-    } catch (_) { /* ignore */ }
+      if (!dailyError && dailyData?.roomUrl) {
+        dailyRoomUrl = dailyData.roomUrl
+        dailyRoomName = dailyData.roomName
+        hostToken = dailyData.token
+      }
+    }
+
+    const { data: roomData } = await supabase.from('rooms').insert({
+      name: form.name.trim(),
+      description: form.description.trim() || null,
+      host_id: user?.id,
+      host_name: user?.full_name || user?.email || 'You',
+      room_type: form.roomType,
+      status: form.startNow ? 'live' : 'upcoming',
+      is_private: form.privacy !== 'public',
+      mode: form.mode,
+      rsvp_count: 0,
+      viewer_count: 0,
+      scheduled_at: scheduledAt,
+      started_at: form.startNow ? new Date().toISOString() : null,
+      daily_room_url: dailyRoomUrl,
+      daily_room_name: dailyRoomName,
+    }).select('id').single()
+
     setSubmitting(false)
-    if (!form.startNow) { setStep(3); setDone(true) } else { onSuccess('Room created! Going live...'); onClose() }
+
+    if (!form.startNow) {
+      setStep(3)
+      setDone(true)
+    } else {
+      onClose()
+      if (dailyRoomUrl) {
+        const url = hostToken ? `${dailyRoomUrl}?t=${hostToken}` : dailyRoomUrl
+        window.open(url, '_blank', 'noopener,noreferrer')
+        onSuccess('Room created! Opening your video room in a new tab...')
+      } else {
+        onSuccess('Room created!')
+      }
+    }
   }
 
   function copyLink() {
@@ -473,9 +503,22 @@ function Row({ label, value }) {
 function LiveRoomCard({ room, onJoin }) {
   const colors = TYPE_COLORS[room.room_type] || TYPE_COLORS.video
 
-  function handleJoin() {
+  async function handleJoin() {
     supabase.from('rooms').update({ viewer_count: (room.viewer_count || 0) + 1 }).eq('id', room.id).then(() => {})
-    onJoin('Joining room...')
+
+    if (room.daily_room_url && room.daily_room_name) {
+      onJoin('Getting you into the room...')
+      const { data } = await supabase.functions.invoke('create-live-room', {
+        body: { action: 'join', roomName: room.daily_room_name },
+      })
+      const token = data?.token
+      const url = token ? `${room.daily_room_url}?t=${token}` : room.daily_room_url
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } else if (room.daily_room_url) {
+      window.open(room.daily_room_url, '_blank', 'noopener,noreferrer')
+    } else {
+      onJoin('This room is not live yet — no video link available.')
+    }
   }
 
   return (

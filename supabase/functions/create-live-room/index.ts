@@ -22,35 +22,40 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { action } = body
 
-    // ── Create room + host token ──────────────────────────────────────────────
+    // ── Create room + host token (for Live streaming) ─────────────────────────
     if (action === 'create') {
       const { liveId } = body
       if (!liveId) throw new Error('liveId required')
 
       const expiry = Math.floor(Date.now() / 1000) + 4 * 3600
 
-      const roomResp = await fetch(`${DAILY_BASE}/rooms`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${DAILY_API_KEY}`,
-        },
-        body: JSON.stringify({
+      let room: any = null
+
+      // Try with cloud recording first; fall back without it
+      for (const enableRecording of [true, false]) {
+        const roomBody: any = {
           properties: {
             exp: expiry,
             enable_screenshare: false,
             enable_chat: false,
-            // Viewers start muted; only owner (host) can publish
-            start_video_off: true,
-            start_audio_off: true,
-            owner_only_broadcast: true,
-            hide_daily_branding: true,
-            max_participants: 200,
+            start_video_off: false,
+            start_audio_off: false,
           },
-        }),
-      })
-      const room = await roomResp.json()
-      if (!room.url) throw new Error(`Daily.co room creation failed: ${JSON.stringify(room)}`)
+        }
+        if (enableRecording) roomBody.properties.enable_recording = 'cloud'
+
+        const roomResp = await fetch(`${DAILY_BASE}/rooms`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${DAILY_API_KEY}`,
+          },
+          body: JSON.stringify(roomBody),
+        })
+        const data = await roomResp.json()
+        if (data.url) { room = data; break }
+        if (!enableRecording) throw new Error(`Daily.co room creation failed: ${JSON.stringify(data)}`)
+      }
 
       // Host token — owner can broadcast video + audio
       const tokenResp = await fetch(`${DAILY_BASE}/meeting-tokens`, {
@@ -81,6 +86,53 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
 
+    // ── Create generic room (for Rooms / Meetings — no DB update) ─────────────
+    } else if (action === 'create-generic') {
+      const expiry = Math.floor(Date.now() / 1000) + 8 * 3600
+
+      const roomResp = await fetch(`${DAILY_BASE}/rooms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${DAILY_API_KEY}`,
+        },
+        body: JSON.stringify({
+          properties: {
+            exp: expiry,
+            enable_screenshare: true,
+            enable_chat: true,
+            start_video_off: false,
+            start_audio_off: false,
+          },
+        }),
+      })
+      const room = await roomResp.json()
+      if (!room.url) throw new Error(`Daily.co room creation failed: ${JSON.stringify(room)}`)
+
+      // Host token
+      const tokenResp = await fetch(`${DAILY_BASE}/meeting-tokens`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${DAILY_API_KEY}`,
+        },
+        body: JSON.stringify({
+          properties: {
+            room_name: room.name,
+            is_owner: true,
+            exp: expiry,
+            start_video_off: false,
+            start_audio_off: false,
+          },
+        }),
+      })
+      const { token } = await tokenResp.json()
+
+      return new Response(
+        JSON.stringify({ roomUrl: room.url, roomName: room.name, token }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+
     // ── Viewer join token ─────────────────────────────────────────────────────
     } else if (action === 'join') {
       const { roomName } = body
@@ -99,9 +151,8 @@ Deno.serve(async (req) => {
             room_name: roomName,
             is_owner: false,
             exp: expiry,
-            start_video_off: true,
-            start_audio_off: true,
-            enable_screenshare: false,
+            start_video_off: false,
+            start_audio_off: false,
           },
         }),
       })
@@ -114,12 +165,16 @@ Deno.serve(async (req) => {
 
     // ── Delete room ───────────────────────────────────────────────────────────
     } else if (action === 'delete') {
-      const { liveId } = body
-      if (!liveId) throw new Error('liveId required')
+      const { liveId, roomName: directRoomName } = body
 
-      const { data: live } = await supabase.from('lives').select('room_name').eq('id', liveId).single()
-      if (live?.room_name) {
-        await fetch(`${DAILY_BASE}/rooms/${live.room_name}`, {
+      let roomName = directRoomName
+      if (!roomName && liveId) {
+        const { data: live } = await supabase.from('lives').select('room_name').eq('id', liveId).single()
+        roomName = live?.room_name
+      }
+
+      if (roomName) {
+        await fetch(`${DAILY_BASE}/rooms/${roomName}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${DAILY_API_KEY}` },
         })
@@ -135,7 +190,7 @@ Deno.serve(async (req) => {
     }
 
   } catch (err: any) {
-    console.error('create-live-room error:', err)
+    console.error('create-live-room error:', err.message)
     return new Response(
       JSON.stringify({ error: err.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
