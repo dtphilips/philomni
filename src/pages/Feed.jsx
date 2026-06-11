@@ -3705,8 +3705,8 @@ export default function Feed() {
                       : <PostCard post={post} currentUser={user} onDelete={handleDelete} onRepost={handleRepost} onUpdate={handleUpdate} spotlightWinnerId={spotlightWinnerId} />
                     }
                   </ErrorBoundary>
-                  {!post.isAd && (i + 1) % 4 === 0 && (i + 1) % 8 !== 0 && i < posts.length - 1 && <ConnectionStoryCard />}
-                  {!post.isAd && (i + 1) % 8 === 0 && i < posts.length - 1 && <WatchVideoStrip />}
+                  {!post.isAd && (i + 1) % 4 === 0 && i < posts.length - 1 && <ConnectionStoryCard />}
+                  {(i === 4 || (i > 4 && (i - 4) % 10 === 0)) && i < posts.length - 1 && <WatchVideoStrip />}
                 </React.Fragment>
               ))}
             </div>
