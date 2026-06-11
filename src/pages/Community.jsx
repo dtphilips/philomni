@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -1241,6 +1241,203 @@ function CreateAnnouncementModal({ onClose, onSubmit, saving }) {
   )
 }
 
+// ─── Scan Ticket Modal ────────────────────────────────────────────────────────
+
+function ScanTicketModal({ event, onClose }) {
+  const [result, setResult]   = useState(null)  // { valid, name, status, scanned_at, ref }
+  const [scanning, setScanning] = useState(false)
+  const [manualRef, setManualRef] = useState('')
+  const [checking, setChecking] = useState(false)
+  const readerRef = useRef(null)
+  const scannerRef = useRef(null)
+
+  useEffect(() => {
+    let scanner
+    const start = async () => {
+      try {
+        const { Html5QrcodeScanner } = await import('html5-qrcode')
+        scanner = new Html5QrcodeScanner('qr-reader', { fps: 10, qrbox: { width: 250, height: 250 }, rememberLastUsedCamera: true }, false)
+        scannerRef.current = scanner
+        scanner.render(
+          async (decoded) => {
+            scanner.pause()
+            await validateTicket(decoded)
+          },
+          () => {}
+        )
+        setScanning(true)
+      } catch {
+        setScanning(false)
+      }
+    }
+    start()
+    return () => { try { scannerRef.current?.clear() } catch {} }
+  }, [])
+
+  const validateTicket = async (decoded) => {
+    setChecking(true)
+    try {
+      // Try to parse as JSON ticket ref: { ref, event, attendee, status }
+      let ref = decoded
+      try { ref = JSON.parse(decoded).ref ?? decoded } catch {}
+
+      // Parse out event_id and user_id from ref: phi-evt-{8}-usr-{8}
+      const match = ref.match(/phi-evt-([a-f0-9-]+)-usr-([a-f0-9-]+)/i)
+      if (!match) {
+        setResult({ valid: false, error: 'Invalid QR code — not a Philomni ticket' })
+        setChecking(false)
+        return
+      }
+      const eventIdFrag = match[1]
+      const userIdFrag  = match[2]
+
+      // Find the RSVP
+      const { data: rsvps } = await supabase
+        .from('event_rsvps')
+        .select('*, users:user_id(full_name, email)')
+        .eq('event_id', event.id)
+        .ilike('user_id', `${userIdFrag}%`)
+        .limit(1)
+
+      if (!rsvps?.length) {
+        setResult({ valid: false, error: 'No RSVP found for this ticket' })
+        setChecking(false)
+        return
+      }
+      const rsvp = rsvps[0]
+
+      if (rsvp.scanned_at) {
+        setResult({
+          valid: false,
+          alreadyUsed: true,
+          name: rsvp.users?.full_name ?? rsvp.user_id,
+          scanned_at: rsvp.scanned_at,
+          ref,
+        })
+        setChecking(false)
+        return
+      }
+
+      // Mark as used
+      const now = new Date().toISOString()
+      await supabase.from('event_rsvps').update({ scanned_at: now }).eq('id', rsvp.id)
+
+      setResult({
+        valid: true,
+        name: rsvp.users?.full_name ?? rsvp.user_id,
+        email: rsvp.users?.email,
+        status: rsvp.status,
+        ref,
+      })
+    } catch (e) {
+      setResult({ valid: false, error: e.message })
+    }
+    setChecking(false)
+  }
+
+  const handleManualCheck = async () => {
+    if (!manualRef.trim()) return
+    scannerRef.current?.pause()
+    await validateTicket(manualRef.trim())
+  }
+
+  const handleRescan = () => {
+    setResult(null)
+    setManualRef('')
+    try { scannerRef.current?.resume() } catch {}
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-card rounded-2xl w-full max-w-md border border-border overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <div>
+            <p className="text-xs text-muted-foreground">Scanning tickets for</p>
+            <p className="font-bold text-foreground truncate max-w-xs">{event.title}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {!result ? (
+            <>
+              {/* Camera scanner */}
+              <div id="qr-reader" ref={readerRef} className="rounded-xl overflow-hidden bg-black" />
+              {checking && (
+                <div className="flex items-center justify-center gap-2 py-4 text-primary">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm font-medium">Checking ticket…</span>
+                </div>
+              )}
+              {/* Manual entry fallback */}
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground text-center">Or enter ticket ref manually</p>
+                <div className="flex gap-2">
+                  <input
+                    value={manualRef}
+                    onChange={e => setManualRef(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleManualCheck()}
+                    placeholder="phi-evt-…"
+                    className="flex-1 px-3 py-2 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary placeholder:text-muted-foreground font-mono"
+                  />
+                  <button onClick={handleManualCheck} disabled={checking} className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors">
+                    Check
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-4">
+              {result.valid ? (
+                <div className="text-center space-y-3">
+                  <div className="w-20 h-20 rounded-full bg-green-500/15 flex items-center justify-center mx-auto">
+                    <Check className="w-10 h-10 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black text-green-500">VALID TICKET</p>
+                    <p className="text-foreground font-bold mt-1">{result.name}</p>
+                    {result.email && <p className="text-sm text-muted-foreground">{result.email}</p>}
+                    <span className={`inline-block mt-2 text-xs font-bold px-3 py-1 rounded-full ${result.status === 'paid' ? 'bg-violet-500/15 text-violet-400' : 'bg-green-500/15 text-green-400'}`}>
+                      {result.status === 'paid' ? '💳 PAID' : '✓ FREE RSVP'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-mono">{result.ref}</p>
+                </div>
+              ) : result.alreadyUsed ? (
+                <div className="text-center space-y-3">
+                  <div className="w-20 h-20 rounded-full bg-amber-500/15 flex items-center justify-center mx-auto">
+                    <Flag className="w-10 h-10 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-xl font-black text-amber-500">ALREADY SCANNED</p>
+                    <p className="text-foreground font-bold mt-1">{result.name}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Scanned at {new Date(result.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center space-y-3">
+                  <div className="w-20 h-20 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
+                    <X className="w-10 h-10 text-red-500" />
+                  </div>
+                  <div>
+                    <p className="text-xl font-black text-red-500">INVALID</p>
+                    <p className="text-sm text-muted-foreground mt-1">{result.error}</p>
+                  </div>
+                </div>
+              )}
+              <button onClick={handleRescan} className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-colors">
+                Scan Next Ticket
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Community() {
@@ -1283,6 +1480,9 @@ export default function Community() {
   const [sharingEvent, setSharingEvent]                 = useState(null)
   const [payingEvent, setPayingEvent]                   = useState(null)
   const [ticketEvent, setTicketEvent]                   = useState(null) // { event, status }
+  const [searchQuery, setSearchQuery]                   = useState('')
+  const [myContentOnly, setMyContentOnly]               = useState(false)
+  const [scanningEvent, setScanningEvent]               = useState(null)
 
 
   useEffect(() => {
@@ -1356,14 +1556,51 @@ export default function Community() {
 
   const filteredPosts = useMemo(() => {
     let list = [...displayPosts]
+
+    // My content filter
+    if (myContentOnly && user?.id) list = list.filter(p => p.created_by === user.id || p.author_id === user.id)
+
+    // Board filter
     if (boardFilter === 'pinned') list = list.filter(p => p.is_pinned)
     else if (boardFilter !== 'all') list = list.filter(p => p.board === boardFilter)
-    if (sortBy === 'hot')  list.sort((a, b) => (b.score + b.comment_count * 0.5) - (a.score + a.comment_count * 0.5))
-    if (sortBy === 'new')  list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    if (sortBy === 'top')  list.sort((a, b) => b.score - a.score)
+
+    // Search — when a query is present, filter by title/content/tags
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      list = list.filter(p =>
+        (p.title ?? '').toLowerCase().includes(q) ||
+        (p.content ?? '').toLowerCase().includes(q) ||
+        (p.tags ?? []).some(t => t.toLowerCase().includes(q)) ||
+        (p.author_name ?? '').toLowerCase().includes(q)
+      )
+      // Sort search results by relevance (title match scores higher)
+      list.sort((a, b) => {
+        const aTitle = (a.title ?? '').toLowerCase().includes(q) ? 1 : 0
+        const bTitle = (b.title ?? '').toLowerCase().includes(q) ? 1 : 0
+        return bTitle - aTitle || (b.score - a.score)
+      })
+      return list
+    }
+
+    // No search: apply sort + algorithmic shuffle for 'hot'
+    if (sortBy === 'hot') {
+      // Weight: score + comments + slight recency boost
+      list.sort((a, b) => {
+        const now = Date.now()
+        const ageA = (now - new Date(a.created_at).getTime()) / 3600000 // hours
+        const ageB = (now - new Date(b.created_at).getTime()) / 3600000
+        const scoreA = (a.score + a.comment_count * 0.5) / Math.pow(ageA + 2, 0.8)
+        const scoreB = (b.score + b.comment_count * 0.5) / Math.pow(ageB + 2, 0.8)
+        return scoreB - scoreA
+      })
+    } else if (sortBy === 'new') {
+      list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    } else if (sortBy === 'top') {
+      list.sort((a, b) => b.score - a.score)
+    }
     // Pinned always first
     return [...list.filter(p => p.is_pinned), ...list.filter(p => !p.is_pinned)]
-  }, [displayPosts, boardFilter, sortBy])
+  }, [displayPosts, boardFilter, sortBy, searchQuery, myContentOnly, user?.id])
 
   const handleVote = useCallback(async (id, dir) => {
     const prev = votes[id] ?? 0
@@ -1665,20 +1902,48 @@ export default function Community() {
 
           {/* Main feed */}
           <div className="flex-1 min-w-0 space-y-3">
-            {/* Mobile: new post + sort */}
+            {/* Search bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search discussions, questions, tips…"
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Mobile: new post + sort + my content */}
             <div className="flex items-center gap-2 flex-wrap">
               <button onClick={() => setShowNewPost(true)}
                 className="lg:hidden flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors">
                 <Plus className="w-3.5 h-3.5" /> New Post
               </button>
-              <div className="flex gap-1 ml-auto bg-muted rounded-xl p-1">
-                {['hot','new','top'].map(s => (
-                  <button key={s} onClick={() => setSortBy(s)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all capitalize ${sortBy === s ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
-                    {s === 'hot' ? '🔥' : s === 'new' ? '🆕' : '⭐'} {s}
-                  </button>
-                ))}
-              </div>
+              {user?.id && (
+                <button
+                  onClick={() => setMyContentOnly(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${myContentOnly ? 'bg-primary/15 text-primary border-primary/30' : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
+                  👤 My Posts
+                </button>
+              )}
+              {!searchQuery && (
+                <div className="flex gap-1 ml-auto bg-muted rounded-xl p-1">
+                  {['hot','new','top'].map(s => (
+                    <button key={s} onClick={() => setSortBy(s)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all capitalize ${sortBy === s ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                      {s === 'hot' ? '🔥' : s === 'new' ? '🆕' : '⭐'} {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {searchQuery && (
+                <p className="ml-auto text-xs text-muted-foreground">{filteredPosts.length} result{filteredPosts.length !== 1 ? 's' : ''}</p>
+              )}
             </div>
 
             {loading ? (
@@ -1686,23 +1951,29 @@ export default function Community() {
             ) : filteredPosts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">
-                  {boardFilter === 'qna' ? '❓' : '💬'}
+                  {searchQuery ? '🔍' : myContentOnly ? '👤' : boardFilter === 'qna' ? '❓' : '💬'}
                 </div>
                 <div>
                   <p className="text-base font-bold text-foreground mb-1">
-                    {boardFilter === 'qna' ? 'No questions yet' : 'No posts yet'}
+                    {searchQuery ? `No results for "${searchQuery}"` : myContentOnly ? 'You haven\'t posted yet' : boardFilter === 'qna' ? 'No questions yet' : 'No posts yet'}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {boardFilter === 'qna'
-                      ? 'Be the first to ask the community a question'
-                      : 'Be the first to start a discussion in this community'}
+                    {searchQuery
+                      ? 'Try different keywords or browse the feed'
+                      : myContentOnly
+                        ? 'Create a post and it will appear here'
+                        : boardFilter === 'qna'
+                          ? 'Be the first to ask the community a question'
+                          : 'Be the first to start a discussion in this community'}
                   </p>
                 </div>
-                <button onClick={() => setShowNewPost(true)}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
-                  <Plus className="w-4 h-4" />
-                  {boardFilter === 'qna' ? 'Ask a Question' : 'Start a Discussion'}
-                </button>
+                {!searchQuery && (
+                  <button onClick={() => setShowNewPost(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+                    <Plus className="w-4 h-4" />
+                    {boardFilter === 'qna' ? 'Ask a Question' : 'Start a Discussion'}
+                  </button>
+                )}
               </div>
             ) : (
               filteredPosts.map(p => (
@@ -1779,7 +2050,16 @@ export default function Community() {
       {tab === 'challenges' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-foreground">🔥 Active Challenges</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-foreground">🔥 Active Challenges</h2>
+              {user?.id && (
+                <button
+                  onClick={() => setMyContentOnly(v => !v)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border ${myContentOnly ? 'bg-primary/15 text-primary border-primary/30' : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
+                  👤 Mine
+                </button>
+              )}
+            </div>
             {isAdmin && (
               <button onClick={() => setShowCreateChallenge(true)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors">
@@ -1897,27 +2177,41 @@ export default function Community() {
       {tab === 'events' && (
         <div className="space-y-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-foreground">📅 Upcoming Events</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-foreground">📅 Upcoming Events</h2>
+              {user?.id && (
+                <button
+                  onClick={() => setMyContentOnly(v => !v)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border ${myContentOnly ? 'bg-primary/15 text-primary border-primary/30' : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
+                  👤 Mine
+                </button>
+              )}
+            </div>
             <button onClick={() => setShowCreateEvent(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors">
               <Plus className="w-3.5 h-3.5" /> Create Event
             </button>
           </div>
 
-          {dbEvents.length === 0 ? (
+          {(() => {
+            const visibleEvents = myContentOnly && user?.id
+              ? dbEvents.filter(e => e.created_by === user.id || e.organizer_id === user.id)
+              : dbEvents
+            if (visibleEvents.length === 0) return (
             <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">📅</div>
               <div>
-                <p className="text-base font-bold text-foreground mb-1">No events yet</p>
-                <p className="text-sm text-muted-foreground">Create a webinar, workshop, or meetup for the community</p>
+                <p className="text-base font-bold text-foreground mb-1">{myContentOnly ? "You haven't created any events yet" : 'No events yet'}</p>
+                <p className="text-sm text-muted-foreground">{myContentOnly ? 'Create an event for the community' : 'Create a webinar, workshop, or meetup for the community'}</p>
               </div>
               <button onClick={() => setShowCreateEvent(true)}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
                 <Plus className="w-4 h-4" /> Create an Event
               </button>
             </div>
-          ) : (
+            )
+            return (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {dbEvents.map(e => {
+              {visibleEvents.map(e => {
                 const isRsvpd    = userEventRsvps.has(e.id)
                 const hostName   = e.organizer_name ?? e.host_name ?? 'Philomni'
                 const hostAvatar = e.organizer_avatar ?? e.host_avatar ?? null
@@ -1984,13 +2278,22 @@ export default function Community() {
                           className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-colors">
                           <Share2 className="w-3 h-3" />
                         </button>
+                        {/* Scan button for organizer/admin — physical events or any event they own */}
+                        {(isAdmin || e.created_by === user?.id || e.organizer_id === user?.id) && (
+                          <button onClick={() => setScanningEvent(e)}
+                            title="Scan tickets"
+                            className="px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors">
+                            <Eye className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
                 )
               })}
             </div>
-          )}
+            )
+          })()}
         </div>
       )}
 
@@ -2155,6 +2458,7 @@ export default function Community() {
       {sharingEvent && <EventShareModal event={sharingEvent} onClose={() => setSharingEvent(null)} />}
       {payingEvent && <EventPaymentModal event={payingEvent} user={user} onSuccess={handleEventPaymentSuccess} onClose={() => setPayingEvent(null)} />}
       {ticketEvent && <TicketModal event={ticketEvent.event} user={user} status={ticketEvent.status} onClose={() => setTicketEvent(null)} />}
+      {scanningEvent && <ScanTicketModal event={scanningEvent} onClose={() => setScanningEvent(null)} />}
     </div>
   )
 }
