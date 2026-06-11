@@ -1756,45 +1756,81 @@ export default function Community() {
   }, [dbGroups, userGroupIds])
 
   // ── Algorithmic scoring for Challenges ───────────────────────────────────
-  // Score = entry_count + recency decay — newest with most engagement rise
+  // Hard recency gate: challenges > 90 days old are capped below ALL recent ones.
+  // Within the recent bucket, urgency + entries determine rank.
   const scoredChallenges = useMemo(() => {
     const now = Date.now()
+    const RECENT_GATE_MS = 90 * 24 * 3600000 // 90 days
+
     const active = [...dbChallenges.filter(c => !c.status || c.status === 'active')]
       .sort((a, b) => {
-        const ageA = (now - new Date(a.created_at).getTime()) / 3600000
-        const ageB = (now - new Date(b.created_at).getTime()) / 3600000
-        // Deadline urgency boost: challenges ending soon score higher
+        const ageA = now - new Date(a.created_at).getTime()
+        const ageB = now - new Date(b.created_at).getTime()
+        const recentA = ageA < RECENT_GATE_MS
+        const recentB = ageB < RECENT_GATE_MS
+
+        // Hard gate: recent challenges always above stale ones
+        if (recentA && !recentB) return -1
+        if (!recentA && recentB) return 1
+
+        const ageHoursA = ageA / 3600000
+        const ageHoursB = ageB / 3600000
         const daysLeftA = a.ends_at ? (new Date(a.ends_at) - now) / 86400000 : 999
         const daysLeftB = b.ends_at ? (new Date(b.ends_at) - now) / 86400000 : 999
-        const urgencyA = daysLeftA < 3 ? 30 : daysLeftA < 7 ? 15 : 0
-        const urgencyB = daysLeftB < 3 ? 30 : daysLeftB < 7 ? 15 : 0
-        const scoreA = ((a.entry_count ?? 0) * 4 + urgencyA) / Math.pow(ageA + 2, 0.6)
-        const scoreB = ((b.entry_count ?? 0) * 4 + urgencyB) / Math.pow(ageB + 2, 0.6)
+
+        // Urgency: ending in <3 days is critical, <7 days is high
+        const urgencyA = daysLeftA < 0 ? -999 : daysLeftA < 3 ? 50 : daysLeftA < 7 ? 20 : 0
+        const urgencyB = daysLeftB < 0 ? -999 : daysLeftB < 3 ? 50 : daysLeftB < 7 ? 20 : 0
+
+        // Engagement score with stronger decay (^0.8 instead of ^0.6)
+        const scoreA = ((a.entry_count ?? 0) * 4 + urgencyA) / Math.pow(ageHoursA + 2, 0.8)
+        const scoreB = ((b.entry_count ?? 0) * 4 + urgencyB) / Math.pow(ageHoursB + 2, 0.8)
         return scoreB - scoreA
       })
-    const ended = dbChallenges.filter(c => c.status === 'ended')
+
+    // Ended challenges: most recently ended first (not by old entry count)
+    const ended = [...dbChallenges.filter(c => c.status === 'ended')]
+      .sort((a, b) => new Date(b.updated_at ?? b.created_at) - new Date(a.updated_at ?? a.created_at))
+
     return { active, ended }
   }, [dbChallenges])
 
   // ── Algorithmic scoring for Events ───────────────────────────────────────
-  // Score = proximity in time (soonest first) + attendee count boost
+  // Hard rule: events that ended (starts_at + 2h grace) are hidden from feed.
+  // Live events → soonest upcoming → RSVPd boost → attendee tiebreaker.
   const scoredEvents = useMemo(() => {
     const now = Date.now()
-    return [...dbEvents].sort((a, b) => {
-      const msA  = new Date(a.starts_at).getTime() - now
-      const msB  = new Date(b.starts_at).getTime() - now
-      // If happening now (live), float to absolute top
-      const liveA = msA < 0 && a.ends_at && new Date(a.ends_at).getTime() > now ? 1 : 0
-      const liveB = msB < 0 && b.ends_at && new Date(b.ends_at).getTime() > now ? 1 : 0
-      if (liveA !== liveB) return liveB - liveA
-      // RSVPd events float above non-RSVPd
-      const rsvpA = userEventRsvps.has(a.id) ? -86400000 * 7 : 0 // equivalent to 7 days closer
-      const rsvpB = userEventRsvps.has(b.id) ? -86400000 * 7 : 0
-      // Attendee tiebreaker: more popular events surface for same date
-      const timeA = Math.max(0, msA) + rsvpA
-      const timeB = Math.max(0, msB) + rsvpB
-      return timeA - timeB || (b.attendee_count ?? 0) - (a.attendee_count ?? 0)
-    })
+    const GRACE_MS = 2 * 3600000 // 2-hour grace period after start time
+
+    return [...dbEvents]
+      // Hard gate: drop events that have clearly passed (no end_at and started >2h ago,
+      // or end_at is in the past)
+      .filter(e => {
+        if (e.ends_at) return new Date(e.ends_at).getTime() > now
+        return new Date(e.starts_at).getTime() + GRACE_MS > now
+      })
+      .sort((a, b) => {
+        const startA = new Date(a.starts_at).getTime()
+        const startB = new Date(b.starts_at).getTime()
+        const endA   = a.ends_at ? new Date(a.ends_at).getTime() : startA + GRACE_MS
+        const endB   = b.ends_at ? new Date(b.ends_at).getTime() : startB + GRACE_MS
+
+        // Tier 1: currently LIVE (started and not ended)
+        const liveA = startA <= now && endA > now ? 1 : 0
+        const liveB = startB <= now && endB > now ? 1 : 0
+        if (liveA !== liveB) return liveB - liveA
+
+        // Tier 2: strict chronological (soonest first) — time is the primary truth
+        // RSVPd events get a 48-hour proximity bonus (feels closer)
+        const rsvpBonusA = userEventRsvps.has(a.id) ? 48 * 3600000 : 0
+        const rsvpBonusB = userEventRsvps.has(b.id) ? 48 * 3600000 : 0
+        const effectiveA = startA - rsvpBonusA
+        const effectiveB = startB - rsvpBonusB
+        if (effectiveA !== effectiveB) return effectiveA - effectiveB
+
+        // Tier 3: more attendees wins same-day tiebreaker
+        return (b.attendee_count ?? 0) - (a.attendee_count ?? 0)
+      })
   }, [dbEvents, userEventRsvps])
 
   const displayPosts = useMemo(() => {
