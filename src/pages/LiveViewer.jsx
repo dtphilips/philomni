@@ -285,32 +285,41 @@ export default function LiveViewer() {
 
   const bottomRef = useRef(null)
 
-  // ─── Load live ────────────────────────────────────────────────────────────
+  // ─── Load live + atomic viewer count ────────────────────────────────────
   useEffect(() => {
+    let didIncrement = false
+
     const load = async () => {
       const { data: liveData } = await supabase.from('lives').select('*').eq('id', liveId).single()
       if (!liveData) { navigate('/'); return }
       setLive(liveData)
-      // Load host profile
+
       if (liveData.host_id) {
         const { data: hostData } = await supabase.from('users').select('*').eq('id', liveData.host_id).single()
         setHost(hostData)
       }
-      // Increment viewer count
-      await supabase.from('lives').update({
-        viewer_count: (liveData.viewer_count || 0) + 1,
-        peak_viewers: Math.max(liveData.peak_viewers || 0, (liveData.viewer_count || 0) + 1),
-      }).eq('id', liveId)
+
+      // Don't count the host as a viewer
+      if (user?.id && user.id === liveData.host_id) return
+
+      await supabase.rpc('increment_live_viewers', { p_live_id: liveId })
+      didIncrement = true
     }
     load()
-    // Decrement on unmount
-    return () => {
-      supabase.from('lives').select('viewer_count').eq('id', liveId).single()
-        .then(({ data }) => {
-          if (data) supabase.from('lives').update({ viewer_count: Math.max(0, (data.viewer_count || 1) - 1) }).eq('id', liveId)
-        })
+
+    // Decrement atomically — runs on unmount AND on tab/window close
+    const decrement = () => {
+      if (!didIncrement) return
+      didIncrement = false
+      supabase.rpc('decrement_live_viewers', { p_live_id: liveId })
     }
-  }, [liveId, navigate])
+
+    window.addEventListener('beforeunload', decrement)
+    return () => {
+      window.removeEventListener('beforeunload', decrement)
+      decrement()
+    }
+  }, [liveId, navigate, user?.id])
 
   // ─── Load messages ────────────────────────────────────────────────────────
   useEffect(() => {
