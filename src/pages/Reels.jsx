@@ -840,10 +840,13 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
       <div className="absolute top-[3px] left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
         <div className="flex items-center justify-between pointer-events-auto">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="text-white">
-              <ArrowLeft className="w-6 h-6" />
+            <button
+              onClick={() => navigate(-1)}
+              className="w-9 h-9 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white backdrop-blur-sm"
+            >
+              <ArrowLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-white font-semibold text-lg">Reels</h2>
+            <h2 className="text-white font-semibold text-lg drop-shadow">Reels</h2>
           </div>
           <div className="flex gap-3">
             <button onClick={onMuteToggle} className="text-white">
