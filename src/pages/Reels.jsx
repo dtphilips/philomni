@@ -10,7 +10,7 @@ import {
   Heart, MessageCircle, Share2, Music, Plus, Volume2, VolumeX,
   Play, Pause, Bookmark, MoreHorizontal, X, Upload,
   Edit3, Trash2, BarChart2, Rocket, Flag, EyeOff, Link2, User,
-  MessageCircleOff,
+  MessageCircleOff, ArrowLeft,
 } from 'lucide-react'
 
 // ─── Sample reels shown when DB has no video posts ───────────────────────────
@@ -839,7 +839,12 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
       {/* Top bar */}
       <div className="absolute top-[3px] left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
         <div className="flex items-center justify-between pointer-events-auto">
-          <h2 className="text-white font-semibold text-lg">Reels</h2>
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate(-1)} className="text-white">
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <h2 className="text-white font-semibold text-lg">Reels</h2>
+          </div>
           <div className="flex gap-3">
             <button onClick={onMuteToggle} className="text-white">
               {isMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}

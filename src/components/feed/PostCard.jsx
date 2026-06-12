@@ -207,18 +207,18 @@ export default function PostCard({ post, user, userLikes = [], userBookmarks = [
       {post.media_urls?.length > 0 && (
         <div className={`${post.media_urls.length === 1 ? '' : 'grid grid-cols-2 gap-0.5'}`}>
           {post.media_urls.map((url, i) => (
-            <div key={i} className="bg-muted aspect-video overflow-hidden">
+            <div key={i} className={`bg-black overflow-hidden flex justify-center ${post.media_type !== 'video' ? 'aspect-square' : ''}`}>
               {post.media_type === 'video' ? (
                 <video
                   ref={videoRef}
-                  src={url} 
+                  src={url}
                   poster={post.thumbnail_url}
-                  controls 
-                  crossOrigin="anonymous" 
-                  className="w-full h-full object-cover" 
-                  preload="metadata" 
-                  playsInline 
-                  autoPlay 
+                  controls
+                  crossOrigin="anonymous"
+                  className="w-full max-h-[600px] object-contain"
+                  preload="metadata"
+                  playsInline
+                  autoPlay
                   muted
                   onVolumeChange={handleVideoUnmute}
                 />
