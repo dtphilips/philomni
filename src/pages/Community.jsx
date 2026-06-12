@@ -1547,6 +1547,19 @@ function CreateEventModal({ onClose, onSubmit, saving }) {
   const [addressLoading, setAddressLoading]         = useState(false)
   const addressDebounce = useRef(null)
 
+  const formatNominatimAddress = (r) => {
+    const a = r.address ?? {}
+    const parts = [
+      [a.house_number, a.road].filter(Boolean).join(' '),
+      a.suburb ?? a.neighbourhood ?? '',
+      a.city ?? a.town ?? a.village ?? a.county ?? '',
+      a.state ?? a.region ?? '',
+      a.postcode ?? '',
+      a.country ?? '',
+    ].filter(Boolean)
+    return parts.join(', ')
+  }
+
   const handleAddressInput = (val) => {
     set('address', val)
     clearTimeout(addressDebounce.current)
@@ -1555,11 +1568,14 @@ function CreateEventModal({ onClose, onSubmit, saving }) {
       setAddressLoading(true)
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&addressdetails=1&limit=5`,
-          { headers: { 'Accept-Language': 'en' } }
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&addressdetails=1&limit=6`,
+          { headers: { 'Accept-Language': 'en', 'User-Agent': 'Philomni/1.0' } }
         )
         const data = await res.json()
-        setAddressSuggestions(data.map(r => r.display_name))
+        setAddressSuggestions(data.map(r => ({
+          label: formatNominatimAddress(r),
+          raw: r.display_name,
+        })).filter(r => r.label))
       } catch { setAddressSuggestions([]) }
       finally { setAddressLoading(false) }
     }, 400)
@@ -1675,9 +1691,9 @@ function CreateEventModal({ onClose, onSubmit, saving }) {
                 <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
                   {addressSuggestions.map((s, i) => (
                     <button key={i} type="button"
-                      onClick={() => { set('address', s); setAddressSuggestions([]) }}
-                      className="w-full text-left px-3 py-2.5 text-xs text-foreground hover:bg-muted transition-colors border-b border-border/50 last:border-0 line-clamp-1">
-                      📍 {s}
+                      onClick={() => { set('address', s.label); setAddressSuggestions([]) }}
+                      className="w-full text-left px-3 py-2.5 text-foreground hover:bg-muted transition-colors border-b border-border/50 last:border-0">
+                      <p className="text-xs font-medium truncate">📍 {s.label}</p>
                     </button>
                   ))}
                 </div>
