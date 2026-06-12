@@ -815,14 +815,16 @@ export default function Profile() {
   const initials = (du?.full_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
   const targetId = isOwnProfile ? user?.id : userId
 
-  const reelPosts = posts.filter(p => p.feed_type === 'reel' || p.post_type === 'video' || p.media_type === 'video' || (p.media_urls || []).some(u => /\.(mp4|mov|webm)/i.test(u)))
-  const photoPosts = posts.filter(p => (p.media_urls?.length > 0 || p.image_url) && p.feed_type !== 'reel' && p.post_type !== 'video' && p.media_type !== 'video')
+  const reelPosts  = posts.filter(p => p.feed_type === 'reel')
+  const videoPosts = posts.filter(p => p.media_type === 'video' && p.feed_type !== 'reel')
+  const photoPosts = posts.filter(p => (p.media_urls?.length > 0 || p.image_url) && p.media_type !== 'video' && p.feed_type !== 'reel')
 
   const TABS = [
-    { key: 'posts', label: '📝 Posts', count: posts.length },
-    { key: 'reels', label: '🎞 Reels', count: reelPosts.length },
+    { key: 'posts',  label: '📝 Posts',  count: posts.length },
+    { key: 'videos', label: '🎬 Videos', count: videoPosts.length },
+    { key: 'reels',  label: '🎞 Reels',  count: reelPosts.length },
     { key: 'photos', label: '📸 Photos', count: photoPosts.length },
-    { key: 'watch', label: '▶ Watch', count: watchVideos.length },
+    { key: 'watch',  label: '▶ Watch',  count: watchVideos.length },
     ...(isOwnProfile ? [{ key: 'saved', label: '🔖 Saved' }] : []),
     ...(mode === 'pro' ? [{ key: 'professional', label: '💼 Professional' }] : []),
     { key: 'celebrations', label: '🎉 Celebrations' },
@@ -1025,7 +1027,14 @@ export default function Profile() {
         </div>
       )}
 
-      {/* ── VIDEOS TAB ── */}
+      {/* ── VIDEOS TAB (feed videos, <3 min) ── */}
+      {activeTab === 'videos' && (
+        videoPosts.length === 0
+          ? <div className="text-center py-14 text-muted-foreground"><p className="text-4xl mb-3">🎬</p><p className="font-medium">No videos yet</p><p className="text-sm mt-1 opacity-60">Videos posted to your feed appear here</p></div>
+          : <div className="grid grid-cols-3 gap-1">{videoPosts.map(p => <PostCard key={p.id} post={p} viewMode="grid" />)}</div>
+      )}
+
+      {/* ── REELS TAB ── */}
       {activeTab === 'reels' && (
         reelPosts.length === 0
           ? <div className="text-center py-14 text-muted-foreground"><p className="text-4xl mb-3">🎞</p><p>No reels yet</p></div>

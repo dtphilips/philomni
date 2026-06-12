@@ -821,17 +821,39 @@ function ChallengeEntryModal({ challenge, user, onClose, onSubmit, saving }) {
   const [selectedVideo, setSelectedVideo] = useState(null)
   const meta = CHALLENGE_TYPE_META[challenge.type] ?? CHALLENGE_TYPE_META.general
 
+  const [contentSource, setContentSource] = useState('feed') // 'feed' | 'watch'
+
   useEffect(() => {
     if (!user?.id) { setVideosLoading(false); return }
-    supabase.from('videos')
-      .select('id, title, thumbnail_url, cloudflare_thumbnail, view_count, like_count, comment_count, created_at')
-      .eq('creator_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(20)
-      .then(({ data }) => { setMyVideos(data ?? []); setVideosLoading(false) })
+    Promise.all([
+      supabase.from('posts')
+        .select('id, content, media_urls, thumbnail_url, view_count, views_count, like_count, likes_count, comment_count, comments_count, share_count, shares_count, save_count, saves_count, created_at')
+        .eq('created_by', user.id)
+        .eq('media_type', 'video')
+        .neq('feed_type', 'reel')
+        .order('created_at', { ascending: false })
+        .limit(20),
+      supabase.from('videos')
+        .select('id, title, thumbnail_url, cloudflare_thumbnail, view_count, like_count, comment_count, created_at')
+        .eq('creator_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ]).then(([{ data: feedVids }, { data: watchVids }]) => {
+      setMyVideos({
+        feed: (feedVids ?? []).map(p => ({ ...p, _type: 'post', _title: p.content?.replace(/<[^>]*>/g,'').slice(0,60) || 'Feed video' })),
+        watch: (watchVids ?? []).map(v => ({ ...v, _type: 'video', _title: v.title || 'Watch video' })),
+      })
+      setVideosLoading(false)
+    })
   }, [user?.id])
 
-  const thumbUrl = (v) => v.thumbnail_url || v.cloudflare_thumbnail || null
+  const thumbUrl = (v) => {
+    if (v._type === 'post') {
+      const urls = Array.isArray(v.media_urls) ? v.media_urls : (typeof v.media_urls === 'string' ? JSON.parse(v.media_urls) : [])
+      return v.thumbnail_url || urls[0] || null
+    }
+    return v.thumbnail_url || v.cloudflare_thumbnail || null
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
@@ -849,45 +871,68 @@ function ChallengeEntryModal({ challenge, user, onClose, onSubmit, saving }) {
             {challenge.description}
           </div>
 
-          {/* Philomni Watch video picker */}
+          {/* Philomni content picker — Feed Videos or Watch */}
           <div>
-            <label className="text-xs font-medium text-foreground mb-1.5 flex items-center gap-1.5">
-              Select your Watch video *
-              <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Philomni only</span>
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                Select your Philomni video *
+                <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Philomni only</span>
+              </label>
+            </div>
+            {/* Source toggle */}
+            <div className="flex gap-1 bg-muted rounded-xl p-1 mb-2">
+              {[{ id: 'feed', label: '🎬 Feed Videos' }, { id: 'watch', label: '▶ Watch' }].map(s => (
+                <button key={s.id} onClick={() => { setContentSource(s.id); setSelectedVideo(null) }}
+                  className={`flex-1 py-1 rounded-lg text-xs font-medium transition-all ${contentSource === s.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
             {videosLoading ? (
               <div className="flex items-center justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-            ) : myVideos.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border p-4 text-center space-y-1">
-                <p className="text-xs text-muted-foreground">You haven't uploaded any Watch videos yet.</p>
-                <a href="/watch" className="text-xs text-primary hover:underline">Go to Watch to upload →</a>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
-                {myVideos.map(v => (
-                  <button key={v.id} onClick={() => setSelectedVideo(selectedVideo?.id === v.id ? null : v)}
-                    className={`relative rounded-xl overflow-hidden border-2 transition-all text-left ${selectedVideo?.id === v.id ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/40'}`}>
-                    <div className="aspect-video bg-muted/40 relative">
-                      {thumbUrl(v)
-                        ? <img src={thumbUrl(v)} alt={v.title} className="w-full h-full object-cover" />
-                        : <div className="w-full h-full flex items-center justify-center text-2xl">🎬</div>}
-                      {selectedVideo?.id === v.id && (
-                        <div className="absolute inset-0 bg-primary/40 flex items-center justify-center">
-                          <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">✓</span>
+            ) : (() => {
+              const list = myVideos?.[contentSource] ?? []
+              if (list.length === 0) return (
+                <div className="rounded-xl border border-dashed border-border p-4 text-center space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    {contentSource === 'feed' ? "No feed videos yet. Post a video to your feed first." : "No Watch videos yet."}
+                  </p>
+                  <a href={contentSource === 'feed' ? '/' : '/creator-studio'} className="text-xs text-primary hover:underline">
+                    {contentSource === 'feed' ? 'Go to Feed →' : 'Go to Creator Studio →'}
+                  </a>
+                </div>
+              )
+              return (
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {list.map(v => (
+                    <button key={v.id} onClick={() => setSelectedVideo(selectedVideo?.id === v.id ? null : v)}
+                      className={`relative rounded-xl overflow-hidden border-2 transition-all text-left ${selectedVideo?.id === v.id ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/40'}`}>
+                      <div className="aspect-video bg-muted/40 relative">
+                        {thumbUrl(v)
+                          ? <img src={thumbUrl(v)} alt={v._title} className="w-full h-full object-cover" />
+                          : <div className="w-full h-full flex items-center justify-center text-2xl">🎬</div>}
+                        {selectedVideo?.id === v.id && (
+                          <div className="absolute inset-0 bg-primary/40 flex items-center justify-center">
+                            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">✓</span>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-[10px] font-medium text-foreground px-2 py-1 line-clamp-1">{v.title || 'Untitled'}</p>
-                    <p className="text-[9px] text-muted-foreground px-2 pb-1.5">{(v.view_count ?? 0).toLocaleString()} views</p>
-                  </button>
-                ))}
-              </div>
-            )}
+                        )}
+                        <span className="absolute top-1 left-1 text-[8px] font-bold bg-black/60 text-white px-1.5 py-0.5 rounded-full">
+                          {v._type === 'post' ? 'FEED' : 'WATCH'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-medium text-foreground px-2 py-1 line-clamp-1">{v._title}</p>
+                      <p className="text-[9px] text-muted-foreground px-2 pb-1.5">{((v.view_count ?? v.views_count) ?? 0).toLocaleString()} views</p>
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
             {selectedVideo && (
               <p className="mt-1.5 text-[10px] text-primary font-medium flex items-center gap-1">
-                <span>✓</span> {selectedVideo.title || 'Untitled'}
+                <span>✓</span> {selectedVideo._title}
+                <span className="text-muted-foreground">({selectedVideo._type === 'post' ? 'Feed video' : 'Watch video'})</span>
               </p>
             )}
           </div>
@@ -910,7 +955,9 @@ function ChallengeEntryModal({ challenge, user, onClose, onSubmit, saving }) {
 
           <div className="bg-muted/20 rounded-xl px-3 py-2 text-[10px] text-muted-foreground leading-relaxed">
             <span className="font-semibold text-foreground">📊 Winner formula</span><br />
-            Score = Views×1 + Likes×5 + Comments×10 — tracked live from your video
+            {selectedVideo?._type === 'post'
+              ? 'Feed: Views×1 + Likes×5 + Comments×10 + Shares×15 + Saves×8'
+              : 'Watch: Views×1 + Likes×5 + Comments×10'} — tracked live
           </div>
 
           <div className="flex gap-3">
@@ -939,9 +986,18 @@ function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onP
   const [videoMetrics, setVideoMetrics] = useState({}) // { videoId: { view_count, like_count, comment_count, title, thumbnail_url } }
 
   const calcScore = (entry, metrics) => {
-    if (entry.content_type === 'video' && entry.content_id) {
-      const m = metrics[entry.content_id] ?? {}
-      return (m.view_count ?? 0) * 1 + (m.like_count ?? 0) * 5 + (m.comment_count ?? 0) * 10
+    if (entry.content_id && metrics[entry.content_id]) {
+      const m = metrics[entry.content_id]
+      if (entry.content_type === 'video') {
+        return (m.view_count ?? 0) * 1 + (m.like_count ?? 0) * 5 + (m.comment_count ?? 0) * 10
+      }
+      if (entry.content_type === 'post') {
+        return (m.view_count ?? m.views_count ?? 0) * 1
+          + (m.like_count ?? m.likes_count ?? 0) * 5
+          + (m.comment_count ?? m.comments_count ?? 0) * 10
+          + (m.share_count ?? m.shares_count ?? 0) * 15
+          + (m.save_count ?? m.saves_count ?? 0) * 8
+      }
     }
     return (entry.votes ?? 0) * 10
   }
@@ -953,18 +1009,23 @@ function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onP
       const rows = entryData ?? []
       setEntries(rows)
 
-      // Fetch video metrics for linked entries
+      // Fetch metrics for Watch video entries
       const videoIds = [...new Set(rows.filter(e => e.content_type === 'video' && e.content_id).map(e => e.content_id))]
-      if (videoIds.length) {
-        const { data: vids } = await supabase
-          .from('videos').select('id, title, thumbnail_url, cloudflare_thumbnail, view_count, like_count, comment_count')
+      // Fetch metrics for Feed video (post) entries
+      const postIds = [...new Set(rows.filter(e => e.content_type === 'post' && e.content_id).map(e => e.content_id))]
+
+      const metrics = {}
+      await Promise.all([
+        videoIds.length && supabase.from('videos')
+          .select('id, title, thumbnail_url, cloudflare_thumbnail, view_count, like_count, comment_count')
           .in('id', videoIds)
-        if (vids) {
-          const m = {}
-          for (const v of vids) m[v.id] = v
-          setVideoMetrics(m)
-        }
-      }
+          .then(({ data }) => { (data ?? []).forEach(v => { metrics[v.id] = { ...v, _src: 'video' } }) }),
+        postIds.length && supabase.from('posts')
+          .select('id, content, media_urls, thumbnail_url, view_count, views_count, like_count, likes_count, comment_count, comments_count, share_count, shares_count, save_count, saves_count')
+          .in('id', postIds)
+          .then(({ data }) => { (data ?? []).forEach(p => { metrics[p.id] = { ...p, _src: 'post' } }) }),
+      ])
+      setVideoMetrics(metrics)
 
       if (currentUserId) {
         const ids = rows.map(e => e.id)
@@ -980,16 +1041,21 @@ function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onP
     load()
   }, [challenge.id, currentUserId])
 
-  // Real-time video metric updates
+  // Real-time metric updates for both videos and posts
   useEffect(() => {
     const videoIds = entries.filter(e => e.content_type === 'video' && e.content_id).map(e => e.content_id)
-    if (!videoIds.length) return
-    const ch = supabase.channel(`entries-videos-${challenge.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'videos' }, (payload) => {
-        const v = payload.new
-        if (videoIds.includes(v.id)) setVideoMetrics(prev => ({ ...prev, [v.id]: { ...prev[v.id], ...v } }))
-      })
-      .subscribe()
+    const postIds  = entries.filter(e => e.content_type === 'post'  && e.content_id).map(e => e.content_id)
+    if (!videoIds.length && !postIds.length) return
+    const ch = supabase.channel(`entries-metrics-${challenge.id}`)
+    if (videoIds.length) ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'videos' }, (payload) => {
+      const v = payload.new
+      if (videoIds.includes(v.id)) setVideoMetrics(prev => ({ ...prev, [v.id]: { ...prev[v.id], ...v } }))
+    })
+    if (postIds.length) ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, (payload) => {
+      const p = payload.new
+      if (postIds.includes(p.id)) setVideoMetrics(prev => ({ ...prev, [p.id]: { ...prev[p.id], ...p } }))
+    })
+    ch.subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [entries, challenge.id])
 
@@ -1132,23 +1198,38 @@ function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onP
                           <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
                             Score: {e._score.toLocaleString()}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">{(vid.view_count ?? 0).toLocaleString()} views · {(vid.like_count ?? 0).toLocaleString()} likes · {(vid.comment_count ?? 0).toLocaleString()} comments</span>
+                          {e.content_type === 'post'
+                            ? <span className="text-[10px] text-muted-foreground">
+                                {(vid.view_count ?? vid.views_count ?? 0).toLocaleString()} views · {(vid.like_count ?? vid.likes_count ?? 0).toLocaleString()} likes · {(vid.comment_count ?? vid.comments_count ?? 0).toLocaleString()} comments · {(vid.share_count ?? vid.shares_count ?? 0).toLocaleString()} shares
+                              </span>
+                            : <span className="text-[10px] text-muted-foreground">
+                                {(vid.view_count ?? 0).toLocaleString()} views · {(vid.like_count ?? 0).toLocaleString()} likes · {(vid.comment_count ?? 0).toLocaleString()} comments
+                              </span>
+                          }
                         </div>
                       )}
 
-                      {/* Video thumbnail + link */}
-                      {vid && (
-                        <a href={`/watch/${e.content_id}`} target="_blank" rel="noopener noreferrer"
-                          className="mt-2 flex items-center gap-2 bg-muted/40 hover:bg-muted/70 rounded-xl px-2.5 py-2 transition-colors group">
-                          <div className="w-10 h-7 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                            {vid.thumbnail_url || vid.cloudflare_thumbnail
-                              ? <img src={vid.thumbnail_url || vid.cloudflare_thumbnail} className="w-full h-full object-cover" alt="" />
-                              : <div className="w-full h-full flex items-center justify-center text-sm">🎬</div>}
+                      {/* Content thumbnail + link */}
+                      {vid && (() => {
+                        const isFeedVid = vid._src === 'post' || e.content_type === 'post'
+                        const mediaUrls = Array.isArray(vid.media_urls) ? vid.media_urls : (typeof vid.media_urls === 'string' ? (() => { try { return JSON.parse(vid.media_urls) } catch { return [] } })() : [])
+                        const thumb = isFeedVid ? (vid.thumbnail_url || mediaUrls[0] || null) : (vid.thumbnail_url || vid.cloudflare_thumbnail || null)
+                        const label = isFeedVid ? (vid.content?.replace(/<[^>]*>/g,'').slice(0,50) || 'Feed video') : (vid.title || 'Watch video')
+                        const href  = isFeedVid ? null : `/watch/${e.content_id}`
+                        const inner = (
+                          <div className="mt-2 flex items-center gap-2 bg-muted/40 hover:bg-muted/70 rounded-xl px-2.5 py-2 transition-colors group">
+                            <div className="w-10 h-7 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                              {thumb ? <img src={thumb} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-sm">🎬</div>}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-medium text-foreground line-clamp-1 group-hover:text-primary transition-colors">{label}</p>
+                              <span className="text-[8px] font-bold text-muted-foreground">{isFeedVid ? 'FEED VIDEO' : 'WATCH VIDEO'}</span>
+                            </div>
+                            {href && <ExternalLink className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
                           </div>
-                          <p className="text-[10px] font-medium text-foreground flex-1 line-clamp-1 group-hover:text-primary transition-colors">{vid.title || 'Watch video'}</p>
-                          <ExternalLink className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                        </a>
-                      )}
+                        )
+                        return href ? <a href={href} target="_blank" rel="noopener noreferrer">{inner}</a> : inner
+                      })()}
 
                       {/* Description */}
                       <p className={`text-xs text-foreground mt-2 leading-relaxed ${isExpanded ? '' : 'line-clamp-3'}`}>{e.content}</p>
@@ -2133,8 +2214,10 @@ export default function Community() {
       user_name: user.user_metadata?.full_name ?? user.full_name ?? user.email ?? 'Creator',
       user_avatar: user.user_metadata?.avatar_url ?? user.avatar_url ?? null,
       content,
-      media_url: selectedVideo ? `${window.location.origin}/watch/${selectedVideo.id}` : null,
-      content_type: selectedVideo ? 'video' : null,
+      media_url: selectedVideo
+        ? (selectedVideo._type === 'post' ? null : `${window.location.origin}/watch/${selectedVideo.id}`)
+        : null,
+      content_type: selectedVideo ? selectedVideo._type : null,
       content_id: selectedVideo?.id ?? null,
       votes: 0,
     })
