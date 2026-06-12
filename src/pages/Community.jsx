@@ -1542,44 +1542,34 @@ function CreateEventModal({ onClose, onSubmit, saving }) {
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  // Address autocomplete via Nominatim (OpenStreetMap) — free, no API key
-  const [addressSuggestions, setAddressSuggestions] = useState([])
-  const [addressLoading, setAddressLoading]         = useState(false)
-  const addressDebounce = useRef(null)
+  // Google Places Autocomplete
+  const addressInputRef  = useRef(null)
+  const autocompleteRef  = useRef(null)
 
-  const formatNominatimAddress = (r) => {
-    const a = r.address ?? {}
-    const parts = [
-      [a.house_number, a.road].filter(Boolean).join(' '),
-      a.suburb ?? a.neighbourhood ?? '',
-      a.city ?? a.town ?? a.village ?? a.county ?? '',
-      a.state ?? a.region ?? '',
-      a.postcode ?? '',
-      a.country ?? '',
-    ].filter(Boolean)
-    return parts.join(', ')
-  }
-
-  const handleAddressInput = (val) => {
-    set('address', val)
-    clearTimeout(addressDebounce.current)
-    if (val.length < 3) { setAddressSuggestions([]); return }
-    addressDebounce.current = setTimeout(async () => {
-      setAddressLoading(true)
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&addressdetails=1&limit=6`,
-          { headers: { 'Accept-Language': 'en', 'User-Agent': 'Philomni/1.0' } }
-        )
-        const data = await res.json()
-        setAddressSuggestions(data.map(r => ({
-          label: formatNominatimAddress(r),
-          raw: r.display_name,
-        })).filter(r => r.label))
-      } catch { setAddressSuggestions([]) }
-      finally { setAddressLoading(false) }
-    }, 400)
-  }
+  useEffect(() => {
+    if (form.location_mode !== 'in-person') return
+    // Wait for Google Maps script to load
+    const init = () => {
+      if (!window.google?.maps?.places || !addressInputRef.current) return
+      autocompleteRef.current = new window.google.maps.places.Autocomplete(
+        addressInputRef.current,
+        { types: ['address'] }
+      )
+      autocompleteRef.current.addListener('place_changed', () => {
+        const place = autocompleteRef.current.getPlace()
+        if (place.formatted_address) set('address', place.formatted_address)
+      })
+    }
+    if (window.google?.maps?.places) {
+      init()
+    } else {
+      // Script still loading — poll briefly
+      const interval = setInterval(() => {
+        if (window.google?.maps?.places) { clearInterval(interval); init() }
+      }, 200)
+      return () => clearInterval(interval)
+    }
+  }, [form.location_mode])
 
   const platform = VIRTUAL_PLATFORMS.find(p => p.id === form.virtual_platform) ?? VIRTUAL_PLATFORMS[0]
 
@@ -1677,28 +1667,19 @@ function CreateEventModal({ onClose, onSubmit, saving }) {
             </div>
           )}
 
-          {/* In-person: address autocomplete */}
+          {/* In-person: Google Places address autocomplete */}
           {form.location_mode === 'in-person' && (
-            <div className="relative">
-              <label className="text-xs text-muted-foreground mb-1.5 block flex items-center gap-1">
-                📍 Venue Address *
-                {addressLoading && <span className="text-muted-foreground/60 ml-1">Searching…</span>}
-              </label>
-              <input className={inp} value={form.address}
-                onChange={e => handleAddressInput(e.target.value)}
-                placeholder="Start typing an address…" autoComplete="off" />
-              {addressSuggestions.length > 0 && (
-                <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
-                  {addressSuggestions.map((s, i) => (
-                    <button key={i} type="button"
-                      onClick={() => { set('address', s.label); setAddressSuggestions([]) }}
-                      className="w-full text-left px-3 py-2.5 text-foreground hover:bg-muted transition-colors border-b border-border/50 last:border-0">
-                      <p className="text-xs font-medium truncate">📍 {s.label}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">Attendees get a QR code ticket for entry.</p>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">📍 Venue Address *</label>
+              <input
+                ref={addressInputRef}
+                className={inp}
+                value={form.address}
+                onChange={e => set('address', e.target.value)}
+                placeholder="Start typing an address…"
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Attendees receive a QR code ticket for entry.</p>
             </div>
           )}
 
