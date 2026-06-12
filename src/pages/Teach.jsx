@@ -11,10 +11,41 @@ import {
 } from 'lucide-react'
 
 const CATEGORY_SUGGESTIONS = [
-  'Business', 'Marketing', 'Design', 'Development', 'Finance',
-  'Music', 'Photography', 'Writing', 'Health & Wellness', 'Fitness',
-  'Career', 'Parenting', 'Cooking', 'Languages', 'Art & Creativity',
-  'Tech & AI', 'Data Science', 'Social Media', 'Investing', 'Real Estate', 'Other',
+  // Business & Career
+  'Business', 'Entrepreneurship', 'Startup', 'Leadership', 'Management',
+  'Career Development', 'Productivity', 'Remote Work', 'Freelancing',
+  // Marketing & Sales
+  'Marketing', 'Digital Marketing', 'Social Media', 'Content Creation',
+  'SEO & Analytics', 'Email Marketing', 'Copywriting', 'Sales',
+  'Brand Strategy', 'Advertising', 'PR & Communications',
+  // Finance & Investing
+  'Finance', 'Personal Finance', 'Investing', 'Crypto & Web3',
+  'Stock Market', 'Real Estate', 'Accounting', 'Tax & Accounting',
+  // Design & Creative
+  'Design', 'Graphic Design', 'UI/UX Design', 'Interior Design',
+  'Fashion Design', 'Architecture', 'Photography', 'Videography',
+  'Film & Editing', 'Animation', '3D Modeling', 'Art & Creativity',
+  'Drawing & Illustration', 'Painting', 'Calligraphy & Lettering',
+  // Tech & Dev
+  'Development', 'Web Development', 'Mobile Development', 'Tech & AI',
+  'Machine Learning', 'Data Science', 'Cybersecurity', 'Cloud Computing',
+  'Game Development', 'No-Code & Automation',
+  // Music & Audio
+  'Music', 'Music Production', 'DJing', 'Songwriting', 'Afrobeats',
+  'Music Theory', 'Singing', 'Guitar', 'Piano', 'Podcasting',
+  // Health, Fitness & Lifestyle
+  'Health & Wellness', 'Fitness', 'Yoga & Meditation', 'Nutrition',
+  'Mental Health', 'Sports & Training', 'Dance',
+  // Education & Personal Growth
+  'Teaching', 'Parenting', 'Languages', 'Public Speaking',
+  'Writing', 'Journaling', 'Mindset & Personal Growth', 'Relationships',
+  'Spirituality',
+  // Practical Skills
+  'Cooking', 'Baking', 'Agriculture & Farming', 'DIY & Home',
+  'Automotive', 'Hair & Beauty', 'Fashion Styling', 'Makeup Artistry',
+  'Tailoring & Sewing',
+  // Other
+  'Religion & Culture', 'Law & Legal', 'Immigration', 'Other',
 ]
 const LEVELS = ['Beginner', 'Intermediate', 'Advanced', 'All Levels']
 const MODULE_TYPES = [
