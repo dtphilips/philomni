@@ -71,27 +71,33 @@ function getVideoUrl(reel) {
   return urls[0] ?? reel.video_url ?? null
 }
 
-// Deterministic engagement score + per-reel seeded jitter. The seed is passed in
-// (generated fresh in the fetch effect) so order varies on each load — a
-// module-level seed can be cached by the bundler and never re-evaluate.
-// signals = { followedCreators: Set<id>, likedReelIds: Set<id> }
+// Deterministic engagement score + per-reel seeded jitter.
+// signals = { followedCreators: Set<id>, likedReelIds: Set<id>, savedReelIds: Set<id>,
+//             creatorAffinity: {id: score}, hashtagAffinity: {tag: score} }
 function scoreReel(reel, index, seed, signals = {}) {
   const views    = reel.views_count    ?? reel.view_count    ?? 0
   const likes    = reel.likes_count    ?? reel.like_count    ?? 0
   const comments = reel.comments_count ?? reel.comment_count ?? 0
   const saves    = reel.saves_count    ?? reel.save_count    ?? 0
   const hoursAgo = (Date.now() - new Date(reel.created_at)) / (1000 * 60 * 60)
-  const recencyBonus = hoursAgo < 24 ? 15 : hoursAgo < 48 ? 8 : hoursAgo < 168 ? 3 : 0
+  const recencyBonus = hoursAgo < 2 ? 20 : hoursAgo < 24 ? 12 : hoursAgo < 48 ? 5 : hoursAgo < 168 ? 2 : 0
   const h = Math.sin(seed * 1e-6 + index * 12.9898) * 43758.5453
-  const seededRandom = (h - Math.floor(h)) * 8
-  const base = (views * 1) + (likes * 3) + (comments * 5) + (saves * 3) + recencyBonus + seededRandom
+  const seededRandom = (h - Math.floor(h)) * 6
+  const base = (views * 1) + (likes * 3) + (comments * 6) + (saves * 4) + recencyBonus + seededRandom
 
-  // Personalization: boost reels from creators user follows or has liked before
   const authorId = reel.created_by || reel.author_id
-  const followBonus = signals.followedCreators?.has(authorId) ? 12 : 0
-  const likedBonus = signals.likedReelIds?.has(reel.id) ? 6 : 0
 
-  return base + followBonus + likedBonus
+  // Follow / interaction history boosts
+  const followBonus  = signals.followedCreators?.has(authorId) ? 18 : 0
+  const likedBonus   = signals.likedReelIds?.has(reel.id)  ? 8  : 0
+  const savedBonus   = signals.savedReelIds?.has(reel.id)  ? 10 : 0
+  const creatorBonus = (signals.creatorAffinity?.[authorId] ?? 0) * 5
+
+  // Hashtag affinity — boost content matching tags the user engages with
+  const tags = reel.hashtags ?? []
+  const hashtagBonus = tags.reduce((acc, t) => acc + (signals.hashtagAffinity?.[t] ?? 0), 0) * 4
+
+  return base + followBonus + likedBonus + savedBonus + creatorBonus + hashtagBonus
 }
 
 // Rank reels by seeded score — scores computed once (with index + seed), then sorted.
@@ -481,7 +487,7 @@ function ReportSheet({ onClose }) {
 }
 
 // ─── Single Reel Slide ────────────────────────────────────────────────────────
-function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsCallback, onActivate, onHide, inVideoCampaigns = [] }) {
+function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsCallback, onActivate, onHide, onAdvance, inVideoCampaigns = [] }) {
   const [reel, setReel] = useState(initialReel)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showPlayIcon, setShowPlayIcon] = useState(false)
@@ -790,6 +796,8 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
             clearTimeout(viewTimerRef.current)
           }}
           onEnded={async () => {
+            // Auto-advance to next reel
+            onAdvance?.()
             if (!viewTracked.current || isSample) return
             try {
               await supabase.from('video_analytics').insert({
@@ -1000,41 +1008,93 @@ export default function Reels() {
     getInVideoCampaigns().then(setInVideoCampaigns).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    setLoading(true)
-    const fetchReels = async () => {
-      try {
-        const { data } = await supabase.from('posts')
-          .select('*')
-          .or('feed_type.eq.reel,media_type.eq.video')
-          .order('created_at', { ascending: false })
-          .limit(20)
+  const signalsRef = useRef({})
+  const offsetRef  = useRef(0)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const noMoreRef  = useRef(false)
 
-        const seed = Date.now() + Math.random() * 10000
+  const fetchReels = useCallback(async (offset = 0) => {
+    if (offset === 0) setLoading(true); else setLoadingMore(true)
+    try {
+      const { data } = await supabase.from('posts')
+        .select('*')
+        .or('feed_type.eq.reel,media_type.eq.video')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + 19)
 
-        // Build personalization signals if user is logged in
-        let signals = {}
-        if (user?.id) {
-          const [{ data: follows }, { data: likedReels }] = await Promise.all([
-            supabase.from('follows').select('following_id').eq('follower_id', user.id),
-            supabase.from('likes').select('post_id').eq('user_id', user.id).limit(50),
-          ])
-          signals.followedCreators = new Set((follows || []).map(f => f.following_id))
-          signals.likedReelIds = new Set((likedReels || []).map(l => l.post_id))
+      if (!data?.length) { noMoreRef.current = true; return }
+      if (data.length < 20) noMoreRef.current = true
+
+      // Build rich personalization signals on first load only
+      if (offset === 0 && user?.id) {
+        const [{ data: follows }, { data: liked }, { data: saved }] = await Promise.all([
+          supabase.from('follows').select('following_id').eq('follower_id', user.id),
+          supabase.from('likes').select('post_id, posts(author_id, hashtags)').eq('user_id', user.id).order('created_at', { ascending: false }).limit(100),
+          supabase.from('saves').select('post_id, posts(author_id, hashtags)').eq('user_id', user.id).limit(50),
+        ])
+        const creatorAffinity = {}
+        const hashtagAffinity = {}
+        const likedReelIds    = new Set()
+        const savedReelIds    = new Set()
+
+        ;(liked ?? []).forEach(l => {
+          if (l.post_id) likedReelIds.add(l.post_id)
+          const a = l.posts?.author_id; if (a) creatorAffinity[a] = (creatorAffinity[a] ?? 0) + 1
+          ;(l.posts?.hashtags ?? []).forEach(t => { hashtagAffinity[t] = (hashtagAffinity[t] ?? 0) + 1 })
+        })
+        ;(saved ?? []).forEach(s => {
+          if (s.post_id) savedReelIds.add(s.post_id)
+          const a = s.posts?.author_id; if (a) creatorAffinity[a] = (creatorAffinity[a] ?? 0) + 0.5
+          ;(s.posts?.hashtags ?? []).forEach(t => { hashtagAffinity[t] = (hashtagAffinity[t] ?? 0) + 0.5 })
+        })
+        signalsRef.current = {
+          followedCreators: new Set((follows ?? []).map(f => f.following_id)),
+          likedReelIds, savedReelIds, creatorAffinity, hashtagAffinity,
         }
-
-        const randomized = data?.length ? shuffleReels(data, seed, signals) : SAMPLE_REELS
-        setAllReels(randomized)
-      } catch {
-        setAllReels(SAMPLE_REELS)
-      } finally {
-        setLoading(false)
       }
+
+      const seed = Date.now() + Math.random() * 10000
+      const ranked = shuffleReels(data, seed, signalsRef.current)
+
+      if (offset === 0) {
+        setAllReels(ranked.length ? ranked : SAMPLE_REELS)
+      } else {
+        setAllReels(prev => {
+          const existing = new Set(prev.map(r => r.id))
+          return [...prev, ...ranked.filter(r => !existing.has(r.id))]
+        })
+      }
+      offsetRef.current = offset + data.length
+    } catch {
+      if (offset === 0) setAllReels(SAMPLE_REELS)
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
     }
-    fetchReels()
-    const t = setTimeout(() => setLoading(false), 5000)
-    return () => clearTimeout(t)
   }, [user?.id])
+
+  useEffect(() => {
+    offsetRef.current = 0
+    noMoreRef.current = false
+    fetchReels(0)
+    const t = setTimeout(() => setLoading(false), 6000)
+    return () => clearTimeout(t)
+  }, [fetchReels])
+
+  // Auto-advance to next reel
+  const handleAdvance = useCallback(() => {
+    const container = containerRef.current
+    if (!container) return
+    container.scrollBy({ top: window.innerHeight, behavior: 'smooth' })
+  }, [])
+
+  // Load more when within 3 reels of the end
+  useEffect(() => {
+    if (noMoreRef.current || loadingMore) return
+    if (reels.length > 0 && currentIndex >= reels.length - 3) {
+      fetchReels(offsetRef.current)
+    }
+  }, [currentIndex, reels.length, loadingMore, fetchReels])
 
   // IntersectionObserver — play visible video, pause others
   useEffect(() => {
@@ -1114,9 +1174,18 @@ export default function Reels() {
           videoRefsCallback={videoRefsCallback}
           onActivate={setCurrentIndex}
           onHide={handleHide}
+          onAdvance={handleAdvance}
           inVideoCampaigns={inVideoCampaigns}
         />
       ))}
+      {loadingMore && (
+        <div className="h-screen w-full snap-start bg-black flex items-center justify-center flex-shrink-0">
+          <div className="text-white text-center">
+            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-gray-400">Loading more…</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
