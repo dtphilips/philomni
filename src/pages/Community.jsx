@@ -571,13 +571,20 @@ const CHALLENGE_TYPES = [
 ]
 
 const EVENT_TYPES = [
-  { id: 'webinar',    label: '🎙 Webinar',      physical: false },
-  { id: 'workshop',   label: '🛠 Workshop',      physical: false },
-  { id: 'masterclass',label: '🎓 Masterclass',   physical: false },
-  { id: 'networking', label: '🤝 Networking',    physical: false },
-  { id: 'showcase',   label: '🎤 Showcase',      physical: false },
-  { id: 'conference', label: '🏛 Conference',    physical: false },
-  { id: 'in-person',  label: '📍 In-Person',     physical: true  },
+  { id: 'webinar',     label: '🎙 Webinar' },
+  { id: 'workshop',    label: '🛠 Workshop' },
+  { id: 'masterclass', label: '🎓 Masterclass' },
+  { id: 'networking',  label: '🤝 Networking' },
+  { id: 'showcase',    label: '🎤 Showcase' },
+  { id: 'conference',  label: '🏛 Conference' },
+]
+
+const VIRTUAL_PLATFORMS = [
+  { id: 'philomni', label: 'Philomni Room', placeholder: 'https://philomni.com/rooms/…' },
+  { id: 'zoom',     label: 'Zoom',          placeholder: 'https://zoom.us/j/…' },
+  { id: 'meet',     label: 'Google Meet',   placeholder: 'https://meet.google.com/…' },
+  { id: 'teams',    label: 'Teams',         placeholder: 'https://teams.microsoft.com/…' },
+  { id: 'other',    label: 'Other link',    placeholder: 'https://…' },
 ]
 
 // ─── Create Group Modal ───────────────────────────────────────────────────────
@@ -1524,8 +1531,56 @@ function EventPaymentModal({ event, user, onSuccess, onClose }) {
 function CreateEventModal({ onClose, onSubmit, saving }) {
   const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
   const nextWeek = new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 16)
-  const [form, setForm] = useState({ title: '', description: '', type: 'webinar', location: '', join_url: '', starts_at: nextWeek, ends_at: '', is_free: true, price: '' })
+  const [form, setForm] = useState({
+    title: '', description: '', type: 'webinar',
+    location_mode: 'virtual', // 'virtual' | 'in-person'
+    virtual_platform: 'philomni',
+    join_url: '',
+    address: '',
+    starts_at: nextWeek, ends_at: '',
+    is_free: true, price: '',
+  })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  // Address autocomplete via Nominatim (OpenStreetMap) — free, no API key
+  const [addressSuggestions, setAddressSuggestions] = useState([])
+  const [addressLoading, setAddressLoading]         = useState(false)
+  const addressDebounce = useRef(null)
+
+  const handleAddressInput = (val) => {
+    set('address', val)
+    clearTimeout(addressDebounce.current)
+    if (val.length < 3) { setAddressSuggestions([]); return }
+    addressDebounce.current = setTimeout(async () => {
+      setAddressLoading(true)
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&addressdetails=1&limit=5`,
+          { headers: { 'Accept-Language': 'en' } }
+        )
+        const data = await res.json()
+        setAddressSuggestions(data.map(r => r.display_name))
+      } catch { setAddressSuggestions([]) }
+      finally { setAddressLoading(false) }
+    }, 400)
+  }
+
+  const platform = VIRTUAL_PLATFORMS.find(p => p.id === form.virtual_platform) ?? VIRTUAL_PLATFORMS[0]
+
+  const buildSubmitForm = () => ({
+    ...form,
+    // type = 'in-person' when physical, otherwise the selected event format
+    type: form.location_mode === 'in-person' ? 'in-person' : form.type,
+    // location = physical address OR virtual platform name
+    location: form.location_mode === 'in-person'
+      ? form.address
+      : `Virtual — ${platform.label}`,
+    join_url: form.location_mode === 'virtual' ? form.join_url : '',
+  })
+
+  const isValid = form.title.trim() && form.description.trim() && form.starts_at &&
+    (form.location_mode === 'virtual' || form.address.trim())
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
       <div className="bg-card border border-border rounded-3xl w-full max-w-lg shadow-2xl my-6">
@@ -1534,43 +1589,118 @@ function CreateEventModal({ onClose, onSubmit, saving }) {
           <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
         </div>
         <div className="p-5 space-y-4">
+
+          {/* Title */}
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Event Title *</label>
             <input className={inp} value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Creator Monetization Summit 2026" />
           </div>
+
+          {/* Format + dates */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Type</label>
-              <select className={inp + ' cursor-pointer'} value={form.type} onChange={e => set('type', e.target.value)}>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Format</label>
+              <select className={inp + ' cursor-pointer'} value={form.type} onChange={e => set('type', e.target.value)}
+                disabled={form.location_mode === 'in-person'}>
                 {EVENT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Location / Platform</label>
-              <input className={inp} value={form.location} onChange={e => set('location', e.target.value)} placeholder="Virtual — Zoom / Philomni Room" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Starts At *</label>
               <input type="datetime-local" className={inp} value={form.starts_at} onChange={e => set('starts_at', e.target.value)} />
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Ends At</label>
-              <input type="datetime-local" className={inp} value={form.ends_at} onChange={e => set('ends_at', e.target.value)} />
+          </div>
+
+          {/* Location mode toggle */}
+          <div>
+            <label className="text-xs text-muted-foreground mb-2 block">Location</label>
+            <div className="flex rounded-xl border border-border overflow-hidden">
+              {[
+                { id: 'virtual',   label: '🌐 Virtual' },
+                { id: 'in-person', label: '📍 In-Person' },
+              ].map(opt => (
+                <button key={opt.id} type="button"
+                  onClick={() => set('location_mode', opt.id)}
+                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                    form.location_mode === opt.id
+                      ? 'bg-primary text-white'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* Virtual: platform selector + join link */}
+          {form.location_mode === 'virtual' && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-2 block">Platform</label>
+                <div className="flex flex-wrap gap-2">
+                  {VIRTUAL_PLATFORMS.map(p => (
+                    <button key={p.id} type="button"
+                      onClick={() => set('virtual_platform', p.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+                        form.virtual_platform === p.id
+                          ? 'bg-primary text-white border-primary'
+                          : 'border-border text-muted-foreground hover:bg-muted'
+                      }`}>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block flex items-center gap-1">
+                  <ExternalLink className="w-3 h-3" /> Join Link <span className="text-muted-foreground/60">(shown to RSVPs only)</span>
+                </label>
+                <input className={inp} value={form.join_url} onChange={e => set('join_url', e.target.value)}
+                  placeholder={platform.placeholder} />
+              </div>
+            </div>
+          )}
+
+          {/* In-person: address autocomplete */}
+          {form.location_mode === 'in-person' && (
+            <div className="relative">
+              <label className="text-xs text-muted-foreground mb-1.5 block flex items-center gap-1">
+                📍 Venue Address *
+                {addressLoading && <span className="text-muted-foreground/60 ml-1">Searching…</span>}
+              </label>
+              <input className={inp} value={form.address}
+                onChange={e => handleAddressInput(e.target.value)}
+                placeholder="Start typing an address…" autoComplete="off" />
+              {addressSuggestions.length > 0 && (
+                <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+                  {addressSuggestions.map((s, i) => (
+                    <button key={i} type="button"
+                      onClick={() => { set('address', s); setAddressSuggestions([]) }}
+                      className="w-full text-left px-3 py-2.5 text-xs text-foreground hover:bg-muted transition-colors border-b border-border/50 last:border-0 line-clamp-1">
+                      📍 {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">Attendees get a QR code ticket for entry.</p>
+            </div>
+          )}
+
+          {/* Description */}
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Description *</label>
-            <textarea className={inp + ' resize-none'} rows={3} value={form.description} onChange={e => set('description', e.target.value)} placeholder="What will attendees learn or experience? Who should attend?" />
+            <textarea className={inp + ' resize-none'} rows={3} value={form.description}
+              onChange={e => set('description', e.target.value)}
+              placeholder="What will attendees learn or experience? Who should attend?" />
           </div>
+
+          {/* Ends at */}
           <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block flex items-center gap-1.5">
-              <ExternalLink className="w-3.5 h-3.5" /> Join Link (Zoom, Google Meet, Philomni Room, etc.)
-            </label>
-            <input className={inp} value={form.join_url} onChange={e => set('join_url', e.target.value)} placeholder="https://zoom.us/j/… or https://philomni.com/rooms/…" />
-            <p className="text-xs text-muted-foreground mt-1">Only shown to attendees who RSVP.</p>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Ends At</label>
+            <input type="datetime-local" className={inp} value={form.ends_at} onChange={e => set('ends_at', e.target.value)} />
           </div>
+
+          {/* Pricing */}
           <div className="flex items-center gap-4 flex-wrap">
             <label className="flex items-center gap-3 cursor-pointer select-none">
               <div onClick={() => set('is_free', !form.is_free)}
@@ -1582,13 +1712,15 @@ function CreateEventModal({ onClose, onSubmit, saving }) {
             {!form.is_free && (
               <div className="flex-1 flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <input type="number" className={inp} value={form.price} onChange={e => set('price', e.target.value)} placeholder="Price in USD" min="0" />
+                <input type="number" className={inp} value={form.price}
+                  onChange={e => set('price', e.target.value)} placeholder="Price in USD" min="0" />
               </div>
             )}
           </div>
+
           <div className="flex gap-3 pt-1">
             <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
-            <button onClick={() => onSubmit(form)} disabled={!form.title.trim() || !form.description.trim() || !form.starts_at || saving}
+            <button onClick={() => onSubmit(buildSubmitForm())} disabled={!isValid || saving}
               className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
               {saving ? 'Creating…' : 'Create Event'}
@@ -2349,8 +2481,8 @@ export default function Community() {
       title: form.title.trim(),
       description: form.description.trim(),
       type: form.type,
-      location: form.location.trim() || null,
-      join_url: form.join_url.trim() || null,
+      location: (form.location ?? form.address ?? '').trim() || null,
+      join_url: (form.join_url ?? '').trim() || null,
       starts_at: new Date(form.starts_at).toISOString(),
       ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
       is_free: form.is_free,
