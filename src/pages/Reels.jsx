@@ -732,7 +732,8 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
   const authorAvatar = reel.author_avatar ?? reel.users?.avatar_url ?? null
 
   return (
-    <div className="relative h-screen w-full snap-start bg-black flex items-center justify-center flex-shrink-0"
+    <div className="relative w-full snap-start bg-black flex items-center justify-center flex-shrink-0"
+      style={{ height: '100dvh' }}
       data-index={index}>
 
       {/* ── In-video AdOverlay (pre/mid/end roll) ── */}
@@ -753,7 +754,7 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
           ref={videoRef}
           src={videoSrc}
           className="h-full w-full object-cover"
-          loop playsInline muted={isMuted} preload="metadata"
+          playsInline muted={isMuted} preload="metadata"
           data-index={index}
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           onClick={handleVideoClick}
@@ -1151,7 +1152,7 @@ export default function Reels() {
 
   if (loading) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center">
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-40">
         <div className="text-white text-center">
           <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           <p className="text-sm text-gray-400">Loading reels…</p>
@@ -1162,7 +1163,7 @@ export default function Reels() {
 
   return (
     <div ref={containerRef}
-      className="h-screen overflow-y-scroll snap-y snap-mandatory bg-black"
+      className="fixed inset-0 overflow-y-scroll snap-y snap-mandatory bg-black z-40"
       style={{ scrollSnapType: 'y mandatory', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
       {reels.map((reel, index) => (
         <ReelSlide
@@ -1179,7 +1180,7 @@ export default function Reels() {
         />
       ))}
       {loadingMore && (
-        <div className="h-screen w-full snap-start bg-black flex items-center justify-center flex-shrink-0">
+        <div className="w-full snap-start bg-black flex items-center justify-center flex-shrink-0" style={{ height: '100dvh' }}>
           <div className="text-white text-center">
             <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             <p className="text-sm text-gray-400">Loading more…</p>

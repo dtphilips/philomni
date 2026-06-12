@@ -532,23 +532,25 @@ export default function Layout({ children }) {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile header */}
-        <header className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card flex-shrink-0">
-          <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg hover:bg-muted">
-            <Menu className="w-5 h-5" />
-          </button>
-          <span className="font-bold text-foreground">Philomni</span>
-          <div className="w-9" />
-        </header>
+        {/* Mobile header — hidden on Reels so the feed can be truly full-screen */}
+        {location.pathname !== '/reels' && (
+          <header className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card flex-shrink-0">
+            <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg hover:bg-muted">
+              <Menu className="w-5 h-5" />
+            </button>
+            <span className="font-bold text-foreground">Philomni</span>
+            <div className="w-9" />
+          </header>
+        )}
 
         {/* Page content — extra bottom padding when the music player is visible
             so the last items are never hidden behind the 72px player bar */}
-        <main className="flex-1 overflow-y-auto relative">
+        <main className={`flex-1 relative ${location.pathname === '/reels' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           <div className={`${
-            /^\/watch\/.+/.test(location.pathname)
-              ? 'w-full px-4 py-4'   // no max-width cap — Watch page owns its own layout
+            /^\/watch\/.+/.test(location.pathname) || location.pathname === '/reels'
+              ? 'w-full h-full'          // full-screen pages own their own layout
               : 'mx-auto max-w-5xl px-4 py-6'
-          } ${playerVisible ? 'pb-28' : ''}`}>
+          } ${playerVisible && location.pathname !== '/reels' ? 'pb-28' : ''}`}>
             {children}
           </div>
 
