@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { addToWallet } from '../lib/wallet'
 import { toast } from 'sonner'
 import {
   Briefcase, Search, Star, Clock, DollarSign, Calendar,
@@ -100,8 +99,8 @@ function ServiceCard({ service, onBook }) {
 
         {/* Stats row */}
         <div className="flex items-center gap-3 mb-3 text-xs text-muted-foreground flex-wrap">
-          <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-primary/60" />{service.duration} min</span>
-          <span className="flex items-center gap-1 text-green-400 font-semibold"><DollarSign className="w-3.5 h-3.5" />{Number(service.rate).toFixed(2)}</span>
+          <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-primary/60" />{service.session_duration} min</span>
+          <span className="flex items-center gap-1 text-green-400 font-semibold"><DollarSign className="w-3.5 h-3.5" />{Number(service.hourly_rate || 0).toFixed(2)}</span>
           <span className="flex items-center gap-1">
             <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
             <span className="text-foreground font-medium">{(service.rating||0).toFixed(1)}</span>
@@ -191,7 +190,7 @@ export default function Consulting() {
     setMbLoading(true)
     const { data } = await supabase
       .from('consulting_bookings')
-      .select('*, consulting_services(title,duration,rate,provider_id, users!consulting_services_provider_id_fkey(full_name,avatar_url))')
+      .select('*, consulting_services(title,session_duration,hourly_rate,provider_id, users!consulting_services_provider_id_fkey(full_name,avatar_url))')
       .eq('client_id', user.id)
       .order('scheduled_at', { ascending: true })
     setMyBookings(data || [])
@@ -220,7 +219,7 @@ export default function Consulting() {
       const bookedISOs = (booked || []).map(b => b.scheduled_at)
       const avail = booking.availability || {}
       const generated = generateSlots(
-        selDate, booking.duration,
+        selDate, booking.session_duration,
         avail.work_start || '09:00',
         avail.work_end   || '17:00',
         bookedISOs
@@ -268,17 +267,10 @@ export default function Consulting() {
         service_id:   booking.id,
         provider_id:  booking.provider_id,
         scheduled_at: scheduledAt,
-        amount_paid:  booking.rate,
         notes:        bookNote,
         status:       'pending',
       })
       if (error) throw error
-      await supabase.from('consulting_services').update({
-        total_sessions: (booking.total_sessions || 0) + 1,
-        total_revenue:  (booking.total_revenue  || 0) + booking.rate,
-      }).eq('id', booking.id)
-      const providerShare = booking.rate * 0.80
-      await addToWallet(booking.provider_id, providerShare, 'consulting_fee', `Consulting: ${booking.title}`, booking.id)
       toast.success('Session booked! The provider will confirm shortly.')
       setBooking(null)
     } catch (err) {
@@ -456,7 +448,7 @@ export default function Consulting() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">{booking.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    with {booking.users?.full_name} · {booking.duration} min · <span className="text-green-400 font-semibold">${Number(booking.rate).toFixed(2)}</span>
+                    with {booking.users?.full_name} · {booking.session_duration} min · <span className="text-green-400 font-semibold">${Number(booking.hourly_rate || 0).toFixed(2)}</span>
                   </p>
                 </div>
               </div>
@@ -567,11 +559,11 @@ export default function Consulting() {
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Duration</span>
-                    <span className="font-semibold text-foreground">{booking.duration} min</span>
+                    <span className="font-semibold text-foreground">{booking.session_duration} min</span>
                   </div>
                   <div className="flex items-center justify-between text-sm border-t border-border pt-2 mt-2">
                     <span className="text-muted-foreground">Session fee</span>
-                    <span className="font-bold text-green-400">${Number(booking.rate).toFixed(2)}</span>
+                    <span className="font-bold text-green-400">${Number(booking.hourly_rate || 0).toFixed(2)}</span>
                   </div>
                 </div>
 

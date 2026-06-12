@@ -8,6 +8,7 @@ import {
   Users, MessageSquare, Video, ExternalLink, Link2, Copy,
   TrendingUp, ChevronDown, ChevronUp, Mail,
 } from 'lucide-react'
+import { addToWallet } from '../lib/wallet'
 
 const CATEGORY_SUGGESTIONS = [
   'Business', 'Marketing', 'Design', 'Development', 'Finance', 'Career',
@@ -88,7 +89,7 @@ export default function ConsultingOffer() {
         const [s, b, r] = await Promise.all([
           supabase.from('consulting_services').select('*').eq('provider_id', uid).order('created_at', { ascending: false }),
           supabase.from('consulting_bookings')
-            .select('*, users!consulting_bookings_client_id_fkey(full_name,avatar_url,email), consulting_services(title,duration)')
+            .select('*, users!consulting_bookings_client_id_fkey(full_name,avatar_url,email), consulting_services(title,session_duration,hourly_rate)')
             .eq('provider_id', uid)
             .order('scheduled_at', { ascending: true }),
           supabase.from('consulting_reviews')
@@ -114,15 +115,15 @@ export default function ConsultingOffer() {
     try {
       const freqValue = form.frequency === 'custom' ? (customFreq.trim() || 'custom') : form.frequency
       const data = {
-        provider_id:  user.id,
-        title:        form.title.trim(),
-        description:  form.description,
-        category:     form.category.trim() || 'Other',
-        duration:     parseInt(form.duration) || 30,
-        rate:         parseFloat(form.rate),
-        frequency:    freqValue,
-        is_available: true,
-        availability: form.availability,
+        provider_id:      user.id,
+        title:            form.title.trim(),
+        description:      form.description,
+        category:         form.category.trim() || 'Other',
+        session_duration: parseInt(form.duration) || 30,
+        hourly_rate:      parseFloat(form.rate),
+        frequency:        freqValue,
+        is_available:     true,
+        availability:     form.availability,
       }
       if (editId) {
         await supabase.from('consulting_services').update(data).eq('id', editId)
@@ -173,6 +174,16 @@ export default function ConsultingOffer() {
   const updateBookingStatus = async (id, status) => {
     await supabase.from('consulting_bookings').update({ status }).eq('id', id)
     setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b))
+    if (status === 'completed' && user?.id) {
+      const booking = bookings.find(b => b.id === id)
+      const sessionRate = booking?.consulting_services?.hourly_rate || 0
+      if (sessionRate > 0) {
+        await addToWallet(user.id, sessionRate * 0.80, 'consulting_fee',
+          `Session completed: ${booking?.consulting_services?.title || 'Consulting'}`, id)
+        toast.success(`Session completed! $${(sessionRate * 0.80).toFixed(2)} added to your wallet.`)
+        return
+      }
+    }
     toast.success(`Booking ${status}`)
   }
 
@@ -181,8 +192,8 @@ export default function ConsultingOffer() {
     toast.success('Link copied!')
   }
 
-  const totalRevenue  = services.reduce((s, svc) => s + (svc.total_revenue  || 0), 0)
-  const totalSessions = services.reduce((s, svc) => s + (svc.total_sessions || 0), 0)
+  const totalRevenue  = bookings.filter(b => b.status === 'completed').reduce((s, b) => s + ((b.consulting_services?.hourly_rate || 0) * 0.80), 0)
+  const totalSessions = bookings.filter(b => b.status === 'completed').length
   const pendingCount  = bookings.filter(b => b.status === 'pending').length
   const avgRating     = services.length ? (services.reduce((s, svc) => s + (svc.rating || 0), 0) / services.length).toFixed(1) : '—'
 
@@ -265,8 +276,8 @@ export default function ConsultingOffer() {
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{svc.duration} min</span>
-                        <span className="flex items-center gap-1 text-green-400 font-semibold"><DollarSign className="w-3 h-3" />${Number(svc.rate).toFixed(2)}</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{svc.session_duration} min</span>
+                        <span className="flex items-center gap-1 text-green-400 font-semibold"><DollarSign className="w-3 h-3" />${Number(svc.hourly_rate || 0).toFixed(2)}</span>
                         <span className="flex items-center gap-1"><Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />{(svc.rating||0).toFixed(1)} ({svc.rating_count||0})</span>
                         <span className="flex items-center gap-1"><Users className="w-3 h-3" />{svc.total_sessions} sessions</span>
                       </div>
@@ -295,8 +306,8 @@ export default function ConsultingOffer() {
                         const isPreset = FREQUENCY_OPTIONS.some(f => f.value === freq)
                         setForm({
                           title: svc.title, description: svc.description || '',
-                          category: svc.category || '', duration: svc.duration,
-                          rate: svc.rate?.toString() || '',
+                          category: svc.category || '', duration: svc.session_duration,
+                          rate: svc.hourly_rate?.toString() || '',
                           frequency: isPreset ? freq : 'custom',
                           availability: svc.availability || empty.availability,
                         })
@@ -608,7 +619,7 @@ function BookingCard({ booking: b, onConfirm, onDecline, onComplete, compact, ex
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-sm font-semibold text-foreground">{b.users?.full_name}</p>
-              <p className="text-xs text-muted-foreground">{b.consulting_services?.title}</p>
+              <p className="text-xs text-muted-foreground">{b.consulting_services?.title || b.notes}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className={`text-[11px] px-2 py-0.5 rounded-full border capitalize font-medium ${STATUS_COLOR[b.status] || 'bg-muted text-muted-foreground'}`}>
@@ -627,10 +638,10 @@ function BookingCard({ booking: b, onConfirm, onDecline, onComplete, compact, ex
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {new Date(b.scheduled_at).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}
-              {b.consulting_services?.duration && ` · ${b.consulting_services.duration} min`}
+              {b.consulting_services?.session_duration && ` · ${b.consulting_services.session_duration} min`}
             </span>
             <span className="flex items-center gap-1 text-green-400 font-semibold">
-              <DollarSign className="w-3 h-3" />{Number(b.amount_paid||0).toFixed(2)}
+              <DollarSign className="w-3 h-3" />{Number(b.consulting_services?.hourly_rate||0).toFixed(2)}
             </span>
           </div>
         </div>

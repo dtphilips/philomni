@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import {
   ArrowLeft, CheckCircle2, Video, FileText, AlignLeft, ChevronLeft,
   ChevronRight, Send, Heart, Loader2, MessageCircle, StickyNote,
-  Star, Award, Play,
+  Star, Award, Play, Download, ChevronDown, X,
 } from 'lucide-react'
 
 function isYouTube(url) { return /youtube\.com|youtu\.be/.test(url || '') }
@@ -92,6 +92,160 @@ function Comment({ c, onLike, onReply, userId }) {
   )
 }
 
+function SidebarCurriculum({ modules, sections, activeId, completed, onSelect }) {
+  const [openSections, setOpenSections] = useState(() => {
+    const init = {}
+    sections.forEach(s => { init[s.id] = true })
+    return init
+  })
+  const toggleSection = (sid) => setOpenSections(p => ({ ...p, [sid]: !p[sid] }))
+
+  if (sections.length === 0) {
+    return (
+      <div className="p-2 space-y-1">
+        {modules.map((mod, idx) => {
+          const isActive = mod.id === activeId
+          const isDone = completed.includes(mod.id)
+          return (
+            <button key={mod.id} onClick={() => onSelect(mod.id)}
+              className={`w-full text-left flex items-start gap-2.5 px-3 py-2.5 rounded-xl transition-colors ${isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+              <div className="flex-shrink-0 mt-0.5">
+                {isDone ? <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  : <span className="w-4 h-4 text-xs flex items-center justify-center font-mono">{idx + 1}</span>}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium leading-tight truncate">{mod.title}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">{mod.type || 'video'}{mod.duration_minutes ? ` · ${mod.duration_minutes}m` : ''}</p>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
+  let lessonIdx = 0
+  return (
+    <div className="p-2 space-y-1">
+      {sections.map(sec => {
+        const secMods = modules.filter(m => m.section_id === sec.id)
+        const secDone = secMods.filter(m => completed.includes(m.id)).length
+        const isOpen = openSections[sec.id] !== false
+        return (
+          <div key={sec.id}>
+            <button onClick={() => toggleSection(sec.id)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left hover:bg-muted/50 transition-colors">
+              {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
+              <span className="text-xs font-semibold text-foreground flex-1 truncate">{sec.title}</span>
+              <span className="text-[10px] text-muted-foreground flex-shrink-0">{secDone}/{secMods.length}</span>
+            </button>
+            {isOpen && secMods.map(mod => {
+              const num = ++lessonIdx
+              const isActive = mod.id === activeId
+              const isDone = completed.includes(mod.id)
+              return (
+                <button key={mod.id} onClick={() => onSelect(mod.id)}
+                  className={`w-full text-left flex items-start gap-2.5 pl-7 pr-3 py-2 rounded-xl transition-colors ${isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+                  <div className="flex-shrink-0 mt-0.5">
+                    {isDone ? <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                      : <span className="w-3.5 h-3.5 text-[10px] flex items-center justify-center font-mono opacity-60">{num}</span>}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium leading-tight truncate">{mod.title}</p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5 capitalize">{mod.type || 'video'}{mod.duration_minutes ? ` · ${mod.duration_minutes}m` : ''}</p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )
+      })}
+      {/* Unsectioned modules */}
+      {modules.filter(m => !m.section_id).map(mod => {
+        const num = ++lessonIdx
+        const isActive = mod.id === activeId
+        const isDone = completed.includes(mod.id)
+        return (
+          <button key={mod.id} onClick={() => onSelect(mod.id)}
+            className={`w-full text-left flex items-start gap-2.5 px-3 py-2.5 rounded-xl transition-colors ${isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+            <div className="flex-shrink-0 mt-0.5">
+              {isDone ? <CheckCircle2 className="w-4 h-4 text-green-400" />
+                : <span className="w-4 h-4 text-xs flex items-center justify-center font-mono">{num}</span>}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium leading-tight truncate">{mod.title}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">{mod.type || 'video'}{mod.duration_minutes ? ` · ${mod.duration_minutes}m` : ''}</p>
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function CertificateModal({ course, user, completedAt, onClose }) {
+  const certId = `CERT-${course?.id?.slice(0, 8).toUpperCase()}-${user?.id?.slice(0, 6).toUpperCase()}`
+  const date = completedAt ? new Date(completedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  const name = user?.full_name || user?.email?.split('@')[0] || 'Student'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl">
+        <button onClick={onClose} className="absolute top-4 right-4 z-10 text-muted-foreground hover:text-foreground">
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Certificate */}
+        <div id="certificate-content" className="p-10 text-center space-y-6 border-4 border-primary/20 m-4 rounded-xl bg-gradient-to-b from-card to-muted/30">
+          <div className="flex justify-center mb-2">
+            <Award className="w-14 h-14 text-yellow-400" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-1">Certificate of Completion</p>
+            <p className="text-xs text-muted-foreground">This certifies that</p>
+          </div>
+          <p className="text-3xl font-bold text-foreground">{name}</p>
+          <div>
+            <p className="text-sm text-muted-foreground">has successfully completed</p>
+            <p className="text-xl font-bold text-foreground mt-1">{course?.title}</p>
+            {course?.subtitle && <p className="text-sm text-muted-foreground mt-1">{course.subtitle}</p>}
+          </div>
+          <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border/50">
+            <div>
+              <p className="text-xs text-muted-foreground">Instructor</p>
+              <p className="text-sm font-semibold text-foreground">{course?.instructor_name || 'Instructor'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Date</p>
+              <p className="text-sm font-semibold text-foreground">{date}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Certificate ID</p>
+              <p className="text-xs font-mono text-muted-foreground mt-0.5">{certId}</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-center gap-1.5 text-primary">
+            <div className="w-2 h-2 rounded-full bg-primary" />
+            <span className="text-xs font-semibold">Philomni</span>
+            <div className="w-2 h-2 rounded-full bg-primary" />
+          </div>
+        </div>
+
+        <div className="flex gap-3 p-4 pt-0">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">
+            Close
+          </button>
+          <button onClick={() => window.print()}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+            <Download className="w-4 h-4" /> Print / Save PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function CourseWatch() {
   const { courseId: id } = useParams()
   const navigate   = useNavigate()
@@ -100,7 +254,9 @@ export default function CourseWatch() {
 
   const [course,     setCourse]     = useState(null)
   const [modules,    setModules]    = useState([])
+  const [sections,   setSections]   = useState([])
   const [activeId,   setActiveId]   = useState(search.get('module') || null)
+  const [showCert,   setShowCert]   = useState(false)
   const [progress,   setProgress]   = useState(null)
   const [tab,        setTab]        = useState('discussion')
   const [comments,   setComments]   = useState([])
@@ -119,12 +275,14 @@ export default function CourseWatch() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [{ data: c }, { data: mods }] = await Promise.all([
+      const [{ data: c }, { data: mods }, { data: secs }] = await Promise.all([
         supabase.from('courses').select('*').eq('id', id).single(),
         supabase.from('course_modules').select('*').eq('course_id', id).order('order_index'),
+        supabase.from('course_sections').select('*').eq('course_id', id).order('order_index'),
       ])
       setCourse(c)
       setModules(mods || [])
+      setSections(secs || [])
       if (!activeId && mods?.length > 0) setActiveId(mods[0].id)
 
       if (user?.id) {
@@ -292,7 +450,6 @@ export default function CourseWatch() {
             <ArrowLeft className="w-3.5 h-3.5" /> Back to course
           </button>
           <h2 className="text-sm font-semibold text-foreground leading-tight">{course?.title}</h2>
-          {/* Progress bar */}
           <div className="mt-3">
             <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
               <span>{completed.length}/{modules.length} completed</span>
@@ -302,27 +459,15 @@ export default function CourseWatch() {
               <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${pct}%` }} />
             </div>
           </div>
+          {pct === 100 && course?.has_certificate && (
+            <button onClick={() => setShowCert(true)}
+              className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-yellow-400/10 text-yellow-400 text-xs font-semibold hover:bg-yellow-400/20 transition-colors border border-yellow-400/20">
+              <Award className="w-3.5 h-3.5" /> Get Certificate
+            </button>
+          )}
         </div>
-        <div className="p-2 space-y-1">
-          {modules.map((mod, idx) => {
-            const isActive = mod.id === active?.id
-            const isDone = completed.includes(mod.id)
-            return (
-              <button key={mod.id} onClick={() => setActiveId(mod.id)}
-                className={`w-full text-left flex items-start gap-2.5 px-3 py-2.5 rounded-xl transition-colors ${isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
-                <div className="flex-shrink-0 mt-0.5">
-                  {isDone
-                    ? <CheckCircle2 className="w-4 h-4 text-green-400" />
-                    : <span className="w-4 h-4 text-xs flex items-center justify-center font-mono">{idx + 1}</span>}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium leading-tight truncate">{mod.title}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">{mod.type || 'video'}{mod.duration_minutes ? ` · ${mod.duration_minutes}m` : ''}</p>
-                </div>
-              </button>
-            )
-          })}
-        </div>
+        <SidebarCurriculum modules={modules} sections={sections} activeId={active?.id}
+          completed={completed} onSelect={setActiveId} />
       </aside>
 
       {/* Main content */}
@@ -456,6 +601,10 @@ export default function CourseWatch() {
           )}
         </div>
       </main>
+
+      {showCert && (
+        <CertificateModal course={course} user={user} completedAt={progress?.completed_at} onClose={() => setShowCert(false)} />
+      )}
     </div>
   )
 }
