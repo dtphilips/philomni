@@ -10,8 +10,21 @@ import {
   MapPin, User, ArrowRight, Sparkles, Shield, Zap, ExternalLink,
 } from 'lucide-react'
 
-const CATEGORIES = ['All', 'Business', 'Marketing', 'Design', 'Development', 'Finance', 'Career', 'Health', 'Other']
+const CATEGORIES = [
+  'All', 'Business', 'Marketing', 'Design', 'Development', 'Finance', 'Career',
+  'Health & Wellness', 'Legal', 'Real Estate', 'Education', 'Coaching',
+  'Sales', 'Social Media', 'Branding', 'Tech & AI', 'Startup', 'Investing', 'Other',
+]
 const DAY_KEYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+
+const FREQUENCY_OPTIONS = [
+  { value: 'one-time',  label: 'One-time session' },
+  { value: 'weekly',    label: 'Weekly' },
+  { value: '2x-week',   label: 'Twice a week' },
+  { value: 'biweekly',  label: 'Every 2 weeks' },
+  { value: 'monthly',   label: 'Monthly' },
+  { value: 'custom',    label: 'Custom…' },
+]
 
 // Generate available time slots for a given date based on service + already-booked times
 function generateSlots(dateStr, duration, workStart, workEnd, bookedISOs) {
@@ -86,7 +99,7 @@ function ServiceCard({ service, onBook }) {
         <p className="text-xs text-muted-foreground mb-3 line-clamp-2 leading-relaxed">{service.description}</p>
 
         {/* Stats row */}
-        <div className="flex items-center gap-3 mb-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 mb-3 text-xs text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-primary/60" />{service.duration} min</span>
           <span className="flex items-center gap-1 text-green-400 font-semibold"><DollarSign className="w-3.5 h-3.5" />{Number(service.rate).toFixed(2)}</span>
           <span className="flex items-center gap-1">
@@ -95,6 +108,13 @@ function ServiceCard({ service, onBook }) {
             <span className="text-muted-foreground">({service.rating_count||0})</span>
           </span>
         </div>
+        {service.frequency && service.frequency !== 'one-time' && (
+          <div className="mb-3">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+              {FREQUENCY_OPTIONS.find(f => f.value === service.frequency)?.label?.replace('…','') || service.frequency}
+            </span>
+          </div>
+        )}
 
         {/* Available days */}
         {activeDays.length > 0 && (

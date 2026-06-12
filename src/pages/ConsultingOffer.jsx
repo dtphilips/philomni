@@ -9,8 +9,25 @@ import {
   TrendingUp, ChevronDown, ChevronUp, Mail,
 } from 'lucide-react'
 
-const CATEGORIES = ['Business', 'Marketing', 'Design', 'Development', 'Finance', 'Career', 'Health', 'Other']
-const DAY_KEYS   = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const CATEGORY_SUGGESTIONS = [
+  'Business', 'Marketing', 'Design', 'Development', 'Finance', 'Career',
+  'Health & Wellness', 'Legal', 'Real Estate', 'Education', 'Coaching',
+  'Sales', 'HR & Recruiting', 'Social Media', 'Branding', 'Content Creation',
+  'Photography', 'Music', 'Sports & Fitness', 'Parenting', 'Relationships',
+  'Tech & AI', 'Cybersecurity', 'Data & Analytics', 'Product Management',
+  'Startup', 'Investing', 'Tax & Accounting', 'Immigration', 'Other',
+]
+
+const FREQUENCY_OPTIONS = [
+  { value: 'one-time',    label: 'One-time session' },
+  { value: 'weekly',      label: 'Weekly' },
+  { value: '2x-week',     label: 'Twice a week' },
+  { value: 'biweekly',    label: 'Every 2 weeks' },
+  { value: 'monthly',     label: 'Monthly' },
+  { value: 'custom',      label: 'Custom…' },
+]
+
+const DAY_KEYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const STATUS_COLOR = {
   pending:   'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
@@ -45,9 +62,13 @@ export default function ConsultingOffer() {
   // Expanded booking card
   const [expandedBooking, setExpandedBooking] = useState(null)
 
+  const [catQuery,       setCatQuery]       = useState('')
+  const [catOpen,        setCatOpen]        = useState(false)
+  const [customFreq,     setCustomFreq]     = useState('')
+
   const empty = {
-    title: '', description: '', category: 'Business',
-    duration: 30, rate: '',
+    title: '', description: '', category: '',
+    duration: 30, rate: '', frequency: 'one-time',
     availability: DAY_KEYS.reduce((a, d) => ({ ...a, [d]: d !== 'Sat' && d !== 'Sun' }), {
       work_start: '09:00',
       work_end:   '17:00',
@@ -91,13 +112,15 @@ export default function ConsultingOffer() {
     if (!form.rate || parseFloat(form.rate) <= 0) return toast.error('Rate must be greater than 0')
     setSaving(true)
     try {
+      const freqValue = form.frequency === 'custom' ? (customFreq.trim() || 'custom') : form.frequency
       const data = {
         provider_id:  user.id,
         title:        form.title.trim(),
         description:  form.description,
-        category:     form.category,
+        category:     form.category.trim() || 'Other',
         duration:     parseInt(form.duration) || 30,
         rate:         parseFloat(form.rate),
+        frequency:    freqValue,
         is_available: true,
         availability: form.availability,
       }
@@ -268,12 +291,17 @@ export default function ConsultingOffer() {
                         {svc.is_available ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
                       <button onClick={() => {
+                        const freq = svc.frequency || 'one-time'
+                        const isPreset = FREQUENCY_OPTIONS.some(f => f.value === freq)
                         setForm({
                           title: svc.title, description: svc.description || '',
-                          category: svc.category || 'Business', duration: svc.duration,
+                          category: svc.category || '', duration: svc.duration,
                           rate: svc.rate?.toString() || '',
+                          frequency: isPreset ? freq : 'custom',
                           availability: svc.availability || empty.availability,
                         })
+                        setCatQuery(svc.category || '')
+                        setCustomFreq(isPreset ? '' : freq)
                         setEditId(svc.id); setTab('create')
                       }} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary bg-muted hover:bg-muted/80">
                         <Edit3 className="w-4 h-4" />
@@ -310,13 +338,39 @@ export default function ConsultingOffer() {
                 rows={3} placeholder="What will clients get from this session? What problems do you solve?"
                 className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Category</label>
-              <select value={form.category} onChange={e => set('category', e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none">
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
+            {/* Category combobox */}
+            <div className="sm:col-span-2 relative">
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Category <span className="text-muted-foreground/50">(type yours or pick a suggestion)</span>
+              </label>
+              <input
+                value={catQuery}
+                onChange={e => { setCatQuery(e.target.value); set('category', e.target.value); setCatOpen(true) }}
+                onFocus={() => setCatOpen(true)}
+                onBlur={() => setTimeout(() => setCatOpen(false), 150)}
+                placeholder="e.g. Business, Coaching, Tech & AI…"
+                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              {catOpen && (
+                <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                  {CATEGORY_SUGGESTIONS
+                    .filter(c => c.toLowerCase().includes(catQuery.toLowerCase()))
+                    .map(c => (
+                      <button key={c} type="button"
+                        onMouseDown={() => { setCatQuery(c); set('category', c); setCatOpen(false) }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-xl last:rounded-b-xl">
+                        {c}
+                      </button>
+                    ))}
+                  {catQuery && !CATEGORY_SUGGESTIONS.some(c => c.toLowerCase() === catQuery.toLowerCase()) && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground border-t border-border">
+                      Press Enter to use "<span className="text-foreground font-medium">{catQuery}</span>"
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session Duration</label>
               <select value={form.duration} onChange={e => set('duration', e.target.value)}
@@ -324,6 +378,24 @@ export default function ConsultingOffer() {
                 {[15,30,45,60,90,120].map(d => <option key={d} value={d}>{d} minutes</option>)}
               </select>
             </div>
+
+            {/* Frequency */}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Session Frequency</label>
+              <select value={form.frequency} onChange={e => set('frequency', e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm focus:outline-none">
+                {FREQUENCY_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+              </select>
+              {form.frequency === 'custom' && (
+                <input
+                  value={customFreq}
+                  onChange={e => setCustomFreq(e.target.value)}
+                  placeholder="e.g. 3x per week, every other day…"
+                  className="w-full mt-2 px-3 py-2 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              )}
+            </div>
+
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Rate per Session (USD) *</label>
               <div className="relative">
