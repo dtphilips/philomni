@@ -813,36 +813,91 @@ function CreateCreatorChallengeModal({ onClose, onSubmit, saving }) {
 
 // ─── Challenge Entry Modal ────────────────────────────────────────────────────
 
-function ChallengeEntryModal({ challenge, onClose, onSubmit, saving }) {
+function ChallengeEntryModal({ challenge, user, onClose, onSubmit, saving }) {
   const inp = "w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm text-foreground focus:outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"
-  const [content, setContent] = useState('')
-  const [mediaUrl, setMediaUrl] = useState('')
+  const [content, setContent]           = useState('')
+  const [myVideos, setMyVideos]         = useState([])
+  const [videosLoading, setVideosLoading] = useState(true)
+  const [selectedVideo, setSelectedVideo] = useState(null)
   const meta = CHALLENGE_TYPE_META[challenge.type] ?? CHALLENGE_TYPE_META.general
+
+  useEffect(() => {
+    if (!user?.id) { setVideosLoading(false); return }
+    supabase.from('videos')
+      .select('id, title, thumbnail_url, cloudflare_thumbnail, view_count, like_count, comment_count, created_at')
+      .eq('creator_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data }) => { setMyVideos(data ?? []); setVideosLoading(false) })
+  }, [user?.id])
+
+  const thumbUrl = (v) => v.thumbnail_url || v.cloudflare_thumbnail || null
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="bg-card border border-border rounded-3xl w-full max-w-md shadow-2xl">
-        <div className={`h-20 bg-gradient-to-br ${meta.color} rounded-t-3xl flex items-center gap-3 px-5`}>
+      <div className="bg-card border border-border rounded-3xl w-full max-w-md shadow-2xl max-h-[90vh] flex flex-col">
+        <div className={`h-20 bg-gradient-to-br ${meta.color} rounded-t-3xl flex items-center gap-3 px-5 flex-shrink-0`}>
           <span className="text-3xl">{meta.emoji}</span>
           <div>
             <p className="text-white font-bold text-sm">{challenge.title}</p>
             {challenge.hashtag && <p className="text-white/70 text-xs">{challenge.hashtag}</p>}
           </div>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto">
           <div className="bg-muted/30 rounded-xl p-3 text-xs text-muted-foreground leading-relaxed">
             <span className="font-semibold text-foreground block mb-1">What to do:</span>
             {challenge.description}
           </div>
+
+          {/* Philomni Watch video picker */}
           <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Describe your submission *</label>
-            <textarea className={inp + ' resize-none'} rows={4} value={content} onChange={e => setContent(e.target.value)}
-              placeholder="Tell us about your entry — what you created, your approach, your story…" />
+            <label className="text-xs font-medium text-foreground mb-1.5 flex items-center gap-1.5">
+              Select your Watch video *
+              <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Philomni only</span>
+            </label>
+            {videosLoading ? (
+              <div className="flex items-center justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+            ) : myVideos.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border p-4 text-center space-y-1">
+                <p className="text-xs text-muted-foreground">You haven't uploaded any Watch videos yet.</p>
+                <a href="/watch" className="text-xs text-primary hover:underline">Go to Watch to upload →</a>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
+                {myVideos.map(v => (
+                  <button key={v.id} onClick={() => setSelectedVideo(selectedVideo?.id === v.id ? null : v)}
+                    className={`relative rounded-xl overflow-hidden border-2 transition-all text-left ${selectedVideo?.id === v.id ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/40'}`}>
+                    <div className="aspect-video bg-muted/40 relative">
+                      {thumbUrl(v)
+                        ? <img src={thumbUrl(v)} alt={v.title} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-2xl">🎬</div>}
+                      {selectedVideo?.id === v.id && (
+                        <div className="absolute inset-0 bg-primary/40 flex items-center justify-center">
+                          <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">✓</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[10px] font-medium text-foreground px-2 py-1 line-clamp-1">{v.title || 'Untitled'}</p>
+                    <p className="text-[9px] text-muted-foreground px-2 pb-1.5">{(v.view_count ?? 0).toLocaleString()} views</p>
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedVideo && (
+              <p className="mt-1.5 text-[10px] text-primary font-medium flex items-center gap-1">
+                <span>✓</span> {selectedVideo.title || 'Untitled'}
+              </p>
+            )}
           </div>
+
           <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Link to your work (optional)</label>
-            <input className={inp} value={mediaUrl} onChange={e => setMediaUrl(e.target.value)}
-              placeholder="Paste a link to your video, photo, post, etc." />
+            <label className="text-xs text-muted-foreground mb-1.5 block">Describe your entry *</label>
+            <textarea className={inp + ' resize-none'} rows={3} value={content} onChange={e => setContent(e.target.value)}
+              placeholder="Tell us about your approach, your story, what makes this special…" />
           </div>
+
           {challenge.prize && (
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 flex items-center gap-2">
               <span className="text-lg">🏆</span>
@@ -852,9 +907,15 @@ function ChallengeEntryModal({ challenge, onClose, onSubmit, saving }) {
               </div>
             </div>
           )}
+
+          <div className="bg-muted/20 rounded-xl px-3 py-2 text-[10px] text-muted-foreground leading-relaxed">
+            <span className="font-semibold text-foreground">📊 Winner formula</span><br />
+            Score = Views×1 + Likes×5 + Comments×10 — tracked live from your video
+          </div>
+
           <div className="flex gap-3">
             <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
-            <button onClick={() => onSubmit(content, mediaUrl)} disabled={!content.trim() || saving}
+            <button onClick={() => onSubmit(content, selectedVideo)} disabled={!content.trim() || !selectedVideo || saving}
               className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               {saving ? 'Submitting…' : 'Submit Entry'}
@@ -869,21 +930,44 @@ function ChallengeEntryModal({ challenge, onClose, onSubmit, saving }) {
 // ─── Challenge Entries Viewer ─────────────────────────────────────────────────
 
 function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onPickWinner }) {
-  const [entries, setEntries]     = useState([])
-  const [loading, setLoading]     = useState(true)
-  const [picking, setPicking]     = useState(null)
-  const [myVotes, setMyVotes]     = useState(new Set()) // entry ids I've voted on
-  const [sortBy, setSortBy]       = useState('votes')   // 'votes' | 'newest' | 'oldest'
-  const [expanded, setExpanded]   = useState(null)
+  const [entries, setEntries]           = useState([])
+  const [loading, setLoading]           = useState(true)
+  const [picking, setPicking]           = useState(null)
+  const [myVotes, setMyVotes]           = useState(new Set())
+  const [sortBy, setSortBy]             = useState('score')  // 'score' | 'votes' | 'newest'
+  const [expanded, setExpanded]         = useState(null)
+  const [videoMetrics, setVideoMetrics] = useState({}) // { videoId: { view_count, like_count, comment_count, title, thumbnail_url } }
+
+  const calcScore = (entry, metrics) => {
+    if (entry.content_type === 'video' && entry.content_id) {
+      const m = metrics[entry.content_id] ?? {}
+      return (m.view_count ?? 0) * 1 + (m.like_count ?? 0) * 5 + (m.comment_count ?? 0) * 10
+    }
+    return (entry.votes ?? 0) * 10
+  }
 
   useEffect(() => {
     const load = async () => {
       const { data: entryData } = await supabase
         .from('challenge_entries').select('*').eq('challenge_id', challenge.id)
-      setEntries(entryData ?? [])
+      const rows = entryData ?? []
+      setEntries(rows)
+
+      // Fetch video metrics for linked entries
+      const videoIds = [...new Set(rows.filter(e => e.content_type === 'video' && e.content_id).map(e => e.content_id))]
+      if (videoIds.length) {
+        const { data: vids } = await supabase
+          .from('videos').select('id, title, thumbnail_url, cloudflare_thumbnail, view_count, like_count, comment_count')
+          .in('id', videoIds)
+        if (vids) {
+          const m = {}
+          for (const v of vids) m[v.id] = v
+          setVideoMetrics(m)
+        }
+      }
 
       if (currentUserId) {
-        const ids = (entryData ?? []).map(e => e.id)
+        const ids = rows.map(e => e.id)
         if (ids.length) {
           const { data: voteData } = await supabase
             .from('challenge_entry_votes')
@@ -896,19 +980,25 @@ function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onP
     load()
   }, [challenge.id, currentUserId])
 
+  // Real-time video metric updates
+  useEffect(() => {
+    const videoIds = entries.filter(e => e.content_type === 'video' && e.content_id).map(e => e.content_id)
+    if (!videoIds.length) return
+    const ch = supabase.channel(`entries-videos-${challenge.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'videos' }, (payload) => {
+        const v = payload.new
+        if (videoIds.includes(v.id)) setVideoMetrics(prev => ({ ...prev, [v.id]: { ...prev[v.id], ...v } }))
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [entries, challenge.id])
+
   const handleVote = async (entryId) => {
     if (!currentUserId) return
     const { data } = await supabase.rpc('vote_challenge_entry', { p_entry_id: entryId, p_user_id: currentUserId })
     const action = data?.action
-    setMyVotes(prev => {
-      const n = new Set(prev)
-      action === 'voted' ? n.add(entryId) : n.delete(entryId)
-      return n
-    })
-    setEntries(prev => prev.map(e => e.id === entryId
-      ? { ...e, votes: (e.votes ?? 0) + (action === 'voted' ? 1 : -1) }
-      : e
-    ))
+    setMyVotes(prev => { const n = new Set(prev); action === 'voted' ? n.add(entryId) : n.delete(entryId); return n })
+    setEntries(prev => prev.map(e => e.id === entryId ? { ...e, votes: (e.votes ?? 0) + (action === 'voted' ? 1 : -1) } : e))
   }
 
   const handlePick = async (entry) => {
@@ -918,14 +1008,18 @@ function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onP
     onClose()
   }
 
-  const sorted = [...entries].sort((a, b) => {
+  const withScore = entries.map(e => ({ ...e, _score: calcScore(e, videoMetrics) }))
+
+  const sorted = [...withScore].sort((a, b) => {
+    if (sortBy === 'score')  return b._score - a._score
     if (sortBy === 'votes')  return (b.votes ?? 0) - (a.votes ?? 0)
-    if (sortBy === 'newest') return new Date(b.created_at) - new Date(a.created_at)
-    return new Date(a.created_at) - new Date(b.created_at)
+    return new Date(b.created_at) - new Date(a.created_at)
   })
 
-  const topVotes = Math.max(...entries.map(e => e.votes ?? 0), 0)
+  const topScore = Math.max(...withScore.map(e => e._score), 0)
   const isEnded  = challenge.status === 'ended'
+  const isPlatformChallenge = !challenge.challenge_type || challenge.challenge_type === 'platform'
+  const hasLinkedContent = entries.some(e => e.content_type === 'video')
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
@@ -943,26 +1037,38 @@ function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onP
           <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
         </div>
 
-        {/* How it works — always visible */}
+        {/* Info banner */}
         <div className="px-5 pt-4 pb-0">
           <div className="bg-primary/5 border border-primary/15 rounded-xl p-3 text-xs text-muted-foreground leading-relaxed">
-            <span className="font-semibold text-foreground block mb-1">📋 How entries are tracked</span>
-            Participants submit a description of what they did + a link to their external post (Reels, TikTok, Instagram, etc.).
-            The community votes on entries. {isAdmin ? 'As admin, you review entries and pick the winner — community votes guide your decision but the final call is yours.' : 'Upvote the entries you think deserve to win. The admin picks the final winner.'}
+            <span className="font-semibold text-foreground block mb-1">
+              {isPlatformChallenge ? '🤖 Auto-scored challenge' : '👥 Creator challenge'}
+            </span>
+            {isPlatformChallenge
+              ? 'Entries must link a Philomni Watch video. Score = Views×1 + Likes×5 + Comments×10. Winner is picked automatically at deadline.'
+              : `Community votes guide the decision. ${isAdmin || challenge.created_by === currentUserId ? 'As the creator, you pick the final winner.' : 'The creator picks the final winner.'}`}
           </div>
         </div>
 
-        {/* Sort + admin summary */}
+        {/* Sort pills */}
         <div className="flex items-center justify-between px-5 pt-4 pb-2 flex-wrap gap-2">
           <div className="flex gap-1 bg-muted rounded-xl p-1">
-            {[{ id: 'votes', label: '🔥 Top Voted' }, { id: 'newest', label: '🆕 Newest' }, { id: 'oldest', label: '📅 Oldest' }].map(s => (
+            {[
+              { id: 'score', label: '📊 Top Score' },
+              { id: 'votes', label: '🔥 Most Voted' },
+              { id: 'newest', label: '🆕 Newest' },
+            ].map(s => (
               <button key={s.id} onClick={() => setSortBy(s.id)}
                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${sortBy === s.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
                 {s.label}
               </button>
             ))}
           </div>
-          {isAdmin && entries.length > 0 && !isEnded && (
+          {hasLinkedContent && !isEnded && (
+            <span className="text-[10px] text-green-400 font-medium flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse inline-block" /> Live scores
+            </span>
+          )}
+          {(isAdmin || challenge.created_by === currentUserId) && entries.length > 0 && !isEnded && !isPlatformChallenge && (
             <span className="text-xs text-amber-400 font-medium">Pick a winner below ↓</span>
           )}
         </div>
@@ -979,23 +1085,27 @@ function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onP
             </div>
           ) : sorted.map((e, idx) => {
             const isWinner   = challenge.winner_id === e.user_id
-            const isTopVoted = !isEnded && (e.votes ?? 0) === topVotes && topVotes > 0
+            const isLeading  = !isEnded && e._score === topScore && topScore > 0 && withScore.length > 1
             const iVoted     = myVotes.has(e.id)
             const isExpanded = expanded === e.id
+            const vid        = e.content_type === 'video' && e.content_id ? videoMetrics[e.content_id] : null
+            const canPick    = !isEnded && !isPlatformChallenge && (isAdmin || challenge.created_by === currentUserId)
 
             return (
-              <div key={e.id} className={`rounded-2xl border transition-all ${isWinner ? 'border-amber-400/60 bg-amber-500/5' : isTopVoted ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted/20'}`}>
+              <div key={e.id} className={`rounded-2xl border transition-all ${isWinner ? 'border-amber-400/60 bg-amber-500/5' : isLeading ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted/20'}`}>
                 <div className="p-4">
-                  {/* Rank + top badge */}
                   <div className="flex items-start gap-3">
-                    {/* Vote button */}
-                    <button
-                      onClick={() => handleVote(e.id)}
-                      disabled={isEnded || !currentUserId}
-                      className={`flex flex-col items-center gap-0.5 flex-shrink-0 px-2 py-1.5 rounded-xl border transition-all ${iVoted ? 'bg-primary/15 border-primary/40 text-primary' : 'border-border text-muted-foreground hover:border-primary/30 hover:text-primary'} disabled:opacity-40 disabled:cursor-default`}>
-                      <ChevronUp className="w-4 h-4" />
-                      <span className="text-xs font-bold">{e.votes ?? 0}</span>
-                    </button>
+                    {/* Rank / vote */}
+                    <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => handleVote(e.id)}
+                        disabled={isEnded || !currentUserId}
+                        className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl border transition-all ${iVoted ? 'bg-primary/15 border-primary/40 text-primary' : 'border-border text-muted-foreground hover:border-primary/30 hover:text-primary'} disabled:opacity-40 disabled:cursor-default`}>
+                        <ChevronUp className="w-4 h-4" />
+                        <span className="text-xs font-bold">{e.votes ?? 0}</span>
+                      </button>
+                      {idx < 3 && sortBy === 'score' && <span className="text-[10px] text-muted-foreground font-semibold">#{idx + 1}</span>}
+                    </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -1004,12 +1114,11 @@ function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onP
                           <p className="text-xs font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
                             {e.user_name}
                             {isWinner && <span className="text-amber-400 font-bold">🏆 Winner</span>}
-                            {isTopVoted && !isWinner && <span className="text-primary text-[10px] font-bold bg-primary/15 px-1.5 py-0.5 rounded-full">⭐ Top Voted</span>}
-                            {idx === 0 && sortBy === 'votes' && !isWinner && entries.length > 1 && <span className="text-[10px] text-muted-foreground">#{idx + 1}</span>}
+                            {isLeading && !isWinner && <span className="text-primary text-[10px] font-bold bg-primary/15 px-1.5 py-0.5 rounded-full">⭐ Leading</span>}
                           </p>
                           <p className="text-[10px] text-muted-foreground">{new Date(e.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                         </div>
-                        {isAdmin && !isEnded && (
+                        {canPick && (
                           <button onClick={() => handlePick(e)} disabled={!!picking}
                             className="flex-shrink-0 px-2.5 py-1.5 rounded-xl bg-amber-500 text-white text-[10px] font-bold hover:bg-amber-400 transition-colors disabled:opacity-50 flex items-center gap-1">
                             {picking === e.id ? <Loader2 className="w-3 h-3 animate-spin" /> : '🏆 Pick Winner'}
@@ -1017,20 +1126,36 @@ function ChallengeEntriesModal({ challenge, isAdmin, currentUserId, onClose, onP
                         )}
                       </div>
 
-                      {/* Content — expandable */}
+                      {/* Live score pill */}
+                      {vid && (
+                        <div className="mt-2 flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                            Score: {e._score.toLocaleString()}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">{(vid.view_count ?? 0).toLocaleString()} views · {(vid.like_count ?? 0).toLocaleString()} likes · {(vid.comment_count ?? 0).toLocaleString()} comments</span>
+                        </div>
+                      )}
+
+                      {/* Video thumbnail + link */}
+                      {vid && (
+                        <a href={`/watch/${e.content_id}`} target="_blank" rel="noopener noreferrer"
+                          className="mt-2 flex items-center gap-2 bg-muted/40 hover:bg-muted/70 rounded-xl px-2.5 py-2 transition-colors group">
+                          <div className="w-10 h-7 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                            {vid.thumbnail_url || vid.cloudflare_thumbnail
+                              ? <img src={vid.thumbnail_url || vid.cloudflare_thumbnail} className="w-full h-full object-cover" alt="" />
+                              : <div className="w-full h-full flex items-center justify-center text-sm">🎬</div>}
+                          </div>
+                          <p className="text-[10px] font-medium text-foreground flex-1 line-clamp-1 group-hover:text-primary transition-colors">{vid.title || 'Watch video'}</p>
+                          <ExternalLink className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                        </a>
+                      )}
+
+                      {/* Description */}
                       <p className={`text-xs text-foreground mt-2 leading-relaxed ${isExpanded ? '' : 'line-clamp-3'}`}>{e.content}</p>
                       {e.content?.length > 160 && (
                         <button onClick={() => setExpanded(isExpanded ? null : e.id)} className="text-[10px] text-primary mt-0.5 hover:underline">
                           {isExpanded ? 'Show less' : 'Read more'}
                         </button>
-                      )}
-
-                      {/* Proof link */}
-                      {e.media_url && (
-                        <a href={e.media_url} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 mt-2 text-[10px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-colors">
-                          <ExternalLink className="w-3 h-3" /> View Proof / Submission
-                        </a>
                       )}
                     </div>
                   </div>
@@ -1728,6 +1853,30 @@ export default function Community() {
       })
   }, [])
 
+  // Auto-pick winners for expired platform challenges (runs once when challenges load)
+  const autoWinnerChecked = useRef(false)
+  useEffect(() => {
+    if (autoWinnerChecked.current || !dbChallenges.length) return
+    autoWinnerChecked.current = true
+    const now = new Date()
+    const expired = dbChallenges.filter(c =>
+      c.status === 'active' &&
+      (!c.challenge_type || c.challenge_type === 'platform') &&
+      c.ends_at && new Date(c.ends_at) < now
+    )
+    for (const ch of expired) {
+      supabase.rpc('auto_pick_challenge_winner', { p_challenge_id: ch.id })
+        .then(({ data }) => {
+          if (data?.ok) {
+            setDbChallenges(prev => prev.map(c => c.id === ch.id
+              ? { ...c, winner_name: data.winner, status: 'ended' }
+              : c
+            ))
+          }
+        })
+    }
+  }, [dbChallenges])
+
   // Load user memberships & RSVPs
   useEffect(() => {
     if (!user?.id) return
@@ -1975,7 +2124,7 @@ export default function Community() {
     setPayingEvent(null)
   }, [payingEvent, user, sendTicketEmail])
 
-  const handleSubmitEntry = useCallback(async (content, mediaUrl) => {
+  const handleSubmitEntry = useCallback(async (content, selectedVideo) => {
     if (!user?.id || !enteringChallenge) return
     setSavingEntry(true)
     const { error } = await supabase.from('challenge_entries').insert({
@@ -1984,7 +2133,9 @@ export default function Community() {
       user_name: user.user_metadata?.full_name ?? user.full_name ?? user.email ?? 'Creator',
       user_avatar: user.user_metadata?.avatar_url ?? user.avatar_url ?? null,
       content,
-      media_url: mediaUrl.trim() || null,
+      media_url: selectedVideo ? `${window.location.origin}/watch/${selectedVideo.id}` : null,
+      content_type: selectedVideo ? 'video' : null,
+      content_id: selectedVideo?.id ?? null,
       votes: 0,
     })
     if (!error) {
@@ -2854,7 +3005,7 @@ export default function Community() {
       {showCreateChallenge && <CreateChallengeModal onClose={() => setShowCreateChallenge(false)} onSubmit={handleCreateChallenge} saving={savingCreate} />}
       {showCreateEvent && <CreateEventModal onClose={() => setShowCreateEvent(false)} onSubmit={handleCreateEvent} saving={savingCreate} />}
       {showCreateAnn && <CreateAnnouncementModal onClose={() => setShowCreateAnn(false)} onSubmit={handleCreateAnn} saving={savingCreate} />}
-      {enteringChallenge && <ChallengeEntryModal challenge={enteringChallenge} onClose={() => setEnteringChallenge(null)} onSubmit={handleSubmitEntry} saving={savingEntry} />}
+      {enteringChallenge && <ChallengeEntryModal challenge={enteringChallenge} user={user} onClose={() => setEnteringChallenge(null)} onSubmit={handleSubmitEntry} saving={savingEntry} />}
       {viewingEntries && <ChallengeEntriesModal challenge={viewingEntries} isAdmin={isAdmin} currentUserId={user?.id} onClose={() => setViewingEntries(null)} onPickWinner={handlePickWinner} />}
       {sharingEvent && <EventShareModal event={sharingEvent} onClose={() => setSharingEvent(null)} />}
       {payingEvent && <EventPaymentModal event={payingEvent} user={user} onSuccess={handleEventPaymentSuccess} onClose={() => setPayingEvent(null)} />}
