@@ -33,6 +33,7 @@ const NAV_ITEMS = [
   { path: '/skill-exchange',    icon: ArrowLeftRight,label: 'Skill Exchange' },
   { path: '/business-content',  icon: Mic,           label: 'Content Suite' },
   { path: '/podcasts',          icon: Radio,         label: 'Podcasts' },
+  { path: '/podcast-studio',   icon: Mic,           label: 'Podcast Studio' },
 ];
 
 export default function Sidebar({ user }) {

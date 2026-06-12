@@ -64,8 +64,9 @@ const CREATOR_NAV = [
     items: [
       { to: '/analytics', icon: BarChart2,   label: 'Analytics' },
       { to: '/monetize',  icon: DollarSign,  label: 'Monetize', badge: '💰' },
-      { to: '/podcasts',  icon: Mic2,        label: 'Podcasts' },
-      { to: '/store',     icon: Store,       label: 'My Store' },
+      { to: '/podcasts',        icon: Mic2,  label: 'Podcasts' },
+      { to: '/podcast-studio', icon: Mic2,  label: 'Podcast Studio' },
+      { to: '/store',           icon: Store, label: 'My Store' },
     ],
   },
   {
@@ -166,7 +167,8 @@ const PRO_NAV = [
       { to: '/celebrations', icon: Sparkles, label: 'Celebrations', badge: '🎉' },
       { to: '/rooms',        icon: Radio,       label: 'Rooms' },
       { to: '/meetings',   icon: Video,    label: 'Meetings' },
-      { to: '/podcasts',   icon: Mic2,     label: 'Podcasts' },
+      { to: '/podcasts',        icon: Mic2, label: 'Podcasts' },
+      { to: '/podcast-studio', icon: Mic2, label: 'Podcast Studio' },
     ],
   },
   {

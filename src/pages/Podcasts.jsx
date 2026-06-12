@@ -2,434 +2,453 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useMode } from '../context/ModeContext'
-import { Mic2, Play, Pause, Plus, Loader2, Upload, X, Bell, BellOff, Volume2, VolumeX, SkipBack, SkipForward } from 'lucide-react'
+import { usePodcastPlayer } from '@/lib/PodcastPlayerContext'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  Mic2, Play, Pause, Plus, Loader2, Search, Bell, BellOff,
+  Star, Headphones, Clock, Lock, DollarSign, Users, ChevronDown,
+  ChevronUp, TrendingUp, Radio, Heart, MoreHorizontal, Globe,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import { formatDistanceToNow } from 'date-fns'
 
-function formatTime(secs) {
-  if (!secs || isNaN(secs)) return '0:00'
-  const m = Math.floor(secs / 60)
-  const s = Math.floor(secs % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
+const CATEGORY_CHIPS = [
+  { emoji: '🔥', label: 'Trending' },
+  { emoji: '💼', label: 'Business' },
+  { emoji: '💻', label: 'Technology' },
+  { emoji: '😂', label: 'Comedy' },
+  { emoji: '🎓', label: 'Education' },
+  { emoji: '💪', label: 'Health & Fitness' },
+  { emoji: '🔍', label: 'True Crime' },
+  { emoji: '🚀', label: 'Entrepreneurship' },
+  { emoji: '🎵', label: 'Music' },
+  { emoji: '⚽', label: 'Sports' },
+  { emoji: '🔬', label: 'Science' },
+  { emoji: '📰', label: 'News' },
+]
+
+function fmtDuration(secs) {
+  if (!secs) return ''
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
 }
 
-export default function Podcasts() {
+// ── Episode row inside a podcast card ────────────────────────────────────────
+function EpisodeRow({ episode, podcast, onTip, purchases }) {
+  const { play, pause, episode: current, isPlaying } = usePodcastPlayer()
   const { user } = useAuth()
-  const { mode } = useMode()
-  const [episodes, setEpisodes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [playing, setPlaying] = useState(null)       // episode id
-  const [currentEp, setCurrentEp] = useState(null)  // full episode object for player
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ title: '', description: '' })
-  const [audioFile, setAudioFile] = useState(null)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploading, setUploading] = useState(false)
-  const [posting, setPosting] = useState(false)
-  const [subscribed, setSubscribed] = useState(new Set()) // set of creator_ids subscribed to
-  const [dragging, setDragging] = useState(false)
-  // Player state
-  const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const [volume, setVolume] = useState(80)
-  const [muted, setMuted] = useState(false)
-  const audioRef = useRef(new Audio())
-  const fileInputRef = useRef()
+  const active = current?.id === episode.id && isPlaying
+  const hasPurchased = purchases?.has(episode.id)
+  const canPlay = !episode.is_premium || hasPurchased
 
-  useEffect(() => {
-    supabase.from('podcasts').select('*').order('created_at', { ascending: false }).limit(30)
-      .then(({ data }) => { setEpisodes(data ?? []); setLoading(false) })
-    const audio = audioRef.current
-    const onTime = () => setCurrentTime(audio.currentTime)
-    const onLoaded = () => setDuration(audio.duration)
-    const onEnded = () => { setPlaying(null); setCurrentTime(0) }
-    audio.addEventListener('timeupdate', onTime)
-    audio.addEventListener('loadedmetadata', onLoaded)
-    audio.addEventListener('ended', onEnded)
-    return () => {
-      audio.removeEventListener('timeupdate', onTime)
-      audio.removeEventListener('loadedmetadata', onLoaded)
-      audio.removeEventListener('ended', onEnded)
-      audio.pause()
-    }
-  }, [])
-
-  // Load subscriptions
-  useEffect(() => {
-    if (!user?.id) return
-    supabase.from('podcast_subscriptions').select('creator_id').eq('subscriber_id', user.id)
-      .then(({ data }) => { if (data) setSubscribed(new Set(data.map(s => s.creator_id))) })
-  }, [user?.id])
-
-  // Sync volume/mute
-  useEffect(() => {
-    const audio = audioRef.current
-    audio.volume = muted ? 0 : Math.min(1, volume / 100)
-  }, [volume, muted])
-
-  const togglePlay = (ep) => {
-    const audio = audioRef.current
-    if (playing === ep.id) {
-      audio.pause()
-      setPlaying(null)
-    } else {
-      if (!ep.audio_url) return
-      audio.src = ep.audio_url
-      audio.play().catch(console.error)
-      setPlaying(ep.id)
-      setCurrentEp(ep)
-      setCurrentTime(0)
-    }
+  const handlePlay = () => {
+    if (!episode.audio_url) return
+    if (!canPlay) { onTip && onTip(episode, 'buy'); return }
+    if (active) { pause(); return }
+    play({ ...episode, podcast_name: podcast.title, cover_image_url: podcast.cover_url })
+    // Increment play count
+    supabase.from('podcast_episodes').update({ play_count: (episode.play_count || 0) + 1 }).eq('id', episode.id)
   }
 
-  const handleSeek = (e) => {
-    const t = Number(e.target.value)
-    audioRef.current.currentTime = t
-    setCurrentTime(t)
-  }
+  return (
+    <div className={`flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors ${active ? 'bg-primary/5' : ''}`}>
+      <button
+        onClick={handlePlay}
+        disabled={!episode.audio_url}
+        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+          active ? 'bg-primary' : canPlay ? 'bg-primary/10 hover:bg-primary/20' : 'bg-amber-500/10 hover:bg-amber-500/20'
+        } disabled:opacity-30`}>
+        {active ? <Pause className="w-3.5 h-3.5 text-white" /> : canPlay ? <Play className="w-3.5 h-3.5 text-primary ml-0.5" /> : <Lock className="w-3.5 h-3.5 text-amber-500" />}
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className={`text-sm font-medium truncate ${active ? 'text-primary' : ''}`}>{episode.title}</p>
+          {episode.is_premium && !hasPurchased && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 bg-amber-500/10 text-amber-600 rounded-full font-medium border border-amber-200 flex-shrink-0">
+              <Lock className="w-2.5 h-2.5" /> ${episode.premium_price || '—'}
+            </span>
+          )}
+          {episode.is_premium && hasPurchased && (
+            <span className="text-[10px] text-green-500 font-medium flex-shrink-0">✓ Purchased</span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+          {episode.duration > 0 && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{fmtDuration(episode.duration)}</span>}
+          {(episode.play_count || 0) > 0 && <span className="flex items-center gap-1"><Headphones className="w-3 h-3" />{episode.play_count?.toLocaleString()}</span>}
+          {episode.published_at && <span>{formatDistanceToNow(new Date(episode.published_at), { addSuffix: true })}</span>}
+        </div>
+      </div>
+      {episode.audio_url && !episode.is_premium && (
+        <button
+          onClick={() => onTip && onTip(episode, 'tip')}
+          className="flex-shrink-0 px-2 py-1 rounded-lg text-xs text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors gap-1 flex items-center">
+          <DollarSign className="w-3 h-3" /> Tip
+        </button>
+      )}
+      {episode.is_premium && !hasPurchased && (
+        <button
+          onClick={() => onTip && onTip(episode, 'buy')}
+          className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors">
+          Buy ${episode.premium_price}
+        </button>
+      )}
+    </div>
+  )
+}
 
-  const skip = (secs) => {
-    const audio = audioRef.current
-    audio.currentTime = Math.max(0, Math.min(duration, audio.currentTime + secs))
-  }
+// ── Podcast card (listener view) ──────────────────────────────────────────────
+function PodcastCard({ podcast, subscribed, onToggleSubscribe, currentUserId }) {
+  const [expanded, setExpanded] = useState(false)
+  const [showTip, setShowTip] = useState(false)
+  const [tipEpisode, setTipEpisode] = useState(null)
+  const [tipMode, setTipMode] = useState('tip') // 'tip' | 'buy'
+  const [tipAmount, setTipAmount] = useState('2')
+  const [tipping, setTipping] = useState(false)
+  const { user } = useAuth()
+  const qc = useQueryClient()
 
-  const handleFileSelect = (file) => {
-    if (!file || !file.type.startsWith('audio/')) return
-    setAudioFile(file)
-  }
+  const { data: episodes = [] } = useQuery({
+    queryKey: ['episodes', podcast.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('podcast_episodes').select('*')
+        .eq('podcast_id', podcast.id)
+        .eq('status', 'published')
+        .order('episode_number', { ascending: false })
+        .limit(20)
+      return data ?? []
+    },
+    enabled: expanded || !!podcast.id,
+  })
 
-  const handleDrop = (e) => {
-    e.preventDefault(); setDragging(false)
-    const file = e.dataTransfer.files[0]
-    handleFileSelect(file)
-  }
+  // Which premium episodes the current user has purchased
+  const { data: purchaseSet = new Set() } = useQuery({
+    queryKey: ['ep-purchases', podcast.id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('podcast_episode_purchases')
+        .select('episode_id').eq('user_id', user.id).eq('podcast_id', podcast.id)
+      return new Set((data ?? []).map(r => r.episode_id))
+    },
+    enabled: !!user?.id,
+  })
 
-  const uploadAudio = async () => {
-    if (!audioFile || !user?.id) return null
-    setUploading(true)
-    setUploadProgress(0)
-    const interval = setInterval(() => {
-      setUploadProgress(prev => { if (prev >= 90) { clearInterval(interval); return prev } return prev + 12 })
-    }, 300)
-    const path = `podcasts/${user.id}/${Date.now()}-${audioFile.name}`
-    const { data, error } = await supabase.storage.from('uploads').upload(path, audioFile)
-    clearInterval(interval)
-    setUploadProgress(100)
-    if (error) { setUploading(false); return null }
-    const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(data.path)
-    setUploading(false)
-    return publicUrl
-  }
+  const isSub = subscribed.has(podcast.id)
+  const isOwn = podcast.created_by === currentUserId
 
-  const submit = async (e) => {
-    e.preventDefault()
-    if (!form.title.trim() || !audioFile) return
-    setPosting(true)
-    const audioUrl = await uploadAudio()
-    if (!audioUrl) { setPosting(false); return }
-    const { data } = await supabase.from('podcasts').insert({
-      title: form.title.trim(),
-      description: form.description.trim() || null,
-      audio_url: audioUrl,
-      creator_id: user.id,
-      creator_name: user.full_name,
-    }).select().single()
-    if (data) {
-      setEpisodes(prev => [data, ...prev])
-      setShowForm(false)
-      setForm({ title: '', description: '' })
-      setAudioFile(null)
-      setUploadProgress(0)
-    }
-    setPosting(false)
-  }
+  const handleAction = async () => {
+    if (!user || !tipEpisode) return
+    setTipping(true)
+    try {
+      const { addToWallet } = await import('@/lib/wallet')
 
-  const handleSubscribe = async (creatorId) => {
-    if (!creatorId || creatorId === user?.id) return
-    if (subscribed.has(creatorId)) {
-      await supabase.from('podcast_subscriptions').delete()
-        .eq('subscriber_id', user.id).eq('creator_id', creatorId)
-      setSubscribed(prev => { const s = new Set(prev); s.delete(creatorId); return s })
-    } else {
-      await supabase.from('podcast_subscriptions').insert({ subscriber_id: user.id, creator_id: creatorId })
-      setSubscribed(prev => new Set([...prev, creatorId]))
+      if (tipMode === 'buy') {
+        const price = parseFloat(tipEpisode.premium_price || 0)
+        if (!price) { toast.error('No price set for this episode'); return }
+        // Record purchase
+        const { error } = await supabase.from('podcast_episode_purchases').insert({
+          user_id: user.id,
+          episode_id: tipEpisode.id,
+          podcast_id: podcast.id,
+          amount_paid: price,
+        })
+        if (error) { toast.error('Purchase failed — you may already own this episode'); return }
+        // 80% to creator
+        await addToWallet(podcast.created_by, price * 0.80, 'podcast_sale', `Episode purchase: "${tipEpisode.title}"`, tipEpisode.id)
+        await supabase.from('podcast_episodes').update({ tips_total: (tipEpisode.tips_total || 0) + price }).eq('id', tipEpisode.id)
+        qc.invalidateQueries({ queryKey: ['ep-purchases', podcast.id, user.id] })
+        toast.success(`Unlocked! You can now play "${tipEpisode.title}"`)
+      } else {
+        const amount = parseFloat(tipAmount)
+        if (!amount || amount < 0.5) { toast.error('Minimum tip is $0.50'); return }
+        await supabase.from('podcast_episodes').update({ tips_total: (tipEpisode.tips_total || 0) + amount }).eq('id', tipEpisode.id)
+        await addToWallet(podcast.created_by, amount * 0.80, 'podcast_tip', `Tip for "${tipEpisode.title}"`, tipEpisode.id)
+        toast.success(`$${amount.toFixed(2)} tip sent!`)
+      }
+      setShowTip(false)
+    } catch {
+      toast.error('Action failed')
+    } finally {
+      setTipping(false)
     }
   }
 
   return (
+    <div className={`bg-card border rounded-xl overflow-hidden transition-all ${expanded ? 'border-primary/30' : 'border-border hover:border-primary/20'}`}>
+      {/* Header */}
+      <div className="p-4">
+        <div className="flex items-start gap-3">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-muted flex-shrink-0 overflow-hidden">
+            {podcast.cover_url
+              ? <img src={podcast.cover_url} className="w-full h-full object-cover" alt="" />
+              : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+                  <Mic2 className="w-7 h-7 text-primary/50" />
+                </div>}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold leading-snug">{podcast.title}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{podcast.creator_name || 'Creator'}</p>
+            {podcast.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{podcast.description}</p>}
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {podcast.category && (
+                <span className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-full font-medium">{podcast.category}</span>
+              )}
+              {podcast.explicit && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-red-100 dark:bg-red-950/30 text-red-500 rounded-full border border-red-200 dark:border-red-900">E</span>
+              )}
+              <span className="text-xs text-muted-foreground">{podcast.total_episodes || 0} eps</span>
+              {(podcast.subscriber_count || 0) > 0 && (
+                <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                  <Users className="w-3 h-3" />{podcast.subscriber_count?.toLocaleString()}
+                </span>
+              )}
+              {(podcast.total_plays || 0) > 0 && (
+                <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                  <Headphones className="w-3 h-3" />{podcast.total_plays?.toLocaleString()}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            {!isOwn && (
+              <button
+                onClick={() => onToggleSubscribe(podcast)}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  isSub
+                    ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                }`}>
+                {isSub ? <><BellOff className="w-3 h-3" /> Following</> : <><Bell className="w-3 h-3" /> Follow</>}
+              </button>
+            )}
+            <button
+              onClick={() => setExpanded(v => !v)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              {expanded ? <><ChevronUp className="w-3.5 h-3.5" /> Less</> : <><ChevronDown className="w-3.5 h-3.5" /> Episodes</>}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Episodes */}
+      {expanded && (
+        <div className="border-t border-border">
+          {episodes.length === 0 ? (
+            <div className="px-4 py-6 text-center text-xs text-muted-foreground">No episodes published yet</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {episodes.map(ep => (
+                <EpisodeRow key={ep.id} episode={ep} podcast={podcast} purchases={purchaseSet}
+                  onTip={(ep, mode) => { setTipEpisode(ep); setTipMode(mode); setTipAmount(mode === 'buy' ? String(ep.premium_price || '') : '2'); setShowTip(true) }} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tip / Buy modal */}
+      {showTip && tipEpisode && (
+        <div className="border-t border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-semibold">
+                {tipMode === 'buy' ? `Unlock episode — $${tipEpisode.premium_price}` : 'Support the creator'}
+              </p>
+              <p className="text-xs text-muted-foreground truncate max-w-[240px]">"{tipEpisode.title}"</p>
+            </div>
+            <button onClick={() => setShowTip(false)} className="text-muted-foreground hover:text-foreground text-xs">Cancel</button>
+          </div>
+          {tipMode === 'buy' ? (
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground flex-1">Pay <strong>${tipEpisode.premium_price}</strong> to unlock full episode. 80% goes to the creator.</p>
+              <button onClick={handleAction} disabled={tipping}
+                className="px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 disabled:opacity-60 flex items-center gap-1.5 flex-shrink-0">
+                {tipping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
+                Unlock
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 flex-wrap">
+              {['1', '2', '5', '10'].map(v => (
+                <button key={v} onClick={() => setTipAmount(v)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all ${tipAmount === v ? 'bg-amber-500 text-white border-amber-500' : 'border-border hover:border-amber-400'}`}>
+                  ${v}
+                </button>
+              ))}
+              <input type="number" min="0.5" step="0.5" value={tipAmount} onChange={e => setTipAmount(e.target.value)}
+                className="w-20 px-2 py-1.5 rounded-lg border border-border text-sm focus:outline-none focus:ring-1 focus:ring-amber-400 bg-background" placeholder="Other" />
+              <button onClick={handleAction} disabled={tipping}
+                className="px-4 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 disabled:opacity-60 flex items-center gap-1">
+                {tipping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <DollarSign className="w-3.5 h-3.5" />}
+                Send Tip
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main Podcasts page ────────────────────────────────────────────────────────
+export default function Podcasts() {
+  const { user } = useAuth()
+  const { mode } = useMode()
+  const qc = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [activeCategory, setActiveCategory] = useState('Trending')
+  const [subscribed, setSubscribed] = useState(new Set())
+
+  // Load all podcasts
+  const { data: podcasts = [], isLoading } = useQuery({
+    queryKey: ['all-podcasts'],
+    queryFn: async () => {
+      const { data } = await supabase.from('podcasts')
+        .select('*')
+        .order('total_plays', { ascending: false })
+        .limit(60)
+      return data ?? []
+    },
+  })
+
+  // Load subscriptions
+  useEffect(() => {
+    if (!user?.id) return
+    supabase.from('podcast_subscriptions').select('podcast_id').eq('user_id', user.id)
+      .then(({ data }) => { if (data) setSubscribed(new Set(data.map(s => s.podcast_id))) })
+  }, [user?.id])
+
+  const handleToggleSubscribe = async (podcast) => {
+    if (!user?.id) { toast.error('Sign in to follow podcasts'); return }
+    const isSub = subscribed.has(podcast.id)
+    if (isSub) {
+      await supabase.from('podcast_subscriptions').delete()
+        .eq('user_id', user.id).eq('podcast_id', podcast.id)
+      // Decrement count
+      await supabase.from('podcasts').update({ subscriber_count: Math.max(0, (podcast.subscriber_count || 1) - 1) }).eq('id', podcast.id)
+      setSubscribed(prev => { const s = new Set(prev); s.delete(podcast.id); return s })
+      toast.success('Unfollowed')
+    } else {
+      await supabase.from('podcast_subscriptions').insert({ user_id: user.id, podcast_id: podcast.id })
+      await supabase.from('podcasts').update({ subscriber_count: (podcast.subscriber_count || 0) + 1 }).eq('id', podcast.id)
+      setSubscribed(prev => new Set([...prev, podcast.id]))
+      toast.success('Following!')
+    }
+    qc.invalidateQueries({ queryKey: ['all-podcasts'] })
+  }
+
+  const filtered = podcasts.filter(p => {
+    const q = search.toLowerCase()
+    const matchesSearch = !q || p.title?.toLowerCase().includes(q) || p.creator_name?.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q)
+    const matchesCat = activeCategory === 'Trending' || p.category === activeCategory
+    return matchesSearch && matchesCat
+  })
+
+  // Stats for header
+  const totalEpisodes = podcasts.reduce((s, p) => s + (p.total_episodes || 0), 0)
+
+  return (
     <div className="max-w-2xl mx-auto pb-28">
-      <div className="flex items-center justify-between mb-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Podcasts</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
             {mode === 'pro'
-              ? 'Business, industry, and professional development podcasts'
-              : 'Discover and share episodes'}
+              ? 'Business, tech and professional development'
+              : `${podcasts.length} shows · ${totalEpisodes} episodes`}
           </p>
         </div>
-        <button onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90">
-          <Plus className="w-4 h-4" /> Upload Episode
-        </button>
       </div>
 
-      {/* Upload form */}
-      {showForm && (
-        <form onSubmit={submit} className="bg-card border border-border rounded-2xl p-5 mb-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-foreground">Upload Episode</h3>
-            <button type="button" onClick={() => { setShowForm(false); setAudioFile(null); setUploadProgress(0) }}
-              className="p-1 rounded-lg hover:bg-muted text-muted-foreground"><X className="w-4 h-4" /></button>
-          </div>
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search podcasts, creators…"
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-muted text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+      </div>
 
-          {/* Audio file drop zone */}
-          <div
-            onDragOver={e => { e.preventDefault(); setDragging(true) }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
-              dragging ? 'border-primary bg-primary/5' : audioFile ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-border hover:border-primary/50'
+      {/* Category chips */}
+      <div className="flex gap-2 overflow-x-auto pb-1 mb-5 no-scrollbar">
+        {CATEGORY_CHIPS.map(cat => (
+          <button
+            key={cat.label}
+            onClick={() => setActiveCategory(cat.label)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+              activeCategory === cat.label
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary'
             }`}>
-            <input ref={fileInputRef} type="file" accept="audio/*" className="hidden"
-              onChange={e => handleFileSelect(e.target.files[0])} />
-            {audioFile ? (
-              <div className="flex items-center gap-3 justify-center">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                  <Mic2 className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-medium text-foreground">{audioFile.name}</p>
-                  <p className="text-xs text-muted-foreground">{(audioFile.size / 1024 / 1024).toFixed(1)} MB</p>
-                </div>
-                <button type="button" onClick={e => { e.stopPropagation(); setAudioFile(null) }}
-                  className="ml-auto p-1 rounded-lg hover:bg-muted text-muted-foreground">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <>
-                <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm font-medium text-foreground">Drop audio file here</p>
-                <p className="text-xs text-muted-foreground mt-1">MP3, WAV, M4A, OGG · Max 200 MB</p>
-              </>
-            )}
-          </div>
+            {cat.emoji} {cat.label}
+          </button>
+        ))}
+      </div>
 
-          {/* Upload progress */}
-          {uploading && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Uploading…</span><span>{uploadProgress}%</span>
-              </div>
-              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
-              </div>
-            </div>
-          )}
-
-          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            placeholder="Episode title" required
-            className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40" />
-          <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-            placeholder="Episode description (optional)" rows={2}
-            className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none" />
-          <div className="flex gap-2">
-            <button type="submit" disabled={posting || uploading || !audioFile}
-              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 flex items-center gap-2">
-              {(posting || uploading) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {uploading ? 'Uploading…' : 'Publish Episode'}
-            </button>
-            <button type="button" onClick={() => { setShowForm(false); setAudioFile(null) }}
-              className="px-4 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+      {/* Subscribed shows row */}
+      {subscribed.size > 0 && !search && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Bell className="w-4 h-4 text-primary" />
+            <span className="text-sm font-semibold">Following</span>
           </div>
-        </form>
+          <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+            {podcasts.filter(p => subscribed.has(p.id)).map(p => (
+              <div key={p.id} className="flex-shrink-0 w-20 text-center">
+                <div className="w-16 h-16 rounded-xl bg-muted overflow-hidden mx-auto mb-1 border-2 border-primary/30">
+                  {p.cover_url
+                    ? <img src={p.cover_url} className="w-full h-full object-cover" alt="" />
+                    : <div className="w-full h-full flex items-center justify-center"><Mic2 className="w-5 h-5 text-muted-foreground" /></div>}
+                </div>
+                <p className="text-xs font-medium truncate">{p.title}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
-      {/* Mode label + Categories */}
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-bold text-primary px-2.5 py-1 rounded-full bg-primary/10">
-            {mode === 'pro' ? '💼 Professional Podcasts' : '🎨 Creator Podcasts'}
-          </span>
-        </div>
-
-        {/* Category chips */}
-        <div className="flex gap-2 flex-wrap">
-          {(mode === 'pro'
-            ? [
-                { emoji: '💼', label: 'Business' },
-                { emoji: '💻', label: 'Technology' },
-                { emoji: '💰', label: 'Finance' },
-                { emoji: '🏆', label: 'Leadership' },
-                { emoji: '🚀', label: 'Entrepreneurship' },
-                { emoji: '📊', label: 'Marketing' },
-                { emoji: '🔒', label: 'Cybersecurity' },
-                { emoji: '📈', label: 'Self Improvement' },
-                { emoji: '📰', label: 'Industry News' },
-              ]
-            : [
-                { emoji: '😂', label: 'Comedy' },
-                { emoji: '🔍', label: 'True Crime' },
-                { emoji: '⚽', label: 'Sports' },
-                { emoji: '🎵', label: 'Music' },
-                { emoji: '🎬', label: 'Pop Culture' },
-                { emoji: '📱', label: 'Creator Stories' },
-                { emoji: '💪', label: 'Motivation' },
-              ]
-          ).map(cat => (
-            <button key={cat.label}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium hover:bg-primary/10 hover:text-primary transition-colors">
-              {cat.emoji} {cat.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Featured shows row */}
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {(mode === 'pro'
-            ? [
-                { emoji: '💼', title: 'The Tim Ferriss Show', desc: 'World-class performers & their tactics', tag: 'Business' },
-                { emoji: '🚀', title: 'How I Built This', desc: 'Stories behind iconic companies', tag: 'Entrepreneurship' },
-                { emoji: '💰', title: 'Planet Money', desc: 'Economic stories explained simply', tag: 'Finance' },
-                { emoji: '🔒', title: 'Risky Business', desc: 'Security news and interviews', tag: 'Cybersecurity' },
-              ]
-            : [
-                { emoji: '📱', title: 'Creator Lab', desc: 'Tactics from 7-figure creators', tag: 'Creator Economy' },
-                { emoji: '🎵', title: 'Trap Lore Ross', desc: 'Hip-hop history deep dives', tag: 'Music' },
-                { emoji: '😂', title: 'SmartLess', desc: 'Comedy with Hollywood stars', tag: 'Comedy' },
-                { emoji: '💡', title: 'The Daily', desc: 'Top news stories explained', tag: 'News' },
-              ]
-          ).map(show => (
-            <div key={show.title} className="bg-card border border-border rounded-xl p-3 flex items-center gap-3 hover:border-primary/30 transition-all cursor-pointer group">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-2xl flex-shrink-0">{show.emoji}</div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{show.title}</p>
-                <p className="text-xs text-muted-foreground truncate">{show.desc}</p>
-                <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded-full mt-1 inline-block">{show.tag}</span>
-              </div>
+      {/* Stats bar */}
+      {!search && activeCategory === 'Trending' && podcasts.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {[
+            { icon: Radio, label: 'Shows', value: podcasts.length },
+            { icon: Headphones, label: 'Episodes', value: totalEpisodes },
+            { icon: Users, label: 'Creators', value: new Set(podcasts.map(p => p.created_by)).size },
+          ].map(s => (
+            <div key={s.label} className="bg-card border border-border rounded-xl p-3 text-center">
+              <s.icon className="w-4 h-4 mx-auto mb-1 text-primary" />
+              <p className="text-base font-bold">{s.value}</p>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
             </div>
           ))}
         </div>
-      </div>
+      )}
 
-      {/* Divider */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="flex-1 h-px bg-border" />
-        <p className="text-xs text-muted-foreground font-medium">Community Episodes</p>
-        <div className="flex-1 h-px bg-border" />
-      </div>
-
-      {/* Episode list */}
-      {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-      ) : episodes.length === 0 ? (
+      {/* Podcast list */}
+      {isLoading ? (
+        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <Mic2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="font-medium">No episodes yet</p>
-          <p className="text-sm mt-1">Upload the first episode!</p>
+          <p className="font-medium">
+            {search ? `No podcasts matching "${search}"` : `No ${activeCategory !== 'Trending' ? activeCategory : ''} podcasts yet`}
+          </p>
+          <p className="text-sm mt-1">Be the first to upload one in Podcast Studio!</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {episodes.map(ep => (
-            <div key={ep.id} className={`bg-card border rounded-2xl p-4 transition-all ${playing === ep.id ? 'border-primary/40 bg-primary/5' : 'border-border'}`}>
-              <div className="flex items-start gap-4">
-                {/* Play button */}
-                <button
-                  onClick={() => ep.audio_url && togglePlay(ep)}
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
-                    ep.audio_url ? (playing === ep.id ? 'bg-primary text-primary-foreground' : 'bg-primary/15 hover:bg-primary/25 text-primary') : 'bg-muted text-muted-foreground cursor-default'
-                  }`}
-                >
-                  {playing === ep.id ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                </button>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-foreground truncate">{ep.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{ep.creator_name}</p>
-                  {ep.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{ep.description}</p>}
-                </div>
-
-                {/* Subscribe */}
-                {ep.creator_id && ep.creator_id !== user?.id && (
-                  <button
-                    onClick={() => handleSubscribe(ep.creator_id)}
-                    title={subscribed.has(ep.creator_id) ? 'Unsubscribe' : 'Subscribe'}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex-shrink-0 ${
-                      subscribed.has(ep.creator_id)
-                        ? 'bg-primary/15 text-primary hover:bg-primary/25'
-                        : 'bg-muted text-muted-foreground hover:text-foreground'
-                    }`}>
-                    {subscribed.has(ep.creator_id) ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
-                    {subscribed.has(ep.creator_id) ? 'Subscribed' : 'Subscribe'}
-                  </button>
-                )}
-              </div>
-
-              {/* Playing indicator */}
-              {playing === ep.id && (
-                <div className="flex gap-0.5 items-end h-4 mt-3">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="w-1 bg-primary rounded-full animate-pulse" style={{ height: `${40 + i * 15}%`, animationDelay: `${i * 0.12}s` }} />
-                  ))}
-                </div>
-              )}
-            </div>
+        <div className="space-y-4">
+          {filtered.map(p => (
+            <PodcastCard
+              key={p.id}
+              podcast={p}
+              subscribed={subscribed}
+              onToggleSubscribe={handleToggleSubscribe}
+              currentUserId={user?.id}
+            />
           ))}
-        </div>
-      )}
-
-      {/* Bottom mini player */}
-      {currentEp && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur border-t border-border px-4 py-3">
-          <div className="max-w-2xl mx-auto">
-            {/* Progress bar */}
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] text-muted-foreground w-8 text-right">{formatTime(currentTime)}</span>
-              <input type="range" min={0} max={duration || 100} step={0.1} value={currentTime}
-                onChange={handleSeek}
-                className="flex-1 h-1 accent-primary cursor-pointer" />
-              <span className="text-[10px] text-muted-foreground w-8">{formatTime(duration)}</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {/* Episode info */}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-foreground truncate">{currentEp.title}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{currentEp.creator_name}</p>
-              </div>
-
-              {/* Controls */}
-              <div className="flex items-center gap-2">
-                <button onClick={() => skip(-10)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                  <SkipBack className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => togglePlay(currentEp)}
-                  className="w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors">
-                  {playing === currentEp.id ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                </button>
-                <button onClick={() => skip(10)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                  <SkipForward className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Volume */}
-              <div className="flex items-center gap-1.5">
-                <button onClick={() => setMuted(v => !v)} className="p-1 text-muted-foreground hover:text-foreground">
-                  {muted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                </button>
-                <input type="range" min={0} max={100} value={muted ? 0 : volume}
-                  onChange={e => { setVolume(Number(e.target.value)); setMuted(false) }}
-                  className="w-16 h-1 accent-primary cursor-pointer" />
-              </div>
-
-              {/* Close */}
-              <button onClick={() => { audioRef.current.pause(); setPlaying(null); setCurrentEp(null) }}
-                className="p-1 text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
