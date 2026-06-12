@@ -178,19 +178,45 @@ function CommentsDrawer({ reel, onClose }) {
 }
 
 // ─── Upload Modal ─────────────────────────────────────────────────────────────
+const REEL_MAX_SECONDS = 90
+const WATCH_MIN_SECONDS = 180
+
 function UploadModal({ onClose, onUploaded }) {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [caption, setCaption] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [durationError, setDurationError] = useState(null) // null | 'too_long' | 'watch'
+  const [detectedDuration, setDetectedDuration] = useState(null)
   const fileRef = useRef(null)
   const { user } = useAuth()
+  const navigate = useNavigate()
 
   const handleFile = e => {
     const f = e.target.files[0]
     if (!f || !f.type.startsWith('video/')) return
-    setFile(f)
-    setPreview(URL.createObjectURL(f))
+    setDurationError(null)
+    setDetectedDuration(null)
+
+    const url = URL.createObjectURL(f)
+    const vid = document.createElement('video')
+    vid.src = url
+    vid.onloadedmetadata = () => {
+      URL.revokeObjectURL(url)
+      const dur = vid.duration
+      setDetectedDuration(Math.round(dur))
+      if (dur >= WATCH_MIN_SECONDS) {
+        setDurationError('watch')
+        return
+      }
+      if (dur > REEL_MAX_SECONDS) {
+        setDurationError('too_long')
+        return
+      }
+      setFile(f)
+      setPreview(URL.createObjectURL(f))
+    }
+    vid.onerror = () => { URL.revokeObjectURL(url); setFile(f); setPreview(URL.createObjectURL(f)) }
   }
 
   const handleUpload = async () => {
@@ -223,6 +249,8 @@ function UploadModal({ onClose, onUploaded }) {
     }
   }
 
+  const fmtDur = s => s >= 60 ? `${Math.floor(s/60)}m ${s%60}s` : `${s}s`
+
   return (
     <div className="fixed inset-0 z-40 bg-black/80 flex items-end" onClick={onClose}>
       <div className="w-full bg-zinc-900 rounded-t-2xl p-4 space-y-4"
@@ -232,28 +260,69 @@ function UploadModal({ onClose, onUploaded }) {
           <button onClick={onClose}><X className="w-5 h-5 text-white/60" /></button>
         </div>
         <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={handleFile} />
-        {preview ? (
-          <div className="relative aspect-[9/16] max-h-48 mx-auto rounded-xl overflow-hidden bg-black">
-            <video src={preview} className="w-full h-full object-cover" />
-            <button onClick={() => { setFile(null); setPreview(null) }}
-              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white">
-              <X className="w-4 h-4" />
+
+        {/* Duration error states */}
+        {durationError === 'watch' && (
+          <div className="bg-blue-900/60 border border-blue-500/40 rounded-xl p-4 space-y-3">
+            <p className="text-white font-semibold text-sm">Long-form video detected</p>
+            <p className="text-blue-200 text-xs leading-relaxed">
+              Your video is {detectedDuration ? fmtDur(detectedDuration) : 'over 3 minutes'} — that's long-form content.
+              Reels are capped at 90 seconds. Upload this to <strong>Watch</strong> instead for better discovery, monetization, and ads.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => { onClose(); navigate('/creator-studio') }}
+                className="flex-1 bg-blue-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-blue-500 transition">
+                Go to Watch Upload →
+              </button>
+              <button onClick={() => { setDurationError(null); fileRef.current?.click() }}
+                className="px-4 py-2.5 rounded-xl border border-white/20 text-white/60 text-sm hover:bg-white/10 transition">
+                Try another
+              </button>
+            </div>
+          </div>
+        )}
+
+        {durationError === 'too_long' && (
+          <div className="bg-amber-900/60 border border-amber-500/40 rounded-xl p-4 space-y-3">
+            <p className="text-white font-semibold text-sm">Video too long for Reels</p>
+            <p className="text-amber-200 text-xs leading-relaxed">
+              Your video is {detectedDuration ? fmtDur(detectedDuration) : 'over 90 seconds'}.
+              Reels max is <strong>90 seconds</strong>. Trim it down or post it as a regular feed video.
+            </p>
+            <button onClick={() => { setDurationError(null); fileRef.current?.click() }}
+              className="w-full py-2.5 rounded-xl border border-white/20 text-white/60 text-sm hover:bg-white/10 transition">
+              Choose a different video
             </button>
           </div>
-        ) : (
-          <button onClick={() => fileRef.current?.click()}
-            className="w-full h-32 border-2 border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-white/40 hover:border-purple-500 hover:text-purple-400 transition">
-            <Upload className="w-8 h-8" />
-            <p className="text-sm">Tap to select a video</p>
-          </button>
         )}
-        <textarea value={caption} onChange={e => setCaption(e.target.value)}
-          placeholder="Write a caption…"
-          className="w-full bg-white/10 text-white placeholder-white/40 rounded-xl px-4 py-3 text-sm resize-none h-20 outline-none" />
-        <button onClick={handleUpload} disabled={!file || uploading}
-          className="w-full bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition disabled:opacity-50">
-          {uploading ? 'Uploading…' : 'Share Reel'}
-        </button>
+
+        {!durationError && (
+          <>
+            {preview ? (
+              <div className="relative aspect-[9/16] max-h-48 mx-auto rounded-xl overflow-hidden bg-black">
+                <video src={preview} className="w-full h-full object-cover" />
+                <button onClick={() => { setFile(null); setPreview(null) }}
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => fileRef.current?.click()}
+                className="w-full h-32 border-2 border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-white/40 hover:border-purple-500 hover:text-purple-400 transition">
+                <Upload className="w-8 h-8" />
+                <p className="text-sm">Tap to select a video</p>
+                <p className="text-xs opacity-60">Max 90 seconds · Vertical recommended</p>
+              </button>
+            )}
+            <textarea value={caption} onChange={e => setCaption(e.target.value)}
+              placeholder="Write a caption…"
+              className="w-full bg-white/10 text-white placeholder-white/40 rounded-xl px-4 py-3 text-sm resize-none h-20 outline-none" />
+            <button onClick={handleUpload} disabled={!file || uploading}
+              className="w-full bg-purple-600 text-white py-3 rounded-xl font-semibold hover:bg-purple-700 transition disabled:opacity-50">
+              {uploading ? 'Uploading…' : 'Share Reel'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
@@ -925,7 +994,7 @@ export default function Reels() {
       try {
         const { data } = await supabase.from('posts')
           .select('*')
-          .or('feed_type.eq.reel,media_type.eq.video')
+          .eq('feed_type', 'reel')
           .order('created_at', { ascending: false })
           .limit(20)
 

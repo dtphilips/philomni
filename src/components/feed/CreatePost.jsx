@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,11 +59,38 @@ export default function CreatePost({ user }) {
   const [rewriting, setRewriting] = useState(false);
   const [rewriteAction, setRewriteAction] = useState(null);
   const [showRewrite, setShowRewrite] = useState(false);
+  const [longVideoWarning, setLongVideoWarning] = useState(null); // { name, duration }
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const handleMediaUpload = (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
+
+    // Check video duration — ≥3min belongs on Watch, not Feed
+    const videoFile = files.find(f => f.type?.startsWith('video'));
+    if (videoFile) {
+      const url = URL.createObjectURL(videoFile);
+      const vid = document.createElement('video');
+      vid.src = url;
+      vid.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        if (vid.duration >= 180) {
+          const mins = Math.floor(vid.duration / 60);
+          const secs = Math.round(vid.duration % 60);
+          setLongVideoWarning({ name: videoFile.name, duration: `${mins}m ${secs}s` });
+          return;
+        }
+        // Under 3 min — proceed normally
+        addFiles(files);
+      };
+      vid.onerror = () => { URL.revokeObjectURL(url); addFiles(files); };
+      return;
+    }
+    addFiles(files);
+  };
+
+  const addFiles = (files) => {
     const startIdx = mediaFiles.length;
     setMediaFiles(prev => [...prev, ...files]);
     files.forEach(file => setMediaPreviews(prev => [...prev, URL.createObjectURL(file)]));
@@ -267,6 +294,28 @@ export default function CreatePost({ user }) {
 
   return (
     <div className="bg-card rounded-2xl border border-border shadow-sm mb-6 overflow-hidden" id="create-post-composer">
+      {longVideoWarning && (
+        <div className="bg-blue-500/10 border-b border-blue-500/20 px-4 py-3 flex items-start gap-3">
+          <span className="text-xl flex-shrink-0">🎬</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground">Long video — upload to Watch instead</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              <span className="font-medium text-foreground">{longVideoWarning.name}</span> is {longVideoWarning.duration} long.
+              Videos 3 min+ belong on Watch for better discovery, ads, and monetization.
+            </p>
+            <div className="flex gap-2 mt-2">
+              <button onClick={() => { setLongVideoWarning(null); navigate('/creator-studio') }}
+                className="text-xs font-semibold text-white bg-primary px-3 py-1.5 rounded-lg hover:bg-primary/90 transition">
+                Upload to Watch →
+              </button>
+              <button onClick={() => setLongVideoWarning(null)}
+                className="text-xs text-muted-foreground px-3 py-1.5 rounded-lg hover:bg-muted transition">
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="p-4">
         <div className="flex gap-3">
           <div className="w-10 h-10 rounded-full bg-muted flex-shrink-0 overflow-hidden ring-2 ring-border/50">
