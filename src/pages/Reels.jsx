@@ -1172,8 +1172,8 @@ export default function Reels() {
   return (
     <div className="fixed inset-0 bg-black z-40 flex justify-center">
     <div ref={containerRef}
-      className="h-full w-full max-w-[430px] overflow-y-scroll snap-y snap-mandatory"
-      style={{ scrollSnapType: 'y mandatory', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      className="h-full w-full overflow-y-scroll snap-y snap-mandatory"
+      style={{ scrollSnapType: 'y mandatory', scrollbarWidth: 'none', msOverflowStyle: 'none', maxWidth: 'calc(100dvh * 9 / 16)' }}>
       {reels.map((reel, index) => (
         <ReelSlide
           key={reel.id}
