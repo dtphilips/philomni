@@ -485,6 +485,7 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
   const [reel, setReel] = useState(initialReel)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showPlayIcon, setShowPlayIcon] = useState(false)
+  const [videoProgress, setVideoProgress] = useState(0) // 0–1
 
   // Like
   const [liked, setLiked] = useState(false)
@@ -607,12 +608,13 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
     const video = e.target
     if (!video.duration) return
 
-    // Skip ads on short videos
-    if (video.duration < MIN_VIDEO_LENGTH_FOR_ADS) return
-
     const dur = video.duration
     const pct = video.currentTime / dur
     const remaining = dur - video.currentTime
+    setVideoProgress(pct)
+
+    // Skip ads on short videos
+    if (video.duration < MIN_VIDEO_LENGTH_FOR_ADS) return
 
     // Mid-roll: videos ≥ 60 s, fires at 50%
     if (dur >= 60 && pct >= 0.5 && !midRollShown) {
@@ -815,8 +817,18 @@ function ReelSlide({ reel: initialReel, index, isMuted, onMuteToggle, videoRefsC
         </div>
       )}
 
+      {/* Video progress bar */}
+      <div className="absolute top-0 left-0 right-0 z-20 pointer-events-none">
+        <div className="h-[3px] bg-white/20 w-full">
+          <div
+            className="h-full bg-white transition-none"
+            style={{ width: `${videoProgress * 100}%` }}
+          />
+        </div>
+      </div>
+
       {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
+      <div className="absolute top-[3px] left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
         <div className="flex items-center justify-between pointer-events-auto">
           <h2 className="text-white font-semibold text-lg">Reels</h2>
           <div className="flex gap-3">
@@ -994,7 +1006,7 @@ export default function Reels() {
       try {
         const { data } = await supabase.from('posts')
           .select('*')
-          .eq('feed_type', 'reel')
+          .or('feed_type.eq.reel,media_type.eq.video')
           .order('created_at', { ascending: false })
           .limit(20)
 
@@ -1038,7 +1050,7 @@ export default function Reels() {
             setCurrentIndex(idx)
             if (video) { video.currentTime = 0; video.play().catch(() => {}) }
           } else {
-            if (video) { video.pause(); video.currentTime = 0 }
+            if (video) { video.pause(); video.currentTime = 0; video.dispatchEvent(new Event('timeupdate')) }
           }
         })
       }, { threshold: 0.7 })
