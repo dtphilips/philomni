@@ -243,7 +243,7 @@ export default function CompanySetup() {
     setMemberSearch(q)
     if (q.trim().length < 2) { setMemberSearchResults([]); return }
     setMemberSearchLoading(true)
-    const { data } = await supabase.from('profiles').select('id, full_name, username, avatar_url').or(`full_name.ilike.%${q}%,username.ilike.%${q}%`).limit(8)
+    const { data } = await supabase.from('users').select('id, full_name, username, avatar_url').or(`full_name.ilike.%${q}%,username.ilike.%${q}%`).limit(8)
     setMemberSearchResults(data ?? [])
     setMemberSearchLoading(false)
   }
