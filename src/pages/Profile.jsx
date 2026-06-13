@@ -633,8 +633,8 @@ function CelebrationsWall({ userId, isOwnProfile }) {
 }
 
 // ─── FollowListModal ──────────────────────────────────────────────────────────
-function FollowListModal({ type, targetId, onClose, onNavigate }) {
-  const [people, setPeople] = useState([])
+function FollowListModal({ type, targetId, onClose, onNavigate, onNavigateCompany }) {
+  const [people, setPeople] = useState([])   // { kind:'user'|'company', ...fields }
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -642,26 +642,63 @@ function FollowListModal({ type, targetId, onClose, onNavigate }) {
     setLoading(true)
     const load = async () => {
       if (type === 'followers') {
-        // people who follow targetId
-        const { data } = await supabase
-          .from('follows')
-          .select('follower:follower_id(id, full_name, username, avatar_url, headline)')
-          .eq('following_id', targetId)
-          .limit(100)
-        setPeople((data ?? []).map(r => r.follower).filter(Boolean))
+        // Users who follow this person
+        const { data: userRows } = await supabase
+          .from('follows').select('follower_id').eq('following_id', targetId).limit(100)
+        const userIds = (userRows ?? []).map(r => r.follower_id)
+
+        // Companies that follow this person (via company_following table)
+        const { data: coRows } = await supabase
+          .from('company_following').select('company_id')
+          .eq('target_type', 'user').eq('target_id', targetId).limit(100)
+        const coIds = (coRows ?? []).map(r => r.company_id)
+
+        const [{ data: users }, { data: cos }] = await Promise.all([
+          userIds.length > 0
+            ? supabase.from('users').select('id, full_name, username, avatar_url, headline').in('id', userIds)
+            : Promise.resolve({ data: [] }),
+          coIds.length > 0
+            ? supabase.from('company_pages').select('id, name, handle, logo_url, tagline').in('id', coIds)
+            : Promise.resolve({ data: [] }),
+        ])
+        setPeople([
+          ...(users ?? []).map(u => ({ ...u, kind: 'user' })),
+          ...(cos ?? []).map(c => ({ ...c, kind: 'company' })),
+        ])
       } else {
-        // people targetId follows
-        const { data } = await supabase
-          .from('follows')
-          .select('following:following_id(id, full_name, username, avatar_url, headline)')
-          .eq('follower_id', targetId)
-          .limit(100)
-        setPeople((data ?? []).map(r => r.following).filter(Boolean))
+        // Users this person follows
+        const { data: userRows } = await supabase
+          .from('follows').select('following_id').eq('follower_id', targetId).limit(100)
+        const userIds = (userRows ?? []).map(r => r.following_id)
+
+        // Companies this person follows (via company_follows table)
+        const { data: coRows } = await supabase
+          .from('company_follows').select('company_id').eq('user_id', targetId).limit(100)
+        const coIds = (coRows ?? []).map(r => r.company_id)
+
+        const [{ data: users }, { data: cos }] = await Promise.all([
+          userIds.length > 0
+            ? supabase.from('users').select('id, full_name, username, avatar_url, headline').in('id', userIds)
+            : Promise.resolve({ data: [] }),
+          coIds.length > 0
+            ? supabase.from('company_pages').select('id, name, handle, logo_url, tagline').in('id', coIds)
+            : Promise.resolve({ data: [] }),
+        ])
+        setPeople([
+          ...(users ?? []).map(u => ({ ...u, kind: 'user' })),
+          ...(cos ?? []).map(c => ({ ...c, kind: 'company' })),
+        ])
       }
       setLoading(false)
     }
     load()
   }, [type, targetId])
+
+  const navigate = (item) => {
+    onClose()
+    if (item.kind === 'company') onNavigateCompany(item.handle)
+    else onNavigate(item.id)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
@@ -679,18 +716,24 @@ function FollowListModal({ type, targetId, onClose, onNavigate }) {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {people.map(u => {
-                const initials = (u.full_name || u.username || '?')[0].toUpperCase()
+              {people.map(item => {
+                const isCompany = item.kind === 'company'
+                const name = isCompany ? item.name : (item.full_name || item.username || 'User')
+                const sub = isCompany ? `@${item.handle}` : (item.username ? `@${item.username}` : null)
+                const desc = isCompany ? item.tagline : item.headline
+                const initials = (name || '?')[0].toUpperCase()
                 return (
-                  <button key={u.id} onClick={() => { onClose(); onNavigate(u.id) }}
+                  <button key={item.id} onClick={() => navigate(item)}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left">
-                    <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex items-center justify-center text-sm font-semibold text-muted-foreground flex-shrink-0">
-                      {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" alt="" /> : initials}
+                    <div className={`w-10 h-10 ${isCompany ? 'rounded-xl border border-border' : 'rounded-full'} bg-muted overflow-hidden flex items-center justify-center text-sm font-semibold text-muted-foreground flex-shrink-0`}>
+                      {item.avatar_url || item.logo_url
+                        ? <img src={item.avatar_url || item.logo_url} className="w-full h-full object-cover" alt="" />
+                        : isCompany ? <Building2 className="w-4 h-4 text-muted-foreground" /> : initials}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-foreground leading-tight">{u.full_name || u.username || 'User'}</p>
-                      {u.username && <p className="text-xs text-muted-foreground">@{u.username}</p>}
-                      {u.headline && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{u.headline}</p>}
+                      <p className="font-semibold text-sm text-foreground leading-tight">{name}</p>
+                      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+                      {desc && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{desc}</p>}
                     </div>
                   </button>
                 )
@@ -1334,6 +1377,7 @@ export default function Profile() {
           targetId={targetId}
           onClose={() => setFollowModal(null)}
           onNavigate={(id) => navigate(`/profile/${id}`)}
+          onNavigateCompany={(handle) => navigate(`/company/${handle}`)}
         />
       )}
     </div>
