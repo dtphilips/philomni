@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Search, Loader2, Users, FileText, Building2, UserPlus, UserCheck, Bell, BellOff } from 'lucide-react'
+import { Search, Loader2, Users, FileText, Building2, UserPlus, UserCheck, Bell, BellOff, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function GlobalSearch() {
@@ -18,8 +18,11 @@ export default function GlobalSearch() {
   const [users, setUsers] = useState([])
   const [companies, setCompanies] = useState([])
   const [posts, setPosts] = useState([])
-  const [follows, setFollows] = useState(new Set())         // user ids this user follows
-  const [companyFollows, setCompanyFollows] = useState(new Set()) // company ids
+  const [follows, setFollows] = useState(new Set())
+  const [companyFollows, setCompanyFollows] = useState(new Set())
+  const [myCompanies, setMyCompanies] = useState([])                  // companies I manage
+  const [companyFollowingUsers, setCompanyFollowingUsers] = useState({}) // { userId: Set<companyId> }
+  const [companyFollowingCos, setCompanyFollowingCos] = useState({})    // { companyId: Set<myCompanyId> }
 
   const totalResults = users.length + companies.length + posts.length
 
@@ -38,6 +41,19 @@ export default function GlobalSearch() {
     setLoading(false)
   }, [])
 
+  // Load companies I manage
+  useEffect(() => {
+    if (!user?.id) return
+    Promise.all([
+      supabase.from('company_pages').select('id, name, logo_url, handle').eq('owner_id', user.id),
+      supabase.from('company_members').select('company_pages(id, name, logo_url, handle)').eq('user_id', user.id).in('role', ['admin', 'editor']),
+    ]).then(([{ data: owned }, { data: membered }]) => {
+      const merged = [...(owned ?? []), ...(membered ?? []).map(m => m.company_pages).filter(Boolean)]
+      const seen = new Set()
+      setMyCompanies(merged.filter(c => c && !seen.has(c.id) && seen.add(c.id)))
+    })
+  }, [user?.id])
+
   // Load follow state once we have results
   useEffect(() => {
     if (!user?.id) return
@@ -52,6 +68,38 @@ export default function GlobalSearch() {
       setCompanyFollows(new Set((cf ?? []).map(x => x.company_id)))
     })
   }, [users, companies, user?.id])
+
+  // Load which of my companies already follow the search results
+  useEffect(() => {
+    if (myCompanies.length === 0) return
+    const myCoIds = myCompanies.map(c => c.id)
+    const userIds = users.map(u => u.id)
+    const coIds = companies.map(c => c.id)
+    if (userIds.length > 0) {
+      supabase.from('company_following').select('company_id, target_id')
+        .eq('target_type', 'user').in('target_id', userIds).in('company_id', myCoIds)
+        .then(({ data }) => {
+          const map = {}
+          ;(data ?? []).forEach(r => {
+            if (!map[r.target_id]) map[r.target_id] = new Set()
+            map[r.target_id].add(r.company_id)
+          })
+          setCompanyFollowingUsers(map)
+        })
+    }
+    if (coIds.length > 0) {
+      supabase.from('company_following').select('company_id, target_id')
+        .eq('target_type', 'company').in('target_id', coIds).in('company_id', myCoIds)
+        .then(({ data }) => {
+          const map = {}
+          ;(data ?? []).forEach(r => {
+            if (!map[r.target_id]) map[r.target_id] = new Set()
+            map[r.target_id].add(r.company_id)
+          })
+          setCompanyFollowingCos(map)
+        })
+    }
+  }, [users, companies, myCompanies])
 
   useEffect(() => {
     const q = searchParams.get('q')
@@ -99,6 +147,44 @@ export default function GlobalSearch() {
       setCompanyFollows(prev => new Set([...prev, company.id]))
       setCompanies(prev => prev.map(c => c.id === company.id ? { ...c, follower_count: (c.follower_count || 0) + 1 } : c))
       toast.success(`Following ${company.name}`)
+    }
+  }
+
+  const toggleFollowAsCompanyUser = async (myCompany, targetUser) => {
+    const isFollowing = companyFollowingUsers[targetUser.id]?.has(myCompany.id)
+    if (isFollowing) {
+      await supabase.from('company_following').delete()
+        .eq('company_id', myCompany.id).eq('target_type', 'user').eq('target_id', targetUser.id)
+      setCompanyFollowingUsers(prev => {
+        const s = new Set(prev[targetUser.id]); s.delete(myCompany.id)
+        return { ...prev, [targetUser.id]: s }
+      })
+      toast.success(`${myCompany.name} unfollowed ${targetUser.full_name || targetUser.username}`)
+    } else {
+      await supabase.from('company_following').insert({ company_id: myCompany.id, target_type: 'user', target_id: targetUser.id })
+      setCompanyFollowingUsers(prev => ({
+        ...prev, [targetUser.id]: new Set([...(prev[targetUser.id] ?? []), myCompany.id])
+      }))
+      toast.success(`${myCompany.name} is now following ${targetUser.full_name || targetUser.username}`)
+    }
+  }
+
+  const toggleFollowAsCompanyCo = async (myCompany, targetCo) => {
+    const isFollowing = companyFollowingCos[targetCo.id]?.has(myCompany.id)
+    if (isFollowing) {
+      await supabase.from('company_following').delete()
+        .eq('company_id', myCompany.id).eq('target_type', 'company').eq('target_id', targetCo.id)
+      setCompanyFollowingCos(prev => {
+        const s = new Set(prev[targetCo.id]); s.delete(myCompany.id)
+        return { ...prev, [targetCo.id]: s }
+      })
+      toast.success(`${myCompany.name} unfollowed ${targetCo.name}`)
+    } else {
+      await supabase.from('company_following').insert({ company_id: myCompany.id, target_type: 'company', target_id: targetCo.id })
+      setCompanyFollowingCos(prev => ({
+        ...prev, [targetCo.id]: new Set([...(prev[targetCo.id] ?? []), myCompany.id])
+      }))
+      toast.success(`${myCompany.name} is now following ${targetCo.name}`)
     }
   }
 
@@ -156,7 +242,7 @@ export default function GlobalSearch() {
               <section>
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">People</h3>
                 <div className="space-y-2">
-                  {users.slice(0, 5).map(u => <UserRow key={u.id} u={u} isMe={user?.id === u.id} following={follows.has(u.id)} onFollow={() => toggleFollowUser(u)} onNavigate={() => navigate(`/profile/${u.id}`)} />)}
+                  {users.slice(0, 5).map(u => <UserRow key={u.id} u={u} isMe={user?.id === u.id} following={follows.has(u.id)} onFollow={() => toggleFollowUser(u)} onNavigate={() => navigate(`/profile/${u.id}`)} myCompanies={myCompanies} companyFollowing={companyFollowingUsers[u.id] ?? new Set()} onFollowAsCompany={(mc) => toggleFollowAsCompanyUser(mc, u)} />)}
                 </div>
               </section>
             )}
@@ -164,7 +250,7 @@ export default function GlobalSearch() {
               <section>
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Companies</h3>
                 <div className="space-y-2">
-                  {companies.slice(0, 4).map(c => <CompanyRow key={c.id} company={c} following={companyFollows.has(c.id)} onFollow={() => toggleFollowCompany(c)} onNavigate={() => navigate(`/company/${c.handle}`)} />)}
+                  {companies.slice(0, 4).map(c => <CompanyRow key={c.id} company={c} following={companyFollows.has(c.id)} onFollow={() => toggleFollowCompany(c)} onNavigate={() => navigate(`/company/${c.handle}`)} myCompanies={myCompanies.filter(mc => mc.id !== c.id)} companyFollowing={companyFollowingCos[c.id] ?? new Set()} onFollowAsCompany={(mc) => toggleFollowAsCompanyCo(mc, c)} />)}
                 </div>
               </section>
             )}
@@ -182,14 +268,14 @@ export default function GlobalSearch() {
           <TabsContent value="people" className="space-y-2">
             {users.length === 0
               ? <Empty label="No people found" />
-              : users.map(u => <UserRow key={u.id} u={u} isMe={user?.id === u.id} following={follows.has(u.id)} onFollow={() => toggleFollowUser(u)} onNavigate={() => navigate(`/profile/${u.id}`)} />)}
+              : users.map(u => <UserRow key={u.id} u={u} isMe={user?.id === u.id} following={follows.has(u.id)} onFollow={() => toggleFollowUser(u)} onNavigate={() => navigate(`/profile/${u.id}`)} myCompanies={myCompanies} companyFollowing={companyFollowingUsers[u.id] ?? new Set()} onFollowAsCompany={(mc) => toggleFollowAsCompanyUser(mc, u)} />)}
           </TabsContent>
 
           {/* COMPANIES */}
           <TabsContent value="companies" className="space-y-2">
             {companies.length === 0
               ? <Empty label="No companies found" />
-              : companies.map(c => <CompanyRow key={c.id} company={c} following={companyFollows.has(c.id)} onFollow={() => toggleFollowCompany(c)} onNavigate={() => navigate(`/company/${c.handle}`)} />)}
+              : companies.map(c => <CompanyRow key={c.id} company={c} following={companyFollows.has(c.id)} onFollow={() => toggleFollowCompany(c)} onNavigate={() => navigate(`/company/${c.handle}`)} myCompanies={myCompanies.filter(mc => mc.id !== c.id)} companyFollowing={companyFollowingCos[c.id] ?? new Set()} onFollowAsCompany={(mc) => toggleFollowAsCompanyCo(mc, c)} />)}
           </TabsContent>
 
           {/* POSTS */}
@@ -204,8 +290,9 @@ export default function GlobalSearch() {
   )
 }
 
-function UserRow({ u, isMe, following, onFollow, onNavigate }) {
+function UserRow({ u, isMe, following, onFollow, onNavigate, myCompanies = [], companyFollowing = new Set(), onFollowAsCompany }) {
   const initials = (u.full_name || u.username || '?')[0].toUpperCase()
+  const [open, setOpen] = useState(false)
   return (
     <div className="flex items-center gap-3 bg-card border border-border rounded-xl p-3 hover:border-primary/30 transition-colors">
       <button onClick={onNavigate} className="flex-shrink-0">
@@ -218,16 +305,41 @@ function UserRow({ u, isMe, following, onFollow, onNavigate }) {
         {u.username && <p className="text-xs text-muted-foreground">@{u.username}</p>}
         {u.headline && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{u.headline}</p>}
       </div>
-      {!isMe && (
-        <Button size="sm" variant={following ? 'outline' : 'default'} onClick={onFollow} className="gap-1.5 flex-shrink-0 text-xs">
-          {following ? <><UserCheck className="w-3 h-3" /> Following</> : <><UserPlus className="w-3 h-3" /> Follow</>}
-        </Button>
-      )}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        {!isMe && (
+          <Button size="sm" variant={following ? 'outline' : 'default'} onClick={onFollow} className="gap-1.5 text-xs">
+            {following ? <><UserCheck className="w-3 h-3" /> Following</> : <><UserPlus className="w-3 h-3" /> Follow</>}
+          </Button>
+        )}
+        {myCompanies.length > 0 && (
+          <div className="relative">
+            <Button size="sm" variant="outline" onClick={() => setOpen(v => !v)} className="gap-0.5 px-2 text-xs">
+              <Building2 className="w-3 h-3" /><ChevronDown className="w-3 h-3" />
+            </Button>
+            {open && (
+              <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+                <p className="text-xs text-muted-foreground px-3 pt-2.5 pb-1 font-medium">Follow as company</p>
+                {myCompanies.map(mc => (
+                  <button key={mc.id} onClick={() => { setOpen(false); onFollowAsCompany(mc) }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-muted text-sm text-left transition-colors">
+                    <div className="w-6 h-6 rounded-md bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center">
+                      {mc.logo_url ? <img src={mc.logo_url} className="w-full h-full object-cover" alt="" /> : <Building2 className="w-3.5 h-3.5 text-muted-foreground" />}
+                    </div>
+                    <span className="flex-1 truncate">{mc.name}</span>
+                    {companyFollowing.has(mc.id) && <UserCheck className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
-function CompanyRow({ company, following, onFollow, onNavigate }) {
+function CompanyRow({ company, following, onFollow, onNavigate, myCompanies = [], companyFollowing = new Set(), onFollowAsCompany }) {
+  const [open, setOpen] = useState(false)
   return (
     <div className="flex items-center gap-3 bg-card border border-border rounded-xl p-3 hover:border-primary/30 transition-colors">
       <button onClick={onNavigate} className="flex-shrink-0">
@@ -243,9 +355,33 @@ function CompanyRow({ company, following, onFollow, onNavigate }) {
         </div>
         {company.tagline && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{company.tagline}</p>}
       </div>
-      <Button size="sm" variant={following ? 'outline' : 'default'} onClick={onFollow} className="gap-1.5 flex-shrink-0 text-xs">
-        {following ? <><BellOff className="w-3 h-3" /> Following</> : <><Bell className="w-3 h-3" /> Follow</>}
-      </Button>
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <Button size="sm" variant={following ? 'outline' : 'default'} onClick={onFollow} className="gap-1.5 text-xs">
+          {following ? <><BellOff className="w-3 h-3" /> Following</> : <><Bell className="w-3 h-3" /> Follow</>}
+        </Button>
+        {myCompanies.length > 0 && (
+          <div className="relative">
+            <Button size="sm" variant="outline" onClick={() => setOpen(v => !v)} className="gap-0.5 px-2 text-xs">
+              <Building2 className="w-3 h-3" /><ChevronDown className="w-3 h-3" />
+            </Button>
+            {open && (
+              <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+                <p className="text-xs text-muted-foreground px-3 pt-2.5 pb-1 font-medium">Follow as company</p>
+                {myCompanies.map(mc => (
+                  <button key={mc.id} onClick={() => { setOpen(false); onFollowAsCompany(mc) }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-muted text-sm text-left transition-colors">
+                    <div className="w-6 h-6 rounded-md bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center">
+                      {mc.logo_url ? <img src={mc.logo_url} className="w-full h-full object-cover" alt="" /> : <Building2 className="w-3.5 h-3.5 text-muted-foreground" />}
+                    </div>
+                    <span className="flex-1 truncate">{mc.name}</span>
+                    {companyFollowing.has(mc.id) && <Bell className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
