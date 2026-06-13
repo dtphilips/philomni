@@ -183,6 +183,7 @@ const CreatorFundDashboard = lazy(() => import('./pages/CreatorFundDashboard'))
 const MyInvestments        = lazy(() => import('./pages/MyInvestments'))
 const Pulse                = lazy(() => import('./pages/Pulse'))
 const BrandBriefs          = lazy(() => import('./pages/BrandBriefs'))
+const Developer            = lazy(() => import('./pages/Developer'))
 
 // ─── Query client ─────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -434,6 +435,7 @@ export default function App() {
               <Route path="/creator-fund/dashboard"    element={<R page={CreatorFundDashboard} auth />} />
               <Route path="/my-investments"            element={<R page={MyInvestments} auth />} />
               <Route path="/briefs"                    element={<R page={BrandBriefs} />} />
+              <Route path="/developer"                 element={<R page={Developer} auth />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

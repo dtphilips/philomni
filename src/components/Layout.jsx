@@ -69,6 +69,7 @@ const CREATOR_NAV = [
       { to: '/creator-fund/dashboard', icon: BarChart2,  label: 'Fund Dashboard' },
       { to: '/my-investments',         icon: Layers,     label: 'My Investments' },
       { to: '/briefs',                 icon: Briefcase,  label: 'Brand Briefs', badge: 'NEW' },
+      { to: '/developer',              icon: Zap,        label: 'Developer Portal', badge: 'API' },
       { to: '/podcasts',        icon: Mic2,  label: 'Podcasts' },
       { to: '/podcast-studio', icon: Mic2,  label: 'Podcast Studio' },
       { to: '/store',           icon: Store, label: 'My Store' },
@@ -168,6 +169,12 @@ const PRO_NAV = [
       { to: '/creator-fund/dashboard', icon: BarChart2,  label: 'Fund Dashboard' },
       { to: '/my-investments',         icon: Layers,     label: 'My Investments' },
       { to: '/briefs',                 icon: Briefcase,  label: 'Brand Briefs', badge: 'NEW' },
+    ],
+  },
+  {
+    label: 'API',
+    items: [
+      { to: '/developer', icon: Zap, label: 'Developer Portal', badge: 'API' },
     ],
   },
   {
