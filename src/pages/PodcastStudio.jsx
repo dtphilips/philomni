@@ -168,7 +168,7 @@ function PodcastAITools() {
       } else {
         prompt = `Write a compelling podcast episode description for: "${topic}".\nNotes: ${notes || 'none'}\nHook, what listeners learn, why it matters, who it's for, CTA. Under 200 words, optimized for Spotify/Apple search.`;
       }
-      const res = await fetch('/api/llm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: { prompt } }) });
+      const res = await fetch('/api/llm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
       const data = await res.json();
       setOutput(data.result ?? '');
     } catch {
@@ -833,19 +833,13 @@ export default function PodcastStudio() {
               <Textarea value={epForm.show_notes} onChange={e => setEpForm(p => ({ ...p, show_notes: e.target.value }))} rows={3} className="mt-1" placeholder="Links, timestamps, resources mentioned..." />
             </div>
 
-            {/* Monetization */}
-            <div className="rounded-xl border border-border p-3 space-y-3">
+            {/* Bonus/Exclusive label */}
+            <div className="rounded-xl border border-border p-3">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={epForm.is_premium} onChange={e => setEpForm(p => ({ ...p, is_premium: e.target.checked }))} className="rounded" />
-                <Lock className="w-3.5 h-3.5 text-amber-500" />
-                <span className="text-sm font-medium">Premium episode</span>
+                <span className="text-sm font-medium">Mark as Bonus / Exclusive episode</span>
               </label>
-              {epForm.is_premium && (
-                <div>
-                  <Label>Price (USD)</Label>
-                  <Input type="number" step="0.99" min="0.99" value={epForm.premium_price} onChange={e => setEpForm(p => ({ ...p, premium_price: e.target.value }))} placeholder="2.99" className="mt-1 max-w-[120px]" />
-                </div>
-              )}
+              <p className="text-xs text-muted-foreground mt-1 ml-6">Shows a "Bonus" badge. Listeners can tip or support your show — episodes are always free to play.</p>
             </div>
 
             {/* Audio */}
