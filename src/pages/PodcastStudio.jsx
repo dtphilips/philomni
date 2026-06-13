@@ -262,8 +262,10 @@ function EpisodeCard({ episode, podcast, onEdit, onDelete }) {
 }
 
 // ── RSS + Distribution panel ─────────────────────────────────────────────────
+const SUPABASE_PROJECT_URL = 'https://ylqfnxvbqqwjxdfbjwjk.supabase.co';
+
 function DistributionPanel({ podcast }) {
-  const rssUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/podcast-rss?id=${podcast.id}`;
+  const rssUrl = `${SUPABASE_PROJECT_URL}/functions/v1/podcast-rss?id=${podcast.id}`;
   const [copied, setCopied] = useState(false);
 
   const copy = () => {
@@ -469,10 +471,15 @@ export default function PodcastStudio() {
       if (error) throw error;
       qc.invalidateQueries({ queryKey: ['my-podcasts', user?.id] });
       qc.invalidateQueries({ queryKey: ['all-podcasts'] });
-      toast.success('Podcast created!');
+      // Auto-open the manage tab so user can upload episodes immediately
+      const { data: newPod } = await supabase.from('podcasts').select('*').eq('created_by', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (newPod) setManagingPodcast(newPod);
+      toast.success('Podcast created! Now upload your first episode below.');
       setShowNewPodcast(false);
-      setPodcastForm({ title: '', description: '', category: 'Business', language: 'en', explicit: false, website: '', monetization_enabled: false });
+      setPodcastForm({ title: '', description: '', category: '', language: 'en', explicit: false, website: '', monetization_enabled: false });
+      setCatQuery('');
       setCoverFile(null);
+      setShowNewEpisode(true); // open episode dialog immediately
     } catch {
       toast.error('Failed to create podcast');
     } finally {
@@ -981,7 +988,7 @@ function DiscoverCard({ podcast, currentUser, onManage }) {
 
 // ── My Podcast card ───────────────────────────────────────────────────────────
 function MyPodcastCard({ podcast, onManage }) {
-  const rssUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/podcast-rss?id=${podcast.id}`;
+  const rssUrl = `${SUPABASE_PROJECT_URL}/functions/v1/podcast-rss?id=${podcast.id}`;
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 space-y-3">
