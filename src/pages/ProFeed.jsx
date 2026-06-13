@@ -494,6 +494,15 @@ function ProPostComposer({ onPost }) {
   const [hashtags, setHashtags] = useState([])
   const [visibility, setVisibility] = useState('public')
   const [submitting, setSubmitting] = useState(false)
+  const [postingAs, setPostingAs] = useState(null)
+  const [myCompanies, setMyCompanies] = useState([])
+
+  useEffect(() => {
+    if (!user?.id) return
+    supabase.from('company_pages').select('id, name, logo_url').eq('owner_id', user.id).then(({ data }) => {
+      setMyCompanies(data ?? [])
+    })
+  }, [user?.id])
 
   function handleHashtagKeyDown(e) {
     if ((e.key === 'Enter' || e.key === ' ' || e.key === ',') && hashtag.trim()) {
@@ -516,13 +525,19 @@ function ProPostComposer({ onPost }) {
     setSubmitting(true)
 
     try {
+      const isCompanyPost = !!postingAs
       const { error } = await supabase.from('posts').insert({
         content,
         feed_type: 'pro',
         post_type: selectedType,
         hashtags,
         visibility,
+        author_id: user?.id,
+        created_by: user?.id,
         user_id: user?.id,
+        author_name: isCompanyPost ? postingAs.name : (user?.user_metadata?.full_name || user?.email),
+        author_avatar: isCompanyPost ? postingAs.logo_url : null,
+        company_id: isCompanyPost ? postingAs.id : null,
         created_at: new Date().toISOString(),
       })
       if (!error) {
@@ -542,11 +557,30 @@ function ProPostComposer({ onPost }) {
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You'
 
+  const avatarSrc = postingAs?.logo_url ?? null
+  const avatarName = postingAs?.name ?? displayName
+
   return (
     <div className="bg-card border border-border rounded-2xl p-4">
+      {/* "Post as" switcher */}
+      {myCompanies.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-3 pb-3 border-b border-border">
+          <span className="text-xs text-muted-foreground">Post as:</span>
+          <button onClick={() => setPostingAs(null)} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${!postingAs ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/50'}`}>
+            {getInitials(displayName)}
+            <span>{displayName.split(' ')[0]}</span>
+          </button>
+          {myCompanies.map(co => (
+            <button key={co.id} onClick={() => setPostingAs(postingAs?.id === co.id ? null : co)} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${postingAs?.id === co.id ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/50'}`}>
+              {co.logo_url ? <img src={co.logo_url} className="w-4 h-4 rounded-full object-cover" alt="" /> : '🏢'}
+              {co.name}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-semibold text-primary flex-shrink-0">
-          {getInitials(displayName)}
+        <div className="w-10 h-10 rounded-full bg-primary/20 overflow-hidden flex items-center justify-center text-sm font-semibold text-primary flex-shrink-0">
+          {avatarSrc ? <img src={avatarSrc} className="w-full h-full object-cover" alt="" /> : getInitials(avatarName)}
         </div>
 
         {!open ? (

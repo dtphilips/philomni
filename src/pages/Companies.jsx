@@ -102,7 +102,7 @@ export default function Companies() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from('companies').select('*').order('follower_count', { ascending: false }).limit(50)
+      const { data } = await supabase.from('company_pages').select('*').order('follower_count', { ascending: false }).limit(50)
       if (data && data.length > 0) {
         setCompanies(data)
       } else {

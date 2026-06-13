@@ -49,16 +49,52 @@ export default function CompanySetup() {
   const [activeTab, setActiveTab] = useState('mine')
   const [managingCompany, setManagingCompany] = useState(null)
   const [showNewCompany, setShowNewCompany] = useState(false)
+  const [showEditCompany, setShowEditCompany] = useState(false)
   const [showNewJob, setShowNewJob] = useState(false)
   const [editingJob, setEditingJob] = useState(null)
   const [companyForm, setCompanyForm] = useState(emptyCompanyForm)
+  const [editCompanyForm, setEditCompanyForm] = useState(emptyCompanyForm)
   const [jobForm, setJobForm] = useState(emptyJobForm)
   const [saving, setSaving] = useState(false)
   const [logoFile, setLogoFile] = useState(null)
   const [coverFile, setCoverFile] = useState(null)
+  const [editLogoFile, setEditLogoFile] = useState(null)
+  const [editCoverFile, setEditCoverFile] = useState(null)
   const [handleTaken, setHandleTaken] = useState(false)
   const logoRef = useRef()
   const coverRef = useRef()
+  const editLogoRef = useRef()
+  const editCoverRef = useRef()
+
+  const openEditCompany = (company) => {
+    setEditCompanyForm({
+      name: company.name || '', handle: company.handle || '', tagline: company.tagline || '',
+      bio: company.bio || '', website: company.website || '', industry: company.industry || '',
+      company_size: company.company_size || '', location: company.location || '',
+    })
+    setEditLogoFile(null)
+    setEditCoverFile(null)
+    setShowEditCompany(true)
+  }
+
+  const handleUpdateCompany = async () => {
+    if (!editCompanyForm.name.trim()) return toast.error('Company name is required')
+    setSaving(true)
+    try {
+      let updates = { ...editCompanyForm }
+      if (editLogoFile) updates.logo_url = await uploadFile(editLogoFile, `companies/${user.id}/${Date.now()}-logo`)
+      if (editCoverFile) updates.cover_url = await uploadFile(editCoverFile, `companies/${user.id}/${Date.now()}-cover`)
+      const { error } = await supabase.from('company_pages').update(updates).eq('id', managingCompany.id)
+      if (error) throw error
+      qc.invalidateQueries({ queryKey: ['my-companies', user.id] })
+      // Update local managingCompany state so ManagePanel reflects changes immediately
+      setManagingCompany(prev => ({ ...prev, ...updates }))
+      setShowEditCompany(false)
+      toast.success('Company updated!')
+    } catch (e) {
+      toast.error(e.message || 'Failed to update')
+    } finally { setSaving(false) }
+  }
 
   const setManaging = (company) => { setManagingCompany(company); if (company) setActiveTab('manage') }
 
@@ -248,6 +284,8 @@ export default function CompanySetup() {
               onEditJob={openEditJob}
               onDeleteJob={handleDeleteJob}
               onViewProfile={() => navigate(`/company/${managingCompany.handle}`)}
+              onEditCompany={() => openEditCompany(managingCompany)}
+              onDeleteCompany={() => handleDeleteCompany(managingCompany)}
             />
           </TabsContent>
         )}
@@ -339,6 +377,75 @@ export default function CompanySetup() {
             <Button onClick={handleCreateCompany} disabled={saving || handleTaken} className="w-full">
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Create Company Page
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Company Dialog */}
+      <Dialog open={showEditCompany} onOpenChange={setShowEditCompany}>
+        <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Company Page</DialogTitle></DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="relative">
+              <div onClick={() => editCoverRef.current?.click()} className="h-24 rounded-xl border-2 border-dashed border-border cursor-pointer hover:border-primary/40 transition-colors overflow-hidden bg-muted flex items-center justify-center">
+                {editCoverFile
+                  ? <img src={URL.createObjectURL(editCoverFile)} className="w-full h-full object-cover" alt="" />
+                  : managingCompany?.cover_url
+                    ? <img src={managingCompany.cover_url} className="w-full h-full object-cover" alt="" />
+                    : <span className="text-xs text-muted-foreground flex items-center gap-1"><Image className="w-3.5 h-3.5" /> Cover image</span>}
+              </div>
+              <div onClick={() => editLogoRef.current?.click()} className="absolute -bottom-5 left-4 w-14 h-14 rounded-xl border-2 border-background bg-muted cursor-pointer overflow-hidden hover:opacity-80 transition-opacity flex items-center justify-center">
+                {editLogoFile
+                  ? <img src={URL.createObjectURL(editLogoFile)} className="w-full h-full object-cover" alt="" />
+                  : managingCompany?.logo_url
+                    ? <img src={managingCompany.logo_url} className="w-full h-full object-cover" alt="" />
+                    : <Building2 className="w-6 h-6 text-muted-foreground" />}
+              </div>
+              <input ref={editCoverRef} type="file" accept="image/*" className="hidden" onChange={e => setEditCoverFile(e.target.files[0])} />
+              <input ref={editLogoRef} type="file" accept="image/*" className="hidden" onChange={e => setEditLogoFile(e.target.files[0])} />
+            </div>
+            <div className="pt-6">
+              <Label>Company Name *</Label>
+              <Input value={editCompanyForm.name} onChange={e => setEditCompanyForm(p => ({ ...p, name: e.target.value }))} className="mt-1" />
+            </div>
+            <div>
+              <Label>Tagline</Label>
+              <Input value={editCompanyForm.tagline} onChange={e => setEditCompanyForm(p => ({ ...p, tagline: e.target.value }))} maxLength={120} className="mt-1" />
+            </div>
+            <div>
+              <Label>About</Label>
+              <Textarea value={editCompanyForm.bio} onChange={e => setEditCompanyForm(p => ({ ...p, bio: e.target.value }))} rows={3} className="mt-1" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Industry</Label>
+                <Select value={editCompanyForm.industry} onValueChange={v => setEditCompanyForm(p => ({ ...p, industry: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select industry" /></SelectTrigger>
+                  <SelectContent>{INDUSTRIES.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Company Size</Label>
+                <Select value={editCompanyForm.company_size} onValueChange={v => setEditCompanyForm(p => ({ ...p, company_size: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="# employees" /></SelectTrigger>
+                  <SelectContent>{COMPANY_SIZES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Location</Label>
+                <Input value={editCompanyForm.location} onChange={e => setEditCompanyForm(p => ({ ...p, location: e.target.value }))} placeholder="Lagos, Nigeria" className="mt-1" />
+              </div>
+              <div>
+                <Label>Website</Label>
+                <Input value={editCompanyForm.website} onChange={e => setEditCompanyForm(p => ({ ...p, website: e.target.value }))} placeholder="https://..." className="mt-1" />
+              </div>
+            </div>
+            <Button onClick={handleUpdateCompany} disabled={saving} className="w-full">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Save Changes
             </Button>
           </div>
         </DialogContent>
@@ -453,7 +560,7 @@ function CompanyCard({ company, onManage, onDelete, onView }) {
   )
 }
 
-function ManagePanel({ company, jobs, onAddJob, onEditJob, onDeleteJob, onViewProfile }) {
+function ManagePanel({ company, jobs, onAddJob, onEditJob, onDeleteJob, onViewProfile, onEditCompany, onDeleteCompany }) {
   return (
     <div className="space-y-6">
       {/* Company summary */}
@@ -470,9 +577,17 @@ function ManagePanel({ company, jobs, onAddJob, onEditJob, onDeleteJob, onViewPr
           </div>
           <p className="text-sm text-muted-foreground">@{company.handle} · {company.industry || 'No industry set'}</p>
         </div>
-        <Button size="sm" variant="outline" onClick={onViewProfile} className="gap-1.5 flex-shrink-0">
-          <Eye className="w-3.5 h-3.5" /> View Page
-        </Button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button size="sm" variant="outline" onClick={onViewProfile} className="gap-1.5">
+            <Eye className="w-3.5 h-3.5" /> View
+          </Button>
+          <Button size="sm" variant="outline" onClick={onEditCompany} className="gap-1.5">
+            <Edit className="w-3.5 h-3.5" /> Edit
+          </Button>
+          <Button size="sm" variant="destructive" onClick={onDeleteCompany} className="gap-1.5">
+            <Trash2 className="w-3.5 h-3.5" /> Delete
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
