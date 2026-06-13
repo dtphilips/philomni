@@ -262,10 +262,8 @@ function EpisodeCard({ episode, podcast, onEdit, onDelete }) {
 }
 
 // ── RSS + Distribution panel ─────────────────────────────────────────────────
-const SUPABASE_PROJECT_URL = 'https://ylqfnxvbqqwjxdfbjwjk.supabase.co';
-
 function DistributionPanel({ podcast }) {
-  const rssUrl = `${SUPABASE_PROJECT_URL}/functions/v1/podcast-rss?id=${podcast.id}`;
+  const rssUrl = `https://philomni.com/api/rss?id=${podcast.id}`;
   const [copied, setCopied] = useState(false);
 
   const copy = () => {
