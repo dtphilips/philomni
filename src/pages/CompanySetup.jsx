@@ -128,6 +128,19 @@ export default function CompanySetup() {
     },
   })
 
+  // Members for managed company
+  const { data: companyMembers = [], refetch: refetchMembers } = useQuery({
+    queryKey: ['company-members-manage', managingCompany?.id],
+    enabled: !!managingCompany,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('company_members')
+        .select('id, user_id, role, profiles:user_id(id, full_name, username, avatar_url)')
+        .eq('company_id', managingCompany.id)
+      return data ?? []
+    },
+  })
+
   const checkHandle = async (handle) => {
     if (!handle || handle.length < 2) return
     const { data } = await supabase.from('company_pages').select('id').eq('handle', handle).maybeSingle()
@@ -220,6 +233,46 @@ export default function CompanySetup() {
     toast.success('Job removed')
   }
 
+  // ── Team management ─────────────────────────────────────────────────────────
+  const [memberSearch, setMemberSearch] = useState('')
+  const [memberSearchResults, setMemberSearchResults] = useState([])
+  const [memberSearchLoading, setMemberSearchLoading] = useState(false)
+  const [addingRole, setAddingRole] = useState('editor')
+
+  const searchUsers = async (q) => {
+    setMemberSearch(q)
+    if (q.trim().length < 2) { setMemberSearchResults([]); return }
+    setMemberSearchLoading(true)
+    const { data } = await supabase.from('profiles').select('id, full_name, username, avatar_url').or(`full_name.ilike.%${q}%,username.ilike.%${q}%`).limit(8)
+    setMemberSearchResults(data ?? [])
+    setMemberSearchLoading(false)
+  }
+
+  const addMember = async (profile, role) => {
+    const existing = companyMembers.find(m => m.user_id === profile.id)
+    if (existing) return toast.error(`${profile.full_name || profile.username} is already a team member`)
+    if (profile.id === user.id) return toast.error('You are already the owner')
+    const { error } = await supabase.from('company_members').insert({ company_id: managingCompany.id, user_id: profile.id, role })
+    if (error) return toast.error(error.message)
+    refetchMembers()
+    setMemberSearch('')
+    setMemberSearchResults([])
+    toast.success(`${profile.full_name || profile.username} added as ${role}`)
+  }
+
+  const updateMemberRole = async (memberId, role) => {
+    await supabase.from('company_members').update({ role }).eq('id', memberId)
+    refetchMembers()
+    toast.success('Role updated')
+  }
+
+  const removeMember = async (memberId, name) => {
+    if (!window.confirm(`Remove ${name} from the team?`)) return
+    await supabase.from('company_members').delete().eq('id', memberId)
+    refetchMembers()
+    toast.success('Member removed')
+  }
+
   const openEditJob = (job) => {
     setJobForm({
       title: job.title, type: job.type, location: job.location || '',
@@ -282,6 +335,17 @@ export default function CompanySetup() {
             <ManagePanel
               company={managingCompany}
               jobs={companyJobs}
+              members={companyMembers}
+              ownerId={user?.id}
+              memberSearch={memberSearch}
+              memberSearchResults={memberSearchResults}
+              memberSearchLoading={memberSearchLoading}
+              addingRole={addingRole}
+              onAddingRoleChange={setAddingRole}
+              onMemberSearch={searchUsers}
+              onAddMember={addMember}
+              onUpdateMemberRole={updateMemberRole}
+              onRemoveMember={removeMember}
               onAddJob={() => { setEditingJob(null); setJobForm(emptyJobForm); setShowNewJob(true) }}
               onEditJob={openEditJob}
               onDeleteJob={handleDeleteJob}
@@ -562,7 +626,7 @@ function CompanyCard({ company, onManage, onDelete, onView }) {
   )
 }
 
-function ManagePanel({ company, jobs, onAddJob, onEditJob, onDeleteJob, onViewProfile, onEditCompany, onDeleteCompany }) {
+function ManagePanel({ company, jobs, members, ownerId, memberSearch, memberSearchResults, memberSearchLoading, addingRole, onAddingRoleChange, onMemberSearch, onAddMember, onUpdateMemberRole, onRemoveMember, onAddJob, onEditJob, onDeleteJob, onViewProfile, onEditCompany, onDeleteCompany }) {
   return (
     <div className="space-y-6">
       {/* Company summary */}
@@ -640,6 +704,100 @@ function ManagePanel({ company, jobs, onAddJob, onEditJob, onDeleteJob, onViewPr
             {jobs.map(job => (
               <JobCard key={job.id} job={job} onEdit={onEditJob} onDelete={onDeleteJob} />
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Team */}
+      <div>
+        <h3 className="font-semibold mb-1">Team Members</h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          <strong>Admin</strong> — can post, edit company info, manage jobs &amp; members.&nbsp;
+          <strong>Editor</strong> — can post and manage jobs only.&nbsp;
+          <strong>Member</strong> — listed on the public page only.
+        </p>
+
+        {/* Add member search */}
+        <div className="bg-muted/50 border border-border rounded-xl p-3 mb-4 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Add a team member</p>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                value={memberSearch}
+                onChange={e => onMemberSearch(e.target.value)}
+                placeholder="Search by name or @username…"
+                className="text-sm"
+              />
+              {memberSearchLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+            </div>
+            <Select value={addingRole} onValueChange={onAddingRoleChange}>
+              <SelectTrigger className="w-28 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="editor">Editor</SelectItem>
+                <SelectItem value="member">Member</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {memberSearchResults.length > 0 && (
+            <div className="border border-border rounded-lg bg-card overflow-hidden">
+              {memberSearchResults.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => onAddMember(p, addingRole)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted transition-colors text-left"
+                >
+                  <div className="w-8 h-8 rounded-full bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center text-xs font-semibold text-muted-foreground">
+                    {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" alt="" /> : (p.full_name || p.username || '?')[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium leading-tight">{p.full_name || p.username}</p>
+                    {p.username && <p className="text-xs text-muted-foreground">@{p.username}</p>}
+                  </div>
+                  <span className="text-xs text-primary font-medium">Add as {addingRole}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Current members */}
+        {members.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">No team members added yet</p>
+        ) : (
+          <div className="space-y-2">
+            {members.map(m => {
+              const p = m.profiles
+              const isOwnerRow = m.user_id === ownerId
+              return (
+                <div key={m.id} className="flex items-center gap-3 bg-card border border-border rounded-xl p-3">
+                  <div className="w-9 h-9 rounded-full bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center text-sm font-semibold text-muted-foreground">
+                    {p?.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" alt="" /> : (p?.full_name || '?')[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium leading-tight">{p?.full_name || p?.username || 'Member'}</p>
+                    {p?.username && <p className="text-xs text-muted-foreground">@{p.username}</p>}
+                  </div>
+                  {isOwnerRow ? (
+                    <Badge variant="secondary" className="text-xs">Owner</Badge>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Select value={m.role} onValueChange={role => onUpdateMemberRole(m.id, role)}>
+                        <SelectTrigger className="w-24 h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="editor">Editor</SelectItem>
+                          <SelectItem value="member">Member</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => onRemoveMember(m.id, p?.full_name || p?.username || 'this member')}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
