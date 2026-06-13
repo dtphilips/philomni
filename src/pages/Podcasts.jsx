@@ -102,8 +102,8 @@ function EpisodeRow({ episode, podcast, onTip }) {
           </div>
         </div>
 
-        {/* Tip button */}
-        {episode.audio_url && (
+        {/* Tip button — only when creator enabled monetization */}
+        {episode.audio_url && podcast.monetization_enabled && (
           <button
             onClick={() => onTip(episode)}
             className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors">
@@ -233,7 +233,7 @@ function PodcastCard({ podcast, following, onToggleFollow, currentUserId }) {
                 {isFollowing ? <><BellOff className="w-3 h-3" /> Following</> : <><Bell className="w-3 h-3" /> Follow</>}
               </button>
             )}
-            {!isOwn && (
+            {!isOwn && podcast.monetization_enabled && (
               <button
                 onClick={() => setShowSupport(v => !v)}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-amber-600 bg-amber-500/10 hover:bg-amber-500/20 transition-colors">
