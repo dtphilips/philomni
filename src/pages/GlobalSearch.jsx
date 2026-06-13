@@ -28,7 +28,7 @@ export default function GlobalSearch() {
     setLoading(true)
     const like = `%${q.trim()}%`
     const [{ data: u }, { data: co }, { data: p }] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, username, avatar_url, headline').or(`full_name.ilike.${like},username.ilike.${like}`).limit(15),
+      supabase.from('users').select('id, full_name, username, avatar_url, headline').or(`full_name.ilike.${like},username.ilike.${like}`).limit(15),
       supabase.from('company_pages').select('id, name, handle, logo_url, industry, company_size, follower_count, tagline').or(`name.ilike.${like},handle.ilike.${like},industry.ilike.${like}`).limit(10),
       supabase.from('posts').select('id, content, author_name, author_avatar, author_id, created_at, likes_count').ilike('content', like).limit(10),
     ])
