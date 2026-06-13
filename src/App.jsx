@@ -7,6 +7,7 @@ import { MusicProvider } from './context/MusicContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
+import { PodcastPlayerProvider } from './lib/PodcastPlayerContext'
 
 // ─── Lazy-loaded pages — each becomes its own JS chunk ────────────────────────
 // Auth
@@ -237,6 +238,7 @@ export default function App() {
       <SubscriptionProvider>
       <MusicProvider>
       <ModeProvider>
+      <PodcastPlayerProvider>
         <BrowserRouter>
           {/* Outer Suspense catches the very first bundle evaluation only */}
           <Suspense fallback={<PageLoader />}>
@@ -419,6 +421,7 @@ export default function App() {
             </Routes>
           </Suspense>
         </BrowserRouter>
+      </PodcastPlayerProvider>
       </ModeProvider>
       </MusicProvider>
       </SubscriptionProvider>
