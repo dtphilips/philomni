@@ -116,7 +116,7 @@ const PRO_NAV = [
     items: [
       { to: '/jobs',             icon: Briefcase,    label: 'Jobs' },
       { to: '/my-orders',        icon: ClipboardList,label: 'My Applications' },
-      { to: '/company/dashboard',icon: Building2,    label: 'My Company' },
+      { to: '/company-setup',    icon: Building2,    label: 'My Company' },
       { to: '/skills',           icon: Zap,          label: 'Consulting Exchange' },
     ],
   },

@@ -78,6 +78,7 @@ const CreatorStore = lazy(() => import('./pages/CreatorStore'))
 // Professional Network
 const Companies        = lazy(() => import('./pages/Companies'))
 const CompanyProfile   = lazy(() => import('./pages/CompanyProfile'))
+const CompanySetup     = lazy(() => import('./pages/CompanySetup'))
 const CreateCompany    = lazy(() => import('./pages/CreateCompany'))
 const CompanyDashboard = lazy(() => import('./pages/CompanyDashboard'))
 
@@ -315,6 +316,7 @@ export default function App() {
 
               {/* Professional Network */}
               <Route path="/companies" element={<R page={Companies} auth />} />
+              <Route path="/company-setup" element={<R page={CompanySetup} auth />} />
               <Route path="/company/create" element={<R page={CreateCompany} auth />} />
               <Route path="/company/dashboard" element={<R page={CompanyDashboard} auth />} />
               <Route path="/company/:id" element={<R page={CompanyProfile} auth />} />
