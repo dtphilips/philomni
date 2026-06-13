@@ -177,10 +177,12 @@ const CelebrationDetail  = lazy(() => import('./pages/CelebrationDetail'))
 const CelebrationSponsor = lazy(() => import('./pages/CelebrationSponsor'))
 
 // Phase 1 & 2 — Community Intelligence + Creator Economy
-const CreatorFund    = lazy(() => import('./pages/CreatorFund'))
-const CreateOffering = lazy(() => import('./pages/CreateOffering'))
-const Pulse          = lazy(() => import('./pages/Pulse'))
-const BrandBriefs    = lazy(() => import('./pages/BrandBriefs'))
+const CreatorFund          = lazy(() => import('./pages/CreatorFund'))
+const CreateOffering       = lazy(() => import('./pages/CreateOffering'))
+const CreatorFundDashboard = lazy(() => import('./pages/CreatorFundDashboard'))
+const MyInvestments        = lazy(() => import('./pages/MyInvestments'))
+const Pulse                = lazy(() => import('./pages/Pulse'))
+const BrandBriefs          = lazy(() => import('./pages/BrandBriefs'))
 
 // ─── Query client ─────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -426,10 +428,12 @@ export default function App() {
               <Route path="/celebrations/:id"     element={<R page={CelebrationDetail} />} />
 
               {/* Phase 1 & 2 — Community Intelligence + Creator Economy */}
-              <Route path="/pulse"               element={<R page={Pulse} />} />
-              <Route path="/creator-fund"        element={<R page={CreatorFund} />} />
-              <Route path="/creator-fund/create" element={<R page={CreateOffering} auth />} />
-              <Route path="/briefs"              element={<R page={BrandBriefs} />} />
+              <Route path="/pulse"                     element={<R page={Pulse} />} />
+              <Route path="/creator-fund"              element={<R page={CreatorFund} />} />
+              <Route path="/creator-fund/create"       element={<R page={CreateOffering} auth />} />
+              <Route path="/creator-fund/dashboard"    element={<R page={CreatorFundDashboard} auth />} />
+              <Route path="/my-investments"            element={<R page={MyInvestments} auth />} />
+              <Route path="/briefs"                    element={<R page={BrandBriefs} />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

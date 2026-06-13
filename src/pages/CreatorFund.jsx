@@ -1,12 +1,45 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
 import {
   TrendingUp, Users, DollarSign, Clock, Plus, ChevronRight,
-  Star, Zap, Award, Search, Filter, X
+  Star, Zap, Award, Search, Filter, X, Flame, Tag
 } from 'lucide-react'
+
+// ─── Countdown timer ──────────────────────────────────────────────────────────
+function Countdown({ endsAt }) {
+  const [parts, setParts] = useState({})
+
+  useEffect(() => {
+    function tick() {
+      const diff = new Date(endsAt) - Date.now()
+      if (diff <= 0) { setParts({ expired: true }); return }
+      const d = Math.floor(diff / 86400000)
+      const h = Math.floor((diff % 86400000) / 3600000)
+      const m = Math.floor((diff % 3600000) / 60000)
+      const s = Math.floor((diff % 60000) / 1000)
+      setParts({ d, h, m, s })
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [endsAt])
+
+  if (parts.expired) return <span className="text-xs text-red-400 font-medium">Offer closed</span>
+  if (!parts.d && parts.d !== 0) return null
+
+  return (
+    <div className="flex items-center gap-1 text-xs">
+      <Clock className="w-3 h-3 text-orange-400" />
+      <span className="text-orange-400 font-medium tabular-nums">
+        {parts.d > 0 && `${parts.d}d `}{String(parts.h).padStart(2,'0')}:{String(parts.m).padStart(2,'0')}:{String(parts.s).padStart(2,'0')}
+      </span>
+      <span className="text-zinc-500">left</span>
+    </div>
+  )
+}
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -41,7 +74,12 @@ function OfferingCard({ offering, onBack }) {
   const { user } = useAuth()
   const [pledging, setPledging] = useState(false)
   const [slots, setSlots] = useState(1)
-  const slotsLeft = offering.total_slots - (offering.slots_filled ?? 0)
+  const slotsLeft  = offering.total_slots - (offering.slots_filled ?? 0)
+  const isEarlyBird = offering.early_bird_slots > 0 &&
+    (offering.slots_filled ?? 0) < offering.early_bird_slots
+  const displayPrice = isEarlyBird && offering.early_bird_price > 0
+    ? offering.early_bird_price
+    : offering.price_per_slot
   const pctFilled = offering.total_slots > 0
     ? Math.round(((offering.slots_filled ?? 0) / offering.total_slots) * 100)
     : 0
@@ -49,7 +87,7 @@ function OfferingCard({ offering, onBack }) {
   async function pledge() {
     if (!user) { toast.error('Sign in to back this creator'); return }
     setPledging(true)
-    const amount = slots * offering.price_per_slot
+    const amount = slots * displayPrice
     const { error } = await supabase.from('creator_pledges').insert({
       offering_id: offering.id,
       supporter_id: user.id,
@@ -80,7 +118,22 @@ function OfferingCard({ offering, onBack }) {
           <p className="text-sm font-semibold text-white truncate">{offering.creator?.full_name}</p>
           <p className="text-xs text-zinc-500 truncate">@{offering.creator?.username}</p>
         </div>
-        <StatusBadge status={offering.status} />
+        <div className="flex flex-col items-end gap-1">
+          <StatusBadge status={offering.status} />
+          {/* Early-bird badge: first 20% of slots */}
+          {offering.status === 'open' && offering.early_bird_slots > 0 &&
+           (offering.slots_filled ?? 0) < offering.early_bird_slots && (
+            <span className="flex items-center gap-1 text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-medium">
+              <Flame className="w-3 h-3" /> Early Bird
+            </span>
+          )}
+          {/* Scarcity: under 10% left */}
+          {offering.status === 'open' && slotsLeft <= Math.max(1, Math.round(offering.total_slots * 0.10)) && slotsLeft > 0 && (
+            <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-medium animate-pulse">
+              {slotsLeft} slot{slotsLeft !== 1 ? 's' : ''} left!
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Content */}
@@ -100,9 +153,14 @@ function OfferingCard({ offering, onBack }) {
           </div>
           <div className="bg-zinc-800/60 rounded-xl p-2.5 text-center">
             <p className="text-xs text-zinc-500 mb-0.5">Per Slot</p>
-            <p className="text-base font-bold text-white">
-              {offering.currency === 'USD' ? '$' : offering.currency}{offering.price_per_slot}
-            </p>
+            {isEarlyBird && offering.early_bird_price > 0 ? (
+              <div>
+                <p className="text-base font-bold text-orange-400">${offering.early_bird_price}</p>
+                <p className="text-xs text-zinc-600 line-through">${offering.price_per_slot}</p>
+              </div>
+            ) : (
+              <p className="text-base font-bold text-white">${offering.price_per_slot}</p>
+            )}
           </div>
         </div>
 
@@ -114,6 +172,13 @@ function OfferingCard({ offering, onBack }) {
           </div>
           <ProgressBar filled={offering.slots_filled ?? 0} total={offering.total_slots} />
         </div>
+
+        {/* Countdown */}
+        {offering.ends_at && offering.status === 'open' && (
+          <div className="mb-3">
+            <Countdown endsAt={offering.ends_at} />
+          </div>
+        )}
 
         {/* Perks */}
         {offering.perks?.length > 0 && (
@@ -148,7 +213,7 @@ function OfferingCard({ offering, onBack }) {
               disabled={pledging}
               className="flex-1 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
             >
-              {pledging ? 'Backing…' : `Back for $${slots * offering.price_per_slot}`}
+              {pledging ? 'Backing…' : `Back for $${slots * displayPrice}${isEarlyBird ? ' 🔥' : ''}`}
             </button>
           </div>
         )}
