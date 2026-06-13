@@ -18,6 +18,10 @@ export default function CreateOffering() {
     percentage_share: 5,
     duration_months: 12,
     perks: [],
+    // IPO mechanics
+    early_bird_slots: 0,
+    early_bird_price: 0,
+    ends_at: '',
   })
   const [perkInput, setPerkInput] = useState('')
   const [saving, setSaving] = useState(false)
@@ -45,16 +49,19 @@ export default function CreateOffering() {
 
     setSaving(true)
     const { error } = await supabase.from('creator_offerings').insert({
-      creator_id: user.id,
-      title: form.title.trim(),
-      description: form.description.trim(),
-      total_slots: Number(form.total_slots),
-      price_per_slot: Number(form.price_per_slot),
-      currency: form.currency,
+      creator_id:       user.id,
+      title:            form.title.trim(),
+      description:      form.description.trim(),
+      total_slots:      Number(form.total_slots),
+      price_per_slot:   Number(form.price_per_slot),
+      currency:         form.currency,
       percentage_share: Number(form.percentage_share),
-      duration_months: Number(form.duration_months),
-      perks: form.perks,
-      status: 'open',
+      duration_months:  Number(form.duration_months),
+      perks:            form.perks,
+      early_bird_slots: Number(form.early_bird_slots) || 0,
+      early_bird_price: Number(form.early_bird_price) || 0,
+      ends_at:          form.ends_at ? new Date(form.ends_at).toISOString() : null,
+      status:           'open',
     })
     setSaving(false)
 
@@ -173,6 +180,72 @@ export default function CreateOffering() {
           <p className="text-xs text-zinc-500 mt-3 text-center">
             Each backer gets {form.total_slots > 0 ? (form.percentage_share / form.total_slots).toFixed(2) : '—'}% per slot for {form.duration_months} months
           </p>
+        </div>
+
+        {/* IPO Mechanics */}
+        <div className="border border-orange-800/30 bg-orange-500/5 rounded-2xl p-4 space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-orange-400 text-sm font-semibold">🔥 IPO Launch Mechanics</span>
+            <span className="text-xs text-zinc-500">(optional but drives urgency)</span>
+          </div>
+
+          {/* Early bird */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                Early-Bird Slots
+                <span className="ml-1 text-zinc-500 text-xs">first N slots get discount</span>
+              </label>
+              <input
+                type="number" min={0} max={form.total_slots}
+                value={form.early_bird_slots}
+                onChange={e => set('early_bird_slots', e.target.value)}
+                placeholder="e.g. 3"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-orange-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                Early-Bird Price (USD)
+                <span className="ml-1 text-zinc-500 text-xs">discounted slot price</span>
+              </label>
+              <input
+                type="number" min={0}
+                value={form.early_bird_price}
+                onChange={e => set('early_bird_price', e.target.value)}
+                placeholder={`e.g. ${Math.round(form.price_per_slot * 0.7)}`}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-orange-500"
+              />
+            </div>
+          </div>
+
+          {/* Deadline */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+              Offer Deadline
+              <span className="ml-1 text-zinc-500 text-xs">countdown timer shown to backers</span>
+            </label>
+            <input
+              type="datetime-local"
+              value={form.ends_at}
+              onChange={e => set('ends_at', e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-orange-500"
+            />
+          </div>
+
+          {/* Preview of what backers will see */}
+          {(form.early_bird_slots > 0 || form.ends_at) && (
+            <div className="bg-zinc-900 rounded-xl p-3 text-xs text-zinc-400 space-y-1">
+              <p className="text-zinc-300 font-medium mb-1">Backers will see:</p>
+              {form.early_bird_slots > 0 && form.early_bird_price > 0 && (
+                <p>🔥 <span className="text-orange-400">Early Bird</span> badge — first {form.early_bird_slots} slots at <span className="text-white">${form.early_bird_price}</span> <span className="line-through text-zinc-600">${form.price_per_slot}</span></p>
+              )}
+              {form.ends_at && (
+                <p>⏱ Live countdown timer until {new Date(form.ends_at).toLocaleDateString()}</p>
+              )}
+              <p>🔴 Scarcity alert fires automatically when &lt;10% slots remain</p>
+            </div>
+          )}
         </div>
 
         {/* Perks */}
