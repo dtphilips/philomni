@@ -98,17 +98,19 @@ export default function CompanySetup() {
 
   const setManaging = (company) => { setManagingCompany(company); if (company) setActiveTab('manage') }
 
-  // My companies
+  // My companies — owned + those where user is admin/editor member
   const { data: myCompanies = [], isLoading: loadingMine } = useQuery({
     queryKey: ['my-companies', user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data } = await supabase
-        .from('company_pages')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('created_at', { ascending: false })
-      return data ?? []
+      const [{ data: owned }, { data: membered }] = await Promise.all([
+        supabase.from('company_pages').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('company_members').select('role, company_pages(*)').eq('user_id', user.id).in('role', ['admin', 'editor']),
+      ])
+      const owned_ = owned ?? []
+      const membered_ = (membered ?? []).map(m => m.company_pages).filter(Boolean)
+      const all = [...owned_, ...membered_.filter(m => !owned_.find(o => o.id === m.id))]
+      return all
     },
   })
 

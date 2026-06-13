@@ -2646,8 +2646,15 @@ function PostComposer({ user, onCreated }) {
   const [myCompanies, setMyCompanies] = useState([])
   useEffect(() => {
     if (!user?.id) return
-    supabase.from('company_pages').select('id, name, logo_url, handle').eq('owner_id', user.id).then(({ data }) => {
-      setMyCompanies(data ?? [])
+    // Include companies owned by user + companies where user is admin/editor member
+    Promise.all([
+      supabase.from('company_pages').select('id, name, logo_url, handle').eq('owner_id', user.id),
+      supabase.from('company_members').select('company_id, company_pages(id, name, logo_url, handle)').eq('user_id', user.id).in('role', ['admin', 'editor']),
+    ]).then(([{ data: owned }, { data: membered }]) => {
+      const owned_ = owned ?? []
+      const membered_ = (membered ?? []).map(m => m.company_pages).filter(Boolean)
+      const all = [...owned_, ...membered_.filter(m => !owned_.find(o => o.id === m.id))]
+      setMyCompanies(all)
     })
   }, [user?.id])
   const audienceRef = useRef()

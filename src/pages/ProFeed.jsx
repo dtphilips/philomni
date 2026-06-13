@@ -499,8 +499,14 @@ function ProPostComposer({ onPost }) {
 
   useEffect(() => {
     if (!user?.id) return
-    supabase.from('company_pages').select('id, name, logo_url').eq('owner_id', user.id).then(({ data }) => {
-      setMyCompanies(data ?? [])
+    Promise.all([
+      supabase.from('company_pages').select('id, name, logo_url').eq('owner_id', user.id),
+      supabase.from('company_members').select('company_id, company_pages(id, name, logo_url)').eq('user_id', user.id).in('role', ['admin', 'editor']),
+    ]).then(([{ data: owned }, { data: membered }]) => {
+      const owned_ = owned ?? []
+      const membered_ = (membered ?? []).map(m => m.company_pages).filter(Boolean)
+      const all = [...owned_, ...membered_.filter(m => !owned_.find(o => o.id === m.id))]
+      setMyCompanies(all)
     })
   }, [user?.id])
 

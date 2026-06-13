@@ -2,7 +2,7 @@ import React from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 export default function CompanyProfile() {
   const { id: handle } = useParams()
   const { user } = useAuth()
+  const qc = useQueryClient()
 
   const { data: company, isLoading } = useQuery({
     queryKey: ['company-profile', handle],
@@ -61,6 +62,9 @@ export default function CompanyProfile() {
   })
 
   const isOwner = user?.id === company?.owner_id
+  // Members with admin/editor role can also manage the page
+  const isMember = members.some(m => m.user_id === user?.id && ['owner', 'admin', 'editor'].includes(m.role))
+  const canManage = isOwner || isMember
   const isFollowing = !!followRow
 
   const toggleFollow = async () => {
@@ -73,6 +77,8 @@ export default function CompanyProfile() {
       await supabase.from('company_pages').update({ follower_count: (company.follower_count || 0) + 1 }).eq('id', company.id)
     }
     refetchFollow()
+    // Invalidate so the displayed follower count refreshes from DB
+    qc.invalidateQueries({ queryKey: ['company-profile', handle] })
     toast.success(isFollowing ? 'Unfollowed' : `Following ${company.name}`)
   }
 
@@ -102,7 +108,7 @@ export default function CompanyProfile() {
               : <Building2 className="w-8 h-8 text-muted-foreground" />}
           </div>
           <div className="flex items-center gap-2 mb-1">
-            {isOwner ? (
+            {canManage ? (
               <Link to="/company-setup">
                 <Button variant="outline" size="sm" className="gap-1.5"><Settings className="w-3.5 h-3.5" /> Manage</Button>
               </Link>
