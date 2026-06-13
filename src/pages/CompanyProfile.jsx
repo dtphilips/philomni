@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Building2, MapPin, Globe, Users, Briefcase, BadgeCheck,
-  DollarSign, ExternalLink, Bell, BellOff, Settings, Loader2, ChevronDown
+  DollarSign, ExternalLink, Bell, BellOff, Settings, Loader2, ChevronDown, X
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -18,6 +18,7 @@ export default function CompanyProfile() {
   const qc = useQueryClient()
   const [myCompanies, setMyCompanies] = useState([])
   const [showAsDropdown, setShowAsDropdown] = useState(false)
+  const [showFollowers, setShowFollowers] = useState(false)
 
   // Load companies this user manages (for "Follow as Company" feature)
   useEffect(() => {
@@ -204,7 +205,9 @@ export default function CompanyProfile() {
                 <Globe className="w-3 h-3" />{company.website.replace(/^https?:\/\//, '')}
               </a>
             )}
-            <span className="flex items-center gap-1"><Users className="w-3 h-3" />{company.follower_count || 0} followers</span>
+            <button onClick={() => setShowFollowers(true)} className="flex items-center gap-1 hover:text-foreground transition-colors underline-offset-2 hover:underline">
+              <Users className="w-3 h-3" />{company.follower_count || 0} followers
+            </button>
           </div>
         </div>
 
@@ -282,6 +285,72 @@ export default function CompanyProfile() {
                 </div>}
           </TabsContent>
         </Tabs>
+      </div>
+
+      {showFollowers && company && (
+        <CompanyFollowersModal companyId={company.id} companyName={company.name} onClose={() => setShowFollowers(false)} />
+      )}
+    </div>
+  )
+}
+
+function CompanyFollowersModal({ companyId, companyName, onClose }) {
+  const [followers, setFollowers] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: rows } = await supabase
+        .from('company_follows')
+        .select('user_id')
+        .eq('company_id', companyId)
+        .limit(100)
+      const ids = (rows ?? []).map(r => r.user_id).filter(Boolean)
+      if (ids.length === 0) { setLoading(false); return }
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, full_name, username, avatar_url, headline')
+        .in('id', ids)
+      setFollowers(users ?? [])
+      setLoading(false)
+    }
+    load()
+  }, [companyId])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+          <h3 className="font-semibold">{companyName} · Followers</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          ) : followers.length === 0 ? (
+            <div className="text-center py-12 text-sm text-muted-foreground">No followers yet</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {followers.map(u => {
+                const initials = (u.full_name || u.username || '?')[0].toUpperCase()
+                return (
+                  <div key={u.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex items-center justify-center text-sm font-semibold text-muted-foreground flex-shrink-0">
+                      {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" alt="" /> : initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm leading-tight">{u.full_name || u.username || 'User'}</p>
+                      {u.username && <p className="text-xs text-muted-foreground">@{u.username}</p>}
+                      {u.headline && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{u.headline}</p>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
