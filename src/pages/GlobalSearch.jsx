@@ -91,10 +91,13 @@ export default function GlobalSearch() {
     if (companyFollows.has(company.id)) {
       await supabase.from('company_follows').delete().eq('company_id', company.id).eq('user_id', user.id)
       setCompanyFollows(prev => { const s = new Set(prev); s.delete(company.id); return s })
+      // Update local result so follower count reflects immediately
+      setCompanies(prev => prev.map(c => c.id === company.id ? { ...c, follower_count: Math.max(0, (c.follower_count || 1) - 1) } : c))
       toast.success(`Unfollowed ${company.name}`)
     } else {
       await supabase.from('company_follows').insert({ company_id: company.id, user_id: user.id })
       setCompanyFollows(prev => new Set([...prev, company.id]))
+      setCompanies(prev => prev.map(c => c.id === company.id ? { ...c, follower_count: (c.follower_count || 0) + 1 } : c))
       toast.success(`Following ${company.name}`)
     }
   }

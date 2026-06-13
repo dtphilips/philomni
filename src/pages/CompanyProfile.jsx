@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Building2, MapPin, Globe, Users, Briefcase, BadgeCheck,
-  DollarSign, ExternalLink, Bell, BellOff, Settings, Loader2
+  DollarSign, ExternalLink, Bell, BellOff, Settings, Loader2, ChevronDown
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -16,6 +16,24 @@ export default function CompanyProfile() {
   const { id: handle } = useParams()
   const { user } = useAuth()
   const qc = useQueryClient()
+  const [myCompanies, setMyCompanies] = useState([])
+  const [showAsDropdown, setShowAsDropdown] = useState(false)
+
+  // Load companies this user manages (for "Follow as Company" feature)
+  useEffect(() => {
+    if (!user?.id) return
+    Promise.all([
+      supabase.from('company_pages').select('id, name, logo_url, handle').eq('owner_id', user.id),
+      supabase.from('company_members').select('company_pages(id, name, logo_url, handle)').eq('user_id', user.id).in('role', ['admin', 'editor']),
+    ]).then(([{ data: owned }, { data: membered }]) => {
+      const merged = [
+        ...(owned ?? []),
+        ...(membered ?? []).map(m => m.company_pages).filter(Boolean),
+      ]
+      const seen = new Set()
+      setMyCompanies(merged.filter(c => c && !seen.has(c.id) && seen.add(c.id)))
+    })
+  }, [user?.id])
 
   const { data: company, isLoading } = useQuery({
     queryKey: ['company-profile', handle],
@@ -43,6 +61,20 @@ export default function CompanyProfile() {
     },
   })
 
+  // Which of my companies are already following this company
+  const { data: companyFollowSet = new Set(), refetch: refetchCompanyFollows } = useQuery({
+    queryKey: ['company-following-this', company?.id, myCompanies.map(c => c.id).join(',')],
+    enabled: !!company?.id && myCompanies.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase.from('company_following')
+        .select('company_id')
+        .eq('target_type', 'company')
+        .eq('target_id', company.id)
+        .in('company_id', myCompanies.map(c => c.id))
+      return new Set((data ?? []).map(r => r.company_id))
+    },
+  })
+
   const { data: companyPosts = [] } = useQuery({
     queryKey: ['company-posts', company?.id],
     enabled: !!company?.id,
@@ -62,24 +94,38 @@ export default function CompanyProfile() {
   })
 
   const isOwner = user?.id === company?.owner_id
-  // Members with admin/editor role can also manage the page
   const isMember = members.some(m => m.user_id === user?.id && ['owner', 'admin', 'editor'].includes(m.role))
   const canManage = isOwner || isMember
   const isFollowing = !!followRow
+
+  const refresh = () => {
+    refetchFollow()
+    qc.invalidateQueries({ queryKey: ['company-profile', handle] })
+  }
 
   const toggleFollow = async () => {
     if (!user) return toast.error('Sign in to follow companies')
     if (isFollowing) {
       await supabase.from('company_follows').delete().eq('id', followRow.id)
-      await supabase.from('company_pages').update({ follower_count: Math.max(0, (company.follower_count || 1) - 1) }).eq('id', company.id)
     } else {
       await supabase.from('company_follows').insert({ company_id: company.id, user_id: user.id })
-      await supabase.from('company_pages').update({ follower_count: (company.follower_count || 0) + 1 }).eq('id', company.id)
     }
-    refetchFollow()
-    // Invalidate so the displayed follower count refreshes from DB
-    qc.invalidateQueries({ queryKey: ['company-profile', handle] })
-    toast.success(isFollowing ? 'Unfollowed' : `Following ${company.name}`)
+    refresh()
+    toast.success(isFollowing ? `Unfollowed ${company.name}` : `Following ${company.name}`)
+  }
+
+  const toggleFollowAsCompany = async (myCompany) => {
+    setShowAsDropdown(false)
+    const isAlreadyFollowing = companyFollowSet.has(myCompany.id)
+    if (isAlreadyFollowing) {
+      await supabase.from('company_following').delete()
+        .eq('company_id', myCompany.id).eq('target_type', 'company').eq('target_id', company.id)
+      toast.success(`${myCompany.name} unfollowed ${company.name}`)
+    } else {
+      await supabase.from('company_following').insert({ company_id: myCompany.id, target_type: 'company', target_id: company.id })
+      toast.success(`${myCompany.name} is now following ${company.name}`)
+    }
+    refetchCompanyFollows()
   }
 
   if (isLoading) return (
@@ -108,14 +154,36 @@ export default function CompanyProfile() {
               : <Building2 className="w-8 h-8 text-muted-foreground" />}
           </div>
           <div className="flex items-center gap-2 mb-1">
-            {canManage ? (
+            {canManage && (
               <Link to="/company-setup">
                 <Button variant="outline" size="sm" className="gap-1.5"><Settings className="w-3.5 h-3.5" /> Manage</Button>
               </Link>
-            ) : (
-              <Button size="sm" variant={isFollowing ? 'outline' : 'default'} onClick={toggleFollow} className="gap-1.5">
-                {isFollowing ? <><BellOff className="w-3.5 h-3.5" /> Following</> : <><Bell className="w-3.5 h-3.5" /> Follow</>}
-              </Button>
+            )}
+            <Button size="sm" variant={isFollowing ? 'outline' : 'default'} onClick={toggleFollow} className="gap-1.5">
+              {isFollowing ? <><BellOff className="w-3.5 h-3.5" /> Following</> : <><Bell className="w-3.5 h-3.5" /> Follow</>}
+            </Button>
+            {/* Follow as one of my companies */}
+            {myCompanies.filter(c => c.id !== company?.id).length > 0 && (
+              <div className="relative">
+                <Button size="sm" variant="outline" onClick={() => setShowAsDropdown(v => !v)} className="gap-1 px-2">
+                  <Building2 className="w-3.5 h-3.5" /><ChevronDown className="w-3 h-3" />
+                </Button>
+                {showAsDropdown && (
+                  <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+                    <p className="text-xs text-muted-foreground px-3 pt-2.5 pb-1 font-medium">Follow as company</p>
+                    {myCompanies.filter(c => c.id !== company?.id).map(mc => (
+                      <button key={mc.id} onClick={() => toggleFollowAsCompany(mc)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-muted text-sm text-left transition-colors">
+                        <div className="w-6 h-6 rounded-md bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center">
+                          {mc.logo_url ? <img src={mc.logo_url} className="w-full h-full object-cover" alt="" /> : <Building2 className="w-3.5 h-3.5 text-muted-foreground" />}
+                        </div>
+                        <span className="flex-1 truncate">{mc.name}</span>
+                        {companyFollowSet.has(mc.id) && <BellOff className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
