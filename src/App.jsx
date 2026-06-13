@@ -432,8 +432,8 @@ export default function App() {
               <Route path="/pulse"                     element={<R page={Pulse} />} />
               <Route path="/creator-fund"              element={<R page={CreatorFund} />} />
               <Route path="/creator-fund/create"       element={<R page={CreateOffering} auth />} />
-              <Route path="/creator-fund/dashboard"    element={<R page={CreatorFundDashboard} auth />} />
-              <Route path="/my-investments"            element={<R page={MyInvestments} auth />} />
+              <Route path="/creator-fund/dashboard"    element={<Navigate to="/creator-fund?tab=offering" replace />} />
+              <Route path="/my-investments"            element={<Navigate to="/creator-fund?tab=investments" replace />} />
               <Route path="/briefs"                    element={<R page={BrandBriefs} />} />
               <Route path="/developer"                 element={<R page={Developer} auth />} />
 

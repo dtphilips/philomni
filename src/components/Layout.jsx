@@ -66,8 +66,6 @@ const CREATOR_NAV = [
       { to: '/analytics', icon: BarChart2,   label: 'Analytics' },
       { to: '/monetize',  icon: DollarSign,  label: 'Monetize', badge: '💰' },
       { to: '/creator-fund',           icon: TrendingUp, label: 'Back a Creator', badge: '🚀' },
-      { to: '/creator-fund/dashboard', icon: BarChart2,  label: 'Fund Dashboard' },
-      { to: '/my-investments',         icon: Layers,     label: 'My Investments' },
       { to: '/briefs',                 icon: Briefcase,  label: 'Brand Briefs', badge: 'NEW' },
       { to: '/developer',              icon: Zap,        label: 'Developer Portal', badge: 'API' },
       { to: '/podcasts',        icon: Mic2,  label: 'Podcasts' },
@@ -165,10 +163,8 @@ const PRO_NAV = [
     items: [
       { to: '/pitch-vault',   icon: Target,      label: 'Pitch Vault' },
       { to: '/investors',     icon: TrendingUp,  label: 'Investor Access', badge: 'PRO' },
-      { to: '/creator-fund',           icon: TrendingUp, label: 'Back a Creator', badge: '🚀' },
-      { to: '/creator-fund/dashboard', icon: BarChart2,  label: 'Fund Dashboard' },
-      { to: '/my-investments',         icon: Layers,     label: 'My Investments' },
-      { to: '/briefs',                 icon: Briefcase,  label: 'Brand Briefs', badge: 'NEW' },
+      { to: '/creator-fund', icon: TrendingUp, label: 'Back a Creator', badge: '🚀' },
+      { to: '/briefs',      icon: Briefcase,  label: 'Brand Briefs', badge: 'NEW' },
     ],
   },
   {
