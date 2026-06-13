@@ -169,7 +169,7 @@ export default function EditProfile() {
 
   const searchCompanies = async (idx, query) => {
     if (!query || query.length < 2) { setCompanySuggestions(p => ({ ...p, [idx]: [] })); return }
-    const { data } = await supabase.from('companies').select('id, name, logo_url').ilike('name', `%${query}%`).limit(5)
+    const { data } = await supabase.from('company_pages').select('id, name, logo_url').ilike('name', `%${query}%`).limit(5)
     setCompanySuggestions(p => ({ ...p, [idx]: data || [] }))
   }
 
@@ -185,6 +185,14 @@ export default function EditProfile() {
         await supabase.from('work_experience').insert(payload)
       } else {
         await supabase.from('work_experience').update(payload).eq('id', pos.id)
+      }
+      // If linked to a real Philomni company, auto-add user as a member (visible on Team tab)
+      if (pos.company_id) {
+        const { data: existing } = await supabase.from('company_members')
+          .select('id').eq('company_id', pos.company_id).eq('user_id', user.id).maybeSingle()
+        if (!existing) {
+          await supabase.from('company_members').insert({ company_id: pos.company_id, user_id: user.id, role: 'member' })
+        }
       }
     }
   }
