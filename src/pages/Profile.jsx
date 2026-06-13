@@ -631,6 +631,77 @@ function CelebrationsWall({ userId, isOwnProfile }) {
   )
 }
 
+// ─── FollowListModal ──────────────────────────────────────────────────────────
+function FollowListModal({ type, targetId, onClose, onNavigate }) {
+  const [people, setPeople] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!targetId) return
+    setLoading(true)
+    const load = async () => {
+      if (type === 'followers') {
+        // people who follow targetId
+        const { data } = await supabase
+          .from('follows')
+          .select('follower:follower_id(id, full_name, username, avatar_url, headline)')
+          .eq('following_id', targetId)
+          .limit(100)
+        setPeople((data ?? []).map(r => r.follower).filter(Boolean))
+      } else {
+        // people targetId follows
+        const { data } = await supabase
+          .from('follows')
+          .select('following:following_id(id, full_name, username, avatar_url, headline)')
+          .eq('follower_id', targetId)
+          .limit(100)
+        setPeople((data ?? []).map(r => r.following).filter(Boolean))
+      }
+      setLoading(false)
+    }
+    load()
+  }, [type, targetId])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+          <h3 className="font-semibold text-foreground capitalize">{type}</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          ) : people.length === 0 ? (
+            <div className="text-center py-12 text-sm text-muted-foreground">
+              {type === 'followers' ? 'No followers yet' : 'Not following anyone yet'}
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {people.map(u => {
+                const initials = (u.full_name || u.username || '?')[0].toUpperCase()
+                return (
+                  <button key={u.id} onClick={() => { onClose(); onNavigate(u.id) }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left">
+                    <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex items-center justify-center text-sm font-semibold text-muted-foreground flex-shrink-0">
+                      {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" alt="" /> : initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-foreground leading-tight">{u.full_name || u.username || 'User'}</p>
+                      {u.username && <p className="text-xs text-muted-foreground">@{u.username}</p>}
+                      {u.headline && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{u.headline}</p>}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Profile Component ───────────────────────────────────────────────────
 export default function Profile() {
   const { user, refreshProfile } = useAuth()
@@ -650,6 +721,7 @@ export default function Profile() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [showGoLive, setShowGoLive] = useState(false)
+  const [followModal, setFollowModal] = useState(null) // 'followers' | 'following' | null
   const [activeLive, setActiveLive] = useState(null)
   const [isFollowing, setIsFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
@@ -979,11 +1051,12 @@ export default function Profile() {
       {/* ── STATS ── */}
       <div className="flex items-center gap-6 py-3 border-y border-border mb-4">
         {[
-          { label: 'Posts', value: formatCount(stats.posts || posts.length) },
-          { label: 'Followers', value: formatCount(stats.followers) },
-          { label: 'Following', value: formatCount(stats.following) },
-        ].map(({ label, value }) => (
-          <button key={label} className="text-center hover:opacity-80 transition-opacity">
+          { label: 'Posts', value: formatCount(stats.posts || posts.length), modal: null },
+          { label: 'Followers', value: formatCount(stats.followers), modal: 'followers' },
+          { label: 'Following', value: formatCount(stats.following), modal: 'following' },
+        ].map(({ label, value, modal }) => (
+          <button key={label} onClick={() => modal && setFollowModal(modal)}
+            className={`text-center transition-opacity ${modal ? 'hover:opacity-70 cursor-pointer' : ''}`}>
             <p className="font-bold text-foreground text-sm">{value}</p>
             <p className="text-xs text-muted-foreground">{label}</p>
           </button>
@@ -1189,6 +1262,14 @@ export default function Profile() {
       {showEditModal && <EditProfileModal profileUser={du} onClose={() => setShowEditModal(false)} onSave={handleSaveProfile} />}
       {showShareModal && <ShareProfileModal profileUser={du} onClose={() => setShowShareModal(false)} />}
       {showGoLive && <GoLiveModal onClose={() => setShowGoLive(false)} />}
+      {followModal && (
+        <FollowListModal
+          type={followModal}
+          targetId={targetId}
+          onClose={() => setFollowModal(null)}
+          onNavigate={(id) => navigate(`/profile/${id}`)}
+        />
+      )}
     </div>
   )
 }
