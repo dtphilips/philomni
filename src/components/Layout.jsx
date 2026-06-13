@@ -8,7 +8,7 @@ import {
   Video, LogOut, LogIn, Menu, X, ChevronRight, ChevronLeft, Bell, Package,
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
   Newspaper, Award, Target, ClipboardList, Hash, Sparkles, DollarSign,
-  Wallet, TrendingUp, BookMarked, Megaphone, Shield,
+  Wallet, TrendingUp, BookMarked, Megaphone, Shield, Search,
 } from 'lucide-react'
 import PhiloDrawer from './PhiloDrawer'
 import FloatingMusicPlayer from './FloatingMusicPlayer'
@@ -534,14 +534,37 @@ export default function Layout({ children }) {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile header — hidden on Reels so the feed can be truly full-screen */}
+        {/* Top bar — desktop + mobile (hidden on Reels) */}
         {location.pathname !== '/reels' && (
-          <header className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card flex-shrink-0">
-            <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg hover:bg-muted">
+          <header className="flex items-center gap-3 px-4 py-2.5 border-b border-border bg-card flex-shrink-0 z-10">
+            {/* Mobile: hamburger */}
+            <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-muted flex-shrink-0">
               <Menu className="w-5 h-5" />
             </button>
-            <span className="font-bold text-foreground">Philomni</span>
-            <div className="w-9" />
+
+            {/* Search bar — expands to fill space */}
+            <form
+              onSubmit={e => { e.preventDefault(); const q = e.target.q.value.trim(); if (q) navigate(`/search?q=${encodeURIComponent(q)}`) }}
+              className="flex-1 max-w-md"
+            >
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <input
+                  name="q"
+                  type="search"
+                  placeholder="Search people, companies, posts…"
+                  defaultValue={new URLSearchParams(location.search).get('q') || ''}
+                  className="w-full pl-9 pr-3 py-1.5 text-sm bg-muted rounded-full border border-transparent focus:border-primary/40 focus:outline-none text-foreground placeholder:text-muted-foreground transition-colors"
+                />
+              </div>
+            </form>
+
+            {/* Right side: notifications */}
+            <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+              <button onClick={() => navigate('/notifications')} className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                <Bell className="w-5 h-5" />
+              </button>
+            </div>
           </header>
         )}
 
