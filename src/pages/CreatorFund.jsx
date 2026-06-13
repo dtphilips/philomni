@@ -561,9 +561,9 @@ export default function CreatorFund() {
   const filteredListings = listings.filter(l => !search || l.offering?.title?.toLowerCase().includes(search.toLowerCase()) || l.offering?.creator?.full_name?.toLowerCase().includes(search.toLowerCase()))
 
   const TABS = [
-    { id: 'browse',      label: 'Browse',         icon: TrendingUp },
-    { id: 'investments', label: 'My Investments',  icon: Wallet },
-    { id: 'offering',   label: 'My Offering',     icon: BarChart2 },
+    { id: 'browse',      label: 'Browse',          icon: TrendingUp },
+    { id: 'investments', label: 'My Investments',   icon: Wallet },
+    { id: 'offering',    label: 'Fund Dashboard',   icon: BarChart2 },
   ]
 
   return (
@@ -606,7 +606,7 @@ export default function CreatorFund() {
               tab === id ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-white'
             }`}>
             <Icon className="w-4 h-4" />
-            <span className="hidden sm:inline">{label}</span>
+            <span className="text-xs sm:text-sm">{label}</span>
           </button>
         ))}
       </div>
