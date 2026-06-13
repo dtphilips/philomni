@@ -176,6 +176,12 @@ const CelebrationCreate  = lazy(() => import('./pages/CelebrationCreate'))
 const CelebrationDetail  = lazy(() => import('./pages/CelebrationDetail'))
 const CelebrationSponsor = lazy(() => import('./pages/CelebrationSponsor'))
 
+// Phase 1 & 2 — Community Intelligence + Creator Economy
+const CreatorFund    = lazy(() => import('./pages/CreatorFund'))
+const CreateOffering = lazy(() => import('./pages/CreateOffering'))
+const Pulse          = lazy(() => import('./pages/Pulse'))
+const BrandBriefs    = lazy(() => import('./pages/BrandBriefs'))
+
 // ─── Query client ─────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -418,6 +424,12 @@ export default function App() {
               <Route path="/celebrations/create"  element={<R page={CelebrationCreate} auth />} />
               <Route path="/celebrations/sponsor" element={<R page={CelebrationSponsor} auth />} />
               <Route path="/celebrations/:id"     element={<R page={CelebrationDetail} />} />
+
+              {/* Phase 1 & 2 — Community Intelligence + Creator Economy */}
+              <Route path="/pulse"               element={<R page={Pulse} />} />
+              <Route path="/creator-fund"        element={<R page={CreatorFund} />} />
+              <Route path="/creator-fund/create" element={<R page={CreateOffering} auth />} />
+              <Route path="/briefs"              element={<R page={BrandBriefs} />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

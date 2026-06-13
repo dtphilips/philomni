@@ -8,7 +8,7 @@ import {
   Video, LogOut, LogIn, Menu, X, ChevronRight, ChevronLeft, Bell, Package,
   GraduationCap, Store, Film, BookOpen, Rss, Building2,
   Newspaper, Award, Target, ClipboardList, Hash, Sparkles, DollarSign,
-  Wallet, TrendingUp, BookMarked, Megaphone, Shield, Search,
+  Wallet, TrendingUp, BookMarked, Megaphone, Shield, Search, Layers,
 } from 'lucide-react'
 import PhiloDrawer from './PhiloDrawer'
 import FloatingMusicPlayer from './FloatingMusicPlayer'
@@ -38,7 +38,8 @@ const CREATOR_NAV = [
     items: [
       { to: '/match',        icon: Sparkles,      label: 'SmartMatch', badge: 'NEW' },
       { to: '/community',    icon: Users,         label: 'Community' },
-      { to: '/groups',       icon: Hash,   label: 'Groups', badge: '💬' },
+      { to: '/pulse',        icon: Zap,           label: 'Pulse', badge: '⚡' },
+      { to: '/groups',       icon: Hash,          label: 'Groups', badge: '💬' },
       { to: '/messages',     icon: MessageSquare, label: 'Messages' },
       { to: '/rooms',        icon: Radio,         label: 'Rooms' },
       { to: '/meetings',     icon: Video,         label: 'Meetings' },
@@ -64,6 +65,8 @@ const CREATOR_NAV = [
     items: [
       { to: '/analytics', icon: BarChart2,   label: 'Analytics' },
       { to: '/monetize',  icon: DollarSign,  label: 'Monetize', badge: '💰' },
+      { to: '/creator-fund', icon: TrendingUp, label: 'Back a Creator', badge: '🚀' },
+      { to: '/briefs',    icon: Briefcase,   label: 'Brand Briefs', badge: 'NEW' },
       { to: '/podcasts',        icon: Mic2,  label: 'Podcasts' },
       { to: '/podcast-studio', icon: Mic2,  label: 'Podcast Studio' },
       { to: '/store',           icon: Store, label: 'My Store' },
@@ -106,9 +109,10 @@ const PRO_NAV = [
       { to: '/pro-feed',  icon: Newspaper,    label: 'Professional Feed' },
       { to: '/match',     icon: Sparkles,     label: 'SmartMatch', badge: 'NEW' },
       { to: '/community', icon: Users,        label: 'Community' },
-      { to: '/groups',    icon: Hash,  label: 'Groups', badge: '💬' },
+      { to: '/pulse',     icon: Zap,          label: 'Pulse', badge: '⚡' },
+      { to: '/groups',    icon: Hash,         label: 'Groups', badge: '💬' },
       { to: '/companies', icon: Building2,    label: 'Companies' },
-      { to: '/directory', icon: Globe,     label: 'Directory' },
+      { to: '/directory', icon: Globe,        label: 'Directory' },
     ],
   },
   {
@@ -156,8 +160,10 @@ const PRO_NAV = [
   {
     label: 'Invest',
     items: [
-      { to: '/pitch-vault', icon: Target,      label: 'Pitch Vault' },
-      { to: '/investors',   icon: TrendingUp,  label: 'Investor Access', badge: 'PRO' },
+      { to: '/pitch-vault',   icon: Target,      label: 'Pitch Vault' },
+      { to: '/investors',     icon: TrendingUp,  label: 'Investor Access', badge: 'PRO' },
+      { to: '/creator-fund',  icon: TrendingUp,  label: 'Back a Creator', badge: '🚀' },
+      { to: '/briefs',        icon: Briefcase,   label: 'Brand Briefs', badge: 'NEW' },
     ],
   },
   {
