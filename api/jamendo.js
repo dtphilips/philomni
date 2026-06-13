@@ -28,7 +28,18 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { action = 'tracks', genre, q, limit = 20, offset = 0 } = req.query ?? {};
+  const { action = 'tracks', genre, q, limit = 20, offset = 0, id } = req.query ?? {};
+
+  // RSS proxy — /api/jamendo?action=rss&id=<podcast_id>
+  if (action === 'rss') {
+    if (!id) return res.status(400).send('Missing podcast id');
+    const upstream = `https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/podcast-rss?id=${id}`;
+    const rssRes = await fetch(upstream);
+    const xml = await rssRes.text();
+    res.setHeader('Content-Type', 'application/rss+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.status(rssRes.status).send(xml);
+  }
 
   try {
     let url;
