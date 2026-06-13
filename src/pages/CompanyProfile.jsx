@@ -42,6 +42,15 @@ export default function CompanyProfile() {
     },
   })
 
+  const { data: companyPosts = [] } = useQuery({
+    queryKey: ['company-posts', company?.id],
+    enabled: !!company?.id,
+    queryFn: async () => {
+      const { data } = await supabase.from('posts').select('id, content, media_urls, media_type, created_at, likes_count, comments_count').eq('company_id', company.id).order('created_at', { ascending: false }).limit(20)
+      return data ?? []
+    },
+  })
+
   const { data: members = [] } = useQuery({
     queryKey: ['company-members', company?.id],
     enabled: !!company?.id,
@@ -125,12 +134,37 @@ export default function CompanyProfile() {
           </div>
         </div>
 
-        <Tabs defaultValue="about">
+        <Tabs defaultValue="posts">
           <TabsList className="mb-4">
+            <TabsTrigger value="posts">Posts {companyPosts.length > 0 ? `(${companyPosts.length})` : ''}</TabsTrigger>
             <TabsTrigger value="about">About</TabsTrigger>
             <TabsTrigger value="jobs">Jobs {jobs.length > 0 ? `(${jobs.length})` : ''}</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="posts">
+            {companyPosts.length === 0
+              ? <div className="text-center py-10 border-2 border-dashed border-border rounded-xl">
+                  <p className="text-sm text-muted-foreground">No posts yet</p>
+                </div>
+              : <div className="space-y-3">
+                  {companyPosts.map(p => {
+                    const text = p.content?.replace(/<[^>]+>/g, '') ?? ''
+                    const img = p.media_urls?.[0]
+                    return (
+                      <div key={p.id} className="bg-card border border-border rounded-xl p-4">
+                        {text && <p className="text-sm whitespace-pre-wrap line-clamp-4">{text}</p>}
+                        {img && p.media_type === 'image' && <img src={img} className="mt-2 rounded-lg max-h-48 object-cover w-full" alt="" />}
+                        <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+                          <span>{p.likes_count || 0} likes</span>
+                          <span>{p.comments_count || 0} comments</span>
+                          <span>{new Date(p.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>}
+          </TabsContent>
 
           <TabsContent value="about">
             {company.bio

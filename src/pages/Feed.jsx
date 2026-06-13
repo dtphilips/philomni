@@ -10,7 +10,7 @@ import {
   Bookmark, Repeat2, Eye, MapPin, Globe, Users, Lock, Flag,
   Copy, BookOpen, MessageSquare,
   UserPlus, Hash, Calendar, ChevronRight, Edit3, Film, Sparkles, ArrowRight,
-  ExternalLink, Megaphone, ShoppingBag, Tag,
+  ExternalLink, Megaphone, ShoppingBag, Tag, Building2,
 } from 'lucide-react'
 import EmojiPickerButton, { insertAtCursor } from '../components/EmojiPickerButton'
 import { loadStripe } from '@stripe/stripe-js'
@@ -2042,18 +2042,19 @@ function PostCard({ post, currentUser, onDelete, onRepost, onUpdate, spotlightWi
         {/* Header */}
         <div className="flex items-start justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            {/* Clickable avatar */}
-            <button onClick={() => navigate(`/profile/${postAuthorId}`)}
+            {/* Clickable avatar — goes to company page if company post */}
+            <button onClick={() => post.company_id ? navigate(`/company/${post.author_name?.toLowerCase().replace(/\s+/g,'-')}`) : navigate(`/profile/${postAuthorId}`)}
               className="flex-shrink-0 hover:opacity-80 transition-opacity">
               <Avatar src={post.author?.avatar_url || post.author_avatar} name={post.author?.full_name || post.author_name} size={11} />
             </button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 {/* Clickable name */}
-                <button onClick={() => navigate(`/profile/${postAuthorId}`)}
+                <button onClick={() => post.company_id ? navigate(`/company/${post.author_name?.toLowerCase().replace(/\s+/g,'-')}`) : navigate(`/profile/${postAuthorId}`)}
                   className="text-sm font-bold text-foreground leading-tight hover:underline flex items-center gap-1.5">
                   {post.author?.full_name || post.author_name || 'Creator'}
-                  {spotlightWinnerId && post.author_id === spotlightWinnerId && (
+                  {post.company_id && <Building2 className="w-3.5 h-3.5 text-primary" />}
+                  {!post.company_id && spotlightWinnerId && post.author_id === spotlightWinnerId && (
                     <SpotlightBadge size="sm" />
                   )}
                 </button>
@@ -2640,6 +2641,15 @@ function PostComposer({ user, onCreated }) {
   const [expanded, setExpanded] = useState(false)
   const [taggedProducts, setTaggedProducts] = useState([]) // shop product tags
   const [showProductPicker, setShowProductPicker] = useState(false)
+  // "Post as" — null means post as yourself, otherwise a company object
+  const [postingAs, setPostingAs] = useState(null)
+  const [myCompanies, setMyCompanies] = useState([])
+  useEffect(() => {
+    if (!user?.id) return
+    supabase.from('company_pages').select('id, name, logo_url, handle').eq('owner_id', user.id).then(({ data }) => {
+      setMyCompanies(data ?? [])
+    })
+  }, [user?.id])
   const audienceRef = useRef()
   const feedPickerRef = useRef()
   // Autocomplete state
@@ -2810,13 +2820,15 @@ function PostComposer({ user, onCreated }) {
       for (const { file } of mediaFiles) mediaUrls.push(await uploadToStorage(file))
       const mediaType    = mediaFiles[0]?.type ?? 'none'
       const isVideoPost  = mediaType === 'video'
+      const isCompanyPost = !!postingAs
       const { data, error: err } = await supabase.from('posts').insert({
         content: html,
         created_by:   user.id,
         author_id:    user.id,
-        author_name:  profile?.full_name ?? user.email,
-        author_avatar: profile?.avatar_url ?? null,
-        author_headline: profile?.headline ?? null,
+        author_name:  isCompanyPost ? postingAs.name : (profile?.full_name ?? user.email),
+        author_avatar: isCompanyPost ? postingAs.logo_url : (profile?.avatar_url ?? null),
+        author_headline: isCompanyPost ? null : (profile?.headline ?? null),
+        company_id: isCompanyPost ? postingAs.id : null,
         media_urls: mediaUrls.length > 0 ? mediaUrls : null,
         media_type: mediaType,
         likes_count: 0, comments_count: 0, reposts_count: 0, views_count: 0, saves_count: 0,
@@ -2852,15 +2864,43 @@ function PostComposer({ user, onCreated }) {
   const hasContent = charCount > 0 || mediaFiles.length > 0
   const AudienceIcon = AUDIENCE_OPTIONS.find(a => a.value === audience)?.icon ?? Globe
 
+  const composerAvatar = postingAs?.logo_url ?? profile?.avatar_url
+  const composerName = postingAs?.name ?? profile?.full_name ?? user?.email
+
   return (
     <div className="bg-card border border-border/60 rounded-2xl overflow-visible shadow-sm mb-4">
+      {/* "Post as" switcher — only shown if user owns at least one company */}
+      {myCompanies.length > 0 && (
+        <div className="px-4 pt-3 pb-0 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">Post as:</span>
+          <button
+            onClick={() => setPostingAs(null)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${!postingAs ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/50'}`}
+          >
+            <Avatar src={profile?.avatar_url} name={profile?.full_name} size={4} />
+            {profile?.full_name?.split(' ')[0] || 'Me'}
+          </button>
+          {myCompanies.map(co => (
+            <button
+              key={co.id}
+              onClick={() => setPostingAs(postingAs?.id === co.id ? null : co)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${postingAs?.id === co.id ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-primary/50'}`}
+            >
+              {co.logo_url
+                ? <img src={co.logo_url} className="w-4 h-4 rounded-full object-cover" alt="" />
+                : <Building2 className="w-3 h-3" />}
+              {co.name}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="p-4 flex gap-3">
-        <Avatar src={profile?.avatar_url} name={profile?.full_name || user?.email} size={11} />
+        <Avatar src={composerAvatar} name={composerName} size={11} />
         <div className="flex-1 min-w-0">
           {!expanded ? (
             <div onClick={() => { setExpanded(true); setTimeout(() => editorRef.current?.focus(), 50) }}
               className="min-h-[44px] bg-muted hover:bg-muted/80 rounded-2xl px-4 py-3 text-sm text-muted-foreground cursor-text select-none flex items-center transition-colors">
-              What's on your mind, {profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'}?
+              {postingAs ? `Post as ${postingAs.name}…` : `What's on your mind, ${profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'}?`}
             </div>
           ) : (
             <>
@@ -3482,22 +3522,31 @@ export default function Feed() {
     try {
       // ── Layer 1: Following posts (60% of feed) ──────────────────────────────
       let followedIds = []
+      let followedCompanyIds = []
       if (user?.id) {
-        const { data: fData } = await withTimeout(
-          supabase.from('follows').select('following_id').eq('follower_id', user.id)
-        )
+        const [{ data: fData }, { data: cfData }] = await Promise.all([
+          withTimeout(supabase.from('follows').select('following_id').eq('follower_id', user.id)),
+          withTimeout(supabase.from('company_follows').select('company_id').eq('user_id', user.id)),
+        ])
         followedIds = (fData || []).map(f => f.following_id).filter(Boolean)
+        followedCompanyIds = (cfData || []).map(f => f.company_id).filter(Boolean)
       }
 
       let followingPosts = []
+      const followQueries = []
       if (followedIds.length > 0) {
-        const { data } = await withTimeout(
-          supabase.from('posts').select('*')
-            .in('author_id', followedIds)
-            .order('created_at', { ascending: false })
-            .limit(30)
+        followQueries.push(
+          withTimeout(supabase.from('posts').select('*').in('author_id', followedIds).order('created_at', { ascending: false }).limit(25))
         )
-        followingPosts = data || []
+      }
+      if (followedCompanyIds.length > 0) {
+        followQueries.push(
+          withTimeout(supabase.from('posts').select('*').in('company_id', followedCompanyIds).order('created_at', { ascending: false }).limit(15))
+        )
+      }
+      if (followQueries.length > 0) {
+        const results = await Promise.all(followQueries)
+        followingPosts = results.flatMap(r => r.data || [])
       }
 
       // ── Layer 2: Discovery posts (25% of feed) ──────────────────────────────
