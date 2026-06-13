@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { toast } from 'sonner'
 import {
   TrendingUp, Users, DollarSign, Clock, Plus, ChevronRight,
-  Star, Zap, Award, Search, Filter, X, Flame, Tag
+  Star, Zap, Award, Search, Filter, X, Flame, Tag, ArrowLeftRight
 } from 'lucide-react'
 
 // ─── Countdown timer ──────────────────────────────────────────────────────────
@@ -89,11 +89,12 @@ function OfferingCard({ offering, onBack }) {
     setPledging(true)
     const amount = slots * displayPrice
     const { error } = await supabase.from('creator_pledges').insert({
-      offering_id: offering.id,
-      supporter_id: user.id,
+      offering_id:         offering.id,
+      supporter_id:        user.id,
       slots,
       amount,
-      status: 'pending',
+      status:              'pending',
+      agreement_signed_at: new Date().toISOString(),
     })
     setPledging(false)
     if (error) {
@@ -227,31 +228,163 @@ function OfferingCard({ offering, onBack }) {
   )
 }
 
+// ─── Secondary listing card ───────────────────────────────────────────────────
+function SecondaryListingCard({ listing, onBought }) {
+  const { user } = useAuth()
+  const [buying, setBuying] = useState(false)
+  const offering = listing.offering
+  const creator  = offering?.creator
+  const sharePct = offering?.total_slots > 0
+    ? ((listing.slots_for_sale / offering.total_slots) * offering.percentage_share).toFixed(2)
+    : '0'
+  const platformFee  = listing.ask_price * 0.05
+  const youPay       = listing.ask_price + platformFee
+
+  async function buy() {
+    if (!user) { toast.error('Sign in to buy'); return }
+    if (user.id === listing.seller_id) { toast.error("You can't buy your own listing"); return }
+    setBuying(true)
+
+    // 1. Mark listing sold
+    const { error: listErr } = await supabase
+      .from('slot_listings')
+      .update({ status: 'sold', sold_at: new Date().toISOString() })
+      .eq('id', listing.id)
+
+    if (listErr) { toast.error(listErr.message); setBuying(false); return }
+
+    // 2. Create new pledge for buyer (secondary)
+    const { error: pledgeErr } = await supabase
+      .from('creator_pledges')
+      .insert({
+        offering_id:         listing.offering_id,
+        supporter_id:        user.id,
+        slots:               listing.slots_for_sale,
+        amount:              listing.ask_price,
+        status:              'confirmed',
+        is_secondary:        true,
+        original_pledge_id:  listing.pledge_id,
+        purchase_price:      listing.ask_price,
+        agreement_signed_at: new Date().toISOString(),
+      })
+
+    if (pledgeErr) { toast.error(pledgeErr.message); setBuying(false); return }
+
+    // 3. Record purchase
+    await supabase.from('slot_purchases').insert({
+      listing_id:  listing.id,
+      buyer_id:    user.id,
+      seller_id:   listing.seller_id,
+      offering_id: listing.offering_id,
+      slots:       listing.slots_for_sale,
+      price_paid:  listing.ask_price,
+      platform_fee: platformFee,
+    })
+
+    setBuying(false)
+    toast.success('Slot purchased! Check My Investments 🎉')
+    onBought?.()
+  }
+
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+      {/* Creator */}
+      <div className="flex items-center gap-3 mb-4 pb-4 border-b border-zinc-800/60">
+        <img
+          src={creator?.avatar_url ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(creator?.full_name ?? 'C')}&background=7c3aed&color=fff`}
+          className="w-9 h-9 rounded-full object-cover"
+          alt=""
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white truncate">{creator?.full_name}</p>
+          <p className="text-xs text-zinc-500 truncate">{offering?.title}</p>
+        </div>
+        <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-medium">
+          Secondary
+        </span>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="bg-zinc-800/60 rounded-xl p-2.5 text-center">
+          <p className="text-xs text-zinc-500 mb-0.5">You get</p>
+          <p className="text-sm font-bold text-purple-400">{sharePct}%</p>
+          <p className="text-xs text-zinc-600">{listing.slots_for_sale} slot{listing.slots_for_sale !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="bg-zinc-800/60 rounded-xl p-2.5 text-center">
+          <p className="text-xs text-zinc-500 mb-0.5">Duration</p>
+          <p className="text-sm font-bold text-white">{offering?.duration_months}mo</p>
+        </div>
+        <div className="bg-zinc-800/60 rounded-xl p-2.5 text-center">
+          <p className="text-xs text-zinc-500 mb-0.5">Ask price</p>
+          <p className="text-sm font-bold text-white">${listing.ask_price}</p>
+        </div>
+      </div>
+
+      {/* Fee breakdown */}
+      <div className="bg-zinc-800/40 rounded-xl px-3 py-2 mb-4 text-xs space-y-1">
+        <div className="flex justify-between text-zinc-500">
+          <span>Slot price</span><span>${listing.ask_price}</span>
+        </div>
+        <div className="flex justify-between text-zinc-500">
+          <span>Platform fee (5%)</span><span>${platformFee.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-white font-semibold pt-1 border-t border-zinc-700">
+          <span>You pay</span><span>${youPay.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <button
+        onClick={buy}
+        disabled={buying || user?.id === listing.seller_id}
+        className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
+      >
+        {buying ? 'Buying…' : user?.id === listing.seller_id ? 'Your listing' : `Buy for $${youPay.toFixed(2)}`}
+      </button>
+    </div>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function CreatorFund() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [tab,      setTab]      = useState('offerings') // 'offerings' | 'secondary'
   const [offerings, setOfferings] = useState([])
-  const [loading, setLoading]     = useState(true)
-  const [search, setSearch]       = useState('')
-  const [filter, setFilter]       = useState('open') // open | funded | all
+  const [listings,  setListings]  = useState([])
+  const [loading,  setLoading]   = useState(true)
+  const [search,   setSearch]    = useState('')
+  const [filter,   setFilter]    = useState('open')
   const [myOffering, setMyOffering] = useState(null)
 
   useEffect(() => {
     loadOfferings()
+    loadListings()
     if (user) loadMyOffering()
   }, [user])
 
   async function loadOfferings() {
     const { data } = await supabase
       .from('creator_offerings')
-      .select(`
-        *,
-        creator:creator_id (id, full_name, username, avatar_url, headline)
-      `)
+      .select(`*, creator:creator_id (id, full_name, username, avatar_url, headline)`)
       .order('created_at', { ascending: false })
     setOfferings(data ?? [])
     setLoading(false)
+  }
+
+  async function loadListings() {
+    const { data } = await supabase
+      .from('slot_listings')
+      .select(`
+        *,
+        offering:offering_id (
+          id, title, percentage_share, total_slots, duration_months, status,
+          creator:creator_id (id, full_name, username, avatar_url)
+        )
+      `)
+      .eq('status', 'active')
+      .order('listed_at', { ascending: false })
+    setListings(data ?? [])
   }
 
   async function loadMyOffering() {
@@ -273,6 +406,12 @@ export default function CreatorFund() {
     const matchFilter = filter === 'all' || o.status === filter
     return matchSearch && matchFilter
   })
+
+  const filteredListings = listings.filter(l =>
+    !search ||
+    l.offering?.title?.toLowerCase().includes(search.toLowerCase()) ||
+    l.offering?.creator?.full_name?.toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -341,6 +480,37 @@ export default function CreatorFund() {
         ))}
       </div>
 
+      {/* Tab switcher */}
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => setTab('offerings')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+            tab === 'offerings'
+              ? 'bg-purple-600 text-white'
+              : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-zinc-700'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4" />
+          Offerings
+        </button>
+        <button
+          onClick={() => setTab('secondary')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+            tab === 'secondary'
+              ? 'bg-blue-600 text-white'
+              : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-zinc-700'
+          }`}
+        >
+          <ArrowLeftRight className="w-4 h-4" />
+          Secondary Market
+          {listings.length > 0 && (
+            <span className="bg-blue-500/30 text-blue-300 text-xs px-1.5 py-0.5 rounded-full">
+              {listings.length}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Search + filter */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
@@ -374,36 +544,64 @@ export default function CreatorFund() {
         </div>
       </div>
 
-      {/* Grid */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[1,2,3,4].map(i => (
-            <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-2xl h-64 animate-pulse" />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-zinc-500">
-          <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">
-            {offerings.length === 0
-              ? 'No offerings yet — be the first creator to launch one!'
-              : 'No offerings match your search.'}
-          </p>
-          {offerings.length === 0 && (
-            <button
-              onClick={() => navigate('/creator-fund/create')}
-              className="mt-4 px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-xl transition-colors"
-            >
-              Create Offering
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {filtered.map(o => (
-            <OfferingCard key={o.id} offering={o} onBack={loadOfferings} />
-          ))}
-        </div>
+      {/* Grid — Offerings tab */}
+      {tab === 'offerings' && (
+        loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[1,2,3,4].map(i => (
+              <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-2xl h-64 animate-pulse" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-20 text-zinc-500">
+            <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">
+              {offerings.length === 0
+                ? 'No offerings yet — be the first creator to launch one!'
+                : 'No offerings match your search.'}
+            </p>
+            {offerings.length === 0 && (
+              <button
+                onClick={() => navigate('/creator-fund/create')}
+                className="mt-4 px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-xl transition-colors"
+              >
+                Create Offering
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {filtered.map(o => (
+              <OfferingCard key={o.id} offering={o} onBack={loadOfferings} />
+            ))}
+          </div>
+        )
+      )}
+
+      {/* Grid — Secondary Market tab */}
+      {tab === 'secondary' && (
+        filteredListings.length === 0 ? (
+          <div className="text-center py-20 text-zinc-500">
+            <ArrowLeftRight className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm font-medium text-zinc-400">No slots listed for sale yet</p>
+            <p className="text-xs mt-1">
+              Backers can list their slots here from{' '}
+              <button onClick={() => navigate('/my-investments')} className="text-purple-400 hover:underline">
+                My Investments
+              </button>
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {filteredListings.map(l => (
+              <SecondaryListingCard
+                key={l.id}
+                listing={l}
+                onBought={() => { loadListings(); }}
+              />
+            ))}
+          </div>
+        )
       )}
 
       {/* Legal disclaimer */}

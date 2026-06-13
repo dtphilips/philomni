@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { TrendingUp, DollarSign, Clock, ChevronRight, Tag, ArrowUpRight } from 'lucide-react'
+import { TrendingUp, DollarSign, Clock, ChevronRight, Tag, ArrowUpRight, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 
 // ─── List slot for sale modal ─────────────────────────────────────────────────
@@ -146,6 +146,16 @@ function InvestmentCard({ pledge, earnings, onSell }) {
         >
           View Offering
         </Link>
+        {pledge.agreement_signed_at && (
+          <a
+            href={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-agreement?pledge_id=${pledge.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex-1 text-xs text-zinc-400 hover:text-white py-2 rounded-xl bg-zinc-800/60 hover:bg-zinc-800 transition-colors flex items-center justify-center gap-1"
+          >
+            <FileText className="w-3 h-3" /> Agreement
+          </a>
+        )}
         {pledge.status === 'confirmed' && (
           <button
             onClick={() => onSell(pledge, offering)}
