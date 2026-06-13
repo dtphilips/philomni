@@ -12,8 +12,7 @@
     "api/stripe.js":          { "maxDuration": 30  },
     "api/stripe-webhook.js":  { "maxDuration": 30  },
     "api/payments.js":        { "maxDuration": 30  },
-    "api/jamendo.js":         { "maxDuration": 15  },
-    "api/rss.js":             { "maxDuration": 15  }
+    "api/jamendo.js":         { "maxDuration": 15  }
   },
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
