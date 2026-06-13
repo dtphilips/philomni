@@ -551,6 +551,16 @@ export default function PodcastStudio() {
     toast.success('Episode deleted');
   };
 
+  const handleDeletePodcast = async (podcast) => {
+    if (!window.confirm(`Delete "${podcast.title}"? This will also delete all its episodes and cannot be undone.`)) return;
+    await supabase.from('podcast_episodes').delete().eq('podcast_id', podcast.id);
+    await supabase.from('podcasts').delete().eq('id', podcast.id);
+    if (managingPodcast?.id === podcast.id) { setManagingPodcast(null); setActiveTab('mine'); }
+    qc.invalidateQueries({ queryKey: ['my-podcasts', user?.id] });
+    qc.invalidateQueries({ queryKey: ['all-podcasts'] });
+    toast.success('Podcast deleted');
+  };
+
   const openEditEpisode = (ep) => {
     setEpForm({
       title: ep.title || '', description: ep.description || '',
@@ -636,7 +646,7 @@ export default function PodcastStudio() {
           ) : (
             <div className="space-y-4">
               {myPodcasts.map(p => (
-                <MyPodcastCard key={p.id} podcast={p} onManage={setManaging} />
+                <MyPodcastCard key={p.id} podcast={p} onManage={setManaging} onDelete={handleDeletePodcast} />
               ))}
             </div>
           )}
@@ -986,8 +996,8 @@ function DiscoverCard({ podcast, currentUser, onManage }) {
 }
 
 // ── My Podcast card ───────────────────────────────────────────────────────────
-function MyPodcastCard({ podcast, onManage }) {
-  const rssUrl = `${SUPABASE_PROJECT_URL}/functions/v1/podcast-rss?id=${podcast.id}`;
+function MyPodcastCard({ podcast, onManage, onDelete }) {
+  const rssUrl = `https://philomni.com/api/rss?id=${podcast.id}`;
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 space-y-3">
@@ -1006,7 +1016,19 @@ function MyPodcastCard({ podcast, onManage }) {
             <span><Headphones className="w-3 h-3 inline mr-0.5" />{podcast.total_plays || 0} plays</span>
           </div>
         </div>
-        <Button size="sm" variant="outline" onClick={() => onManage(podcast)}>Manage</Button>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <Button size="sm" variant="outline" onClick={() => onManage(podcast)}>Manage</Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onDelete(podcast)} className="text-destructive">
+                <Trash2 className="w-4 h-4 mr-2" /> Delete Podcast
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       {/* RSS shortcut */}
       <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
