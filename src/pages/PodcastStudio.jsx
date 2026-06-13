@@ -390,6 +390,7 @@ export default function PodcastStudio() {
   const qc = useQueryClient();
   const [showNewPodcast, setShowNewPodcast] = useState(false);
   const [managingPodcast, setManagingPodcast] = useState(null);
+  const [activeTab, setActiveTab] = useState('discover');
   const [showNewEpisode, setShowNewEpisode] = useState(false);
   const [editingEpisode, setEditingEpisode] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -473,7 +474,7 @@ export default function PodcastStudio() {
       qc.invalidateQueries({ queryKey: ['all-podcasts'] });
       // Auto-open the manage tab so user can upload episodes immediately
       const { data: newPod } = await supabase.from('podcasts').select('*').eq('created_by', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (newPod) setManagingPodcast(newPod);
+      if (newPod) setManaging(newPod);
       toast.success('Podcast created! Now upload your first episode below.');
       setShowNewPodcast(false);
       setPodcastForm({ title: '', description: '', category: '', language: 'en', explicit: false, website: '', monetization_enabled: false });
@@ -564,7 +565,7 @@ export default function PodcastStudio() {
     setShowNewEpisode(true);
   };
 
-  const managingTab = managingPodcast ? 'manage' : 'discover';
+  const setManaging = (podcast) => { setManagingPodcast(podcast); if (podcast) setActiveTab('manage'); };
 
   return (
     <div>
@@ -580,7 +581,7 @@ export default function PodcastStudio() {
         </Button>
       </div>
 
-      <Tabs defaultValue={managingTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-5 flex-wrap h-auto">
           <TabsTrigger value="discover">Discover</TabsTrigger>
           <TabsTrigger value="mine">My Podcasts{myPodcasts.length > 0 ? ` (${myPodcasts.length})` : ''}</TabsTrigger>
@@ -606,7 +607,7 @@ export default function PodcastStudio() {
           ) : (
             <div className="space-y-4">
               {allPodcasts.map(p => (
-                <DiscoverCard key={p.id} podcast={p} currentUser={user} onManage={setManagingPodcast} />
+                <DiscoverCard key={p.id} podcast={p} currentUser={user} onManage={setManaging} />
               ))}
             </div>
           )}
@@ -637,7 +638,7 @@ export default function PodcastStudio() {
           ) : (
             <div className="space-y-4">
               {myPodcasts.map(p => (
-                <MyPodcastCard key={p.id} podcast={p} onManage={setManagingPodcast} />
+                <MyPodcastCard key={p.id} podcast={p} onManage={setManaging} />
               ))}
             </div>
           )}
