@@ -40,7 +40,7 @@ function StarRating({ rating }) {
 function CompanyCard({ company, onNavigate, featured = false }) {
   return (
     <div
-      onClick={() => onNavigate(company.id)}
+      onClick={() => onNavigate(company.handle || company.id)}
       className={`bg-card border border-border rounded-2xl overflow-hidden cursor-pointer hover:shadow-md hover:border-primary/30 transition-all group ${featured ? 'h-full' : ''}`}
     >
       {/* Banner */}

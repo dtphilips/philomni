@@ -1,407 +1,269 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
-
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Link } from 'react-router-dom';
-import { Loader2, Search, Users, FileText, Zap, Folder } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import React, { useState, useEffect, useCallback } from 'react'
+import { useSearchParams, useNavigate, Link } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/context/AuthContext'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Search, Loader2, Users, FileText, Building2, UserPlus, UserCheck, Bell, BellOff } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function GlobalSearch() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const initialQuery = searchParams.get('q') || '';
-  const initialCategory = searchParams.get('category') || 'all';
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [query, setQuery] = useState(searchParams.get('q') || '')
+  const [loading, setLoading] = useState(false)
+  const [users, setUsers] = useState([])
+  const [companies, setCompanies] = useState([])
+  const [posts, setPosts] = useState([])
+  const [follows, setFollows] = useState(new Set())         // user ids this user follows
+  const [companyFollows, setCompanyFollows] = useState(new Set()) // company ids
 
-  const [query, setQuery] = useState(initialQuery);
-  const [category, setCategory] = useState(initialCategory);
-  const [results, setResults] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const totalResults = users.length + companies.length + posts.length
+
+  const search = useCallback(async (q) => {
+    if (!q || q.trim().length < 2) { setUsers([]); setCompanies([]); setPosts([]); return }
+    setLoading(true)
+    const like = `%${q.trim()}%`
+    const [{ data: u }, { data: co }, { data: p }] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, username, avatar_url, headline').or(`full_name.ilike.${like},username.ilike.${like}`).limit(15),
+      supabase.from('company_pages').select('id, name, handle, logo_url, industry, company_size, follower_count, tagline').or(`name.ilike.${like},handle.ilike.${like},industry.ilike.${like}`).limit(10),
+      supabase.from('posts').select('id, content, author_name, author_avatar, author_id, created_at, likes_count').ilike('content', like).limit(10),
+    ])
+    setUsers(u ?? [])
+    setCompanies(co ?? [])
+    setPosts(p ?? [])
+    setLoading(false)
+  }, [])
+
+  // Load follow state once we have results
+  useEffect(() => {
+    if (!user?.id) return
+    if (users.length === 0 && companies.length === 0) return
+    const userIds = users.map(u => u.id)
+    const coIds = companies.map(c => c.id)
+    Promise.all([
+      userIds.length > 0 ? supabase.from('follows').select('following_id').eq('follower_id', user.id).in('following_id', userIds) : Promise.resolve({ data: [] }),
+      coIds.length > 0 ? supabase.from('company_follows').select('company_id').eq('user_id', user.id).in('company_id', coIds) : Promise.resolve({ data: [] }),
+    ]).then(([{ data: f }, { data: cf }]) => {
+      setFollows(new Set((f ?? []).map(x => x.following_id)))
+      setCompanyFollows(new Set((cf ?? []).map(x => x.company_id)))
+    })
+  }, [users, companies, user?.id])
 
   useEffect(() => {
-    performSearch();
-  }, []);
+    const q = searchParams.get('q')
+    if (q) { setQuery(q); search(q) }
+  }, [])
 
-  const performSearch = async () => {
-    if (!query.trim() || query.length < 2) {
-      setResults(null);
-      return;
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    setSearchParams({ q: query })
+    search(query)
+  }
+
+  const handleInputChange = (e) => {
+    const v = e.target.value
+    setQuery(v)
+    if (v.length >= 2) {
+      setSearchParams({ q: v })
+      search(v)
     }
+  }
 
-    setLoading(true);
-    try {
-      const { data: _posts } = await supabase.from('posts').select('*').ilike('content', `%${query}%`).limit(20);
-      const { data: _users } = await supabase.from('users').select('*').ilike('full_name', `%${query}%`).limit(10);
-      const response = { data: { posts: _posts ?? [], users: _users ?? [] } };
-      setResults(response.data);
-      setSearchParams({ q: query, category });
-    } catch (error) {
-      console.error('Search failed:', error);
-      setResults(null);
-    } finally {
-      setLoading(false);
+  const toggleFollowUser = async (targetUser) => {
+    if (!user) return toast.error('Sign in to follow')
+    if (follows.has(targetUser.id)) {
+      await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', targetUser.id)
+      setFollows(prev => { const s = new Set(prev); s.delete(targetUser.id); return s })
+      toast.success(`Unfollowed ${targetUser.full_name || targetUser.username}`)
+    } else {
+      await supabase.from('follows').insert({ follower_id: user.id, following_id: targetUser.id })
+      setFollows(prev => new Set([...prev, targetUser.id]))
+      toast.success(`Following ${targetUser.full_name || targetUser.username}`)
     }
-  };
+  }
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    performSearch();
-  };
-
-  const handleCategoryChange = (newCategory) => {
-    setCategory(newCategory);
-    setSearchParams({ q: query, category: newCategory });
-    if (query.trim()) {
-      setLoading(true);
-      Promise.all([
-        supabase.from('posts').select('*').ilike('content', `%${query}%`).limit(20),
-        supabase.from('users').select('*').ilike('full_name', `%${query}%`).limit(10),
-      ]).then(([{ data: posts }, { data: users }]) => {
-        setResults({ posts: posts ?? [], users: users ?? [] });
-      }).catch(error => console.error('Search failed:', error))
-        .finally(() => setLoading(false));
+  const toggleFollowCompany = async (company) => {
+    if (!user) return toast.error('Sign in to follow')
+    if (companyFollows.has(company.id)) {
+      await supabase.from('company_follows').delete().eq('company_id', company.id).eq('user_id', user.id)
+      setCompanyFollows(prev => { const s = new Set(prev); s.delete(company.id); return s })
+      toast.success(`Unfollowed ${company.name}`)
+    } else {
+      await supabase.from('company_follows').insert({ company_id: company.id, user_id: user.id })
+      setCompanyFollows(prev => new Set([...prev, company.id]))
+      toast.success(`Following ${company.name}`)
     }
-  };
+  }
+
+  const hasResults = totalResults > 0
+  const searched = query.length >= 2
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Search</h1>
-          <p className="text-muted-foreground">Find members, posts, projects, and skills across the platform</p>
+    <div className="max-w-3xl mx-auto px-4 pb-16 pt-6">
+      <h1 className="text-2xl font-bold mb-4">Search</h1>
+
+      <form onSubmit={handleSubmit} className="mb-6">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={handleInputChange}
+              placeholder="Search people, companies, posts…"
+              className="pl-9"
+              autoFocus
+            />
+          </div>
+          <Button type="submit" disabled={loading || query.length < 2}>
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
+          </Button>
         </div>
+      </form>
 
-        {/* Search Bar */}
-        <form onSubmit={handleSearch} className="mb-8">
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search members, posts, projects, skills..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="pl-10"
-                autoFocus
-              />
-            </div>
-            <Button type="submit" disabled={loading || query.length < 2}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            </Button>
-          </div>
-        </form>
+      {!searched && (
+        <div className="text-center py-20 text-muted-foreground">
+          <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">Type at least 2 characters to search</p>
+        </div>
+      )}
 
-        {/* Category Filter */}
-        {results && (
-          <div className="mb-6">
-            <Tabs value={category} onValueChange={handleCategoryChange}>
-              <TabsList className="flex-wrap h-auto gap-1 bg-transparent p-0">
-                <TabsTrigger
-                  value="all"
-                  className="border border-border data-[state=active]:border-primary"
-                >
-                  All ({results.total})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="members"
-                  className="border border-border data-[state=active]:border-primary"
-                >
-                  <Users className="w-3 h-3 mr-1.5" />
-                  Members ({results.members?.length || 0})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="posts"
-                  className="border border-border data-[state=active]:border-primary"
-                >
-                  <FileText className="w-3 h-3 mr-1.5" />
-                  Posts ({results.posts?.length || 0})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="projects"
-                  className="border border-border data-[state=active]:border-primary"
-                >
-                  <Folder className="w-3 h-3 mr-1.5" />
-                  Projects ({results.projects?.length || 0})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="skills"
-                  className="border border-border data-[state=active]:border-primary"
-                >
-                  <Zap className="w-3 h-3 mr-1.5" />
-                  Skills ({results.skills?.length || 0})
-                </TabsTrigger>
-              </TabsList>
+      {searched && !loading && !hasResults && (
+        <div className="text-center py-20 text-muted-foreground">
+          <p className="font-medium">No results for "{query}"</p>
+          <p className="text-sm mt-1">Try different keywords</p>
+        </div>
+      )}
 
-              {/* Members */}
-              <TabsContent value="members" className="mt-6 space-y-3">
-                {results.members.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No members found</p>
-                ) : (
-                  results.members.map(member => (
-                    <Link
-                      key={member.id}
-                      to={`/user/${member.id}`}
-                      className="block p-4 border border-border rounded-lg hover:border-primary hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-full flex-shrink-0 bg-muted flex items-center justify-center overflow-hidden">
-                          {member.avatar ? (
-                            <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-sm font-medium">{member.name?.[0]}</span>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-sm">{member.name}</h3>
-                            <Badge variant="outline" className="text-xs capitalize">{member.role}</Badge>
-                          </div>
-                          {member.headline && (
-                            <p className="text-sm text-muted-foreground mt-0.5">{member.headline}</p>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                  ))
-                )}
-              </TabsContent>
+      {searched && hasResults && (
+        <Tabs defaultValue="all">
+          <TabsList className="mb-5">
+            <TabsTrigger value="all">All ({totalResults})</TabsTrigger>
+            <TabsTrigger value="people"><Users className="w-3.5 h-3.5 mr-1" />People ({users.length})</TabsTrigger>
+            <TabsTrigger value="companies"><Building2 className="w-3.5 h-3.5 mr-1" />Companies ({companies.length})</TabsTrigger>
+            <TabsTrigger value="posts"><FileText className="w-3.5 h-3.5 mr-1" />Posts ({posts.length})</TabsTrigger>
+          </TabsList>
 
-              {/* Posts */}
-              <TabsContent value="posts" className="mt-6 space-y-3">
-                {results.posts.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No posts found</p>
-                ) : (
-                  results.posts.map(post => (
-                    <Link
-                      key={post.id}
-                      to={`/`}
-                      className="block p-4 border border-border rounded-lg hover:border-primary hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex gap-4">
-                        {post.image && (
-                          <img src={post.image} alt="" className="w-24 h-24 rounded object-cover flex-shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm line-clamp-2">{post.title}</p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <div className="w-6 h-6 rounded-full flex-shrink-0 bg-muted flex items-center justify-center text-xs">
-                              {post.authorAvatar ? (
-                                <img src={post.authorAvatar} alt={post.author} className="w-full h-full rounded-full object-cover" />
-                              ) : (
-                                post.author?.[0]
-                              )}
-                            </div>
-                            <span className="text-xs text-muted-foreground">{post.author}</span>
-                          </div>
-                          {post.hashtags.length > 0 && (
-                            <div className="flex gap-1 mt-2 flex-wrap">
-                              {post.hashtags.slice(0, 3).map((tag, idx) => (
-                                <Badge key={idx} variant="secondary" className="text-xs">
-                                  #{tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                  ))
-                )}
-              </TabsContent>
+          {/* ALL */}
+          <TabsContent value="all" className="space-y-6">
+            {users.length > 0 && (
+              <section>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">People</h3>
+                <div className="space-y-2">
+                  {users.slice(0, 5).map(u => <UserRow key={u.id} u={u} isMe={user?.id === u.id} following={follows.has(u.id)} onFollow={() => toggleFollowUser(u)} onNavigate={() => navigate(`/profile/${u.id}`)} />)}
+                </div>
+              </section>
+            )}
+            {companies.length > 0 && (
+              <section>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Companies</h3>
+                <div className="space-y-2">
+                  {companies.slice(0, 4).map(c => <CompanyRow key={c.id} company={c} following={companyFollows.has(c.id)} onFollow={() => toggleFollowCompany(c)} onNavigate={() => navigate(`/company/${c.handle}`)} />)}
+                </div>
+              </section>
+            )}
+            {posts.length > 0 && (
+              <section>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Posts</h3>
+                <div className="space-y-2">
+                  {posts.slice(0, 5).map(p => <PostRow key={p.id} post={p} />)}
+                </div>
+              </section>
+            )}
+          </TabsContent>
 
-              {/* Projects */}
-              <TabsContent value="projects" className="mt-6 space-y-3">
-                {results.projects.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No projects found</p>
-                ) : (
-                  results.projects.map(project => (
-                    <Link
-                      key={project.id}
-                      to={`/shared-project/${project.id}`}
-                      className="block p-4 border border-border rounded-lg hover:border-primary hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex gap-4">
-                        {project.image && (
-                          <img src={project.image} alt={project.title} className="w-24 h-24 rounded object-cover flex-shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-sm">{project.title}</h3>
-                          <Link
-                            to={`/user/${project.ownerId}`}
-                            className="text-xs text-muted-foreground hover:text-primary mt-1 block"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            by {project.owner}
-                          </Link>
-                        </div>
-                      </div>
-                    </Link>
-                  ))
-                )}
-              </TabsContent>
+          {/* PEOPLE */}
+          <TabsContent value="people" className="space-y-2">
+            {users.length === 0
+              ? <Empty label="No people found" />
+              : users.map(u => <UserRow key={u.id} u={u} isMe={user?.id === u.id} following={follows.has(u.id)} onFollow={() => toggleFollowUser(u)} onNavigate={() => navigate(`/profile/${u.id}`)} />)}
+          </TabsContent>
 
-              {/* Skills */}
-              <TabsContent value="skills" className="mt-6 space-y-3">
-                {results.skills.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No skills found</p>
-                ) : (
-                  results.skills.map((skillItem, idx) => (
-                    <div key={idx} className="p-4 border border-border rounded-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <Badge className="bg-primary/10 text-primary border-0 text-sm">
-                          <Zap className="w-3 h-3 mr-1" />
-                          {skillItem.skill}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {skillItem.count} expert{skillItem.count !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      <div className="flex gap-2 flex-wrap">
-                        {skillItem.experts.map(expert => (
-                          <Link
-                            key={expert.userId}
-                            to={`/user/${expert.userId}`}
-                            className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded-full hover:bg-muted/80 transition-colors"
-                          >
-                            <div className="w-5 h-5 rounded-full flex-shrink-0 bg-background flex items-center justify-center text-xs overflow-hidden">
-                              {expert.avatar ? (
-                                <img src={expert.avatar} alt={expert.userName} className="w-full h-full object-cover" />
-                              ) : (
-                                expert.userName?.[0]
-                              )}
-                            </div>
-                            <span className="text-xs font-medium text-muted-foreground hover:text-foreground">
-                              {expert.userName}
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </TabsContent>
+          {/* COMPANIES */}
+          <TabsContent value="companies" className="space-y-2">
+            {companies.length === 0
+              ? <Empty label="No companies found" />
+              : companies.map(c => <CompanyRow key={c.id} company={c} following={companyFollows.has(c.id)} onFollow={() => toggleFollowCompany(c)} onNavigate={() => navigate(`/company/${c.handle}`)} />)}
+          </TabsContent>
 
-              {/* All */}
-              <TabsContent value="all" className="mt-6">
-                {results.total === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No results found for "{query}"</p>
-                ) : (
-                  <div className="space-y-8">
-                    {/* Members Section */}
-                    {results.members.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                          <Users className="w-4 h-4" />
-                          Members ({results.members.length})
-                        </h3>
-                        <div className="space-y-2">
-                          {results.members.slice(0, 3).map(member => (
-                            <Link
-                              key={member.id}
-                              to={`/user/${member.id}`}
-                              className="block p-3 border border-border rounded hover:border-primary hover:bg-muted/50 transition-colors"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full flex-shrink-0 bg-muted flex items-center justify-center overflow-hidden">
-                                  {member.avatar ? (
-                                    <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
-                                  ) : (
-                                    <span className="text-sm font-medium">{member.name?.[0]}</span>
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-semibold text-sm">{member.name}</p>
-                                  {member.headline && (
-                                    <p className="text-xs text-muted-foreground truncate">{member.headline}</p>
-                                  )}
-                                </div>
-                              </div>
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Posts Section */}
-                    {results.posts.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                          <FileText className="w-4 h-4" />
-                          Posts ({results.posts.length})
-                        </h3>
-                        <div className="space-y-2">
-                          {results.posts.slice(0, 3).map(post => (
-                            <Link
-                              key={post.id}
-                              to={`/`}
-                              className="block p-3 border border-border rounded hover:border-primary hover:bg-muted/50 transition-colors"
-                            >
-                              <p className="font-medium text-sm line-clamp-2">{post.title}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{post.author}</p>
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Projects Section */}
-                    {results.projects.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                          <Folder className="w-4 h-4" />
-                          Projects ({results.projects.length})
-                        </h3>
-                        <div className="space-y-2">
-                          {results.projects.slice(0, 3).map(project => (
-                            <Link
-                              key={project.id}
-                              to={`/shared-project/${project.id}`}
-                              className="block p-3 border border-border rounded hover:border-primary hover:bg-muted/50 transition-colors"
-                            >
-                              <p className="font-medium text-sm">{project.title}</p>
-                              <p className="text-xs text-muted-foreground mt-1">by {project.owner}</p>
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Skills Section */}
-                    {results.skills.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                          <Zap className="w-4 h-4" />
-                          Skills ({results.skills.length})
-                        </h3>
-                        <div className="space-y-2">
-                          {results.skills.slice(0, 3).map((skillItem, idx) => (
-                            <div key={idx} className="p-3 border border-border rounded">
-                              <Badge className="bg-primary/10 text-primary border-0 text-xs mb-2 inline-block">
-                                {skillItem.skill}
-                              </Badge>
-                              <p className="text-xs text-muted-foreground">{skillItem.count} experts</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
-
-        {/* Initial State */}
-        {!results && !loading && (
-          <div className="text-center py-12">
-            <Search className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-            <p className="text-muted-foreground">Start typing to search across the platform</p>
-          </div>
-        )}
-      </div>
+          {/* POSTS */}
+          <TabsContent value="posts" className="space-y-2">
+            {posts.length === 0
+              ? <Empty label="No posts found" />
+              : posts.map(p => <PostRow key={p.id} post={p} />)}
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
-  );
+  )
+}
+
+function UserRow({ u, isMe, following, onFollow, onNavigate }) {
+  const initials = (u.full_name || u.username || '?')[0].toUpperCase()
+  return (
+    <div className="flex items-center gap-3 bg-card border border-border rounded-xl p-3 hover:border-primary/30 transition-colors">
+      <button onClick={onNavigate} className="flex-shrink-0">
+        <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex items-center justify-center text-sm font-semibold text-muted-foreground">
+          {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" alt="" /> : initials}
+        </div>
+      </button>
+      <div className="flex-1 min-w-0" onClick={onNavigate} role="button">
+        <p className="font-semibold text-sm leading-tight cursor-pointer hover:underline">{u.full_name || u.username || 'User'}</p>
+        {u.username && <p className="text-xs text-muted-foreground">@{u.username}</p>}
+        {u.headline && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{u.headline}</p>}
+      </div>
+      {!isMe && (
+        <Button size="sm" variant={following ? 'outline' : 'default'} onClick={onFollow} className="gap-1.5 flex-shrink-0 text-xs">
+          {following ? <><UserCheck className="w-3 h-3" /> Following</> : <><UserPlus className="w-3 h-3" /> Follow</>}
+        </Button>
+      )}
+    </div>
+  )
+}
+
+function CompanyRow({ company, following, onFollow, onNavigate }) {
+  return (
+    <div className="flex items-center gap-3 bg-card border border-border rounded-xl p-3 hover:border-primary/30 transition-colors">
+      <button onClick={onNavigate} className="flex-shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-muted overflow-hidden border border-border flex items-center justify-center">
+          {company.logo_url ? <img src={company.logo_url} className="w-full h-full object-cover" alt="" /> : <Building2 className="w-5 h-5 text-muted-foreground" />}
+        </div>
+      </button>
+      <div className="flex-1 min-w-0" onClick={onNavigate} role="button">
+        <p className="font-semibold text-sm leading-tight cursor-pointer hover:underline">{company.name}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          {company.industry && <Badge variant="secondary" className="text-xs py-0">{company.industry}</Badge>}
+          <span className="text-xs text-muted-foreground">{company.follower_count || 0} followers</span>
+        </div>
+        {company.tagline && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{company.tagline}</p>}
+      </div>
+      <Button size="sm" variant={following ? 'outline' : 'default'} onClick={onFollow} className="gap-1.5 flex-shrink-0 text-xs">
+        {following ? <><BellOff className="w-3 h-3" /> Following</> : <><Bell className="w-3 h-3" /> Follow</>}
+      </Button>
+    </div>
+  )
+}
+
+function PostRow({ post }) {
+  const text = post.content?.replace(/<[^>]+>/g, '').slice(0, 160) ?? ''
+  return (
+    <Link to="/" className="block bg-card border border-border rounded-xl p-3 hover:border-primary/30 transition-colors">
+      <div className="flex items-center gap-2 mb-1.5">
+        <div className="w-6 h-6 rounded-full bg-muted overflow-hidden flex items-center justify-center text-xs font-semibold text-muted-foreground flex-shrink-0">
+          {post.author_avatar ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" /> : (post.author_name || '?')[0]}
+        </div>
+        <span className="text-xs font-medium">{post.author_name || 'User'}</span>
+        <span className="text-xs text-muted-foreground ml-auto">{new Date(post.created_at).toLocaleDateString()}</span>
+      </div>
+      <p className="text-sm text-muted-foreground line-clamp-2">{text}</p>
+      {(post.likes_count > 0) && <p className="text-xs text-muted-foreground mt-1">{post.likes_count} likes</p>}
+    </Link>
+  )
+}
+
+function Empty({ label }) {
+  return <div className="text-center py-12 text-sm text-muted-foreground">{label}</div>
 }
