@@ -1,35 +1,29 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import React, { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Loader2, ArrowLeft, ArrowRight, Check, Upload, ChevronLeft, Search, X } from 'lucide-react'
+import { Loader2, ArrowLeft, ArrowRight, Check, Upload, ChevronLeft, Search, X, Gift } from 'lucide-react'
 import {
   CELEBRATION_TYPES, TIERS, RELATIONSHIPS, getExpiresAt,
 } from '../lib/celebrations'
 
 const STEPS = ['Who', 'Message', 'Tier', 'Preview']
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 const generateCode = () =>
   Math.random().toString(36).substring(2, 10).toUpperCase()
 
-// ── Upload honoree photo to existing bucket ───────────────────────────────────
 async function uploadPhoto(file) {
   const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
   const { error } = await supabase.storage
     .from('philomni-music')
     .upload(`celebrations/${fileName}`, file, { contentType: file.type, upsert: true })
-  if (error) {
-    console.error('Photo upload error:', error)
-    return null
-  }
+  if (error) { console.error('Photo upload error:', error); return null }
   const { data: { publicUrl } } = supabase.storage
     .from('philomni-music')
     .getPublicUrl(`celebrations/${fileName}`)
   return publicUrl
 }
 
-// ── Step indicator ─────────────────────────────────────────────────────────────
 function StepIndicator({ current }) {
   return (
     <div className="flex items-center justify-center mb-8">
@@ -54,16 +48,18 @@ function StepIndicator({ current }) {
   )
 }
 
-// ── Tier card ─────────────────────────────────────────────────────────────────
-function TierCard({ tier, selected, onSelect }) {
+function TierCard({ tier, selected, onSelect, locked }) {
   const t = TIERS[tier]
   return (
     <button
-      onClick={() => onSelect(tier)}
+      onClick={() => !locked && onSelect(tier)}
+      disabled={locked && selected !== tier}
       className={`relative flex-1 min-w-[130px] rounded-2xl border p-4 text-left transition-all ${
         selected === tier
           ? 'border-primary bg-primary/10 ring-2 ring-primary'
-          : 'border-border/60 bg-card hover:border-primary/40'
+          : locked
+            ? 'border-border/30 bg-card/50 opacity-40 cursor-not-allowed'
+            : 'border-border/60 bg-card hover:border-primary/40'
       }`}
     >
       {t.popular && (
@@ -91,7 +87,6 @@ function TierCard({ tier, selected, onSelect }) {
   )
 }
 
-// ── Honoree user search ───────────────────────────────────────────────────────
 function HonoreeSearch({ honoreeName, onSelectUser, onClear, selectedUser }) {
   const [results, setResults] = useState([])
   const [searching, setSearching] = useState(false)
@@ -175,26 +170,58 @@ function HonoreeSearch({ honoreeName, onSelectUser, onClear, selectedUser }) {
 export default function CelebrationCreate() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [step, setStep]           = useState(0)
+  const [step, setStep]             = useState(0)
   const [submitting, setSubmitting] = useState(false)
-  const photoInputRef             = useRef(null)
+  const photoInputRef               = useRef(null)
   const [photoUploading, setPhotoUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
 
+  // Sponsorship state
+  const [activeSponsor, setActiveSponsor]   = useState(null)   // celebration_category_sponsorships row
+  const [useSponsorship, setUseSponsorship] = useState(true)
+  const [sponsorLoading, setSponsorLoading] = useState(false)
+
   const [form, setForm] = useState({
-    honoree_name:       '',
-    honoree_photo_url:  '',
-    honoree_user_id:    null,
-    honoree_user:       null,   // full user object for display only
-    honoree_email:      '',
-    celebration_type:   '',
-    relationship:       '',
-    title:              '',
-    message:            '',
-    tier:               'basic',
+    honoree_name:      '',
+    honoree_photo_url: '',
+    honoree_user_id:   null,
+    honoree_user:      null,
+    honoree_email:     '',
+    celebration_type:  '',
+    relationship:      '',
+    title:             '',
+    message:           '',
+    tier:              'basic',
   })
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
+
+  // ── Check for active sponsorship when type changes ─────────────────────────
+  useEffect(() => {
+    if (!form.celebration_type) { setActiveSponsor(null); return }
+    setSponsorLoading(true)
+    const now = new Date().toISOString()
+    supabase
+      .from('celebration_category_sponsorships')
+      .select('*, company:company_id(id, name, logo_url)')
+      .eq('status', 'active')
+      .lte('starts_at', now)
+      .gte('ends_at', now)
+      .or(`category_id.eq.${form.celebration_type},category_id.is.null`)
+      .order('category_id', { ascending: false, nullsFirst: false }) // prefer specific over all-categories
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        // Check cap
+        if (data && (data.cap_count == null || data.count_used < data.cap_count)) {
+          setActiveSponsor(data)
+          setUseSponsorship(true)
+        } else {
+          setActiveSponsor(null)
+        }
+        setSponsorLoading(false)
+      })
+  }, [form.celebration_type])
 
   const canAdvance = () => {
     if (step === 0) return form.honoree_name.trim().length > 0 && !!form.celebration_type
@@ -203,7 +230,6 @@ export default function CelebrationCreate() {
     return true
   }
 
-  // Photo upload using existing philomni-music bucket
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file || !user) return
@@ -219,14 +245,12 @@ export default function CelebrationCreate() {
   const handleSelectHonoreeUser = (u) => {
     set('honoree_user_id', u.id)
     set('honoree_user', u)
-    // If they have an avatar, use it as honoree photo
     if (u.avatar_url) set('honoree_photo_url', u.avatar_url)
   }
 
   const handleClearHonoreeUser = () => {
     set('honoree_user_id', null)
     set('honoree_user', null)
-    // Don't clear photo_url — they may have uploaded one
   }
 
   // ── Publish ────────────────────────────────────────────────────────────────
@@ -234,22 +258,29 @@ export default function CelebrationCreate() {
     if (!user) return
     setSubmitting(true)
     try {
-      const tier    = TIERS[form.tier]
+      const isSponsored = !!(activeSponsor && useSponsorship)
+      // Sponsored celebrations get 'featured' tier for free
+      const effectiveTier = isSponsored ? 'featured' : form.tier
+      const tier = TIERS[effectiveTier]
+
       const payload = {
-        creator_id:        user.id,
-        honoree_name:      form.honoree_name.trim(),
-        honoree_photo_url: form.honoree_photo_url || null,
-        honoree_user_id:   form.honoree_user_id || null,
-        honoree_email:     form.honoree_email.trim() || null,
-        celebration_type:  form.celebration_type,
-        title:             form.title.trim(),
-        message:           form.message.trim(),
-        tier:              form.tier,
-        amount_paid:       tier.price,
-        status:            'active',
-        expires_at:        getExpiresAt(form.tier),
-        shareable_code:    generateCode(),
-        is_sponsored:      false,
+        creator_id:               user.id,
+        honoree_name:             form.honoree_name.trim(),
+        honoree_photo_url:        form.honoree_photo_url || null,
+        honoree_user_id:          form.honoree_user_id || null,
+        honoree_email:            form.honoree_email.trim() || null,
+        celebration_type:         form.celebration_type,
+        title:                    form.title.trim(),
+        message:                  form.message.trim(),
+        tier:                     effectiveTier,
+        amount_paid:              isSponsored ? 0 : tier.price,
+        status:                   'active',
+        expires_at:               getExpiresAt(effectiveTier),
+        shareable_code:           generateCode(),
+        is_sponsored:             isSponsored,
+        payment_status:           isSponsored ? 'sponsored' : (tier.price === 0 ? 'free' : 'pending'),
+        category_sponsorship_id:  isSponsored ? activeSponsor.id : null,
+        opted_out_of_sponsorship: activeSponsor ? !useSponsorship : false,
       }
 
       const { data, error } = await supabase
@@ -264,9 +295,20 @@ export default function CelebrationCreate() {
         return
       }
 
-      // ── Notify honoree if they're a Philomni user ────────────────────────
+      // Update sponsorship usage counters
+      if (isSponsored) {
+        await supabase
+          .from('celebration_category_sponsorships')
+          .update({
+            count_used:       (activeSponsor.count_used || 0) + 1,
+            budget_used_usd:  (activeSponsor.budget_used_usd || 0) + (TIERS.featured.price),
+          })
+          .eq('id', activeSponsor.id)
+      }
+
+      // Notify honoree if Philomni user
       if (form.honoree_user_id) {
-        await supabase.from('notifications').insert({
+        supabase.from('notifications').insert({
           user_id:    form.honoree_user_id,
           type:       'celebration',
           title:      '🎉 Someone celebrated you!',
@@ -274,14 +316,12 @@ export default function CelebrationCreate() {
           link:       `/celebrations/${data.id}`,
           created_at: new Date().toISOString(),
           is_read:    false,
-        }).then(({ error: ne }) => {
-          if (ne) console.warn('Notification insert failed (non-fatal):', ne.message)
-        })
+        }).catch(() => null)
       }
 
-      // ── Platform-wide notification for Grand / Sponsored ────────────────
-      if (form.tier === 'grand' || form.tier === 'sponsored') {
-        await supabase.from('notifications').insert({
+      // Platform-wide notification for Grand / Sponsored tier
+      if (effectiveTier === 'grand' || effectiveTier === 'sponsored') {
+        supabase.from('notifications').insert({
           type:       'grand_celebration',
           title:      '🎉 Grand Celebration!',
           message:    `${form.title.trim()} — Join the celebration`,
@@ -300,11 +340,12 @@ export default function CelebrationCreate() {
     }
   }
 
-  const typeInfo  = CELEBRATION_TYPES.find(t => t.type === form.celebration_type)
-  const tierInfo  = TIERS[form.tier]
-  const maxMsg    = form.tier === 'basic' ? 500 : 1000
-
-  const photoSrc  = form.honoree_photo_url
+  const typeInfo = CELEBRATION_TYPES.find(t => t.type === form.celebration_type)
+  const isSponsored = !!(activeSponsor && useSponsorship)
+  const effectiveTier = isSponsored ? 'featured' : form.tier
+  const tierInfo = TIERS[effectiveTier]
+  const maxMsg = effectiveTier === 'basic' ? 500 : 1000
+  const photoSrc = form.honoree_photo_url
 
   return (
     <div className="max-w-2xl mx-auto pb-20">
@@ -327,7 +368,6 @@ export default function CelebrationCreate() {
       {/* ─── STEP 0: WHO ──────────────────────────────────────────────────── */}
       {step === 0 && (
         <div className="space-y-6">
-          {/* Honoree name */}
           <div>
             <label className="text-sm font-semibold text-foreground mb-2 block">Who are we celebrating? *</label>
             <input
@@ -337,7 +377,6 @@ export default function CelebrationCreate() {
               className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary"
               maxLength={80}
             />
-            {/* Philomni user search */}
             {!form.honoree_user_id && (
               <HonoreeSearch
                 honoreeName={form.honoree_name}
@@ -356,7 +395,6 @@ export default function CelebrationCreate() {
             )}
           </div>
 
-          {/* Photo upload (only if not auto-filled from user profile) */}
           <div>
             <label className="text-sm font-semibold text-foreground mb-2 block">
               Their photo
@@ -387,9 +425,11 @@ export default function CelebrationCreate() {
             )}
           </div>
 
-          {/* Celebration type */}
           <div>
-            <label className="text-sm font-semibold text-foreground mb-3 block">Type of celebration *</label>
+            <label className="text-sm font-semibold text-foreground mb-3 block">
+              Type of celebration *
+              {sponsorLoading && form.celebration_type && <span className="text-xs text-muted-foreground ml-2">Checking sponsorships…</span>}
+            </label>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
               {CELEBRATION_TYPES.map(t => (
                 <button
@@ -406,9 +446,17 @@ export default function CelebrationCreate() {
                 </button>
               ))}
             </div>
+            {/* Show sponsor teaser on step 0 if found */}
+            {activeSponsor && !sponsorLoading && (
+              <div className="mt-3 flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 py-2">
+                <Gift className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                  <strong>{activeSponsor.company?.name}</strong> is sponsoring {activeSponsor.category_id ? typeInfo?.label : 'all'} celebrations this period — you may get this free!
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Relationship */}
           <div>
             <label className="text-sm font-semibold text-foreground mb-2 block">Your relationship to them</label>
             <div className="flex flex-wrap gap-2">
@@ -428,7 +476,6 @@ export default function CelebrationCreate() {
             </div>
           </div>
 
-          {/* Honoree email */}
           <div>
             <label className="text-sm font-semibold text-foreground mb-1.5 block">
               Honoree's email <span className="font-normal text-muted-foreground">(optional)</span>
@@ -475,7 +522,7 @@ export default function CelebrationCreate() {
               rows={6}
               className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary resize-none"
             />
-            {form.tier === 'basic' && (
+            {effectiveTier === 'basic' && !isSponsored && (
               <p className="text-xs text-muted-foreground mt-1">Upgrade to a paid tier for up to 1,000 characters.</p>
             )}
           </div>
@@ -485,12 +532,62 @@ export default function CelebrationCreate() {
       {/* ─── STEP 2: TIER ─────────────────────────────────────────────────── */}
       {step === 2 && (
         <div>
-          <h2 className="text-base font-bold text-foreground mb-4">Choose your tier</h2>
+          {/* Sponsorship banner */}
+          {activeSponsor && (
+            <div className={`mb-5 rounded-2xl border p-4 ${useSponsorship ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-border/40 bg-muted/50'}`}>
+              <div className="flex items-start gap-3">
+                {activeSponsor.company?.logo_url
+                  ? <img src={activeSponsor.company.logo_url} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
+                  : <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0"><Gift className="w-5 h-5 text-emerald-500" /></div>
+                }
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm text-foreground">
+                    🎁 {activeSponsor.company?.name} is covering this celebration!
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {activeSponsor.company?.name} has sponsored {activeSponsor.category_id ? typeInfo?.label : 'all'} celebrations this period.
+                    {useSponsorship ? ' Your celebration is FREE and gets the Featured tier.' : ' You\'ve opted out and will pay normally.'}
+                  </p>
+                  {activeSponsor.brand_message && (
+                    <p className="text-xs italic text-muted-foreground mt-1.5 border-l-2 border-emerald-500/40 pl-2">"{activeSponsor.brand_message}"</p>
+                  )}
+                  {useSponsorship ? (
+                    <button
+                      onClick={() => setUseSponsorship(false)}
+                      className="mt-2 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    >
+                      I'd prefer not to have brand attribution — opt out and pay myself
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setUseSponsorship(true)}
+                      className="mt-2 text-xs text-primary underline underline-offset-2"
+                    >
+                      Actually, use sponsorship (get Featured free)
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <h2 className="text-base font-bold text-foreground mb-4">
+            {isSponsored ? 'Your tier (sponsored — Featured is free!)' : 'Choose your tier'}
+          </h2>
           <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
             {Object.keys(TIERS).map(t => (
-              <TierCard key={t} tier={t} selected={form.tier} onSelect={v => set('tier', v)} />
+              <TierCard
+                key={t}
+                tier={t}
+                selected={effectiveTier}
+                onSelect={v => set('tier', v)}
+                locked={isSponsored}
+              />
             ))}
           </div>
+          {isSponsored && (
+            <p className="text-xs text-muted-foreground mt-3 text-center">Tier is locked to Featured while sponsorship is applied. Opt out above to choose any tier.</p>
+          )}
         </div>
       )}
 
@@ -500,7 +597,7 @@ export default function CelebrationCreate() {
           <h2 className="text-base font-bold text-foreground">Preview</h2>
 
           {/* Preview card */}
-          <div className={`rounded-2xl border overflow-hidden shadow-lg ${form.tier === 'grand' || form.tier === 'sponsored' ? 'border-yellow-400/60' : 'border-border/60'}`}>
+          <div className={`rounded-2xl border overflow-hidden shadow-lg ${effectiveTier === 'grand' || effectiveTier === 'sponsored' ? 'border-yellow-400/60' : effectiveTier === 'featured' ? 'border-amber-400/60' : 'border-border/60'}`}>
             {photoSrc ? (
               <div className="relative h-48 overflow-hidden">
                 <img src={photoSrc} alt="" className="w-full h-full object-cover" />
@@ -519,6 +616,11 @@ export default function CelebrationCreate() {
                 <span>{typeInfo?.emoji}</span>
                 <span>{typeInfo?.label}</span>
                 {tierInfo.badge && <span className={`font-bold ${tierInfo.color}`}>{tierInfo.badge} {tierInfo.label}</span>}
+                {isSponsored && (
+                  <span className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full ml-1">
+                    Brought to you by {activeSponsor.company?.name}
+                  </span>
+                )}
               </div>
               <p className="font-bold text-foreground mb-1">{form.title || 'Your title'}</p>
               <p className="text-sm text-muted-foreground line-clamp-3">{form.message || 'Your message...'}</p>
@@ -531,22 +633,36 @@ export default function CelebrationCreate() {
             </div>
           </div>
 
-          {/* Payment */}
+          {/* Payment / Summary */}
           <div className="bg-card border border-border/60 rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="font-bold text-foreground">{tierInfo.badge} {tierInfo.label} Tier</p>
                 <p className="text-sm text-muted-foreground">Duration: {tierInfo.duration} {tierInfo.duration === 1 ? 'day' : 'days'}</p>
               </div>
-              <p className={`text-2xl font-black ${tierInfo.color}`}>
-                {tierInfo.price === 0 ? 'FREE' : `$${tierInfo.price}`}
+              <p className={`text-2xl font-black ${isSponsored ? 'text-emerald-500' : tierInfo.color}`}>
+                {isSponsored ? 'FREE' : (tierInfo.price === 0 ? 'FREE' : `$${tierInfo.price}`)}
               </p>
             </div>
-            {tierInfo.price > 0 && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 mb-4 text-xs text-amber-600 dark:text-amber-400">
-                💳 Payment processing coming soon. Your celebration will be published immediately.
+
+            {isSponsored && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 mb-4 flex items-center gap-2">
+                {activeSponsor.company?.logo_url
+                  ? <img src={activeSponsor.company.logo_url} alt="" className="w-6 h-6 rounded object-cover flex-shrink-0" />
+                  : <Gift className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                }
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                  <strong>{activeSponsor.company?.name}</strong> is covering this celebration. Featured tier at no cost to you. ✓
+                </p>
               </div>
             )}
+
+            {!isSponsored && tierInfo.price > 0 && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 mb-4 text-xs text-amber-600 dark:text-amber-400">
+                💳 Payment is processed securely. Your celebration goes live immediately after payment.
+              </div>
+            )}
+
             {form.honoree_email && (
               <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4 text-xs text-primary">
                 📧 A notification will be sent to {form.honoree_email}
@@ -557,14 +673,20 @@ export default function CelebrationCreate() {
                 🔔 {form.honoree_user?.full_name} will be notified on Philomni
               </div>
             )}
+
             <button
               onClick={publish}
               disabled={submitting}
               className="w-full py-3.5 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg, #14b8a6, #f59e0b)' }}
+              style={{ background: isSponsored ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #14b8a6, #f59e0b)' }}
             >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              {tierInfo.price === 0 ? '🎉 Publish for Free' : `💳 Pay $${tierInfo.price} & Publish`}
+              {isSponsored
+                ? '🎁 Publish Free (Sponsored)'
+                : tierInfo.price === 0
+                  ? '🎉 Publish for Free'
+                  : `💳 Pay $${tierInfo.price} & Publish`
+              }
             </button>
           </div>
         </div>
