@@ -383,64 +383,214 @@ function ApplyModal({ brief, onClose, onApplied }) {
 
 // ─── Send Offer modal (brand → creator) ───────────────────────────────────────
 function SendOfferModal({ app, brief, onClose, onSent }) {
-  const [amount,  setAmount]  = useState(app.quote ?? '')
-  const [message, setMessage] = useState('')
-  const [saving,  setSaving]  = useState(false)
+  const [dealType,       setDealType]       = useState('one_time')
+  const [amount,         setAmount]         = useState(app.quote ?? '')
+  const [monthlyAmount,  setMonthlyAmount]  = useState('')
+  const [durationMonths, setDurationMonths] = useState('12')
+  const [startDate,      setStartDate]      = useState('')
+  const [message,        setMessage]        = useState('')
+  // Milestone rows: { title, amount, due_date }
+  const [milestones,     setMilestones]     = useState([
+    { title: 'Milestone 1', amount: '', due_date: '' },
+    { title: 'Milestone 2', amount: '', due_date: '' },
+  ])
+  const [saving, setSaving] = useState(false)
+
+  function updateMs(i, key, val) {
+    setMilestones(ms => ms.map((m, idx) => idx === i ? { ...m, [key]: val } : m))
+  }
+  function addMs()    { setMilestones(ms => [...ms, { title: `Milestone ${ms.length + 1}`, amount: '', due_date: '' }]) }
+  function removeMs(i){ setMilestones(ms => ms.filter((_, idx) => idx !== i)) }
+
+  const totalMilestoneAmount = milestones.reduce((s, m) => s + (Number(m.amount) || 0), 0)
+  const totalRetainerAmount  = (Number(monthlyAmount) || 0) * (Number(durationMonths) || 0)
 
   async function submit(e) {
     e.preventDefault()
-    if (!amount) { toast.error('Agreed amount required'); return }
+
+    if (dealType === 'one_time' && !amount) { toast.error('Agreed amount required'); return }
+    if (dealType === 'milestone' && milestones.some(m => !m.title || !m.amount)) { toast.error('All milestones need a title and amount'); return }
+    if (dealType === 'retainer' && (!monthlyAmount || !durationMonths)) { toast.error('Monthly amount and duration required'); return }
+
     setSaving(true)
-    // Upsert deal
-    const { error } = await supabase.from('brief_deals').insert({
-      application_id: app.id,
-      brief_id: brief.id,
-      creator_id: app.creator_id ?? app.creator?.id,
-      company_id: brief.company_id,
-      agreed_amount: Number(amount),
-      offer_message: message.trim() || null,
-      status: 'offer_sent',
-    })
-    if (!error) {
-      // Mark application as approved if not already
-      await supabase.from('brief_applications').update({ status: 'approved', approved_at: new Date().toISOString() }).eq('id', app.id)
-      toast.success('Offer sent! Creator will be notified.')
-      onSent?.()
-      onClose()
-    } else {
-      toast.error(error.message)
+
+    const dealPayload = {
+      application_id:  app.id,
+      brief_id:        brief.id,
+      creator_id:      app.creator_id ?? app.creator?.id,
+      company_id:      brief.company_id,
+      deal_type:       dealType,
+      offer_message:   message.trim() || null,
+      status:          'offer_sent',
+      start_date:      startDate || null,
+      ...(dealType === 'one_time'  ? { agreed_amount: Number(amount) } : {}),
+      ...(dealType === 'milestone' ? { agreed_amount: totalMilestoneAmount } : {}),
+      ...(dealType === 'retainer'  ? { monthly_amount: Number(monthlyAmount), duration_months: Number(durationMonths), agreed_amount: totalRetainerAmount } : {}),
+      ...(dealType === 'retainer' && durationMonths && startDate ? {
+        end_date: new Date(new Date(startDate).setMonth(new Date(startDate).getMonth() + Number(durationMonths))).toISOString().split('T')[0]
+      } : {}),
     }
+
+    const { data: deal, error } = await supabase.from('brief_deals').insert(dealPayload).select('id').single()
+    if (error) { toast.error(error.message); setSaving(false); return }
+
+    // Insert milestones for milestone + retainer deal types
+    if (dealType === 'milestone') {
+      const rows = milestones.map((m, i) => ({
+        deal_id: deal.id, title: m.title, amount: Number(m.amount),
+        due_date: m.due_date || null, sort_order: i, status: 'pending',
+      }))
+      await supabase.from('deal_milestones').insert(rows)
+    }
+
+    if (dealType === 'retainer') {
+      // Create one milestone per period
+      const rows = Array.from({ length: Number(durationMonths) }, (_, i) => {
+        const start = startDate ? new Date(startDate) : new Date()
+        const due = new Date(start)
+        due.setMonth(due.getMonth() + i + 1)
+        return {
+          deal_id: deal.id,
+          title: `Month ${i + 1}`,
+          amount: Number(monthlyAmount),
+          due_date: due.toISOString().split('T')[0],
+          sort_order: i, status: 'pending',
+        }
+      })
+      await supabase.from('deal_milestones').insert(rows)
+    }
+
+    await supabase.from('brief_applications').update({ status: 'approved', approved_at: new Date().toISOString() }).eq('id', app.id)
+    toast.success('Offer sent!')
+    onSent?.(); onClose()
     setSaving(false)
   }
 
+  const DEAL_TYPES = [
+    { id: 'one_time',  label: 'One-time',  desc: 'Single deliverable, single payment' },
+    { id: 'milestone', label: 'Milestones',desc: 'Multiple phases, paid per milestone' },
+    { id: 'retainer',  label: 'Retainer',  desc: 'Recurring monthly over a fixed period' },
+  ]
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80">
-      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-zinc-800">
           <div>
             <h3 className="font-bold text-white">Send Deal Offer</h3>
-            <p className="text-xs text-zinc-500 mt-0.5">to {app.creator?.full_name}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">to {app.creator?.full_name} · {brief.title}</p>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
-        <form onSubmit={submit} className="p-5 space-y-4">
-          <div className="bg-zinc-900 rounded-xl p-3">
-            <p className="text-xs text-zinc-500">Brief</p>
-            <p className="text-sm font-medium text-white">{brief.title}</p>
-            {app.quote && <p className="text-xs text-zinc-500 mt-0.5">Creator quoted: ${Number(app.quote).toLocaleString()}</p>}
-          </div>
+        <form onSubmit={submit} className="p-5 space-y-5">
+          {app.quote && (
+            <div className="bg-zinc-900 rounded-xl px-4 py-2.5 flex items-center justify-between">
+              <span className="text-xs text-zinc-500">Creator's quoted rate</span>
+              <span className="text-sm font-semibold text-green-400">${Number(app.quote).toLocaleString()}</span>
+            </div>
+          )}
+
+          {/* Deal type selector */}
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Agreed Amount (USD) <span className="text-red-400">*</span></label>
-            <input type="number" min={0} value={amount} onChange={e => setAmount(e.target.value)}
-              placeholder={`Budget: $${brief.budget_min?.toLocaleString()}–$${brief.budget_max?.toLocaleString()}`}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-600" />
+            <label className="block text-sm font-medium text-zinc-300 mb-2">Deal Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {DEAL_TYPES.map(dt => (
+                <button key={dt.id} type="button" onClick={() => setDealType(dt.id)}
+                  className={`p-3 rounded-xl text-left border transition-colors ${dealType === dt.id ? 'border-blue-600 bg-blue-600/10' : 'border-zinc-800 bg-zinc-900 hover:border-zinc-700'}`}>
+                  <p className={`text-xs font-semibold ${dealType === dt.id ? 'text-blue-400' : 'text-white'}`}>{dt.label}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5 leading-tight">{dt.desc}</p>
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* One-time amount */}
+          {dealType === 'one_time' && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Agreed Amount (USD) <span className="text-red-400">*</span></label>
+              <input type="number" min={0} value={amount} onChange={e => setAmount(e.target.value)}
+                placeholder={`e.g. ${brief.budget_max?.toLocaleString()}`}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-600" />
+            </div>
+          )}
+
+          {/* Milestone rows */}
+          {dealType === 'milestone' && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-zinc-300">Milestones</label>
+                <span className="text-xs text-zinc-500">Total: <span className="text-green-400 font-semibold">${totalMilestoneAmount.toLocaleString()}</span></span>
+              </div>
+              <div className="space-y-2">
+                {milestones.map((m, i) => (
+                  <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-500 w-5 shrink-0">{i + 1}.</span>
+                      <input value={m.title} onChange={e => updateMs(i, 'title', e.target.value)} placeholder="Milestone title"
+                        className="flex-1 bg-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-blue-600" />
+                      {milestones.length > 1 && (
+                        <button type="button" onClick={() => removeMs(i)} className="text-zinc-600 hover:text-red-400"><X className="w-3.5 h-3.5" /></button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pl-7">
+                      <input type="number" min={0} value={m.amount} onChange={e => updateMs(i, 'amount', e.target.value)} placeholder="Amount (USD)"
+                        className="bg-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-blue-600" />
+                      <input type="date" value={m.due_date} onChange={e => updateMs(i, 'due_date', e.target.value)}
+                        className="bg-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-blue-600" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={addMs} className="mt-2 text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                <Plus className="w-3 h-3" /> Add milestone
+              </button>
+            </div>
+          )}
+
+          {/* Retainer config */}
+          {dealType === 'retainer' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1">Monthly Amount (USD) <span className="text-red-400">*</span></label>
+                  <input type="number" min={0} value={monthlyAmount} onChange={e => setMonthlyAmount(e.target.value)} placeholder="e.g. 2000"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-600" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1">Duration (months) <span className="text-red-400">*</span></label>
+                  <input type="number" min={1} max={36} value={durationMonths} onChange={e => setDurationMonths(e.target.value)} placeholder="12"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-600" />
+                </div>
+              </div>
+              {monthlyAmount && durationMonths && (
+                <div className="bg-zinc-900 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">{durationMonths} months × ${Number(monthlyAmount).toLocaleString()}/mo</span>
+                  <span className="text-sm font-bold text-green-400">${totalRetainerAmount.toLocaleString()} total</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Start date (retainer + milestone) */}
+          {(dealType === 'milestone' || dealType === 'retainer') && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Start Date <span className="text-zinc-500 font-normal">— optional</span></label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-600" />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Message to Creator <span className="text-zinc-500 font-normal">— optional</span></label>
             <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3}
-              placeholder="Payment terms, content deadline, revision policy, what you need from them next…"
+              placeholder="Payment schedule, revision policy, content requirements, anything they need to know…"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600 resize-none" />
           </div>
+
+          <div className="bg-blue-950/40 border border-blue-800/30 rounded-xl p-3 text-xs text-zinc-400">
+            <span className="text-blue-400 font-medium">Escrow:</span> After the creator accepts, you'll be prompted to secure funds via Stripe. Philomni holds payment and releases it to the creator when you approve their deliverables. Philomni takes a 5% platform fee.
+          </div>
+
           <div className="flex gap-3">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 bg-zinc-800 text-zinc-300 rounded-xl text-sm font-medium">Cancel</button>
             <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-xl text-sm font-semibold">
@@ -584,22 +734,154 @@ function RateModal({ deal, role, rateeId, rateeName, onClose, onRated }) {
 }
 
 // ─── Deal detail panel (inline, used in both brand and creator views) ──────────
+// ─── Milestone row (inside DealPanel) ─────────────────────────────────────────
+function MilestoneRow({ ms, isBrand, dealId, onUpdate }) {
+  const { user } = useAuth()
+  const [showDelModal, setShowDelModal] = useState(false)
+  const [revNote,      setRevNote]      = useState('')
+  const [acting,       setActing]       = useState(false)
+  const [deliverables, setDeliverables] = useState([])
+
+  useEffect(() => {
+    supabase.from('brief_deliverables').select('*').eq('deal_id', dealId).eq('milestone_id', ms.id)
+      .then(({ data }) => setDeliverables(data ?? []))
+  }, [ms.id])
+
+  const MS_STATUS = {
+    pending:            { label: 'Pending',           color: 'text-zinc-400',   bg: 'bg-zinc-800' },
+    in_progress:        { label: 'In Progress',        color: 'text-blue-400',   bg: 'bg-blue-500/20' },
+    delivered:          { label: 'Delivered',          color: 'text-cyan-400',   bg: 'bg-cyan-500/20' },
+    revision_requested: { label: 'Revision Requested', color: 'text-orange-400', bg: 'bg-orange-500/20' },
+    approved:           { label: 'Approved',           color: 'text-green-400',  bg: 'bg-green-500/20' },
+    paid:               { label: 'Paid',               color: 'text-green-400',  bg: 'bg-green-500/20' },
+    cancelled:          { label: 'Cancelled',          color: 'text-zinc-500',   bg: 'bg-zinc-800' },
+  }
+  const st = MS_STATUS[ms.status] ?? MS_STATUS.pending
+
+  async function updateMs(updates) {
+    setActing(true)
+    await supabase.from('deal_milestones').update(updates).eq('id', ms.id)
+    setActing(false); onUpdate?.()
+  }
+
+  async function releasePayment() {
+    setActing(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/brief-deal-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ action: 'release_to_creator', deal_id: dealId, milestone_id: ms.id }),
+    })
+    const data = await res.json()
+    if (!res.ok) toast.error(data.error ?? 'Payment failed')
+    else toast.success(`$${data.amount_paid?.toLocaleString()} sent to creator!`)
+    setActing(false); onUpdate?.()
+  }
+
+  return (
+    <div className="border border-zinc-800/60 rounded-xl p-3 space-y-2">
+      {showDelModal && (
+        <SubmitDeliverablesModal
+          deal={{ id: dealId, brief: {} }}
+          milestoneId={ms.id}
+          onClose={() => setShowDelModal(false)}
+          onSubmitted={() => {
+            updateMs({ status: 'delivered', delivered_at: new Date().toISOString() })
+            supabase.from('brief_deliverables').select('*').eq('deal_id', dealId).eq('milestone_id', ms.id).then(({ data }) => setDeliverables(data ?? []))
+          }} />
+      )}
+
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <p className="text-xs font-semibold text-white">{ms.title}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-xs text-green-400 font-medium">${Number(ms.amount).toLocaleString()}</span>
+            {ms.due_date && <span className="text-xs text-zinc-600">Due {new Date(ms.due_date).toLocaleDateString('en',{month:'short',day:'numeric',year:'numeric'})}</span>}
+          </div>
+        </div>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${st.bg} ${st.color}`}>{st.label}</span>
+      </div>
+
+      {/* Creator: deliver this milestone */}
+      {!isBrand && ['in_progress','revision_requested'].includes(ms.status) && (
+        <button onClick={() => setShowDelModal(true)} className="w-full py-1.5 bg-purple-600/80 hover:bg-purple-600 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1">
+          <Upload className="w-3 h-3" /> {ms.status === 'revision_requested' ? 'Resubmit' : 'Submit Deliverable'}
+        </button>
+      )}
+      {ms.status === 'revision_requested' && ms.revision_note && (
+        <p className="text-xs text-orange-300 bg-orange-500/10 rounded-lg px-2 py-1.5">{ms.revision_note}</p>
+      )}
+
+      {/* Deliverables for this milestone */}
+      {deliverables.map(d => (
+        <div key={d.id} className="bg-zinc-900/60 rounded-lg p-2 space-y-1">
+          {(d.content_urls ?? []).map((u, i) => (
+            <a key={i} href={u} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs text-blue-400 hover:underline">
+              <Link2 className="w-3 h-3 shrink-0" /><span className="truncate">{u}</span>
+            </a>
+          ))}
+          {d.description && <p className="text-xs text-zinc-500">{d.description}</p>}
+        </div>
+      ))}
+
+      {/* Brand: approve or request revision */}
+      {isBrand && ms.status === 'delivered' && (
+        <div className="space-y-1.5 pt-1">
+          <div className="flex gap-1.5">
+            <button disabled={acting} onClick={() => updateMs({ status: 'approved', approved_at: new Date().toISOString() })}
+              className="flex-1 py-1.5 bg-green-600/80 hover:bg-green-600 disabled:opacity-60 text-white rounded-lg text-xs font-semibold">Approve</button>
+            <div className="flex-1 flex gap-1">
+              <input value={revNote} onChange={e => setRevNote(e.target.value)} placeholder="Revision note…"
+                className="flex-1 bg-zinc-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none min-w-0" />
+              <button disabled={acting || !revNote.trim()} onClick={() => updateMs({ status: 'revision_requested', revision_note: revNote.trim() })}
+                className="shrink-0 px-2 py-1.5 bg-orange-600/30 hover:bg-orange-600/50 disabled:opacity-50 text-orange-400 rounded-lg text-xs">
+                <RotateCcw className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Brand: release payment after approval */}
+      {isBrand && ms.status === 'approved' && (
+        <button disabled={acting} onClick={releasePayment}
+          className="w-full py-1.5 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+          <DollarSign className="w-3 h-3" /> Release Payment ${Number(ms.amount).toLocaleString()}
+        </button>
+      )}
+      {ms.status === 'paid' && (
+        <p className="text-xs text-green-400 text-center py-1">✓ Paid {ms.paid_at ? new Date(ms.paid_at).toLocaleDateString() : ''}</p>
+      )}
+    </div>
+  )
+}
+
 function DealPanel({ deal, isBrand, onUpdate }) {
   const { user } = useAuth()
   const [deliverables, setDeliverables] = useState([])
+  const [milestones,   setMilestones]   = useState([])
   const [ratings,      setRatings]      = useState([])
   const [revNote,      setRevNote]      = useState('')
   const [acting,       setActing]       = useState(false)
   const [showDelModal, setShowDelModal] = useState(false)
   const [showRateModal,setShowRateModal]= useState(false)
 
-  useEffect(() => { loadDeliverables(); loadRatings() }, [deal.id])
+  const isMultiPhase = deal.deal_type === 'milestone' || deal.deal_type === 'retainer'
+
+  useEffect(() => {
+    if (!isMultiPhase) loadDeliverables()
+    else loadMilestones()
+    loadRatings()
+  }, [deal.id])
 
   async function loadDeliverables() {
-    const { data } = await supabase.from('brief_deliverables').select('*').eq('deal_id', deal.id).order('created_at', { ascending: false })
+    const { data } = await supabase.from('brief_deliverables').select('*').eq('deal_id', deal.id).is('milestone_id', null).order('created_at', { ascending: false })
     setDeliverables(data ?? [])
   }
-
+  async function loadMilestones() {
+    const { data } = await supabase.from('deal_milestones').select('*').eq('deal_id', deal.id).order('sort_order')
+    setMilestones(data ?? [])
+  }
   async function loadRatings() {
     const { data } = await supabase.from('brief_ratings').select('*').eq('deal_id', deal.id)
     setRatings(data ?? [])
@@ -608,12 +890,29 @@ function DealPanel({ deal, isBrand, onUpdate }) {
   async function updateDeal(updates) {
     setActing(true)
     await supabase.from('brief_deals').update(updates).eq('id', deal.id)
-    setActing(false)
-    onUpdate?.()
+    setActing(false); onUpdate?.()
+  }
+
+  async function releaseFullPayment() {
+    setActing(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/brief-deal-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ action: 'release_to_creator', deal_id: deal.id }),
+    })
+    const data = await res.json()
+    if (!res.ok) toast.error(data.error ?? 'Payment failed')
+    else toast.success(`$${data.amount_paid?.toLocaleString()} sent to creator!`)
+    setActing(false); onUpdate?.()
   }
 
   const myRating = ratings.find(r => r.rater_id === user?.id)
   const s = deal.status
+
+  const paidMs    = milestones.filter(m => m.status === 'paid').length
+  const totalMs   = milestones.length
+  const msAllDone = totalMs > 0 && milestones.every(m => m.status === 'paid')
 
   return (
     <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-4 space-y-4">
@@ -627,16 +926,41 @@ function DealPanel({ deal, isBrand, onUpdate }) {
           onRated={() => { loadRatings(); onUpdate?.() }} />
       )}
 
-      {/* Offer info */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* Summary header */}
+      <div className="flex items-start justify-between flex-wrap gap-2">
         <div>
-          <p className="text-xs text-zinc-500">Agreed amount</p>
-          <p className="text-xl font-bold text-green-400">${Number(deal.agreed_amount).toLocaleString()}</p>
+          <div className="flex items-center gap-2 mb-0.5">
+            <p className="text-xs text-zinc-500">
+              {deal.deal_type === 'one_time'  ? 'One-time deal' :
+               deal.deal_type === 'milestone' ? `Milestone deal · ${paidMs}/${totalMs} paid` :
+               deal.deal_type === 'retainer'  ? `Retainer · ${paidMs}/${totalMs} months paid` : 'Deal'}
+            </p>
+          </div>
+          <p className="text-xl font-bold text-green-400">${Number(deal.agreed_amount).toLocaleString()}
+            {deal.deal_type === 'retainer' && deal.monthly_amount && (
+              <span className="text-sm font-normal text-zinc-400 ml-1">(${Number(deal.monthly_amount).toLocaleString()}/mo)</span>
+            )}
+          </p>
+          {deal.start_date && <p className="text-xs text-zinc-500 mt-0.5">
+            {deal.start_date} {deal.end_date ? `→ ${deal.end_date}` : ''}
+          </p>}
         </div>
-        <DealBadge status={deal.status} />
+        <div className="flex flex-col items-end gap-1">
+          <DealBadge status={deal.status} />
+          {deal.payment_status && deal.payment_status !== 'unpaid' && (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              deal.payment_status === 'held'    ? 'bg-yellow-500/20 text-yellow-400' :
+              deal.payment_status === 'paid'    ? 'bg-green-500/20 text-green-400' :
+              deal.payment_status === 'refunded'? 'bg-red-500/20 text-red-400' : 'bg-zinc-800 text-zinc-400'
+            }`}>
+              Escrow: {deal.payment_status}
+            </span>
+          )}
+        </div>
       </div>
 
-      <DealTimeline status={deal.status} />
+      {/* For one-time deals: show timeline */}
+      {!isMultiPhase && <DealTimeline status={deal.status} />}
 
       {deal.offer_message && (
         <div className="bg-zinc-800/50 rounded-xl p-3 text-xs text-zinc-300">
@@ -645,7 +969,7 @@ function DealPanel({ deal, isBrand, onUpdate }) {
         </div>
       )}
 
-      {/* Creator: accept / decline offer */}
+      {/* Creator: accept / decline */}
       {!isBrand && s === 'offer_sent' && (
         <div className="flex gap-2">
           <button disabled={acting} onClick={() => updateDeal({ status: 'accepted', accepted_at: new Date().toISOString() })}
@@ -659,7 +983,7 @@ function DealPanel({ deal, isBrand, onUpdate }) {
         </div>
       )}
 
-      {/* Brand: mark in_progress after creator accepts */}
+      {/* Brand: mark in_progress */}
       {isBrand && s === 'accepted' && (
         <button disabled={acting} onClick={() => updateDeal({ status: 'in_progress' })}
           className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white rounded-xl text-xs font-semibold">
@@ -667,61 +991,83 @@ function DealPanel({ deal, isBrand, onUpdate }) {
         </button>
       )}
 
-      {/* Creator: submit deliverables */}
-      {!isBrand && (s === 'accepted' || s === 'in_progress' || s === 'revision_requested') && (
-        <button onClick={() => setShowDelModal(true)}
-          className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
-          <Upload className="w-3.5 h-3.5" />
-          {s === 'revision_requested' ? 'Resubmit Deliverables' : 'Submit Deliverables'}
-        </button>
-      )}
-      {s === 'revision_requested' && deal.revision_note && (
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 text-xs text-orange-300">
-          <p className="font-medium mb-1">Revision requested:</p>
-          {deal.revision_note}
-        </div>
-      )}
-
-      {/* Deliverables list */}
-      {deliverables.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-zinc-400 mb-2">Submitted deliverables</p>
-          {deliverables.map(d => (
-            <div key={d.id} className="bg-zinc-900 rounded-xl p-3 mb-2">
-              {d.title && <p className="text-xs font-medium text-white mb-1">{d.title}</p>}
-              {d.description && <p className="text-xs text-zinc-500 mb-2">{d.description}</p>}
-              {(d.content_urls ?? []).map((u,i) => (
-                <a key={i} href={u} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-1.5 text-xs text-blue-400 hover:underline mb-1">
-                  <Link2 className="w-3 h-3 shrink-0" /><span className="truncate">{u}</span>
-                </a>
-              ))}
-              <p className="text-xs text-zinc-600 mt-1">{new Date(d.created_at).toLocaleDateString('en',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Brand: review deliverables */}
-      {isBrand && s === 'delivered' && (
+      {/* ── MILESTONE / RETAINER PHASE LIST ── */}
+      {isMultiPhase && milestones.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-medium text-zinc-300">Review deliverables:</p>
-          <button disabled={acting} onClick={() => updateDeal({ status: 'completed', completed_at: new Date().toISOString() })}
-            className="w-full py-2 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1">
-            <ThumbsUp className="w-3.5 h-3.5" /> Approve & Complete Deal
-          </button>
-          <div className="flex gap-2 items-start">
-            <textarea value={revNote} onChange={e => setRevNote(e.target.value)} rows={2} placeholder="Describe what needs to be revised…"
-              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 outline-none focus:border-orange-500 resize-none" />
-            <button disabled={acting || !revNote.trim()} onClick={() => updateDeal({ status: 'revision_requested', revision_note: revNote.trim() })}
-              className="shrink-0 py-2 px-3 bg-orange-600/30 hover:bg-orange-600/50 disabled:opacity-50 text-orange-400 rounded-xl text-xs font-semibold flex items-center gap-1">
-              <RotateCcw className="w-3 h-3" /> Request Revision
+          <p className="text-xs font-medium text-zinc-400">
+            {deal.deal_type === 'retainer' ? 'Monthly periods' : 'Milestones'}
+          </p>
+          {milestones.map(ms => (
+            <MilestoneRow key={ms.id} ms={ms} isBrand={isBrand} dealId={deal.id} onUpdate={() => { loadMilestones(); onUpdate?.() }} />
+          ))}
+          {isBrand && msAllDone && s !== 'completed' && (
+            <button disabled={acting} onClick={() => updateDeal({ status: 'completed', completed_at: new Date().toISOString() })}
+              className="w-full py-2 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 mt-2">
+              <CheckCircle className="w-3.5 h-3.5" /> Mark Deal Complete
             </button>
-          </div>
+          )}
         </div>
       )}
 
-      {/* Rate button after completion */}
+      {/* ── ONE-TIME: deliverable submit / review flow ── */}
+      {!isMultiPhase && (
+        <>
+          {!isBrand && (s === 'accepted' || s === 'in_progress' || s === 'revision_requested') && (
+            <button onClick={() => setShowDelModal(true)}
+              className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+              <Upload className="w-3.5 h-3.5" />
+              {s === 'revision_requested' ? 'Resubmit Deliverables' : 'Submit Deliverables'}
+            </button>
+          )}
+          {s === 'revision_requested' && deal.revision_note && (
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 text-xs text-orange-300">
+              <p className="font-medium mb-1">Revision requested:</p>{deal.revision_note}
+            </div>
+          )}
+          {deliverables.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-zinc-400 mb-2">Submitted deliverables</p>
+              {deliverables.map(d => (
+                <div key={d.id} className="bg-zinc-900 rounded-xl p-3 mb-2">
+                  {d.title && <p className="text-xs font-medium text-white mb-1">{d.title}</p>}
+                  {d.description && <p className="text-xs text-zinc-500 mb-2">{d.description}</p>}
+                  {(d.content_urls ?? []).map((u, i) => (
+                    <a key={i} href={u} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs text-blue-400 hover:underline mb-1">
+                      <Link2 className="w-3 h-3 shrink-0" /><span className="truncate">{u}</span>
+                    </a>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+          {isBrand && s === 'delivered' && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-zinc-300">Review deliverables:</p>
+              <button disabled={acting} onClick={() => updateDeal({ status: 'completed', completed_at: new Date().toISOString() })}
+                className="w-full py-2 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1">
+                <ThumbsUp className="w-3.5 h-3.5" /> Approve & Complete Deal
+              </button>
+              <div className="flex gap-2 items-start">
+                <textarea value={revNote} onChange={e => setRevNote(e.target.value)} rows={2} placeholder="Describe what needs to be revised…"
+                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 outline-none focus:border-orange-500 resize-none" />
+                <button disabled={acting || !revNote.trim()} onClick={() => updateDeal({ status: 'revision_requested', revision_note: revNote.trim() })}
+                  className="shrink-0 py-2 px-3 bg-orange-600/30 hover:bg-orange-600/50 disabled:opacity-50 text-orange-400 rounded-xl text-xs font-semibold flex items-center gap-1">
+                  <RotateCcw className="w-3 h-3" /> Revision
+                </button>
+              </div>
+            </div>
+          )}
+          {/* Release full payment button (one-time, after approval) */}
+          {isBrand && s === 'completed' && deal.payment_status === 'held' && (
+            <button disabled={acting} onClick={releaseFullPayment}
+              className="w-full py-2 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1">
+              <DollarSign className="w-3.5 h-3.5" /> Release Payment ${Number(deal.agreed_amount).toLocaleString()}
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Rate after completion */}
       {s === 'completed' && !myRating && (
         <button onClick={() => setShowRateModal(true)}
           className="w-full py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border border-yellow-500/30">
