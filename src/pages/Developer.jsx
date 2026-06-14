@@ -3,12 +3,29 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Code2, Key, Plus, Copy, Trash2, Eye, EyeOff, BarChart2, Zap, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Code2, Key, Plus, Copy, Trash2, BarChart2, Zap, CheckCircle, ChevronDown, ChevronUp, Briefcase, TrendingUp } from 'lucide-react'
 
 const PLANS = {
   starter:    { label: 'Starter',    rate: 100,   price: 'Free',    color: 'text-zinc-400' },
   growth:     { label: 'Growth',     rate: 1000,  price: '$99/mo',  color: 'text-blue-400' },
   enterprise: { label: 'Enterprise', rate: 10000, price: 'Custom',  color: 'text-purple-400' },
+}
+
+const API_PRODUCTS = {
+  'creator-fund': {
+    label: 'Creator Fund API',
+    icon: TrendingUp,
+    color: 'text-purple-400',
+    baseUrl: 'https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/creator-fund-api',
+    desc: 'Creator valuation, revenue share offerings, backer portfolios — embed creator IPOs into your platform.',
+  },
+  'brand-briefs': {
+    label: 'Brand Briefs API',
+    icon: Briefcase,
+    color: 'text-blue-400',
+    baseUrl: 'https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/brand-briefs-api',
+    desc: 'Post briefs, manage creator applications, approve deals, and fire webhooks — all from your marketing stack.',
+  },
 }
 
 const ENDPOINTS = [
@@ -107,9 +124,164 @@ const ENDPOINTS = [
   },
 ]
 
+const BRIEF_ENDPOINTS = [
+  {
+    method: 'GET',
+    path: '/briefs',
+    desc: 'List briefs — filter by status, content_type, budget range, niche. Supports limit/offset pagination. Pass mine=true to see only your briefs.',
+    example: `curl "https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/brand-briefs-api/briefs?status=open&content_type=Video&limit=20" \\
+  -H "x-api-key: YOUR_API_KEY"`,
+    response: `{
+  "briefs": [
+    {
+      "id": "...",
+      "title": "30-sec product reel for our launch",
+      "status": "open",
+      "budget_min": 500,
+      "budget_max": 1500,
+      "currency": "USD",
+      "deadline": "2026-07-01T00:00:00Z",
+      "content_types": ["Reel", "Short-form"],
+      "niches": ["beauty", "lifestyle"],
+      "min_followers": 10000,
+      "views": 142,
+      "application_count": 8,
+      "company": { "id": "...", "name": "Glow Co", "logo_url": "..." }
+    }
+  ],
+  "total": 34,
+  "limit": 20,
+  "offset": 0
+}`,
+  },
+  {
+    method: 'POST',
+    path: '/briefs',
+    desc: 'Create a new brief. The brief is automatically linked to your company profile on Philomni. Set webhook_url to receive real-time notifications when creators apply.',
+    example: `curl -X POST https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/brand-briefs-api/briefs \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "title": "30-sec product reel for our launch",
+    "description": "We need an authentic creator to showcase our new skincare line.",
+    "budget_min": 500,
+    "budget_max": 1500,
+    "currency": "USD",
+    "deadline": "2026-07-15T00:00:00Z",
+    "content_types": ["Reel", "Short-form"],
+    "niches": ["beauty", "lifestyle"],
+    "min_followers": 10000,
+    "target_audience": "Women 18-34 in Nigeria and Ghana",
+    "external_ref": "CAMPAIGN-2026-Q3-001",
+    "webhook_url": "https://yourbrand.com/webhooks/philomni"
+  }'`,
+    response: `{
+  "brief": {
+    "id": "abc123",
+    "title": "30-sec product reel for our launch",
+    "status": "open",
+    "external_ref": "CAMPAIGN-2026-Q3-001",
+    "created_at": "2026-06-13T10:00:00Z"
+  }
+}`,
+  },
+  {
+    method: 'GET',
+    path: '/briefs/:id',
+    desc: 'Get a single brief with full details. Each call increments the view counter so you can track brief reach.',
+    example: `curl https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/brand-briefs-api/briefs/BRIEF_ID \\
+  -H "x-api-key: YOUR_API_KEY"`,
+    response: `{
+  "brief": {
+    "id": "abc123",
+    "title": "30-sec product reel for our launch",
+    "status": "open",
+    "budget_min": 500,
+    "budget_max": 1500,
+    "views": 143,
+    "application_count": 8,
+    "company": { "id": "...", "name": "Glow Co" }
+  }
+}`,
+  },
+  {
+    method: 'PATCH',
+    path: '/briefs/:id',
+    desc: 'Update a brief you own via API key. Update status (open → in_review → closed), change budget, extend deadline, or update the webhook URL.',
+    example: `curl -X PATCH https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/brand-briefs-api/briefs/BRIEF_ID \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "status": "in_review", "deadline": "2026-08-01T00:00:00Z" }'`,
+    response: `{ "brief": { "id": "abc123", "status": "in_review", ... } }`,
+  },
+  {
+    method: 'GET',
+    path: '/briefs/:id/applications',
+    desc: 'List all creator applications for a brief. Filter by status (pending, shortlisted, approved, rejected). Returns creator profile with follower count.',
+    example: `curl "https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/brand-briefs-api/briefs/BRIEF_ID/applications?status=pending&limit=50" \\
+  -H "x-api-key: YOUR_API_KEY"`,
+    response: `{
+  "applications": [
+    {
+      "id": "app_001",
+      "status": "pending",
+      "pitch": "I've worked with 3 beauty brands in the last 6 months...",
+      "quote": 800,
+      "portfolio_urls": ["https://instagram.com/reel/..."],
+      "created_at": "2026-06-13T12:00:00Z",
+      "creator": {
+        "id": "...",
+        "full_name": "Amara Johnson",
+        "username": "amaracreates",
+        "avatar_url": "...",
+        "follower_count": 28400
+      }
+    }
+  ],
+  "total": 8,
+  "limit": 50,
+  "offset": 0
+}`,
+  },
+  {
+    method: 'PATCH',
+    path: '/briefs/:id/applications/:appId',
+    desc: 'Approve, reject, or shortlist a creator application. Fires your webhook instantly with the updated application object. Add a decision_note to communicate reasoning.',
+    example: `curl -X PATCH https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/brand-briefs-api/briefs/BRIEF_ID/applications/APP_ID \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "status": "approved", "decision_note": "Great portfolio, fits our target demo perfectly." }'`,
+    response: `{
+  "application": {
+    "id": "app_001",
+    "status": "approved",
+    "approved_at": "2026-06-13T14:30:00Z",
+    "decision_note": "Great portfolio, fits our target demo perfectly.",
+    "creator": { "full_name": "Amara Johnson", "username": "amaracreates" }
+  }
+}`,
+  },
+  {
+    method: 'GET',
+    path: '/analytics',
+    desc: 'Brand analytics dashboard — total briefs, application counts, approval rates, average budget, total reach (views). Scoped to briefs created by your API key.',
+    example: `curl https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/brand-briefs-api/analytics \\
+  -H "x-api-key: YOUR_API_KEY"`,
+    response: `{
+  "analytics": {
+    "briefs": { "total": 5, "open": 3, "closed": 2 },
+    "applications": { "total": 47, "approved": 6, "approval_rate": "12.8%" },
+    "reach": { "total_views": 1240, "avg_applications_per_brief": "9.4" },
+    "budget": { "avg_brief_budget": 1100 }
+  }
+}`,
+  },
+]
+
 const METHOD_COLORS = {
-  GET:  'bg-blue-500/20 text-blue-400',
-  POST: 'bg-green-500/20 text-green-400',
+  GET:   'bg-blue-500/20 text-blue-400',
+  POST:  'bg-green-500/20 text-green-400',
+  PATCH: 'bg-yellow-500/20 text-yellow-400',
 }
 
 // ─── Endpoint row ─────────────────────────────────────────────────────────────
@@ -170,8 +342,13 @@ export default function Developer() {
   const [newKeyName, setNewKeyName] = useState('')
   const [newKeyPlan, setNewKeyPlan] = useState('starter')
   const [showForm,   setShowForm]   = useState(false)
-  const [revealedKey, setRevealedKey] = useState(null) // shown once after creation
-  const [visibleKeys, setVisibleKeys] = useState({})
+  const [revealedKey, setRevealedKey] = useState(null)
+  const [activeApi,   setActiveApi]   = useState('creator-fund')
+
+  function copy(text) {
+    navigator.clipboard.writeText(text)
+    toast.success('Copied!')
+  }
 
   useEffect(() => {
     if (!user) { navigate('/login'); return }
@@ -232,11 +409,6 @@ export default function Developer() {
     load()
   }
 
-  function copy(text) {
-    navigator.clipboard.writeText(text)
-    toast.success('Copied to clipboard!')
-  }
-
   const todayRequests = logs.filter(l => {
     const d = new Date(l.created_at)
     const now = new Date()
@@ -247,16 +419,34 @@ export default function Developer() {
     <div className="max-w-4xl mx-auto px-4 py-8">
 
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <Code2 className="w-5 h-5 text-purple-400" />
-          <span className="text-purple-400 text-sm font-medium">Creator Fund API</span>
+          <span className="text-purple-400 text-sm font-medium">Philomni B2B APIs</span>
         </div>
         <h1 className="text-2xl font-bold text-white mb-2">Developer Portal</h1>
         <p className="text-zinc-400 max-w-xl">
-          Integrate Philomni's Creator Fund infrastructure into your platform.
-          Creator valuation, revenue share offerings, backer portfolios — all via REST API.
+          Integrate Philomni's creator economy infrastructure into your platform — one API key works across all products.
         </p>
+      </div>
+
+      {/* API product cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+        {Object.entries(API_PRODUCTS).map(([id, product]) => {
+          const Icon = product.icon
+          const active = activeApi === id
+          return (
+            <button key={id} onClick={() => setActiveApi(id)}
+              className={`text-left p-4 rounded-2xl border transition-all ${active ? 'border-purple-600 bg-purple-600/10' : 'border-zinc-800 bg-zinc-900 hover:border-zinc-700'}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Icon className={`w-4 h-4 ${product.color}`} />
+                <span className={`text-sm font-semibold ${active ? 'text-white' : 'text-zinc-300'}`}>{product.label}</span>
+                {active && <span className="ml-auto text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full">Selected</span>}
+              </div>
+              <p className="text-xs text-zinc-500 leading-relaxed">{product.desc}</p>
+            </button>
+          )
+        })}
       </div>
 
       {/* One-time key reveal */}
@@ -390,25 +580,35 @@ export default function Developer() {
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Zap className="w-4 h-4 text-yellow-400" />
-          <h2 className="text-sm font-semibold text-white">API Reference</h2>
+          <h2 className="text-sm font-semibold text-white">
+            {API_PRODUCTS[activeApi].label} Reference
+          </h2>
           <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full font-mono">v1</span>
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4">
-          <p className="text-xs text-zinc-500 mb-1">Base URL</p>
-          <div className="flex items-center gap-2">
-            <code className="text-sm text-purple-300 font-mono">
-              https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/creator-fund-api
-            </code>
-            <button
-              onClick={() => copy('https://ylqfnxvbqqwjxdfbjwjk.supabase.co/functions/v1/creator-fund-api')}
-              className="text-zinc-500 hover:text-white transition-colors"
-            >
-              <Copy className="w-3.5 h-3.5" />
-            </button>
+
+        {/* Auth note */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4 space-y-3">
+          <div>
+            <p className="text-xs text-zinc-500 mb-1">Base URL</p>
+            <div className="flex items-center gap-2">
+              <code className="text-sm text-purple-300 font-mono break-all">{API_PRODUCTS[activeApi].baseUrl}</code>
+              <button onClick={() => copy(API_PRODUCTS[activeApi].baseUrl)} className="text-zinc-500 hover:text-white transition-colors shrink-0">
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-zinc-500 mb-1">Authentication</p>
+            <code className="text-xs text-zinc-300 font-mono">x-api-key: YOUR_API_KEY</code>
+            <span className="text-xs text-zinc-600 ml-2">— same key works across all Philomni APIs</span>
           </div>
         </div>
+
         <div className="space-y-2">
-          {ENDPOINTS.map(ep => <EndpointRow key={ep.path + ep.method} ep={ep} />)}
+          {activeApi === 'creator-fund'
+            ? ENDPOINTS.map(ep => <EndpointRow key={ep.path + ep.method} ep={ep} />)
+            : BRIEF_ENDPOINTS.map(ep => <EndpointRow key={ep.path + ep.method} ep={ep} />)
+          }
         </div>
       </div>
 
