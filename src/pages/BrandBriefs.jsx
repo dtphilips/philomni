@@ -148,7 +148,7 @@ function NoCompanyBanner() {
         <div className="flex-1">
           <p className="text-sm font-semibold text-white mb-1">You need a company profile to post briefs</p>
           <p className="text-xs text-zinc-400 mb-3">Brands post briefs under their company identity. Set up your company page first, then come back to post.</p>
-          <button onClick={() => navigate('/companies/new')}
+          <button onClick={() => navigate('/company/create')}
             className="flex items-center gap-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl transition-colors">
             <Plus className="w-3.5 h-3.5" /> Create company profile
           </button>
@@ -774,7 +774,8 @@ function MilestoneRow({ ms, isBrand, dealId, onUpdate }) {
     })
     const data = await res.json()
     if (!res.ok) toast.error(data.error ?? 'Payment failed')
-    else toast.success(`$${data.amount_paid?.toLocaleString()} sent to creator!`)
+    else if (data.payment_method === 'manual') toast.success(`$${data.amount_paid?.toLocaleString()} marked as paid — settle directly with creator (bank transfer, PayPal, etc.)`)
+    else toast.success(`$${data.amount_paid?.toLocaleString()} sent to creator via Stripe!`)
     setActing(false); onUpdate?.()
   }
 
@@ -903,7 +904,8 @@ function DealPanel({ deal, isBrand, onUpdate }) {
     })
     const data = await res.json()
     if (!res.ok) toast.error(data.error ?? 'Payment failed')
-    else toast.success(`$${data.amount_paid?.toLocaleString()} sent to creator!`)
+    else if (data.payment_method === 'manual') toast.success(`$${data.amount_paid?.toLocaleString()} marked as paid — settle directly with creator`)
+    else toast.success(`$${data.amount_paid?.toLocaleString()} sent to creator via Stripe!`)
     setActing(false); onUpdate?.()
   }
 

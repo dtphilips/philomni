@@ -107,17 +107,6 @@ serve(async (req) => {
     const isBrand = deal.company?.created_by === user.id
     if (!isBrand) return err('Only the brand can release payment', 403)
 
-    // Look up creator's Stripe Connect account
-    const { data: creatorStripe } = await supabase
-      .from('stripe_connect_accounts')
-      .select('stripe_account_id')
-      .eq('user_id', deal.creator_id)
-      .maybeSingle()
-
-    if (!creatorStripe?.stripe_account_id) {
-      return err('Creator has not connected a Stripe account for payouts. Ask them to set up payouts in their profile settings.', 422)
-    }
-
     let amount = 0
     if (milestone_id) {
       const { data: ms } = await supabase.from('deal_milestones').select('amount').eq('id', milestone_id).single()
@@ -126,22 +115,41 @@ serve(async (req) => {
       amount = Number(deal.agreed_amount)
     }
 
+    if (!amount || amount <= 0) return err('Invalid amount', 400)
+
     // Platform fee: 5%
     const platformFee = Math.round(amount * 100 * 0.05)
     const creatorAmount = Math.round(amount * 100) - platformFee
 
-    const transfer = await stripe.transfers.create({
-      amount: creatorAmount,
-      currency: 'usd',
-      destination: creatorStripe.stripe_account_id,
-      metadata: { deal_id, milestone_id: milestone_id ?? '', type: 'deal_payout' },
-    })
+    // Try Stripe transfer if creator has a connected account; otherwise mark as manual
+    const { data: creatorStripe } = await supabase
+      .from('stripe_connect_accounts')
+      .select('stripe_account_id')
+      .eq('user_id', deal.creator_id)
+      .maybeSingle()
 
-    // Update records
+    let transferId: string | null = null
+    const paymentMethod = creatorStripe?.stripe_account_id ? 'stripe' : 'manual'
+
+    if (creatorStripe?.stripe_account_id) {
+      try {
+        const transfer = await stripe.transfers.create({
+          amount: creatorAmount,
+          currency: 'usd',
+          destination: creatorStripe.stripe_account_id,
+          metadata: { deal_id, milestone_id: milestone_id ?? '', type: 'deal_payout' },
+        })
+        transferId = transfer.id
+      } catch (e) {
+        // Stripe transfer failed — fall through to manual
+      }
+    }
+
+    // Log payment record
     await supabase.from('deal_payments').insert({
       deal_id,
       milestone_id: milestone_id ?? null,
-      stripe_transfer_id: transfer.id,
+      stripe_transfer_id: transferId,
       amount: creatorAmount / 100,
       currency: 'usd',
       direction: 'escrow_to_creator',
@@ -149,12 +157,28 @@ serve(async (req) => {
     })
 
     if (milestone_id) {
-      await supabase.from('deal_milestones').update({ status: 'paid', paid_at: new Date().toISOString(), stripe_transfer_id: transfer.id }).eq('id', milestone_id)
+      await supabase.from('deal_milestones').update({
+        status: 'paid',
+        paid_at: new Date().toISOString(),
+        ...(transferId ? { stripe_transfer_id: transferId } : {}),
+      }).eq('id', milestone_id)
     } else {
-      await supabase.from('brief_deals').update({ payment_status: 'paid', completed_at: new Date().toISOString(), status: 'completed' }).eq('id', deal_id)
+      await supabase.from('brief_deals').update({
+        payment_status: 'paid',
+        completed_at: new Date().toISOString(),
+        status: 'completed',
+      }).eq('id', deal_id)
     }
 
-    return json({ ok: true, transfer_id: transfer.id, amount_paid: creatorAmount / 100 })
+    return json({
+      ok: true,
+      transfer_id: transferId,
+      amount_paid: creatorAmount / 100,
+      payment_method: paymentMethod,
+      note: paymentMethod === 'manual'
+        ? 'Marked as paid. Creator has not connected Stripe — settle payment directly (bank transfer, PayPal, etc.).'
+        : undefined,
+    })
   }
 
   // ── ACTION: refund (deal cancelled before completion) ────────────────────────
