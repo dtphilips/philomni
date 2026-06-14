@@ -6,113 +6,131 @@ import { toast } from 'sonner'
 import {
   Briefcase, Plus, X, DollarSign, Clock, Users, Search,
   ChevronRight, CheckCircle, XCircle, Star, Heart, BarChart2,
-  Tag, MessageSquare, ExternalLink, Eye, Bookmark, Send,
-  TrendingUp, AlertCircle, Info, Building2, Zap, FileText,
-  ChevronDown, ChevronUp, ArrowRight
+  MessageSquare, ExternalLink, Send, AlertCircle, Info, Building2,
+  FileText, ChevronDown, ChevronUp, ArrowRight, Upload, ThumbsUp,
+  RotateCcw, Award, Handshake, Package, Edit3, Link2
 } from 'lucide-react'
 
 const CONTENT_TYPES = ['Video', 'Short-form', 'Blog', 'Podcast', 'Photo', 'Reel', 'Story', 'Newsletter']
 const NICHES = ['Beauty', 'Lifestyle', 'Tech', 'Finance', 'Food', 'Fashion', 'Fitness', 'Travel', 'Gaming', 'Education', 'Parenting', 'Business']
 
-// ─── Status badges ─────────────────────────────────────────────────────────────
+const DEAL_STATUS_MAP = {
+  offer_sent:         { label: 'Offer Sent',          color: 'text-yellow-400',  bg: 'bg-yellow-500/20' },
+  accepted:           { label: 'Accepted',             color: 'text-blue-400',    bg: 'bg-blue-500/20' },
+  declined:           { label: 'Declined',             color: 'text-red-400',     bg: 'bg-red-500/20' },
+  in_progress:        { label: 'In Progress',          color: 'text-purple-400',  bg: 'bg-purple-500/20' },
+  delivered:          { label: 'Delivered',            color: 'text-cyan-400',    bg: 'bg-cyan-500/20' },
+  revision_requested: { label: 'Revision Requested',  color: 'text-orange-400',  bg: 'bg-orange-500/20' },
+  completed:          { label: 'Completed',            color: 'text-green-400',   bg: 'bg-green-500/20' },
+  cancelled:          { label: 'Cancelled',            color: 'text-zinc-400',    bg: 'bg-zinc-800' },
+}
+
+function DealBadge({ status }) {
+  const s = DEAL_STATUS_MAP[status] ?? DEAL_STATUS_MAP.offer_sent
+  return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${s.bg} ${s.color}`}>{s.label}</span>
+}
+
 function StatusBadge({ status }) {
-  const map = {
-    open:      'bg-green-500/20 text-green-400',
-    in_review: 'bg-yellow-500/20 text-yellow-400',
-    closed:    'bg-zinc-500/20 text-zinc-400',
-  }
-  return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${map[status] ?? map.open}`}>
-      {status?.replace('_', ' ')}
-    </span>
-  )
+  const map = { open: 'bg-green-500/20 text-green-400', in_review: 'bg-yellow-500/20 text-yellow-400', closed: 'bg-zinc-500/20 text-zinc-400' }
+  return <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${map[status] ?? map.open}`}>{status?.replace('_', ' ')}</span>
 }
 
 function AppStatusBadge({ status }) {
-  const map = {
-    pending:     'bg-zinc-700 text-zinc-300',
-    shortlisted: 'bg-blue-500/20 text-blue-400',
-    approved:    'bg-green-500/20 text-green-400',
-    rejected:    'bg-red-500/20 text-red-400',
-  }
+  const map = { pending: 'bg-zinc-700 text-zinc-300', shortlisted: 'bg-blue-500/20 text-blue-400', approved: 'bg-green-500/20 text-green-400', rejected: 'bg-red-500/20 text-red-400' }
   return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${map[status] ?? map.pending}`}>{status}</span>
 }
 
-// ─── How it works explainer ───────────────────────────────────────────────────
-function HowItWorksPanel({ defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen)
+// ─── Deal timeline steps (visual) ─────────────────────────────────────────────
+function DealTimeline({ status }) {
+  const steps = [
+    { key: 'offer_sent',   label: 'Offer Sent' },
+    { key: 'accepted',     label: 'Accepted' },
+    { key: 'in_progress',  label: 'In Progress' },
+    { key: 'delivered',    label: 'Delivered' },
+    { key: 'completed',    label: 'Completed' },
+  ]
+  const order = steps.map(s => s.key)
+  const currentIdx = order.indexOf(status)
+
+  return (
+    <div className="flex items-center gap-0 w-full my-3">
+      {steps.map((s, i) => {
+        const done    = i < currentIdx
+        const active  = i === currentIdx
+        const special = ['revision_requested','declined','cancelled'].includes(status) && i === currentIdx
+        return (
+          <React.Fragment key={s.key}>
+            <div className="flex flex-col items-center flex-1">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors
+                ${done ? 'bg-green-600 border-green-600 text-white' : active ? 'bg-blue-600 border-blue-600 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-600'}`}>
+                {done ? '✓' : i + 1}
+              </div>
+              <span className={`text-[9px] mt-1 text-center leading-tight ${done || active ? 'text-zinc-300' : 'text-zinc-600'}`}>{s.label}</span>
+            </div>
+            {i < steps.length - 1 && (
+              <div className={`h-0.5 flex-1 mb-4 transition-colors ${done ? 'bg-green-600' : 'bg-zinc-800'}`} />
+            )}
+          </React.Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── How it works panel ────────────────────────────────────────────────────────
+function HowItWorksPanel() {
+  const [open, setOpen] = useState(false)
   return (
     <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden">
       <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-5 py-4 text-left">
         <div className="flex items-center gap-2">
           <Info className="w-4 h-4 text-blue-400 shrink-0" />
-          <span className="text-sm font-semibold text-white">How Brand Briefs work</span>
+          <span className="text-sm font-semibold text-white">Full process — start to finish</span>
         </div>
         {open ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
       </button>
       {open && (
-        <div className="px-5 pb-5 space-y-5 border-t border-zinc-800">
-          {/* Brand flow */}
-          <div className="pt-4">
-            <p className="text-xs font-semibold text-blue-400 uppercase tracking-wide mb-3">For Brands</p>
-            <div className="space-y-3">
-              {[
-                { step: '1', icon: Building2, title: 'Set up your company profile', desc: 'Go to your profile and create a company page. This is the identity that gets shown on your briefs.' },
-                { step: '2', icon: FileText, title: 'Post a brief', desc: 'Set your campaign title, budget range, content types (Reel, Video, Blog…), creator niches, minimum follower count, and deadline.' },
-                { step: '3', icon: Heart, title: 'Creators express interest or apply', desc: 'Interested creators tap a button — you instantly see their Philomni profile: follower count, content niche, and headline. Full applicants also send a pitch, their rate quote, and portfolio links.' },
-                { step: '4', icon: CheckCircle, title: 'Shortlist, approve, or reject', desc: 'Review each application or interested creator. Shortlist your top picks, then approve your chosen creators. They get notified.' },
-              ].map(s => (
-                <div key={s.step} className="flex gap-3">
-                  <div className="w-7 h-7 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center shrink-0 text-xs font-bold text-blue-400">{s.step}</div>
-                  <div>
-                    <p className="text-sm font-medium text-white">{s.title}</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">{s.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="border-t border-zinc-800/60" />
-
-          {/* Creator flow */}
+        <div className="px-5 pb-5 border-t border-zinc-800 space-y-6 pt-4">
           <div>
-            <p className="text-xs font-semibold text-purple-400 uppercase tracking-wide mb-3">For Creators</p>
+            <p className="text-xs font-semibold text-blue-400 uppercase tracking-wide mb-3">Brands</p>
             <div className="space-y-3">
               {[
-                { step: '1', icon: Heart,      title: 'Express interest (one tap, no form)', desc: 'Tap the heart on any brief. Your Philomni profile — follower count, content niche, and headline — is instantly shared with the brand. No pitch needed. The brand can invite you to apply.' },
-                { step: '2', icon: Send,        title: 'Apply (optional, but stronger)', desc: 'Write a pitch explaining your angle and why you\'re the right fit. Add your rate quote and 1–3 portfolio links. Your full Philomni profile is auto-attached — brands see everything.' },
-                { step: '3', icon: BarChart2,   title: 'Track your status', desc: 'In My Activity below you can see every brief you\'ve expressed interest in or applied to, and your real-time status: Pending → Shortlisted → Approved / Rejected.' },
+                { n:'1', t:'Create a company profile', d:'Set up your brand identity on Philomni. Briefs are posted under your company, not your personal profile.' },
+                { n:'2', t:'Post a brief', d:'Set title, budget range, content types (Reel, Video, Blog…), target niches, minimum follower count, deadline, and campaign description.' },
+                { n:'3', t:'Review interest & applications', d:'Creators express interest (one tap, no form — their profile is shared instantly) or submit a full pitch with rate and portfolio links.' },
+                { n:'4', t:'Shortlist & approve', d:'Move applicants through Pending → Shortlisted → Approved. Rejected creators are notified.' },
+                { n:'5', t:'Send a deal offer', d:'After approving, send a formal offer: agreed amount, payment terms, and any notes. The creator then accepts or declines.' },
+                { n:'6', t:'Review deliverables', d:'Creator submits their content links. You review and either approve (releasing payment) or request a revision with notes.' },
+                { n:'7', t:'Mark complete & rate', d:'Once satisfied, mark the deal complete. Both parties leave a rating and review. It appears on your company profile.' },
               ].map(s => (
-                <div key={s.step} className="flex gap-3">
-                  <div className="w-7 h-7 rounded-full bg-purple-600/20 border border-purple-600/30 flex items-center justify-center shrink-0 text-xs font-bold text-purple-400">{s.step}</div>
-                  <div>
-                    <p className="text-sm font-medium text-white">{s.title}</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">{s.desc}</p>
-                  </div>
+                <div key={s.n} className="flex gap-3">
+                  <div className="w-6 h-6 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center shrink-0 text-xs font-bold text-blue-400">{s.n}</div>
+                  <div><p className="text-sm font-medium text-white">{s.t}</p><p className="text-xs text-zinc-500 mt-0.5">{s.d}</p></div>
                 </div>
               ))}
             </div>
           </div>
-
-          {/* What brands see */}
-          <div className="bg-zinc-800/60 rounded-xl p-4">
-            <p className="text-xs font-semibold text-zinc-300 mb-2">What brands see on each creator</p>
-            <div className="grid grid-cols-2 gap-2">
+          <div className="border-t border-zinc-800/60" />
+          <div>
+            <p className="text-xs font-semibold text-purple-400 uppercase tracking-wide mb-3">Creators</p>
+            <div className="space-y-3">
               {[
-                'Follower count vs. brief minimum',
-                'Content niche match',
-                'Philomni headline',
-                'Avatar + username',
-                'Written pitch (if applied)',
-                'Rate quote (if applied)',
-                'Portfolio links (if applied)',
-              ].map(item => (
-                <div key={item} className="flex items-center gap-1.5 text-xs text-zinc-400">
-                  <CheckCircle className="w-3 h-3 text-green-400 shrink-0" /> {item}
+                { n:'1', t:'Browse & express interest', d:'Tap the heart on any brief. Your Philomni profile (followers, niche, headline) is instantly shared with the brand. No pitch needed.' },
+                { n:'2', t:'Apply', d:'Write a pitch, add your rate, and attach portfolio links. Your full Philomni profile is auto-attached.' },
+                { n:'3', t:'Get shortlisted or approved', d:'Track your status in My Activity. If approved, the brand will send you a deal offer.' },
+                { n:'4', t:'Accept or decline the offer', d:'Review the agreed amount and terms. Accept to lock in the deal and start working.' },
+                { n:'5', t:'Submit your deliverables', d:'Add the links to your completed content (YouTube video, Instagram reel, blog post, etc.). Include a note to the brand.' },
+                { n:'6', t:'Get paid & rated', d:'Once the brand approves your work, they mark the deal complete. You earn a rating on your creator profile.' },
+              ].map(s => (
+                <div key={s.n} className="flex gap-3">
+                  <div className="w-6 h-6 rounded-full bg-purple-600/20 border border-purple-600/30 flex items-center justify-center shrink-0 text-xs font-bold text-purple-400">{s.n}</div>
+                  <div><p className="text-sm font-medium text-white">{s.t}</p><p className="text-xs text-zinc-500 mt-0.5">{s.d}</p></div>
                 </div>
               ))}
             </div>
+          </div>
+          <div className="bg-zinc-800/50 rounded-xl p-3 text-xs text-zinc-400">
+            <span className="text-zinc-300 font-medium">Note on payments:</span> Philomni facilitates deal tracking and status. Actual payment is agreed and sent directly between brand and creator (bank transfer, PayPal, etc.). A full escrow system is coming soon.
           </div>
         </div>
       )}
@@ -120,7 +138,7 @@ function HowItWorksPanel({ defaultOpen = false }) {
   )
 }
 
-// ─── No company banner ────────────────────────────────────────────────────────
+// ─── No company banner ─────────────────────────────────────────────────────────
 function NoCompanyBanner() {
   const navigate = useNavigate()
   return (
@@ -129,7 +147,7 @@ function NoCompanyBanner() {
         <Building2 className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
         <div className="flex-1">
           <p className="text-sm font-semibold text-white mb-1">You need a company profile to post briefs</p>
-          <p className="text-xs text-zinc-400 mb-3">Brands on Philomni post briefs under their company identity — not their personal profile. Set up your company page first (it only takes a minute), then come back here to post.</p>
+          <p className="text-xs text-zinc-400 mb-3">Brands post briefs under their company identity. Set up your company page first, then come back to post.</p>
           <button onClick={() => navigate('/companies/new')}
             className="flex items-center gap-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl transition-colors">
             <Plus className="w-3.5 h-3.5" /> Create company profile
@@ -140,13 +158,9 @@ function NoCompanyBanner() {
   )
 }
 
-// ─── Post Brief modal ─────────────────────────────────────────────────────────
+// ─── Post Brief modal ──────────────────────────────────────────────────────────
 function PostBriefModal({ companyId, onClose, onPosted }) {
-  const [form, setForm] = useState({
-    title: '', description: '', budget_min: '', budget_max: '',
-    currency: 'USD', deadline: '', target_audience: '',
-    content_types: [], niches: [], min_followers: '', external_ref: '',
-  })
+  const [form, setForm] = useState({ title:'', description:'', budget_min:'', budget_max:'', currency:'USD', deadline:'', target_audience:'', content_types:[], niches:[], min_followers:'', external_ref:'' })
   const [saving, setSaving] = useState(false)
 
   function toggleArr(key, val) {
@@ -155,15 +169,14 @@ function PostBriefModal({ companyId, onClose, onPosted }) {
 
   async function submit(e) {
     e.preventDefault()
-    if (!form.title.trim())                  { toast.error('Title required'); return }
+    if (!form.title.trim())                   { toast.error('Title required'); return }
     if (!form.budget_min || !form.budget_max) { toast.error('Budget range required'); return }
     if (!form.deadline)                       { toast.error('Deadline required'); return }
     setSaving(true)
     const { error } = await supabase.from('brand_briefs').insert({
       title: form.title.trim(), description: form.description.trim(),
       budget_min: Number(form.budget_min), budget_max: Number(form.budget_max),
-      currency: form.currency,
-      deadline: new Date(form.deadline).toISOString(),
+      currency: form.currency, deadline: new Date(form.deadline).toISOString(),
       target_audience: form.target_audience || null,
       content_types: form.content_types, niches: form.niches,
       min_followers: form.min_followers ? Number(form.min_followers) : 0,
@@ -172,7 +185,7 @@ function PostBriefModal({ companyId, onClose, onPosted }) {
     })
     setSaving(false)
     if (error) { toast.error(error.message); return }
-    toast.success('Brief posted! Creators can now see and apply.')
+    toast.success('Brief posted! Creators can now discover and apply.')
     onPosted?.(); onClose()
   }
 
@@ -182,47 +195,43 @@ function PostBriefModal({ companyId, onClose, onPosted }) {
         <div className="flex items-center justify-between p-6 pb-4 border-b border-zinc-800">
           <div>
             <h2 className="font-bold text-white text-lg">Post a Brief</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">Creators will see this and can express interest or apply</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Creators will discover this and can express interest or apply</p>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
         <form onSubmit={submit} className="p-6 space-y-5">
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Campaign Title</label>
-            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              placeholder="e.g. 30-sec product reel for our Q3 launch"
+            <input value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. 30-sec product reel for our Q3 launch"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600" />
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Description <span className="text-zinc-600">— what creators need to know</span></label>
-            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={4}
-              placeholder="Campaign goals, deliverables, tone of voice, usage rights, anything the creator should know before applying…"
+            <textarea value={form.description} onChange={e => setForm(f=>({...f,description:e.target.value}))} rows={4}
+              placeholder="Campaign goals, deliverables, tone of voice, usage rights, revision policy…"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600 resize-none" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1.5">Budget Min (USD)</label>
-              <input type="number" min={0} value={form.budget_min} onChange={e => setForm(f => ({ ...f, budget_min: e.target.value }))}
-                placeholder="500"
+              <input type="number" min={0} value={form.budget_min} onChange={e => setForm(f=>({...f,budget_min:e.target.value}))} placeholder="500"
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-600" />
             </div>
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1.5">Budget Max (USD)</label>
-              <input type="number" min={0} value={form.budget_max} onChange={e => setForm(f => ({ ...f, budget_max: e.target.value }))}
-                placeholder="2000"
+              <input type="number" min={0} value={form.budget_max} onChange={e => setForm(f=>({...f,budget_max:e.target.value}))} placeholder="2000"
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-600" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1.5">Application Deadline</label>
-              <input type="datetime-local" value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))}
+              <input type="datetime-local" value={form.deadline} onChange={e => setForm(f=>({...f,deadline:e.target.value}))}
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-600" />
             </div>
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1.5">Min Followers Required</label>
-              <input type="number" min={0} value={form.min_followers} onChange={e => setForm(f => ({ ...f, min_followers: e.target.value }))}
-                placeholder="0 = any creator"
+              <input type="number" min={0} value={form.min_followers} onChange={e => setForm(f=>({...f,min_followers:e.target.value}))} placeholder="0 = any creator"
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-600" />
             </div>
           </div>
@@ -231,9 +240,7 @@ function PostBriefModal({ companyId, onClose, onPosted }) {
             <div className="flex flex-wrap gap-2">
               {CONTENT_TYPES.map(ct => (
                 <button key={ct} type="button" onClick={() => toggleArr('content_types', ct)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${form.content_types.includes(ct) ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-600'}`}>
-                  {ct}
-                </button>
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${form.content_types.includes(ct) ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-600'}`}>{ct}</button>
               ))}
             </div>
           </div>
@@ -242,22 +249,18 @@ function PostBriefModal({ companyId, onClose, onPosted }) {
             <div className="flex flex-wrap gap-2">
               {NICHES.map(n => (
                 <button key={n} type="button" onClick={() => toggleArr('niches', n)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${form.niches.includes(n) ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-600'}`}>
-                  {n}
-                </button>
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${form.niches.includes(n) ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-600'}`}>{n}</button>
               ))}
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Target Audience</label>
-            <input value={form.target_audience} onChange={e => setForm(f => ({ ...f, target_audience: e.target.value }))}
-              placeholder="e.g. Women 18–34 in Nigeria and Ghana"
+            <input value={form.target_audience} onChange={e => setForm(f=>({...f,target_audience:e.target.value}))} placeholder="e.g. Women 18–34 in Nigeria and Ghana"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600" />
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Internal Reference <span className="text-zinc-600">— optional</span></label>
-            <input value={form.external_ref} onChange={e => setForm(f => ({ ...f, external_ref: e.target.value }))}
-              placeholder="e.g. CAMPAIGN-Q3-2026"
+            <input value={form.external_ref} onChange={e => setForm(f=>({...f,external_ref:e.target.value}))} placeholder="e.g. CAMPAIGN-Q3-2026"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600" />
           </div>
           <div className="flex gap-3 pt-2">
@@ -272,7 +275,7 @@ function PostBriefModal({ companyId, onClose, onPosted }) {
   )
 }
 
-// ─── Apply modal ──────────────────────────────────────────────────────────────
+// ─── Apply modal ───────────────────────────────────────────────────────────────
 function ApplyModal({ brief, onClose, onApplied }) {
   const { user } = useAuth()
   const [profile, setProfile] = useState(null)
@@ -283,13 +286,10 @@ function ApplyModal({ brief, onClose, onApplied }) {
   const [saving, setSaving]   = useState(false)
 
   useEffect(() => {
-    if (user) supabase.from('profiles').select('full_name, avatar_url, follower_count, headline, username').eq('id', user.id).single().then(({ data }) => setProfile(data))
+    if (user) supabase.from('users').select('full_name,avatar_url,follower_count,headline,username').eq('id', user.id).single().then(({ data }) => setProfile(data))
   }, [user])
 
-  function addUrl() {
-    const u = portUrl.trim(); if (!u) return
-    setPortUrls(p => [...p, u]); setPortUrl('')
-  }
+  function addUrl() { const u = portUrl.trim(); if (!u) return; setPortUrls(p => [...p, u]); setPortUrl('') }
 
   async function submit(e) {
     e.preventDefault()
@@ -302,12 +302,12 @@ function ApplyModal({ brief, onClose, onApplied }) {
     })
     setSaving(false)
     if (error) { toast.error(error.code === '23505' ? 'You\'ve already applied to this brief' : error.message); return }
-    toast.success('Application submitted! Track it in My Activity below.')
+    toast.success('Application submitted! Track it in My Activity.')
     onApplied?.(); onClose()
   }
 
-  const meetsFollowers = brief.min_followers && profile?.follower_count >= brief.min_followers
-  const belowFollowers = brief.min_followers && profile?.follower_count < brief.min_followers
+  const meetsF = brief.min_followers && profile?.follower_count >= brief.min_followers
+  const belowF = brief.min_followers && profile?.follower_count < brief.min_followers
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
@@ -316,8 +316,6 @@ function ApplyModal({ brief, onClose, onApplied }) {
           <h2 className="font-bold text-white">Apply to Brief</h2>
           <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
-
-        {/* Brief summary */}
         <div className="mx-5 mt-4 bg-zinc-900 rounded-xl p-3">
           <p className="text-sm font-medium text-white">{brief.title}</p>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -326,37 +324,29 @@ function ApplyModal({ brief, onClose, onApplied }) {
             {brief.deadline && <span className="text-xs text-zinc-500">Due {new Date(brief.deadline).toLocaleDateString()}</span>}
           </div>
         </div>
-
-        {/* Follower eligibility warning */}
-        {belowFollowers && (
+        {belowF && (
           <div className="mx-5 mt-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-yellow-300">This brief requires {(brief.min_followers / 1000).toFixed(0)}k+ followers. You have {((profile?.follower_count ?? 0) / 1000).toFixed(1)}k. You can still apply — the brand makes the final call.</p>
+            <p className="text-xs text-yellow-300">Requires {(brief.min_followers/1000).toFixed(0)}k+ followers. You have {((profile?.follower_count??0)/1000).toFixed(1)}k. You can still apply.</p>
           </div>
         )}
-
-        {/* What auto-attaches */}
         <div className="mx-5 mt-3 bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
-          <p className="text-xs font-medium text-blue-300 mb-1.5">Your profile auto-attached to this application:</p>
+          <p className="text-xs font-medium text-blue-300 mb-1.5">Auto-attached to this application:</p>
           {profile ? (
             <div className="flex items-center gap-2.5">
-              <img src={profile.avatar_url ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.full_name ?? 'C')}&background=7c3aed&color=fff&size=32`}
-                className="w-8 h-8 rounded-full object-cover" alt="" />
+              <img src={profile.avatar_url ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.full_name??'C')}&background=7c3aed&color=fff&size=32`} className="w-8 h-8 rounded-full object-cover" alt="" />
               <div>
                 <p className="text-xs text-white font-medium">{profile.full_name} <span className="text-zinc-500">@{profile.username}</span></p>
-                <p className="text-xs text-zinc-400">{(profile.follower_count ?? 0).toLocaleString()} followers {meetsFollowers ? '✓' : ''} · {profile.headline ?? 'no headline'}</p>
+                <p className="text-xs text-zinc-400">{(profile.follower_count??0).toLocaleString()} followers {meetsF?'✓':''} · {profile.headline??'no headline set'}</p>
               </div>
             </div>
-          ) : (
-            <p className="text-xs text-blue-400/70">Your follower count, content niche, and headline — automatically included.</p>
-          )}
+          ) : <p className="text-xs text-blue-400/70">Your follower count, niche, and headline are auto-included.</p>}
         </div>
-
         <form onSubmit={submit} className="p-5 space-y-4">
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Your Pitch <span className="text-red-400">*</span></label>
             <textarea value={pitch} onChange={e => setPitch(e.target.value)} rows={5}
-              placeholder="Why are you the right creator for this? What's your angle, approach, and what makes your audience a fit for this brand?"
+              placeholder="Why are you the right creator? What's your angle, approach, and why does your audience fit this brand?"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-purple-600 resize-none" />
           </div>
           <div>
@@ -369,53 +359,408 @@ function ApplyModal({ brief, onClose, onApplied }) {
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Portfolio Links <span className="text-zinc-500 font-normal">— optional but recommended</span></label>
             <div className="flex gap-2 mb-2">
               <input value={portUrl} onChange={e => setPortUrl(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addUrl())}
-                placeholder="Past work, YouTube, Instagram reel, blog…"
+                onKeyDown={e => e.key==='Enter'&&(e.preventDefault(),addUrl())} placeholder="Past work, YouTube, Instagram reel…"
                 className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-purple-600" />
               <button type="button" onClick={addUrl} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl border border-zinc-700"><Plus className="w-4 h-4" /></button>
             </div>
-            {portUrls.map((u, i) => (
+            {portUrls.map((u,i) => (
               <div key={i} className="flex items-center gap-2 text-xs text-zinc-400 mb-1 bg-zinc-900 rounded-lg px-3 py-2">
                 <ExternalLink className="w-3 h-3 text-blue-400 shrink-0" />
                 <span className="truncate flex-1">{u}</span>
-                <button type="button" onClick={() => setPortUrls(urls => urls.filter((_, j) => j !== i))} className="text-zinc-600 hover:text-red-400"><X className="w-3 h-3" /></button>
+                <button type="button" onClick={() => setPortUrls(us=>us.filter((_,j)=>j!==i))} className="text-zinc-600 hover:text-red-400"><X className="w-3 h-3" /></button>
               </div>
             ))}
           </div>
           <button type="submit" disabled={saving} className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white font-semibold rounded-xl text-sm">
             {saving ? 'Submitting…' : 'Submit Application'}
           </button>
-          <p className="text-xs text-center text-zinc-600">You can track your application status in My Activity below</p>
+          <p className="text-xs text-center text-zinc-600">Track your application status in My Activity below</p>
         </form>
       </div>
     </div>
   )
 }
 
-// ─── Manage applications modal (brand side) ────────────────────────────────────
+// ─── Send Offer modal (brand → creator) ───────────────────────────────────────
+function SendOfferModal({ app, brief, onClose, onSent }) {
+  const [amount,  setAmount]  = useState(app.quote ?? '')
+  const [message, setMessage] = useState('')
+  const [saving,  setSaving]  = useState(false)
+
+  async function submit(e) {
+    e.preventDefault()
+    if (!amount) { toast.error('Agreed amount required'); return }
+    setSaving(true)
+    // Upsert deal
+    const { error } = await supabase.from('brief_deals').insert({
+      application_id: app.id,
+      brief_id: brief.id,
+      creator_id: app.creator_id ?? app.creator?.id,
+      company_id: brief.company_id,
+      agreed_amount: Number(amount),
+      offer_message: message.trim() || null,
+      status: 'offer_sent',
+    })
+    if (!error) {
+      // Mark application as approved if not already
+      await supabase.from('brief_applications').update({ status: 'approved', approved_at: new Date().toISOString() }).eq('id', app.id)
+      toast.success('Offer sent! Creator will be notified.')
+      onSent?.()
+      onClose()
+    } else {
+      toast.error(error.message)
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md">
+        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+          <div>
+            <h3 className="font-bold text-white">Send Deal Offer</h3>
+            <p className="text-xs text-zinc-500 mt-0.5">to {app.creator?.full_name}</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <div className="bg-zinc-900 rounded-xl p-3">
+            <p className="text-xs text-zinc-500">Brief</p>
+            <p className="text-sm font-medium text-white">{brief.title}</p>
+            {app.quote && <p className="text-xs text-zinc-500 mt-0.5">Creator quoted: ${Number(app.quote).toLocaleString()}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Agreed Amount (USD) <span className="text-red-400">*</span></label>
+            <input type="number" min={0} value={amount} onChange={e => setAmount(e.target.value)}
+              placeholder={`Budget: $${brief.budget_min?.toLocaleString()}–$${brief.budget_max?.toLocaleString()}`}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-600" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Message to Creator <span className="text-zinc-500 font-normal">— optional</span></label>
+            <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3}
+              placeholder="Payment terms, content deadline, revision policy, what you need from them next…"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600 resize-none" />
+          </div>
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 bg-zinc-800 text-zinc-300 rounded-xl text-sm font-medium">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-xl text-sm font-semibold">
+              {saving ? 'Sending…' : 'Send Offer'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Submit Deliverables modal (creator) ──────────────────────────────────────
+function SubmitDeliverablesModal({ deal, onClose, onSubmitted }) {
+  const { user } = useAuth()
+  const [title,   setTitle]   = useState('')
+  const [desc,    setDesc]    = useState('')
+  const [url,     setUrl]     = useState('')
+  const [urls,    setUrls]    = useState([])
+  const [saving,  setSaving]  = useState(false)
+
+  function addUrl() { const u = url.trim(); if (!u) return; setUrls(p => [...p, u]); setUrl('') }
+
+  async function submit(e) {
+    e.preventDefault()
+    if (urls.length === 0) { toast.error('Add at least one content link'); return }
+    setSaving(true)
+    const { error: dErr } = await supabase.from('brief_deliverables').insert({
+      deal_id: deal.id, brief_id: deal.brief_id, creator_id: user.id,
+      title: title.trim() || 'Deliverable', description: desc.trim() || null, content_urls: urls,
+    })
+    if (!dErr) {
+      await supabase.from('brief_deals').update({ status: 'delivered', delivered_at: new Date().toISOString() }).eq('id', deal.id)
+      toast.success('Deliverables submitted! The brand will review.')
+      onSubmitted?.(); onClose()
+    } else toast.error(dErr.message)
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+          <div>
+            <h3 className="font-bold text-white">Submit Deliverables</h3>
+            <p className="text-xs text-zinc-500 mt-0.5">{deal.brief?.title}</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Title <span className="text-zinc-500 font-normal">— optional</span></label>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Instagram Reel — Final Version"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-purple-600" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Note to Brand <span className="text-zinc-500 font-normal">— optional</span></label>
+            <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2}
+              placeholder="Context, what you created, anything they should know…"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-purple-600 resize-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Content Links <span className="text-red-400">*</span></label>
+            <p className="text-xs text-zinc-500 mb-2">Add links to your published or draft content — YouTube, Instagram, TikTok, Google Drive, Notion, etc.</p>
+            <div className="flex gap-2 mb-2">
+              <input value={url} onChange={e => setUrl(e.target.value)}
+                onKeyDown={e => e.key==='Enter'&&(e.preventDefault(),addUrl())} placeholder="https://…"
+                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-purple-600" />
+              <button type="button" onClick={addUrl} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl border border-zinc-700"><Plus className="w-4 h-4" /></button>
+            </div>
+            {urls.map((u,i) => (
+              <div key={i} className="flex items-center gap-2 text-xs text-zinc-400 mb-1 bg-zinc-900 rounded-lg px-3 py-2">
+                <Link2 className="w-3 h-3 text-purple-400 shrink-0" />
+                <a href={u} target="_blank" rel="noreferrer" className="truncate flex-1 hover:text-white">{u}</a>
+                <button type="button" onClick={() => setUrls(us=>us.filter((_,j)=>j!==i))} className="text-zinc-600 hover:text-red-400"><X className="w-3 h-3" /></button>
+              </div>
+            ))}
+          </div>
+          <button type="submit" disabled={saving} className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2">
+            <Upload className="w-4 h-4" /> {saving ? 'Submitting…' : 'Submit Deliverables'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Rate modal (mutual, after completion) ────────────────────────────────────
+function RateModal({ deal, role, rateeId, rateeName, onClose, onRated }) {
+  const { user } = useAuth()
+  const [rating, setRating] = useState(0)
+  const [review, setReview] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function submit(e) {
+    e.preventDefault()
+    if (!rating) { toast.error('Select a rating'); return }
+    setSaving(true)
+    const { error } = await supabase.from('brief_ratings').insert({
+      deal_id: deal.id, rater_id: user.id, ratee_id: rateeId,
+      role, rating, review_text: review.trim() || null,
+    })
+    if (!error) { toast.success('Review submitted!'); onRated?.(); onClose() }
+    else toast.error(error.message)
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-sm">
+        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+          <div>
+            <h3 className="font-bold text-white">Rate & Review</h3>
+            <p className="text-xs text-zinc-500 mt-0.5">{rateeName}</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <div>
+            <p className="text-sm text-zinc-300 mb-3">How was working with {rateeName}?</p>
+            <div className="flex gap-2 justify-center">
+              {[1,2,3,4,5].map(n => (
+                <button key={n} type="button" onClick={() => setRating(n)}
+                  className={`text-2xl transition-transform ${rating >= n ? 'scale-110' : 'opacity-30'}`}>⭐</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Review <span className="text-zinc-500 font-normal">— optional</span></label>
+            <textarea value={review} onChange={e => setReview(e.target.value)} rows={3}
+              placeholder="What was great? Anything to note for future collaborations?"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-yellow-500 resize-none" />
+          </div>
+          <button type="submit" disabled={saving || !rating} className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-400 disabled:opacity-60 text-black rounded-xl text-sm font-bold">
+            {saving ? 'Submitting…' : 'Submit Review'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Deal detail panel (inline, used in both brand and creator views) ──────────
+function DealPanel({ deal, isBrand, onUpdate }) {
+  const { user } = useAuth()
+  const [deliverables, setDeliverables] = useState([])
+  const [ratings,      setRatings]      = useState([])
+  const [revNote,      setRevNote]      = useState('')
+  const [acting,       setActing]       = useState(false)
+  const [showDelModal, setShowDelModal] = useState(false)
+  const [showRateModal,setShowRateModal]= useState(false)
+
+  useEffect(() => { loadDeliverables(); loadRatings() }, [deal.id])
+
+  async function loadDeliverables() {
+    const { data } = await supabase.from('brief_deliverables').select('*').eq('deal_id', deal.id).order('created_at', { ascending: false })
+    setDeliverables(data ?? [])
+  }
+
+  async function loadRatings() {
+    const { data } = await supabase.from('brief_ratings').select('*').eq('deal_id', deal.id)
+    setRatings(data ?? [])
+  }
+
+  async function updateDeal(updates) {
+    setActing(true)
+    await supabase.from('brief_deals').update(updates).eq('id', deal.id)
+    setActing(false)
+    onUpdate?.()
+  }
+
+  const myRating = ratings.find(r => r.rater_id === user?.id)
+  const s = deal.status
+
+  return (
+    <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-4 space-y-4">
+      {showDelModal  && <SubmitDeliverablesModal deal={deal} onClose={() => setShowDelModal(false)} onSubmitted={() => { loadDeliverables(); onUpdate?.() }} />}
+      {showRateModal && (
+        <RateModal deal={deal}
+          role={isBrand ? 'brand' : 'creator'}
+          rateeId={isBrand ? deal.creator_id : deal.company?.created_by}
+          rateeName={isBrand ? deal.creator?.full_name : deal.brief?.company?.name}
+          onClose={() => setShowRateModal(false)}
+          onRated={() => { loadRatings(); onUpdate?.() }} />
+      )}
+
+      {/* Offer info */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <p className="text-xs text-zinc-500">Agreed amount</p>
+          <p className="text-xl font-bold text-green-400">${Number(deal.agreed_amount).toLocaleString()}</p>
+        </div>
+        <DealBadge status={deal.status} />
+      </div>
+
+      <DealTimeline status={deal.status} />
+
+      {deal.offer_message && (
+        <div className="bg-zinc-800/50 rounded-xl p-3 text-xs text-zinc-300">
+          <p className="text-zinc-500 font-medium mb-1">Message from brand:</p>
+          {deal.offer_message}
+        </div>
+      )}
+
+      {/* Creator: accept / decline offer */}
+      {!isBrand && s === 'offer_sent' && (
+        <div className="flex gap-2">
+          <button disabled={acting} onClick={() => updateDeal({ status: 'accepted', accepted_at: new Date().toISOString() })}
+            className="flex-1 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1">
+            <CheckCircle className="w-3.5 h-3.5" /> Accept Offer
+          </button>
+          <button disabled={acting} onClick={() => updateDeal({ status: 'declined' })}
+            className="flex-1 py-2 bg-red-600/30 hover:bg-red-600/50 disabled:opacity-60 text-red-400 rounded-xl text-xs font-medium">
+            Decline
+          </button>
+        </div>
+      )}
+
+      {/* Brand: mark in_progress after creator accepts */}
+      {isBrand && s === 'accepted' && (
+        <button disabled={acting} onClick={() => updateDeal({ status: 'in_progress' })}
+          className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white rounded-xl text-xs font-semibold">
+          Mark as In Progress
+        </button>
+      )}
+
+      {/* Creator: submit deliverables */}
+      {!isBrand && (s === 'accepted' || s === 'in_progress' || s === 'revision_requested') && (
+        <button onClick={() => setShowDelModal(true)}
+          className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+          <Upload className="w-3.5 h-3.5" />
+          {s === 'revision_requested' ? 'Resubmit Deliverables' : 'Submit Deliverables'}
+        </button>
+      )}
+      {s === 'revision_requested' && deal.revision_note && (
+        <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 text-xs text-orange-300">
+          <p className="font-medium mb-1">Revision requested:</p>
+          {deal.revision_note}
+        </div>
+      )}
+
+      {/* Deliverables list */}
+      {deliverables.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-zinc-400 mb-2">Submitted deliverables</p>
+          {deliverables.map(d => (
+            <div key={d.id} className="bg-zinc-900 rounded-xl p-3 mb-2">
+              {d.title && <p className="text-xs font-medium text-white mb-1">{d.title}</p>}
+              {d.description && <p className="text-xs text-zinc-500 mb-2">{d.description}</p>}
+              {(d.content_urls ?? []).map((u,i) => (
+                <a key={i} href={u} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-1.5 text-xs text-blue-400 hover:underline mb-1">
+                  <Link2 className="w-3 h-3 shrink-0" /><span className="truncate">{u}</span>
+                </a>
+              ))}
+              <p className="text-xs text-zinc-600 mt-1">{new Date(d.created_at).toLocaleDateString('en',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Brand: review deliverables */}
+      {isBrand && s === 'delivered' && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-zinc-300">Review deliverables:</p>
+          <button disabled={acting} onClick={() => updateDeal({ status: 'completed', completed_at: new Date().toISOString() })}
+            className="w-full py-2 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1">
+            <ThumbsUp className="w-3.5 h-3.5" /> Approve & Complete Deal
+          </button>
+          <div className="flex gap-2 items-start">
+            <textarea value={revNote} onChange={e => setRevNote(e.target.value)} rows={2} placeholder="Describe what needs to be revised…"
+              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 outline-none focus:border-orange-500 resize-none" />
+            <button disabled={acting || !revNote.trim()} onClick={() => updateDeal({ status: 'revision_requested', revision_note: revNote.trim() })}
+              className="shrink-0 py-2 px-3 bg-orange-600/30 hover:bg-orange-600/50 disabled:opacity-50 text-orange-400 rounded-xl text-xs font-semibold flex items-center gap-1">
+              <RotateCcw className="w-3 h-3" /> Request Revision
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Rate button after completion */}
+      {s === 'completed' && !myRating && (
+        <button onClick={() => setShowRateModal(true)}
+          className="w-full py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border border-yellow-500/30">
+          <Award className="w-3.5 h-3.5" /> Leave a Rating
+        </button>
+      )}
+      {s === 'completed' && myRating && (
+        <div className="bg-zinc-800/50 rounded-xl p-3 flex items-center gap-2 text-xs text-zinc-400">
+          <Award className="w-4 h-4 text-yellow-400" />
+          You rated {'⭐'.repeat(myRating.rating)} · {myRating.review_text ?? 'No written review'}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Manage applications modal (brand) ────────────────────────────────────────
 function ManageModal({ brief, onClose, onRefresh }) {
   const [apps,       setApps]       = useState([])
   const [interested, setInterested] = useState([])
+  const [deals,      setDeals]      = useState([])
   const [loading,    setLoading]    = useState(true)
   const [filter,     setFilter]     = useState('all')
   const [acting,     setActing]     = useState(null)
   const [tab,        setTab]        = useState('applications')
+  const [offerApp,   setOfferApp]   = useState(null)
 
-  useEffect(() => { loadApps(); loadInterested() }, [brief.id])
+  useEffect(() => { loadAll() }, [brief.id])
 
-  async function loadApps() {
-    const { data } = await supabase.from('brief_applications')
-      .select('*, creator:creator_id(id, full_name, username, avatar_url, headline, follower_count)')
-      .eq('brief_id', brief.id).order('created_at', { ascending: false })
-    setApps(data ?? [])
+  async function loadAll() {
+    const [{ data: a }, { data: i }, { data: d }] = await Promise.all([
+      supabase.from('brief_applications').select('*, creator:creator_id(id, full_name, username, avatar_url, headline, follower_count)').eq('brief_id', brief.id).order('created_at', { ascending: false }),
+      supabase.from('brief_interests').select('*, creator:creator_id(id, full_name, username, avatar_url, headline, follower_count)').eq('brief_id', brief.id).order('created_at', { ascending: false }),
+      supabase.from('brief_deals').select('*, creator:creator_id(full_name, avatar_url)').eq('brief_id', brief.id),
+    ])
+    setApps(a ?? [])
+    setInterested(i ?? [])
+    setDeals(d ?? [])
     setLoading(false)
-  }
-
-  async function loadInterested() {
-    const { data } = await supabase.from('brief_interests')
-      .select('*, creator:creator_id(id, full_name, username, avatar_url, headline, follower_count)')
-      .eq('brief_id', brief.id).order('created_at', { ascending: false })
-    setInterested(data ?? [])
   }
 
   async function decide(appId, status) {
@@ -428,12 +773,12 @@ function ManageModal({ brief, onClose, onRefresh }) {
     await supabase.from('brief_applications').update({ status, ...ts }).eq('id', appId)
     setActing(null)
     toast.success(`Application ${status}`)
-    loadApps(); onRefresh?.()
+    loadAll(); onRefresh?.()
   }
 
   async function updateBriefStatus(status) {
     await supabase.from('brand_briefs').update({ status }).eq('id', brief.id)
-    toast.success(`Brief marked as ${status.replace('_', ' ')}`)
+    toast.success(`Brief marked as ${status.replace('_',' ')}`)
     onRefresh?.()
   }
 
@@ -442,32 +787,34 @@ function ManageModal({ brief, onClose, onRefresh }) {
   const filtered = filter === 'all' ? apps : apps.filter(a => a.status === filter)
 
   function nicheMatch(creator) {
-    if (!brief.niches?.length) return null
-    return brief.niches.some(n => creator?.headline?.toLowerCase().includes(n.toLowerCase())) ? true : null
+    return brief.niches?.some(n => creator?.headline?.toLowerCase().includes(n.toLowerCase())) ?? false
   }
-  function meetsFollowers(creator) {
+  function meetsF(creator) {
     if (!brief.min_followers) return null
     return (creator?.follower_count ?? 0) >= brief.min_followers
+  }
+  function dealFor(app) {
+    return deals.find(d => d.application_id === app.id)
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+      {offerApp && <SendOfferModal app={offerApp} brief={brief} onClose={() => setOfferApp(null)} onSent={() => { loadAll(); onRefresh?.() }} />}
       <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col">
-        {/* Header */}
         <div className="p-5 border-b border-zinc-800 shrink-0">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
               <h2 className="font-bold text-white">{brief.title}</h2>
-              <div className="flex items-center gap-2 mt-1"><StatusBadge status={brief.status} /></div>
+              <StatusBadge status={brief.status} />
             </div>
             <button onClick={onClose} className="text-zinc-500 hover:text-white shrink-0"><X className="w-5 h-5" /></button>
           </div>
           <div className="grid grid-cols-4 gap-2 mb-3">
             {[
-              { label: 'Interested', val: interested.length, color: 'text-blue-400' },
-              { label: 'Applied',    val: apps.length,       color: 'text-purple-400' },
-              { label: 'Approved',   val: counts.approved,   color: 'text-green-400' },
-              { label: 'Views',      val: brief.views ?? 0,  color: 'text-zinc-300' },
+              { label:'Interested', val:interested.length, color:'text-blue-400' },
+              { label:'Applied',    val:apps.length,       color:'text-purple-400' },
+              { label:'Deals',      val:deals.length,      color:'text-green-400' },
+              { label:'Views',      val:brief.views??0,    color:'text-zinc-300' },
             ].map(s => (
               <div key={s.label} className="bg-zinc-900 rounded-xl p-2.5 text-center">
                 <p className={`text-lg font-bold ${s.color}`}>{s.val}</p>
@@ -476,93 +823,96 @@ function ManageModal({ brief, onClose, onRefresh }) {
             ))}
           </div>
           <div className="flex gap-1">
-            {['applications', 'interested'].map(t => (
+            {['applications','interested','deals'].map(t => (
               <button key={t} onClick={() => setTab(t)}
-                className={`flex-1 py-2 rounded-xl text-xs font-medium capitalize transition-colors ${tab === t ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800'}`}>
-                {t === 'applications' ? `Applications (${apps.length})` : `Interested (${interested.length})`}
+                className={`flex-1 py-2 rounded-xl text-xs font-medium capitalize transition-colors ${tab===t ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800'}`}>
+                {t === 'applications' ? `Applications (${apps.length})` : t === 'interested' ? `Interested (${interested.length})` : `Deals (${deals.length})`}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
+          {/* ── Applications ── */}
           {tab === 'applications' && (
             <>
               <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-1">
                 {['all','pending','shortlisted','approved','rejected'].map(f => (
                   <button key={f} onClick={() => setFilter(f)}
-                    className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium capitalize transition-colors ${filter === f ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800'}`}>
-                    {f} {counts[f] > 0 ? `(${counts[f]})` : ''}
+                    className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium capitalize transition-colors ${filter===f ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800'}`}>
+                    {f} {counts[f]>0?`(${counts[f]})`:''}
                   </button>
                 ))}
               </div>
               {loading ? [1,2].map(i => <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl h-24 animate-pulse" />) :
                filtered.length === 0 ? (
-                <div className="text-center py-12 text-zinc-500">
-                  <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">{apps.length === 0 ? 'No applications yet — share your brief to attract creators.' : `No ${filter} applications`}</p>
-                </div>
-              ) : filtered.map(app => {
-                const mf = meetsFollowers(app.creator)
+                <div className="text-center py-12 text-zinc-500"><MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" /><p className="text-sm">No applications yet</p></div>
+               ) : filtered.map(app => {
+                const mf = meetsF(app.creator)
+                const deal = dealFor(app)
                 return (
                   <div key={app.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                     <div className="flex items-start gap-3">
-                      <img src={app.creator?.avatar_url ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(app.creator?.full_name ?? 'C')}&background=7c3aed&color=fff&size=40`}
+                      <img src={app.creator?.avatar_url ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(app.creator?.full_name??'C')}&background=7c3aed&color=fff&size=40`}
                         className="w-10 h-10 rounded-full object-cover shrink-0" alt="" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
                           <Link to={`/profile/${app.creator?.id}`} className="text-sm font-semibold text-white hover:text-purple-300 transition-colors">{app.creator?.full_name}</Link>
                           <span className="text-xs text-zinc-500">@{app.creator?.username}</span>
                           <AppStatusBadge status={app.status} />
+                          {deal && <DealBadge status={deal.status} />}
                         </div>
                         {app.creator?.headline && <p className="text-xs text-zinc-500 mb-1.5 truncate">{app.creator.headline}</p>}
                         <div className="flex flex-wrap gap-1.5 mb-2">
                           {app.creator?.follower_count > 0 && (
-                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${mf === true ? 'bg-green-500/20 text-green-400' : mf === false ? 'bg-red-500/20 text-red-400' : 'bg-zinc-800 text-zinc-400'}`}>
-                              {(app.creator.follower_count / 1000).toFixed(1)}k followers {mf === true ? '✓' : mf === false ? '✗' : ''}
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${mf===true?'bg-green-500/20 text-green-400':mf===false?'bg-red-500/20 text-red-400':'bg-zinc-800 text-zinc-400'}`}>
+                              {(app.creator.follower_count/1000).toFixed(1)}k followers {mf===true?'✓':mf===false?'✗':''}
                             </span>
                           )}
-                          {app.quote && <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-medium">${app.quote?.toLocaleString()}</span>}
+                          {app.quote && <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-medium">${Number(app.quote).toLocaleString()}</span>}
                           {nicheMatch(app.creator) && <span className="text-xs bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-medium">Niche match</span>}
                         </div>
                         <p className="text-xs text-zinc-300 leading-relaxed mb-2 line-clamp-3">{app.pitch}</p>
-                        {(app.portfolio_urls ?? []).length > 0 && (
-                          <a href={app.portfolio_urls[0]} target="_blank" rel="noreferrer"
-                            className="text-xs text-blue-400 hover:underline flex items-center gap-1">
+                        {(app.portfolio_urls??[]).length > 0 && (
+                          <a href={app.portfolio_urls[0]} target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:underline flex items-center gap-1">
                             <ExternalLink className="w-3 h-3" /> View portfolio
                           </a>
                         )}
                       </div>
                     </div>
-                    {app.status !== 'approved' && app.status !== 'rejected' && (
+
+                    {/* Actions */}
+                    {!deal && app.status !== 'rejected' && (
                       <div className="flex gap-2 mt-3 pt-3 border-t border-zinc-800/60">
                         {app.status !== 'shortlisted' && (
-                          <button onClick={() => decide(app.id, 'shortlisted')} disabled={acting === app.id}
+                          <button onClick={() => decide(app.id, 'shortlisted')} disabled={acting===app.id}
                             className="flex-1 py-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl flex items-center justify-center gap-1">
                             <Star className="w-3 h-3" /> Shortlist
                           </button>
                         )}
-                        <button onClick={() => decide(app.id, 'approved')} disabled={acting === app.id}
-                          className="flex-1 py-1.5 text-xs font-medium text-green-400 bg-green-500/10 hover:bg-green-500/20 rounded-xl flex items-center justify-center gap-1">
-                          <CheckCircle className="w-3 h-3" /> Approve
-                        </button>
-                        <button onClick={() => decide(app.id, 'rejected')} disabled={acting === app.id}
+                        {app.status !== 'approved' && (
+                          <button onClick={() => decide(app.id, 'approved')} disabled={acting===app.id}
+                            className="flex-1 py-1.5 text-xs font-medium text-green-400 bg-green-500/10 hover:bg-green-500/20 rounded-xl flex items-center justify-center gap-1">
+                            <CheckCircle className="w-3 h-3" /> Approve
+                          </button>
+                        )}
+                        {app.status === 'approved' && (
+                          <button onClick={() => setOfferApp(app)}
+                            className="flex-1 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-500 rounded-xl flex items-center justify-center gap-1">
+                            <Handshake className="w-3 h-3" /> Send Offer
+                          </button>
+                        )}
+                        <button onClick={() => decide(app.id, 'rejected')} disabled={acting===app.id}
                           className="flex-1 py-1.5 text-xs font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-xl flex items-center justify-center gap-1">
                           <XCircle className="w-3 h-3" /> Reject
                         </button>
                       </div>
                     )}
-                    {app.status === 'approved' && (
-                      <div className="mt-3 pt-3 border-t border-zinc-800/60 flex items-center justify-between">
-                        <span className="text-xs text-green-400 font-medium">✓ Approved {app.approved_at ? new Date(app.approved_at).toLocaleDateString() : ''}</span>
-                        <button onClick={() => decide(app.id, 'pending')} className="text-xs text-zinc-600 hover:text-zinc-400">Undo</button>
-                      </div>
-                    )}
-                    {app.status === 'rejected' && (
-                      <div className="mt-3 pt-3 border-t border-zinc-800/60 flex items-center justify-between">
-                        <span className="text-xs text-red-400">Rejected</span>
-                        <button onClick={() => decide(app.id, 'pending')} className="text-xs text-zinc-600 hover:text-zinc-400">Undo</button>
+
+                    {/* Deal panel inline */}
+                    {deal && (
+                      <div className="mt-3 pt-3 border-t border-zinc-800/60">
+                        <DealPanel deal={{ ...deal, brief }} isBrand={true} onUpdate={loadAll} />
                       </div>
                     )}
                   </div>
@@ -571,40 +921,54 @@ function ManageModal({ brief, onClose, onRefresh }) {
             </>
           )}
 
+          {/* ── Interested ── */}
           {tab === 'interested' && (
             interested.length === 0 ? (
-              <div className="text-center py-12 text-zinc-500">
-                <Heart className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No creators have expressed interest yet</p>
-                <p className="text-xs mt-1 text-zinc-600">When a creator taps "Interested", their Philomni profile appears here</p>
-              </div>
+              <div className="text-center py-12 text-zinc-500"><Heart className="w-8 h-8 mx-auto mb-2 opacity-30" /><p className="text-sm">No creators expressed interest yet</p></div>
             ) : interested.map(i => {
-              const mf = meetsFollowers(i.creator)
-              const alreadyApplied = apps.some(a => a.creator_id === i.creator?.id)
+              const mf = meetsF(i.creator)
+              const alsoApplied = apps.some(a => a.creator_id === i.creator?.id)
               return (
                 <div key={i.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-start gap-3">
-                  <img src={i.creator?.avatar_url ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(i.creator?.full_name ?? 'C')}&background=3b82f6&color=fff&size=40`}
+                  <img src={i.creator?.avatar_url ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(i.creator?.full_name??'C')}&background=3b82f6&color=fff&size=40`}
                     className="w-10 h-10 rounded-full object-cover shrink-0" alt="" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <Link to={`/profile/${i.creator?.id}`} className="text-sm font-semibold text-white hover:text-purple-300 transition-colors">{i.creator?.full_name}</Link>
+                      <Link to={`/profile/${i.creator?.id}`} className="text-sm font-semibold text-white hover:text-purple-300">{i.creator?.full_name}</Link>
                       <span className="text-xs text-zinc-500">@{i.creator?.username}</span>
-                      {alreadyApplied && <span className="text-xs bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">Also applied</span>}
+                      {alsoApplied && <span className="text-xs bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">Also applied</span>}
                     </div>
                     {i.creator?.headline && <p className="text-xs text-zinc-500 mb-2 truncate">{i.creator.headline}</p>}
                     <div className="flex flex-wrap gap-1.5">
                       {i.creator?.follower_count > 0 && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${mf === true ? 'bg-green-500/20 text-green-400' : mf === false ? 'bg-red-500/20 text-red-400' : 'bg-zinc-800 text-zinc-400'}`}>
-                          {(i.creator.follower_count / 1000).toFixed(1)}k followers {mf === true ? '✓' : mf === false ? '✗' : ''}
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${mf===true?'bg-green-500/20 text-green-400':mf===false?'bg-red-500/20 text-red-400':'bg-zinc-800 text-zinc-400'}`}>
+                          {(i.creator.follower_count/1000).toFixed(1)}k followers {mf===true?'✓':mf===false?'✗':''}
                         </span>
                       )}
                       {nicheMatch(i.creator) && <span className="text-xs bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">Niche match</span>}
-                      <span className="text-xs text-zinc-600">Interested {new Date(i.created_at).toLocaleDateString('en', { month: 'short', day: 'numeric' })}</span>
                     </div>
                   </div>
                 </div>
               )
             })
+          )}
+
+          {/* ── Deals ── */}
+          {tab === 'deals' && (
+            deals.length === 0 ? (
+              <div className="text-center py-12 text-zinc-500"><Handshake className="w-8 h-8 mx-auto mb-2 opacity-30" /><p className="text-sm">No deals yet — approve an applicant and send an offer</p></div>
+            ) : deals.map(d => (
+              <div key={d.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <img src={d.creator?.avatar_url ?? `https://ui-avatars.com/api/?name=C&background=7c3aed&color=fff&size=36`} className="w-9 h-9 rounded-full object-cover" alt="" />
+                  <div>
+                    <p className="text-sm font-semibold text-white">{d.creator?.full_name}</p>
+                    <DealBadge status={d.status} />
+                  </div>
+                </div>
+                <DealPanel deal={{ ...d, brief }} isBrand={true} onUpdate={loadAll} />
+              </div>
+            ))
           )}
         </div>
 
@@ -612,9 +976,7 @@ function ManageModal({ brief, onClose, onRefresh }) {
           <p className="text-xs text-zinc-500 mr-auto">Mark brief as:</p>
           {['open','in_review','closed'].filter(s => s !== brief.status).map(s => (
             <button key={s} onClick={() => updateBriefStatus(s)}
-              className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl capitalize transition-colors">
-              {s.replace('_', ' ')}
-            </button>
+              className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl capitalize transition-colors">{s.replace('_',' ')}</button>
           ))}
         </div>
       </div>
@@ -622,33 +984,28 @@ function ManageModal({ brief, onClose, onRefresh }) {
   )
 }
 
-// ─── Brief card (creator browse view) ─────────────────────────────────────────
+// ─── Brief card (creator browse) ───────────────────────────────────────────────
 function BriefCard({ brief, interested, hasApplied, myFollowers, onToggleInterest, onApply }) {
   const [toggling, setToggling] = useState(false)
   const meetsMin = !brief.min_followers || myFollowers >= brief.min_followers
 
   async function toggleInterest() {
-    setToggling(true)
-    await onToggleInterest(brief.id, interested)
-    setToggling(false)
+    setToggling(true); await onToggleInterest(brief.id, interested); setToggling(false)
   }
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-      {/* Top row */}
       <div className="flex items-start gap-3 mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-2">
             <StatusBadge status={brief.status} />
-            {(brief.content_types ?? []).slice(0, 2).map(ct => (
-              <span key={ct} className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{ct}</span>
-            ))}
-            {(brief.content_types ?? []).length > 2 && <span className="text-xs text-zinc-600">+{brief.content_types.length - 2}</span>}
+            {(brief.content_types??[]).slice(0,2).map(ct => <span key={ct} className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{ct}</span>)}
+            {(brief.content_types??[]).length > 2 && <span className="text-xs text-zinc-600">+{brief.content_types.length-2}</span>}
           </div>
           <h3 className="text-sm font-semibold text-white leading-snug">{brief.title}</h3>
         </div>
         <button onClick={toggleInterest} disabled={toggling || brief.status !== 'open'}
-          title={interested ? 'Remove interest' : 'Tap to express interest — shares your Philomni profile with the brand'}
+          title={interested ? 'Remove interest' : 'Express interest — shares your profile with the brand'}
           className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${interested ? 'bg-blue-500/20 text-blue-400' : 'bg-zinc-800 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10'}`}>
           <Heart className={`w-4 h-4 ${interested ? 'fill-blue-400' : ''}`} />
         </button>
@@ -656,87 +1013,89 @@ function BriefCard({ brief, interested, hasApplied, myFollowers, onToggleInteres
 
       {brief.description && <p className="text-xs text-zinc-400 mb-4 line-clamp-2">{brief.description}</p>}
 
-      {/* Key stats */}
       <div className="grid grid-cols-2 gap-2 mb-4 text-xs">
-        <div className="flex items-center gap-1.5 text-zinc-400">
-          <DollarSign className="w-3.5 h-3.5 text-green-400" />
-          ${brief.budget_min?.toLocaleString()}–${brief.budget_max?.toLocaleString()}
-        </div>
-        {brief.deadline && (
-          <div className="flex items-center gap-1.5 text-zinc-400">
-            <Clock className="w-3.5 h-3.5 text-yellow-400" />
-            Due {new Date(brief.deadline).toLocaleDateString()}
-          </div>
-        )}
-        <div className="flex items-center gap-1.5 text-zinc-400">
-          <Heart className="w-3.5 h-3.5 text-blue-400" />
-          {brief.interest_count ?? 0} interested
-        </div>
-        <div className="flex items-center gap-1.5 text-zinc-400">
-          <Send className="w-3.5 h-3.5 text-purple-400" />
-          {brief.application_count ?? 0} applied
-        </div>
+        <div className="flex items-center gap-1.5 text-zinc-400"><DollarSign className="w-3.5 h-3.5 text-green-400" />${brief.budget_min?.toLocaleString()}–${brief.budget_max?.toLocaleString()}</div>
+        {brief.deadline && <div className="flex items-center gap-1.5 text-zinc-400"><Clock className="w-3.5 h-3.5 text-yellow-400" />Due {new Date(brief.deadline).toLocaleDateString()}</div>}
+        <div className="flex items-center gap-1.5 text-zinc-400"><Heart className="w-3.5 h-3.5 text-blue-400" />{brief.interest_count??0} interested</div>
+        <div className="flex items-center gap-1.5 text-zinc-400"><Send className="w-3.5 h-3.5 text-purple-400" />{brief.application_count??0} applied</div>
         {brief.min_followers > 0 && (
           <div className={`flex items-center gap-1.5 col-span-2 ${!meetsMin ? 'text-yellow-400/70' : 'text-zinc-400'}`}>
-            <Users className="w-3.5 h-3.5" />
-            {(brief.min_followers / 1000).toFixed(0)}k+ followers required {!meetsMin && myFollowers > 0 ? '(you have ' + ((myFollowers ?? 0) / 1000).toFixed(1) + 'k)' : meetsMin && myFollowers > 0 ? '✓ you qualify' : ''}
+            <Users className="w-3.5 h-3.5" />{(brief.min_followers/1000).toFixed(0)}k+ required {meetsMin && myFollowers > 0 ? '✓ you qualify' : !meetsMin && myFollowers > 0 ? `(you have ${(myFollowers/1000).toFixed(1)}k)` : ''}
           </div>
         )}
       </div>
 
-      {(brief.niches ?? []).length > 0 && (
+      {(brief.niches??[]).length > 0 && (
         <div className="flex flex-wrap gap-1 mb-3">
           {brief.niches.map(n => <span key={n} className="text-xs bg-purple-500/10 text-purple-300 px-2 py-0.5 rounded-full">{n}</span>)}
         </div>
       )}
 
-      {brief.target_audience && (
-        <p className="text-xs text-zinc-500 mb-3"><span className="text-zinc-400 font-medium">Audience: </span>{brief.target_audience}</p>
-      )}
-
-      {/* Footer */}
       <div className="flex items-center justify-between pt-3 border-t border-zinc-800/60">
         <div className="flex items-center gap-2">
-          {brief.company?.logo_url
-            ? <img src={brief.company.logo_url} className="w-5 h-5 rounded object-cover" alt="" />
-            : <div className="w-5 h-5 rounded bg-zinc-700 flex items-center justify-center text-xs text-zinc-400">{brief.company?.name?.[0] ?? 'B'}</div>
-          }
-          <span className="text-xs text-zinc-500">{brief.company?.name ?? 'Brand'}</span>
+          {brief.company?.logo_url ? <img src={brief.company.logo_url} className="w-5 h-5 rounded object-cover" alt="" /> : <div className="w-5 h-5 rounded bg-zinc-700 flex items-center justify-center text-xs text-zinc-400">{brief.company?.name?.[0]??'B'}</div>}
+          <span className="text-xs text-zinc-500">{brief.company?.name??'Brand'}</span>
         </div>
         {brief.status === 'open' && (
           hasApplied
             ? <span className="text-xs text-purple-400 font-medium flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Applied</span>
-            : <button onClick={() => onApply(brief)}
-                className="flex items-center gap-1.5 text-xs text-white bg-purple-600 hover:bg-purple-500 px-3 py-1.5 rounded-xl font-medium transition-colors">
-                Apply <ChevronRight className="w-3 h-3" />
-              </button>
+            : <button onClick={() => onApply(brief)} className="flex items-center gap-1.5 text-xs text-white bg-purple-600 hover:bg-purple-500 px-3 py-1.5 rounded-xl font-medium transition-colors">Apply <ChevronRight className="w-3 h-3" /></button>
         )}
       </div>
     </div>
   )
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Creator deal card (My Activity → Deals tab) ──────────────────────────────
+function CreatorDealCard({ deal, onUpdate }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+      <button onClick={() => setOpen(o=>!o)} className="w-full flex items-start gap-4 p-4 text-left hover:bg-zinc-800/30 transition-colors">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${DEAL_STATUS_MAP[deal.status]?.bg ?? 'bg-zinc-800'}`}>
+          <Handshake className={`w-5 h-5 ${DEAL_STATUS_MAP[deal.status]?.color ?? 'text-zinc-400'}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white truncate">{deal.brief?.title}</p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span className="text-xs text-zinc-500">{deal.brief?.company?.name}</span>
+            <DealBadge status={deal.status} />
+          </div>
+          <p className="text-xs text-green-400 font-medium mt-1">${Number(deal.agreed_amount).toLocaleString()}</p>
+        </div>
+        <div className="shrink-0 mt-1">{open ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}</div>
+      </button>
+      {open && (
+        <div className="px-4 pb-4">
+          <DealPanel deal={deal} isBrand={false} onUpdate={onUpdate} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
 export default function BrandBriefs() {
   const { user } = useAuth()
 
-  const [briefs,          setBriefs]          = useState([])
-  const [myBriefs,        setMyBriefs]        = useState([])
-  const [loading,         setLoading]         = useState(true)
-  const [myInterests,     setMyInterests]     = useState(new Set())
-  const [myApps,          setMyApps]          = useState(new Set())
-  const [interestRecords, setInterestRecords] = useState([])
-  const [appRecords,      setAppRecords]      = useState([])
-  const [company,         setCompany]         = useState(null)
-  const [companyChecked,  setCompanyChecked]  = useState(false)
-  const [myFollowers,     setMyFollowers]     = useState(0)
-  const [search,          setSearch]          = useState('')
-  const [filterType,      setFilterType]      = useState('All')
-  const [posting,         setPosting]         = useState(false)
-  const [applying,        setApplying]        = useState(null)
-  const [managing,        setManaging]        = useState(null)
-  const [activityTab,     setActivityTab]     = useState('applications')
-  const [activeSection,   setActiveSection]   = useState('browse') // browse | brand
+  const [briefs,          setBriefs]         = useState([])
+  const [myBriefs,        setMyBriefs]       = useState([])
+  const [loading,         setLoading]        = useState(true)
+  const [myInterests,     setMyInterests]    = useState(new Set())
+  const [myApps,          setMyApps]         = useState(new Set())
+  const [interestRecords, setInterestRecords]= useState([])
+  const [appRecords,      setAppRecords]     = useState([])
+  const [dealRecords,     setDealRecords]    = useState([])
+  const [company,         setCompany]        = useState(null)
+  const [companyChecked,  setCompanyChecked] = useState(false)
+  const [myFollowers,     setMyFollowers]    = useState(0)
+  const [search,          setSearch]         = useState('')
+  const [filterType,      setFilterType]     = useState('All')
+  const [posting,         setPosting]        = useState(false)
+  const [applying,        setApplying]       = useState(null)
+  const [managing,        setManaging]       = useState(null)
+  const [activityTab,     setActivityTab]    = useState('deals')
+  const [activeSection,   setActiveSection]  = useState('browse')
 
   useEffect(() => {
     loadBriefs()
@@ -746,19 +1105,17 @@ export default function BrandBriefs() {
   async function loadBriefs() {
     const { data } = await supabase.from('brand_briefs')
       .select('*, company:company_id(id, name, logo_url)')
-      .eq('status', 'open')
-      .order('created_at', { ascending: false })
-    setBriefs(data ?? [])
-    setLoading(false)
+      .eq('status', 'open').order('created_at', { ascending: false })
+    setBriefs(data ?? []); setLoading(false)
   }
 
   async function loadMyProfile() {
-    const { data } = await supabase.from('profiles').select('follower_count').eq('id', user.id).single()
+    const { data } = await supabase.from('users').select('follower_count').eq('id', user.id).single()
     setMyFollowers(data?.follower_count ?? 0)
   }
 
   async function loadMyCompany() {
-    const { data: owned } = await supabase.from('companies').select('*').eq('owner_id', user.id).limit(1).maybeSingle()
+    const { data: owned } = await supabase.from('companies').select('*').eq('created_by', user.id).limit(1).maybeSingle()
     if (owned) { setCompany(owned); loadMyBriefs(owned.id); setCompanyChecked(true); return }
     const { data: member } = await supabase.from('company_members').select('*, companies(*)').eq('user_id', user.id).limit(1).maybeSingle()
     if (member?.companies) { setCompany(member.companies); loadMyBriefs(member.companies.id) }
@@ -773,18 +1130,22 @@ export default function BrandBriefs() {
   }
 
   async function loadMyActivity() {
-    const [{ data: ints }, { data: apps }] = await Promise.all([
+    const [{ data: ints }, { data: apps }, { data: deals }] = await Promise.all([
       supabase.from('brief_interests')
         .select('*, brief:brief_id(id, title, status, budget_min, budget_max, deadline, company:company_id(id, name, logo_url))')
         .eq('creator_id', user.id).order('created_at', { ascending: false }),
       supabase.from('brief_applications')
         .select('*, brief:brief_id(id, title, status, budget_min, budget_max, deadline, company:company_id(id, name, logo_url))')
         .eq('creator_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('brief_deals')
+        .select('*, brief:brief_id(id, title, company:company_id(id, name, logo_url))')
+        .eq('creator_id', user.id).order('created_at', { ascending: false }),
     ])
     setInterestRecords(ints ?? [])
     setMyInterests(new Set((ints ?? []).map(i => i.brief_id)))
     setAppRecords(apps ?? [])
     setMyApps(new Set((apps ?? []).map(a => a.brief_id)))
+    setDealRecords(deals ?? [])
   }
 
   async function toggleInterest(briefId, currentlyInterested) {
@@ -793,8 +1154,8 @@ export default function BrandBriefs() {
       await supabase.from('brief_interests').delete().eq('brief_id', briefId).eq('creator_id', user.id)
       toast.success('Interest removed')
     } else {
-      const { error } = await supabase.from('brief_interests').insert({ brief_id: briefId, creator_id: user.id })
-      if (!error) toast.success('Interest expressed — the brand can now see your profile')
+      await supabase.from('brief_interests').insert({ brief_id: briefId, creator_id: user.id })
+      toast.success('Interest expressed — the brand can now see your profile')
     }
     loadBriefs(); loadMyActivity()
   }
@@ -806,85 +1167,65 @@ export default function BrandBriefs() {
     return matchSearch && matchType
   })
 
-  const openBriefs         = myBriefs.filter(b => b.status === 'open').length
-  const totalAppsReceived  = myBriefs.reduce((s, b) => s + (b.application_count ?? 0), 0)
-  const totalViews         = myBriefs.reduce((s, b) => s + (b.views ?? 0), 0)
+  const openBriefs        = myBriefs.filter(b => b.status === 'open').length
+  const totalAppsReceived = myBriefs.reduce((s, b) => s + (b.application_count ?? 0), 0)
+  const totalViews        = myBriefs.reduce((s, b) => s + (b.views ?? 0), 0)
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-
-      {/* Modals */}
       {posting  && company && <PostBriefModal companyId={company.id} onClose={() => setPosting(false)} onPosted={() => { loadBriefs(); loadMyBriefs(company.id) }} />}
       {applying && <ApplyModal brief={applying} onClose={() => setApplying(null)} onApplied={() => { loadBriefs(); loadMyActivity() }} />}
       {managing && <ManageModal brief={managing} onClose={() => setManaging(null)} onRefresh={() => { loadBriefs(); company && loadMyBriefs(company.id) }} />}
 
-      {/* ── Hero ── */}
+      {/* Hero */}
       <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-blue-900/50 via-violet-900/30 to-zinc-900 border border-blue-800/30 p-8">
         <div className="flex items-center gap-2 mb-3">
           <Briefcase className="w-5 h-5 text-blue-400" />
           <span className="text-blue-400 text-sm font-medium">Brand × Creator</span>
         </div>
         <h1 className="text-3xl font-bold text-white mb-2">Brand Briefs</h1>
-        <p className="text-zinc-400 max-w-lg">Brands post campaigns. Creators express interest or pitch directly. Deals get made.</p>
-        {/* Mode toggle */}
+        <p className="text-zinc-400 max-w-lg">Brands post campaigns. Creators pitch. Deals get made — tracked start to finish on Philomni.</p>
         <div className="flex gap-2 mt-5">
           <button onClick={() => setActiveSection('browse')}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${activeSection === 'browse' ? 'bg-white text-zinc-900' : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60'}`}>
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${activeSection==='browse' ? 'bg-white text-zinc-900' : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60'}`}>
             Browse Briefs
           </button>
           <button onClick={() => setActiveSection('brand')}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${activeSection === 'brand' ? 'bg-blue-600 text-white' : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60'}`}>
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${activeSection==='brand' ? 'bg-blue-600 text-white' : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60'}`}>
             I'm a Brand
           </button>
         </div>
       </div>
 
-      {/* ── How it works ── */}
       <HowItWorksPanel />
 
-      {/* ════════════════════ BRAND SECTION ════════════════════ */}
+      {/* ════ BRAND SECTION ════ */}
       {activeSection === 'brand' && (
         <section className="space-y-5">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-white">Your Brand Dashboard</h2>
             {company && (
-              <button onClick={() => setPosting(true)}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-colors font-medium">
+              <button onClick={() => setPosting(true)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-colors font-medium">
                 <Plus className="w-3.5 h-3.5" /> Post Brief
               </button>
             )}
           </div>
-
           {companyChecked && !company && <NoCompanyBanner />}
-
           {company && (
             <>
-              {/* Analytics */}
               {myBriefs.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center">
-                    <p className="text-xs text-zinc-500 mb-1">Active Briefs</p>
-                    <p className="text-2xl font-bold text-blue-400">{openBriefs}</p>
-                  </div>
-                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center">
-                    <p className="text-xs text-zinc-500 mb-1">Applications</p>
-                    <p className="text-2xl font-bold text-purple-400">{totalAppsReceived}</p>
-                  </div>
-                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center">
-                    <p className="text-xs text-zinc-500 mb-1">Total Views</p>
-                    <p className="text-2xl font-bold text-white">{totalViews}</p>
-                  </div>
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center"><p className="text-xs text-zinc-500 mb-1">Active</p><p className="text-2xl font-bold text-blue-400">{openBriefs}</p></div>
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center"><p className="text-xs text-zinc-500 mb-1">Applications</p><p className="text-2xl font-bold text-purple-400">{totalAppsReceived}</p></div>
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center"><p className="text-xs text-zinc-500 mb-1">Views</p><p className="text-2xl font-bold text-white">{totalViews}</p></div>
                 </div>
               )}
-
               {myBriefs.length === 0 ? (
                 <div className="text-center py-14 bg-zinc-900/50 border border-zinc-800 border-dashed rounded-2xl text-zinc-500">
                   <Briefcase className="w-8 h-8 mx-auto mb-3 opacity-30" />
                   <p className="text-sm font-medium text-zinc-400">No briefs yet</p>
-                  <p className="text-xs mt-1 mb-4">Post your first brief and creators on Philomni can express interest or apply</p>
-                  <button onClick={() => setPosting(true)} className="text-xs text-blue-400 bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 px-4 py-2 rounded-xl transition-colors">
-                    Post your first brief →
-                  </button>
+                  <p className="text-xs mt-1 mb-4">Post your first brief and creators can apply</p>
+                  <button onClick={() => setPosting(true)} className="text-xs text-blue-400 bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 px-4 py-2 rounded-xl transition-colors">Post your first brief →</button>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -892,31 +1233,19 @@ export default function BrandBriefs() {
                     <div key={b.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
                       <div className="flex items-start justify-between gap-2 mb-3">
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <StatusBadge status={b.status} />
-                            {b.external_ref && <span className="text-xs text-zinc-600 font-mono truncate">{b.external_ref}</span>}
-                          </div>
+                          <div className="flex items-center gap-2 mb-1"><StatusBadge status={b.status} />{b.external_ref && <span className="text-xs text-zinc-600 font-mono truncate">{b.external_ref}</span>}</div>
                           <p className="text-sm font-semibold text-white">{b.title}</p>
                           {b.deadline && <p className="text-xs text-zinc-500 mt-0.5">Deadline: {new Date(b.deadline).toLocaleDateString()}</p>}
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 mb-4">
-                        <div className="bg-zinc-800/60 rounded-xl p-2.5 text-center">
-                          <p className="text-xs text-zinc-500">Interested</p>
-                          <p className="text-lg font-bold text-blue-400">{b.interest_count ?? 0}</p>
-                        </div>
-                        <div className="bg-zinc-800/60 rounded-xl p-2.5 text-center">
-                          <p className="text-xs text-zinc-500">Applied</p>
-                          <p className="text-lg font-bold text-purple-400">{b.application_count ?? 0}</p>
-                        </div>
-                        <div className="bg-zinc-800/60 rounded-xl p-2.5 text-center">
-                          <p className="text-xs text-zinc-500">Views</p>
-                          <p className="text-lg font-bold text-white">{b.views ?? 0}</p>
-                        </div>
+                        <div className="bg-zinc-800/60 rounded-xl p-2.5 text-center"><p className="text-xs text-zinc-500">Interested</p><p className="text-lg font-bold text-blue-400">{b.interest_count??0}</p></div>
+                        <div className="bg-zinc-800/60 rounded-xl p-2.5 text-center"><p className="text-xs text-zinc-500">Applied</p><p className="text-lg font-bold text-purple-400">{b.application_count??0}</p></div>
+                        <div className="bg-zinc-800/60 rounded-xl p-2.5 text-center"><p className="text-xs text-zinc-500">Views</p><p className="text-lg font-bold text-white">{b.views??0}</p></div>
                       </div>
                       <button onClick={() => setManaging(b)}
                         className="w-full py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors flex items-center justify-center gap-1.5">
-                        <Users className="w-3.5 h-3.5" /> Manage Applications & Interested
+                        <Users className="w-3.5 h-3.5" /> Manage Applications & Deals
                       </button>
                     </div>
                   ))}
@@ -927,118 +1256,104 @@ export default function BrandBriefs() {
         </section>
       )}
 
-      {/* ════════════════════ BROWSE SECTION ════════════════════ */}
+      {/* ════ BROWSE SECTION ════ */}
       {activeSection === 'browse' && (
         <section className="space-y-5">
           <h2 className="text-base font-bold text-white">Browse Open Briefs</h2>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search briefs or brands…"
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600" />
-              {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>}
-            </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search briefs or brands…"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600" />
+            {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>}
           </div>
-
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {allTypes.map(t => (
               <button key={t} onClick={() => setFilterType(t)}
-                className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${filterType === t ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-zinc-700'}`}>
-                {t}
-              </button>
+                className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${filterType===t ? 'bg-blue-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-zinc-700'}`}>{t}</button>
             ))}
           </div>
-
           {!user && (
             <div className="bg-zinc-900/60 border border-zinc-800 border-dashed rounded-2xl p-4 flex items-center gap-3">
               <Heart className="w-5 h-5 text-blue-400 shrink-0" />
               <div>
                 <p className="text-sm font-medium text-white">Sign in to express interest or apply</p>
-                <p className="text-xs text-zinc-500 mt-0.5">Once signed in, you can tap the heart to flag interest (one tap, no form) or submit a full pitch</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Tap the heart to flag interest (one tap, no form) or submit a full pitch with rate + portfolio</p>
               </div>
             </div>
           )}
-
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[1,2,3,4].map(i => <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-2xl h-52 animate-pulse" />)}
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{[1,2,3,4].map(i => <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-2xl h-52 animate-pulse" />)}</div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-20 text-zinc-500">
-              <Briefcase className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">{briefs.length === 0 ? 'No open briefs yet — check back soon.' : 'No briefs match your filter.'}</p>
-            </div>
+            <div className="text-center py-20 text-zinc-500"><Briefcase className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="text-sm">{briefs.length===0 ? 'No open briefs yet.' : 'No briefs match your filter.'}</p></div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filtered.map(b => (
-                <BriefCard key={b.id} brief={b}
-                  interested={myInterests.has(b.id)}
-                  hasApplied={myApps.has(b.id)}
-                  myFollowers={myFollowers}
-                  onToggleInterest={toggleInterest}
-                  onApply={setApplying} />
+                <BriefCard key={b.id} brief={b} interested={myInterests.has(b.id)} hasApplied={myApps.has(b.id)}
+                  myFollowers={myFollowers} onToggleInterest={toggleInterest} onApply={setApplying} />
               ))}
             </div>
           )}
         </section>
       )}
 
-      {/* ════════════════════ MY ACTIVITY ════════════════════ */}
+      {/* ════ MY ACTIVITY ════ */}
       {user && (
         <section>
           <h2 className="text-base font-bold text-white mb-4">My Activity</h2>
-
           <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-2xl p-1 mb-4">
             {[
-              { id: 'applications', label: `Applications (${appRecords.length})` },
-              { id: 'interests',    label: `Interested (${interestRecords.length})` },
+              { id:'deals',        label:`Deals (${dealRecords.length})` },
+              { id:'applications', label:`Applications (${appRecords.length})` },
+              { id:'interests',    label:`Interested (${interestRecords.length})` },
             ].map(t => (
               <button key={t.id} onClick={() => setActivityTab(t.id)}
-                className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${activityTab === t.id ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-white'}`}>
-                {t.label}
-              </button>
+                className={`flex-1 py-2 rounded-xl text-xs sm:text-sm font-medium transition-colors ${activityTab===t.id ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-white'}`}>{t.label}</button>
             ))}
           </div>
+
+          {activityTab === 'deals' && (
+            dealRecords.length === 0 ? (
+              <div className="text-center py-12 bg-zinc-900/50 border border-zinc-800 border-dashed rounded-2xl text-zinc-500">
+                <Handshake className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm font-medium text-zinc-400">No deals yet</p>
+                <p className="text-xs mt-1">Apply to a brief — if approved, the brand sends you a deal offer</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {dealRecords.map(d => <CreatorDealCard key={d.id} deal={d} onUpdate={loadMyActivity} />)}
+              </div>
+            )
+          )}
 
           {activityTab === 'applications' && (
             appRecords.length === 0 ? (
               <div className="text-center py-12 bg-zinc-900/50 border border-zinc-800 border-dashed rounded-2xl text-zinc-500">
                 <Send className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm font-medium text-zinc-400">No applications yet</p>
-                <p className="text-xs mt-1">Find a brief above and hit Apply to submit your pitch</p>
+                <p className="text-xs mt-1">Browse briefs and hit Apply to submit your pitch</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {appRecords.map(a => (
-                  <div key={a.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-                    <div className="flex items-start gap-4">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                        a.status === 'approved'    ? 'bg-green-500/20' :
-                        a.status === 'rejected'    ? 'bg-red-500/20' :
-                        a.status === 'shortlisted' ? 'bg-blue-500/20' : 'bg-zinc-800'
-                      }`}>
-                        {a.status === 'approved'    ? <CheckCircle className="w-5 h-5 text-green-400" /> :
-                         a.status === 'rejected'    ? <XCircle className="w-5 h-5 text-red-400" /> :
-                         a.status === 'shortlisted' ? <Star className="w-5 h-5 text-blue-400" /> :
-                         <Send className="w-5 h-5 text-zinc-400" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white">{a.brief?.title}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <span className="text-xs text-zinc-500">{a.brief?.company?.name}</span>
-                          <AppStatusBadge status={a.status} />
-                          <span className="text-xs text-zinc-600">{new Date(a.created_at).toLocaleDateString('en', { month: 'short', day: 'numeric' })}</span>
-                        </div>
-                        <div className="mt-2 text-xs">
-                          {a.status === 'pending' &&     <p className="text-zinc-500">Submitted — waiting for the brand to review</p>}
-                          {a.status === 'shortlisted' && <p className="text-blue-400">You've been shortlisted! The brand is reviewing their top picks.</p>}
-                          {a.status === 'approved' &&    <p className="text-green-400 font-medium">🎉 You've been approved! The brand will reach out to proceed.</p>}
-                          {a.status === 'rejected' &&    <p className="text-zinc-500">Not selected this time. Keep pitching — each brief is a new chance.</p>}
-                        </div>
-                      </div>
-                      {a.quote && <span className="shrink-0 text-xs text-green-400 font-bold self-start">${a.quote?.toLocaleString()}</span>}
+                  <div key={a.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-start gap-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${a.status==='approved'?'bg-green-500/20':a.status==='rejected'?'bg-red-500/20':a.status==='shortlisted'?'bg-blue-500/20':'bg-zinc-800'}`}>
+                      {a.status==='approved'?<CheckCircle className="w-5 h-5 text-green-400"/>:a.status==='rejected'?<XCircle className="w-5 h-5 text-red-400"/>:a.status==='shortlisted'?<Star className="w-5 h-5 text-blue-400"/>:<Send className="w-5 h-5 text-zinc-400"/>}
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white">{a.brief?.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-xs text-zinc-500">{a.brief?.company?.name}</span>
+                        <AppStatusBadge status={a.status} />
+                        <span className="text-xs text-zinc-600">{new Date(a.created_at).toLocaleDateString('en',{month:'short',day:'numeric'})}</span>
+                      </div>
+                      <div className="mt-1.5 text-xs">
+                        {a.status==='pending'     && <p className="text-zinc-500">Submitted — waiting for brand review</p>}
+                        {a.status==='shortlisted' && <p className="text-blue-400">You've been shortlisted! Brand is reviewing top picks.</p>}
+                        {a.status==='approved'    && <p className="text-green-400 font-medium">Approved — waiting for the brand to send you a deal offer</p>}
+                        {a.status==='rejected'    && <p className="text-zinc-500">Not selected. Keep pitching!</p>}
+                      </div>
+                    </div>
+                    {a.quote && <span className="shrink-0 text-xs text-green-400 font-bold self-start">${Number(a.quote).toLocaleString()}</span>}
                   </div>
                 ))}
               </div>
@@ -1050,7 +1365,7 @@ export default function BrandBriefs() {
               <div className="text-center py-12 bg-zinc-900/50 border border-zinc-800 border-dashed rounded-2xl text-zinc-500">
                 <Heart className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm font-medium text-zinc-400">Nothing saved yet</p>
-                <p className="text-xs mt-1">Tap the heart <Heart className="inline w-3 h-3" /> on any brief to express interest — one tap, no form</p>
+                <p className="text-xs mt-1">Tap the heart on any brief to express interest in one tap</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -1071,15 +1386,9 @@ export default function BrandBriefs() {
                         <p className="text-xs text-zinc-600 mt-0.5">Your profile is visible to this brand</p>
                       </div>
                       {i.brief?.status === 'open' && !alsoApplied && (
-                        <button onClick={() => setApplying(i.brief)}
-                          className="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-xl transition-colors">
-                          Apply
-                        </button>
+                        <button onClick={() => setApplying(i.brief)} className="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-xl transition-colors">Apply</button>
                       )}
-                      <button onClick={() => toggleInterest(i.brief_id, true)}
-                        className="shrink-0 p-2 text-zinc-600 hover:text-red-400 transition-colors" title="Remove interest">
-                        <X className="w-4 h-4" />
-                      </button>
+                      <button onClick={() => toggleInterest(i.brief_id, true)} className="shrink-0 p-2 text-zinc-600 hover:text-red-400 transition-colors" title="Remove interest"><X className="w-4 h-4" /></button>
                     </div>
                   )
                 })}
