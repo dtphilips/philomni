@@ -121,25 +121,23 @@ serve(async (req) => {
     const platformFee = Math.round(amount * 100 * 0.05)
     const creatorAmount = Math.round(amount * 100) - platformFee
 
-    // Try Stripe transfer if creator has a connected account; otherwise mark as manual
-    const { data: creatorStripe } = await supabase
-      .from('stripe_connect_accounts')
-      .select('stripe_account_id')
-      .eq('user_id', deal.creator_id)
+    // Try Stripe transfer if creator has a connected account in users table
+    const { data: creatorUser } = await supabase
+      .from('users')
+      .select('stripe_account_id, bank_connected')
+      .eq('id', deal.creator_id)
       .maybeSingle()
 
     let transferId: string | null = null
-    // payment_method sent from frontend (e.g. 'Stripe / Card', 'Flutterwave', 'Paystack', 'Bank Transfer', etc.)
-    // If it's Stripe and the creator has a Connect account, do a real transfer; otherwise record as manual
     const resolvedMethod = payment_method ?? 'manual'
-    const isStripeTransfer = resolvedMethod === 'Stripe / Card' && !!creatorStripe?.stripe_account_id
+    const isStripeTransfer = resolvedMethod === 'Stripe / Card' && !!creatorUser?.stripe_account_id && creatorUser.bank_connected
 
     if (isStripeTransfer) {
       try {
         const transfer = await stripe.transfers.create({
           amount: creatorAmount,
           currency: 'usd',
-          destination: creatorStripe!.stripe_account_id,
+          destination: creatorUser!.stripe_account_id,
           metadata: { deal_id, milestone_id: milestone_id ?? '', type: 'deal_payout' },
         })
         transferId = transfer.id

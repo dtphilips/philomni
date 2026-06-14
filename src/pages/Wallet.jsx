@@ -297,15 +297,25 @@ export default function Wallet() {
   const [showTaxModal,  setShowTaxModal]  = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState('')
 
-  // Handle Stripe Connect return
+  // Handle Stripe Connect return — robust against user not yet loaded
   useEffect(() => {
     const connectStatus = searchParams.get('connect')
+    if (!connectStatus) return
+    if (connectStatus === 'refresh') { toast.info('Stripe onboarding incomplete. Please try again.'); return }
     if (connectStatus === 'success') {
-      // Mark bank_connected = true when Stripe returns
-      supabase.from('users').update({ bank_connected: true }).eq('id', user?.id)
-        .then(() => { toast.success('Bank account connected via Stripe! Payouts enabled.'); fetchProfile(user?.id) })
-    } else if (connectStatus === 'refresh') {
-      toast.info('Stripe onboarding incomplete. Please try again.')
+      const mark = async (uid) => {
+        if (!uid) return
+        await supabase.from('users').update({ bank_connected: true }).eq('id', uid)
+        toast.success('Stripe connected! Payouts enabled.')
+        fetchProfile(uid)
+      }
+      if (user?.id) {
+        mark(user.id)
+      } else {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+          if (session?.user?.id) { mark(session.user.id); subscription.unsubscribe() }
+        })
+      }
     }
   }, [searchParams, user?.id])
 
@@ -403,7 +413,7 @@ export default function Wallet() {
   const totalEarnedUSD = Number(profile?.total_earned_usd      || wallet?.total_earned     || 0)
   const withdrawnUSD   = Number(profile?.total_withdrawn_usd   || wallet?.total_withdrawn  || 0)
   const totalPages     = Math.ceil(total / PAGE_SIZE)
-  const bankConnected  = profile?.bank_connected ?? false
+  const bankConnected  = (profile?.bank_connected || !!profile?.stripe_account_id || !!profile?.paystack_recipient_code || !!profile?.flutterwave_account_id) ?? false
   const nextFriday     = getNextPayoutDate()
 
   return (
