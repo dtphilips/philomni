@@ -32,7 +32,7 @@ serve(async (req) => {
   // Load deal
   const { data: deal, error: dealErr } = await supabase
     .from('brief_deals')
-    .select('*, company:company_id(id, name, created_by), brief:brief_id(title)')
+    .select('*, company:company_id(id, name, owner_id), brief:brief_id(title)')
     .eq('id', deal_id)
     .single()
 
@@ -41,7 +41,7 @@ serve(async (req) => {
   // ── ACTION: create_payment_intent (brand pays into escrow) ──────────────────
   if (action === 'create_payment_intent') {
     // Only company owner/member can initiate payment
-    const isBrand = deal.company?.created_by === user.id
+    const isBrand = deal.company?.owner_id === user.id
     if (!isBrand) return err('Only the brand can initiate payment', 403)
 
     // Determine amount for this payment
@@ -104,7 +104,7 @@ serve(async (req) => {
 
   // ── ACTION: release_to_creator (brand approves — Philomni pays out) ──────────
   if (action === 'release_to_creator') {
-    const isBrand = deal.company?.created_by === user.id
+    const isBrand = deal.company?.owner_id === user.id
     if (!isBrand) return err('Only the brand can release payment', 403)
 
     let amount = 0
@@ -186,7 +186,7 @@ serve(async (req) => {
 
   // ── ACTION: refund (deal cancelled before completion) ────────────────────────
   if (action === 'refund') {
-    const isBrand = deal.company?.created_by === user.id
+    const isBrand = deal.company?.owner_id === user.id
     if (!isBrand) return err('Only the brand can request a refund', 403)
     if (!deal.stripe_payment_intent_id) return err('No payment to refund', 400)
 

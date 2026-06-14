@@ -984,7 +984,7 @@ function DealPanel({ deal, isBrand, onUpdate }) {
       {showRateModal && (
         <RateModal deal={deal}
           role={isBrand ? 'brand' : 'creator'}
-          rateeId={isBrand ? deal.creator_id : deal.company?.created_by}
+          rateeId={isBrand ? deal.creator_id : deal.company?.owner_id}
           rateeName={isBrand ? deal.creator?.full_name : deal.brief?.company?.name}
           onClose={() => setShowRateModal(false)}
           onRated={() => { loadRatings(); onUpdate?.() }} />
@@ -1525,10 +1525,10 @@ export default function BrandBriefs() {
   }
 
   async function loadMyCompany() {
-    const { data: owned } = await supabase.from('companies').select('*').eq('created_by', user.id).limit(1).maybeSingle()
+    const { data: owned } = await supabase.from('company_pages').select('*').eq('owner_id', user.id).limit(1).maybeSingle()
     if (owned) { setCompany(owned); loadMyBriefs(owned.id); setCompanyChecked(true); return }
-    const { data: member } = await supabase.from('company_members').select('*, companies(*)').eq('user_id', user.id).limit(1).maybeSingle()
-    if (member?.companies) { setCompany(member.companies); loadMyBriefs(member.companies.id) }
+    const { data: member } = await supabase.from('company_members').select('*, company_pages(*)').eq('user_id', user.id).limit(1).maybeSingle()
+    if (member?.company_pages) { setCompany(member.company_pages); loadMyBriefs(member.company_pages.id) }
     setCompanyChecked(true)
   }
 
