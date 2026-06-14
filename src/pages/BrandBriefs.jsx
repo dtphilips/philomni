@@ -11,8 +11,63 @@ import {
   RotateCcw, Award, Handshake, Package, Edit3, Link2
 } from 'lucide-react'
 
-const CONTENT_TYPES = ['Video', 'Short-form', 'Blog', 'Podcast', 'Photo', 'Reel', 'Story', 'Newsletter']
-const NICHES = ['Beauty', 'Lifestyle', 'Tech', 'Finance', 'Food', 'Fashion', 'Fitness', 'Travel', 'Gaming', 'Education', 'Parenting', 'Business']
+const CONTENT_TYPE_SUGGESTIONS = ['Video', 'Short-form', 'Blog', 'Podcast', 'Photo', 'Reel', 'Story', 'Newsletter', 'TikTok', 'YouTube', 'Twitter/X', 'LinkedIn']
+const NICHE_SUGGESTIONS = ['Beauty', 'Lifestyle', 'Tech', 'Finance', 'Food', 'Fashion', 'Fitness', 'Travel', 'Gaming', 'Education', 'Parenting', 'Business', 'Health', 'Sports', 'Music', 'Comedy', 'DIY', 'Cars', 'Pets', 'Real Estate']
+const CONTENT_TYPES = CONTENT_TYPE_SUGGESTIONS
+const NICHES = NICHE_SUGGESTIONS
+
+// Tag input: presets + free type, Enter or comma to add
+function TagInput({ label, sublabel, values, onChange, suggestions, color = 'blue', placeholder }) {
+  const [input, setInput] = useState('')
+
+  function add(val) {
+    const v = val.trim()
+    if (!v || values.includes(v)) { setInput(''); return }
+    onChange([...values, v]); setInput('')
+  }
+  function remove(v) { onChange(values.filter(x => x !== v)) }
+  function onKey(e) {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(input) }
+    if (e.key === 'Backspace' && !input && values.length) { onChange(values.slice(0,-1)) }
+  }
+  const filtered = suggestions.filter(s => !values.includes(s) && (!input || s.toLowerCase().includes(input.toLowerCase())))
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+        {label} {sublabel && <span className="text-zinc-600 font-normal">{sublabel}</span>}
+      </label>
+      {/* Tag chips + input */}
+      <div className={`flex flex-wrap gap-1.5 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 focus-within:border-${color}-600 min-h-[44px]`}>
+        {values.map(v => (
+          <span key={v} className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg bg-${color}-600/20 text-${color}-300 border border-${color}-600/30`}>
+            {v}
+            <button type="button" onClick={() => remove(v)} className={`text-${color}-400/60 hover:text-${color}-300`}><X className="w-2.5 h-2.5" /></button>
+          </span>
+        ))}
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={onKey}
+          onBlur={() => input.trim() && add(input)}
+          placeholder={values.length ? '' : (placeholder || 'Type and press Enter…')}
+          className="flex-1 min-w-[120px] bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
+        />
+      </div>
+      {/* Suggestions */}
+      {filtered.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {filtered.slice(0, 12).map(s => (
+            <button key={s} type="button" onClick={() => add(s)}
+              className="px-2.5 py-1 rounded-lg text-xs text-zinc-400 bg-zinc-800/80 border border-zinc-700/60 hover:border-zinc-600 hover:text-white transition-colors">
+              + {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const DEAL_STATUS_MAP = {
   offer_sent:         { label: 'Offer Sent',          color: 'text-yellow-400',  bg: 'bg-yellow-500/20' },
@@ -208,9 +263,9 @@ function PostBriefModal({ companyId, onClose, onPosted }) {
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Description <span className="text-zinc-600">— what creators need to know</span></label>
-            <textarea value={form.description} onChange={e => setForm(f=>({...f,description:e.target.value}))} rows={4}
+            <textarea value={form.description} onChange={e => setForm(f=>({...f,description:e.target.value}))} rows={7}
               placeholder="Campaign goals, deliverables, tone of voice, usage rights, revision policy…"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600 resize-none" />
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600 resize-y" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -236,24 +291,23 @@ function PostBriefModal({ companyId, onClose, onPosted }) {
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-blue-600" />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-2">Content Types Needed</label>
-            <div className="flex flex-wrap gap-2">
-              {CONTENT_TYPES.map(ct => (
-                <button key={ct} type="button" onClick={() => toggleArr('content_types', ct)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${form.content_types.includes(ct) ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-600'}`}>{ct}</button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-2">Creator Niches <span className="text-zinc-600">— used to match creators</span></label>
-            <div className="flex flex-wrap gap-2">
-              {NICHES.map(n => (
-                <button key={n} type="button" onClick={() => toggleArr('niches', n)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${form.niches.includes(n) ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-600'}`}>{n}</button>
-              ))}
-            </div>
-          </div>
+          <TagInput
+            label="Content Types Needed"
+            values={form.content_types}
+            onChange={v => setForm(f => ({...f, content_types: v}))}
+            suggestions={CONTENT_TYPE_SUGGESTIONS}
+            color="blue"
+            placeholder="e.g. Reel, YouTube, TikTok… type anything"
+          />
+          <TagInput
+            label="Creator Niches"
+            sublabel="— used to match creators"
+            values={form.niches}
+            onChange={v => setForm(f => ({...f, niches: v}))}
+            suggestions={NICHE_SUGGESTIONS}
+            color="purple"
+            placeholder="e.g. Skincare, Crypto, Afrobeats… type anything"
+          />
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Target Audience</label>
             <input value={form.target_audience} onChange={e => setForm(f=>({...f,target_audience:e.target.value}))} placeholder="e.g. Women 18–34 in Nigeria and Ghana"
