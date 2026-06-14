@@ -27,7 +27,7 @@ serve(async (req) => {
   if (!user) return err('Unauthorized', 401)
 
   const body = await req.json()
-  const { action, deal_id, milestone_id, email } = body
+  const { action, deal_id, milestone_id, email, payment_method, payment_ref } = body
 
   // Load deal
   const { data: deal, error: dealErr } = await supabase
@@ -129,21 +129,26 @@ serve(async (req) => {
       .maybeSingle()
 
     let transferId: string | null = null
-    const paymentMethod = creatorStripe?.stripe_account_id ? 'stripe' : 'manual'
+    // payment_method sent from frontend (e.g. 'Stripe / Card', 'Flutterwave', 'Paystack', 'Bank Transfer', etc.)
+    // If it's Stripe and the creator has a Connect account, do a real transfer; otherwise record as manual
+    const resolvedMethod = payment_method ?? 'manual'
+    const isStripeTransfer = resolvedMethod === 'Stripe / Card' && !!creatorStripe?.stripe_account_id
 
-    if (creatorStripe?.stripe_account_id) {
+    if (isStripeTransfer) {
       try {
         const transfer = await stripe.transfers.create({
           amount: creatorAmount,
           currency: 'usd',
-          destination: creatorStripe.stripe_account_id,
+          destination: creatorStripe!.stripe_account_id,
           metadata: { deal_id, milestone_id: milestone_id ?? '', type: 'deal_payout' },
         })
         transferId = transfer.id
-      } catch (e) {
-        // Stripe transfer failed — fall through to manual
+      } catch (_) {
+        // Stripe transfer failed — record as manual
       }
     }
+
+    const finalMethod = transferId ? 'stripe' : resolvedMethod
 
     // Log payment record
     await supabase.from('deal_payments').insert({
@@ -154,6 +159,7 @@ serve(async (req) => {
       currency: 'usd',
       direction: 'escrow_to_creator',
       status: 'succeeded',
+      notes: payment_ref ?? null,
     })
 
     if (milestone_id) {
@@ -174,10 +180,7 @@ serve(async (req) => {
       ok: true,
       transfer_id: transferId,
       amount_paid: creatorAmount / 100,
-      payment_method: paymentMethod,
-      note: paymentMethod === 'manual'
-        ? 'Marked as paid. Creator has not connected Stripe — settle payment directly (bank transfer, PayPal, etc.).'
-        : undefined,
+      payment_method: finalMethod,
     })
   }
 

@@ -129,8 +129,9 @@ function HowItWorksPanel() {
               ))}
             </div>
           </div>
-          <div className="bg-zinc-800/50 rounded-xl p-3 text-xs text-zinc-400">
-            <span className="text-zinc-300 font-medium">Note on payments:</span> Philomni facilitates deal tracking and status. Actual payment is agreed and sent directly between brand and creator (bank transfer, PayPal, etc.). A full escrow system is coming soon.
+          <div className="bg-zinc-800/50 rounded-xl p-3 text-xs text-zinc-400 space-y-1.5">
+            <p><span className="text-green-400 font-medium">Escrow (Stripe):</span> Brands can fund escrow via Stripe. Philomni holds the money and releases it to the creator automatically when the brand approves deliverables. Creators need a Stripe Connect account for direct payouts.</p>
+            <p><span className="text-blue-400 font-medium">Manual payment:</span> If the creator uses Flutterwave, Paystack, bank transfer, or any other method — the brand sends payment directly, then confirms it on Philomni so the creator sees it's been paid. The deal is marked complete either way.</p>
           </div>
         </div>
       )}
@@ -735,12 +736,58 @@ function RateModal({ deal, role, rateeId, rateeName, onClose, onRated }) {
 
 // ─── Deal detail panel (inline, used in both brand and creator views) ──────────
 // ─── Milestone row (inside DealPanel) ─────────────────────────────────────────
+function ConfirmPaymentModal({ amount, onConfirm, onClose }) {
+  const [method, setMethod] = useState('')
+  const [ref,    setRef]    = useState('')
+  const METHODS = ['Stripe / Card', 'Bank Transfer', 'Flutterwave', 'Paystack', 'PayPal', 'Cash', 'Other']
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-sm">
+        <div className="flex items-center justify-between p-5 border-b border-zinc-800">
+          <div>
+            <h3 className="font-bold text-white">Confirm Payment Sent</h3>
+            <p className="text-xs text-zinc-500 mt-0.5">${Number(amount).toLocaleString()} to creator</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">Payment Method <span className="text-red-400">*</span></label>
+            <div className="flex flex-wrap gap-2">
+              {METHODS.map(m => (
+                <button key={m} type="button" onClick={() => setMethod(m)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${method === m ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-600'}`}>{m}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Transaction Reference <span className="text-zinc-500 font-normal">— optional</span></label>
+            <input value={ref} onChange={e => setRef(e.target.value)} placeholder="Receipt ID, transfer ref, screenshot URL…"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600" />
+          </div>
+          <div className="bg-blue-950/40 border border-blue-800/30 rounded-xl p-3 text-xs text-zinc-400">
+            By confirming, you're telling Philomni you've sent this payment to the creator. The deal will be marked <span className="text-green-400 font-medium">Paid</span> and the creator will see it.
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-2.5 bg-zinc-800 text-zinc-300 rounded-xl text-sm font-medium">Cancel</button>
+            <button disabled={!method} onClick={() => onConfirm(method, ref)}
+              className="flex-1 py-2.5 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-xl text-sm font-semibold">
+              I've Sent Payment
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MilestoneRow({ ms, isBrand, dealId, onUpdate }) {
   const { user } = useAuth()
-  const [showDelModal, setShowDelModal] = useState(false)
-  const [revNote,      setRevNote]      = useState('')
-  const [acting,       setActing]       = useState(false)
-  const [deliverables, setDeliverables] = useState([])
+  const [showDelModal,     setShowDelModal]     = useState(false)
+  const [showPayConfirm,   setShowPayConfirm]   = useState(false)
+  const [revNote,          setRevNote]          = useState('')
+  const [acting,           setActing]           = useState(false)
+  const [deliverables,     setDeliverables]     = useState([])
 
   useEffect(() => {
     supabase.from('brief_deliverables').select('*').eq('deal_id', dealId).eq('milestone_id', ms.id)
@@ -764,23 +811,27 @@ function MilestoneRow({ ms, isBrand, dealId, onUpdate }) {
     setActing(false); onUpdate?.()
   }
 
-  async function releasePayment() {
+  async function releasePayment(paymentMethod, paymentRef) {
+    setShowPayConfirm(false)
     setActing(true)
     const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/brief-deal-payment`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ action: 'release_to_creator', deal_id: dealId, milestone_id: ms.id }),
+      body: JSON.stringify({ action: 'release_to_creator', deal_id: dealId, milestone_id: ms.id, payment_method: paymentMethod, payment_ref: paymentRef }),
     })
     const data = await res.json()
     if (!res.ok) toast.error(data.error ?? 'Payment failed')
-    else if (data.payment_method === 'manual') toast.success(`$${data.amount_paid?.toLocaleString()} marked as paid — settle directly with creator (bank transfer, PayPal, etc.)`)
+    else if (data.payment_method === 'manual') toast.success(`$${data.amount_paid?.toLocaleString()} marked as paid via ${paymentMethod}`)
     else toast.success(`$${data.amount_paid?.toLocaleString()} sent to creator via Stripe!`)
     setActing(false); onUpdate?.()
   }
 
   return (
     <div className="border border-zinc-800/60 rounded-xl p-3 space-y-2">
+      {showPayConfirm && (
+        <ConfirmPaymentModal amount={ms.amount} onClose={() => setShowPayConfirm(false)} onConfirm={releasePayment} />
+      )}
       {showDelModal && (
         <SubmitDeliverablesModal
           deal={{ id: dealId, brief: {} }}
@@ -845,7 +896,7 @@ function MilestoneRow({ ms, isBrand, dealId, onUpdate }) {
 
       {/* Brand: release payment after approval */}
       {isBrand && ms.status === 'approved' && (
-        <button disabled={acting} onClick={releasePayment}
+        <button disabled={acting} onClick={() => setShowPayConfirm(true)}
           className="w-full py-1.5 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1">
           <DollarSign className="w-3 h-3" /> Release Payment ${Number(ms.amount).toLocaleString()}
         </button>
@@ -859,13 +910,14 @@ function MilestoneRow({ ms, isBrand, dealId, onUpdate }) {
 
 function DealPanel({ deal, isBrand, onUpdate }) {
   const { user } = useAuth()
-  const [deliverables, setDeliverables] = useState([])
-  const [milestones,   setMilestones]   = useState([])
-  const [ratings,      setRatings]      = useState([])
-  const [revNote,      setRevNote]      = useState('')
-  const [acting,       setActing]       = useState(false)
-  const [showDelModal, setShowDelModal] = useState(false)
-  const [showRateModal,setShowRateModal]= useState(false)
+  const [deliverables,   setDeliverables]   = useState([])
+  const [milestones,     setMilestones]     = useState([])
+  const [ratings,        setRatings]        = useState([])
+  const [revNote,        setRevNote]        = useState('')
+  const [acting,         setActing]         = useState(false)
+  const [showDelModal,   setShowDelModal]   = useState(false)
+  const [showRateModal,  setShowRateModal]  = useState(false)
+  const [showPayConfirm, setShowPayConfirm] = useState(false)
 
   const isMultiPhase = deal.deal_type === 'milestone' || deal.deal_type === 'retainer'
 
@@ -894,17 +946,18 @@ function DealPanel({ deal, isBrand, onUpdate }) {
     setActing(false); onUpdate?.()
   }
 
-  async function releaseFullPayment() {
+  async function releaseFullPayment(paymentMethod, paymentRef) {
+    setShowPayConfirm(false)
     setActing(true)
     const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/brief-deal-payment`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ action: 'release_to_creator', deal_id: deal.id }),
+      body: JSON.stringify({ action: 'release_to_creator', deal_id: deal.id, payment_method: paymentMethod, payment_ref: paymentRef }),
     })
     const data = await res.json()
     if (!res.ok) toast.error(data.error ?? 'Payment failed')
-    else if (data.payment_method === 'manual') toast.success(`$${data.amount_paid?.toLocaleString()} marked as paid — settle directly with creator`)
+    else if (data.payment_method === 'manual') toast.success(`$${data.amount_paid?.toLocaleString()} marked as paid via ${paymentMethod}`)
     else toast.success(`$${data.amount_paid?.toLocaleString()} sent to creator via Stripe!`)
     setActing(false); onUpdate?.()
   }
@@ -919,6 +972,7 @@ function DealPanel({ deal, isBrand, onUpdate }) {
   return (
     <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-xl p-4 space-y-4">
       {showDelModal  && <SubmitDeliverablesModal deal={deal} onClose={() => setShowDelModal(false)} onSubmitted={() => { loadDeliverables(); onUpdate?.() }} />}
+      {showPayConfirm && <ConfirmPaymentModal amount={deal.agreed_amount} onClose={() => setShowPayConfirm(false)} onConfirm={releaseFullPayment} />}
       {showRateModal && (
         <RateModal deal={deal}
           role={isBrand ? 'brand' : 'creator'}
@@ -1060,8 +1114,8 @@ function DealPanel({ deal, isBrand, onUpdate }) {
             </div>
           )}
           {/* Release full payment button (one-time, after approval) */}
-          {isBrand && s === 'completed' && deal.payment_status === 'held' && (
-            <button disabled={acting} onClick={releaseFullPayment}
+          {isBrand && s === 'completed' && deal.payment_status !== 'paid' && (
+            <button disabled={acting} onClick={() => setShowPayConfirm(true)}
               className="w-full py-2 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1">
               <DollarSign className="w-3.5 h-3.5" /> Release Payment ${Number(deal.agreed_amount).toLocaleString()}
             </button>
