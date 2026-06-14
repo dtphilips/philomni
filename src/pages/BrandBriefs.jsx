@@ -185,8 +185,8 @@ function HowItWorksPanel() {
             </div>
           </div>
           <div className="bg-zinc-800/50 rounded-xl p-3 text-xs text-zinc-400 space-y-1.5">
-            <p><span className="text-green-400 font-medium">Escrow (Stripe):</span> Brands can fund escrow via Stripe. Philomni holds the money and releases it to the creator automatically when the brand approves deliverables. Creators need a Stripe Connect account for direct payouts.</p>
-            <p><span className="text-blue-400 font-medium">Manual payment:</span> If the creator uses Flutterwave, Paystack, bank transfer, or any other method — the brand sends payment directly, then confirms it on Philomni so the creator sees it's been paid. The deal is marked complete either way.</p>
+            <p><span className="text-green-400 font-medium">How payments work:</span> All payments are processed through Philomni — the brand never pays the creator directly. Once both parties agree on a deal, the brand funds payment via <span className="text-white">Stripe, Paystack, or Flutterwave</span>. Philomni holds the funds and releases them to the creator once the brand approves their deliverables.</p>
+            <p><span className="text-blue-400 font-medium">Platform fee:</span> Philomni takes a 5% fee on every payout. Creators receive 95% of the agreed amount.</p>
           </div>
         </div>
       )}
