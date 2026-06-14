@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -8,7 +8,8 @@ import {
   ChevronRight, CheckCircle, XCircle, Star, Heart, BarChart2,
   MessageSquare, ExternalLink, Send, AlertCircle, Info, Building2,
   FileText, ChevronDown, ChevronUp, ArrowRight, Upload, ThumbsUp,
-  RotateCcw, Award, Handshake, Package, Edit3, Link2
+  RotateCcw, Award, Handshake, Package, Edit3, Link2,
+  Paperclip, File, Music, Video, Image, FileSpreadsheet, Mic
 } from 'lucide-react'
 
 const CONTENT_TYPE_SUGGESTIONS = ['Video', 'Short-form', 'Blog', 'Podcast', 'Photo', 'Reel', 'Story', 'Newsletter', 'TikTok', 'YouTube', 'Twitter/X', 'LinkedIn']
@@ -788,6 +789,240 @@ function RateModal({ deal, role, rateeId, rateeName, onClose, onRated }) {
   )
 }
 
+// ─── Deal Chat ────────────────────────────────────────────────────────────────
+function fileIcon(type) {
+  if (!type) return <File className="w-4 h-4" />
+  if (type.startsWith('image/'))  return <Image className="w-4 h-4 text-blue-400" />
+  if (type.startsWith('video/'))  return <Video className="w-4 h-4 text-purple-400" />
+  if (type.startsWith('audio/'))  return <Mic className="w-4 h-4 text-pink-400" />
+  if (type === 'application/pdf') return <FileText className="w-4 h-4 text-red-400" />
+  if (type.includes('sheet') || type.includes('excel')) return <FileSpreadsheet className="w-4 h-4 text-green-400" />
+  return <File className="w-4 h-4 text-zinc-400" />
+}
+
+function fmt(bytes) {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / 1048576).toFixed(1) + ' MB'
+}
+
+function DealChat({ deal, isBrand, otherPartyName }) {
+  const { user } = useAuth()
+  const [messages,   setMessages]   = useState([])
+  const [text,       setText]       = useState('')
+  const [uploading,  setUploading]  = useState(false)
+  const [sending,    setSending]    = useState(false)
+  const [pendingFiles, setPendingFiles] = useState([])   // [{file, preview, uploading}]
+  const bottomRef  = useRef(null)
+  const fileRef    = useRef(null)
+  const channelRef = useRef(null)
+
+  // Load + subscribe
+  useEffect(() => {
+    loadMessages()
+    const ch = supabase
+      .channel(`deal-chat-${deal.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'deal_messages',
+        filter: `deal_id=eq.${deal.id}`,
+      }, payload => {
+        setMessages(prev => {
+          if (prev.find(m => m.id === payload.new.id)) return prev
+          return [...prev, payload.new]
+        })
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      })
+      .subscribe()
+    channelRef.current = ch
+    return () => { supabase.removeChannel(ch) }
+  }, [deal.id])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+  }, [messages.length])
+
+  async function loadMessages() {
+    const { data } = await supabase
+      .from('deal_messages')
+      .select('*, sender:sender_id(id, full_name, avatar_url)')
+      .eq('deal_id', deal.id)
+      .order('created_at', { ascending: true })
+    setMessages(data ?? [])
+  }
+
+  async function pickFiles(e) {
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+    const previews = files.map(f => ({
+      file: f,
+      name: f.name,
+      type: f.type,
+      size: f.size,
+      preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : null,
+    }))
+    setPendingFiles(prev => [...prev, ...previews])
+    e.target.value = ''
+  }
+
+  function removePending(i) {
+    setPendingFiles(prev => {
+      const next = [...prev]; next.splice(i, 1); return next
+    })
+  }
+
+  async function uploadAll() {
+    const uploaded = []
+    for (const pf of pendingFiles) {
+      const path = `${deal.id}/${Date.now()}-${pf.name.replace(/[^a-z0-9.\-_]/gi, '_')}`
+      const { error } = await supabase.storage.from('deal-attachments').upload(path, pf.file)
+      if (error) { toast.error(`Upload failed: ${pf.name}`); continue }
+      const { data: { publicUrl } } = supabase.storage.from('deal-attachments').getPublicUrl(path)
+      uploaded.push({ url: publicUrl, name: pf.name, type: pf.type, size: pf.size })
+    }
+    return uploaded
+  }
+
+  async function send(e) {
+    e?.preventDefault()
+    if (!text.trim() && pendingFiles.length === 0) return
+    setSending(true)
+    setUploading(pendingFiles.length > 0)
+    const attachments = pendingFiles.length > 0 ? await uploadAll() : []
+    setUploading(false)
+    const { error } = await supabase.from('deal_messages').insert({
+      deal_id: deal.id,
+      sender_id: user.id,
+      content: text.trim() || null,
+      attachments,
+    })
+    if (error) { toast.error(error.message); setSending(false); return }
+    setText('')
+    setPendingFiles([])
+    setSending(false)
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+  }
+
+  const senderName = isBrand ? (deal.brief?.company?.name ?? 'Brand') : 'You'
+
+  return (
+    <div className="flex flex-col border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800 bg-zinc-900/60">
+        <MessageSquare className="w-4 h-4 text-blue-400 shrink-0" />
+        <span className="text-xs font-semibold text-white">Deal Chat</span>
+        <span className="text-xs text-zinc-500 ml-auto">with {otherPartyName}</span>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-80 min-h-[120px]">
+        {messages.length === 0 && (
+          <p className="text-xs text-zinc-600 text-center py-6">No messages yet — start the conversation</p>
+        )}
+        {messages.map(msg => {
+          const isMe = msg.sender_id === user?.id
+          const atts  = msg.attachments ?? []
+          return (
+            <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+              <img
+                src={msg.sender?.avatar_url ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.sender?.full_name ?? 'U')}&background=7c3aed&color=fff&size=28`}
+                className="w-7 h-7 rounded-full object-cover shrink-0 mt-0.5"
+                alt=""
+              />
+              <div className={`max-w-[75%] space-y-1 ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                {msg.content && (
+                  <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words
+                    ${isMe ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-zinc-800 text-zinc-100 rounded-tl-sm'}`}>
+                    {msg.content}
+                  </div>
+                )}
+                {atts.map((a, i) => (
+                  <a key={i} href={a.url} target="_blank" rel="noreferrer"
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs max-w-full
+                      ${isMe ? 'bg-blue-700/40 border-blue-600/40 text-blue-200' : 'bg-zinc-800 border-zinc-700 text-zinc-300'}
+                      hover:opacity-80 transition-opacity`}>
+                    {a.type?.startsWith('image/') && a.url ? (
+                      <img src={a.url} alt={a.name} className="w-32 h-20 object-cover rounded-lg" />
+                    ) : (
+                      <>
+                        {fileIcon(a.type)}
+                        <div className="min-w-0">
+                          <p className="truncate font-medium max-w-[180px]">{a.name}</p>
+                          {a.size && <p className="text-zinc-500 text-[10px]">{fmt(a.size)}</p>}
+                        </div>
+                        <ExternalLink className="w-3 h-3 shrink-0 ml-auto opacity-60" />
+                      </>
+                    )}
+                  </a>
+                ))}
+                <span className="text-[10px] text-zinc-600 px-1">
+                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {' · '}
+                  {new Date(msg.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Pending file previews */}
+      {pendingFiles.length > 0 && (
+        <div className="flex gap-2 flex-wrap px-4 py-2 border-t border-zinc-800 bg-zinc-900/40">
+          {pendingFiles.map((pf, i) => (
+            <div key={i} className="relative group">
+              {pf.preview
+                ? <img src={pf.preview} alt={pf.name} className="w-14 h-14 object-cover rounded-lg border border-zinc-700" />
+                : (
+                  <div className="w-14 h-14 rounded-lg border border-zinc-700 bg-zinc-800 flex flex-col items-center justify-center gap-1 p-1">
+                    {fileIcon(pf.type)}
+                    <span className="text-[9px] text-zinc-500 text-center truncate w-full leading-tight">{pf.name.split('.').pop()?.toUpperCase()}</span>
+                  </div>
+                )
+              }
+              <button onClick={() => removePending(i)}
+                className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <X className="w-2.5 h-2.5 text-white" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Input */}
+      <form onSubmit={send} className="flex items-end gap-2 px-3 py-3 border-t border-zinc-800 bg-zinc-900/40">
+        <input type="file" ref={fileRef} onChange={pickFiles} multiple className="hidden"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.zip,.txt" />
+        <button type="button" onClick={() => fileRef.current?.click()}
+          className="shrink-0 w-8 h-8 rounded-xl bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-colors" title="Attach files">
+          <Paperclip className="w-4 h-4" />
+        </button>
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="Message… (Enter to send, Shift+Enter for new line)"
+          rows={1}
+          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600 resize-none max-h-32 overflow-y-auto"
+          style={{ height: 'auto' }}
+          onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px' }}
+        />
+        <button type="submit" disabled={sending || (!text.trim() && pendingFiles.length === 0)}
+          className="shrink-0 w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 flex items-center justify-center transition-colors">
+          {uploading ? (
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <Send className="w-3.5 h-3.5 text-white" />
+          )}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 // ─── Deal detail panel (inline, used in both brand and creator views) ──────────
 // ─── Milestone row (inside DealPanel) ─────────────────────────────────────────
 const PAYMENT_METHODS = [
@@ -1183,6 +1418,15 @@ function DealPanel({ deal, isBrand, onUpdate }) {
             </button>
           )}
         </>
+      )}
+
+      {/* Deal Chat */}
+      {(s !== 'offer_sent' && s !== 'declined') && (
+        <DealChat
+          deal={deal}
+          isBrand={isBrand}
+          otherPartyName={isBrand ? (deal.creator?.full_name ?? 'Creator') : (deal.brief?.company?.name ?? 'Brand')}
+        />
       )}
 
       {/* Rate after completion */}
