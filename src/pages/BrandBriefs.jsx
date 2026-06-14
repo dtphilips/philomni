@@ -736,43 +736,51 @@ function RateModal({ deal, role, rateeId, rateeName, onClose, onRated }) {
 
 // ─── Deal detail panel (inline, used in both brand and creator views) ──────────
 // ─── Milestone row (inside DealPanel) ─────────────────────────────────────────
+const PAYMENT_METHODS = [
+  { id: 'stripe',      label: 'Stripe',      desc: 'Card / bank via Stripe Connect' },
+  { id: 'paystack',    label: 'Paystack',    desc: 'Card, bank, USSD (NGN, GHS, KES…)' },
+  { id: 'flutterwave', label: 'Flutterwave', desc: 'Card, mobile money, bank transfer' },
+]
+
 function ConfirmPaymentModal({ amount, onConfirm, onClose }) {
   const [method, setMethod] = useState('')
   const [ref,    setRef]    = useState('')
-  const METHODS = ['Stripe / Card', 'Bank Transfer', 'Flutterwave', 'Paystack', 'PayPal', 'Cash', 'Other']
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80">
       <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-sm">
         <div className="flex items-center justify-between p-5 border-b border-zinc-800">
           <div>
-            <h3 className="font-bold text-white">Confirm Payment Sent</h3>
+            <h3 className="font-bold text-white">Release Payment</h3>
             <p className="text-xs text-zinc-500 mt-0.5">${Number(amount).toLocaleString()} to creator</p>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-2">Payment Method <span className="text-red-400">*</span></label>
-            <div className="flex flex-wrap gap-2">
-              {METHODS.map(m => (
-                <button key={m} type="button" onClick={() => setMethod(m)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${method === m ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-600'}`}>{m}</button>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">Pay via <span className="text-red-400">*</span></label>
+            <div className="space-y-2">
+              {PAYMENT_METHODS.map(m => (
+                <button key={m.id} type="button" onClick={() => setMethod(m.id)}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-colors ${method === m.id ? 'border-blue-600 bg-blue-600/10' : 'border-zinc-800 bg-zinc-900 hover:border-zinc-700'}`}>
+                  <span className={`text-sm font-semibold ${method === m.id ? 'text-blue-400' : 'text-white'}`}>{m.label}</span>
+                  <span className="text-xs text-zinc-500">{m.desc}</span>
+                </button>
               ))}
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Transaction Reference <span className="text-zinc-500 font-normal">— optional</span></label>
-            <input value={ref} onChange={e => setRef(e.target.value)} placeholder="Receipt ID, transfer ref, screenshot URL…"
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Transaction / Reference ID <span className="text-zinc-500 font-normal">— optional</span></label>
+            <input value={ref} onChange={e => setRef(e.target.value)} placeholder="e.g. TRX-2026-00123"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-blue-600" />
           </div>
           <div className="bg-blue-950/40 border border-blue-800/30 rounded-xl p-3 text-xs text-zinc-400">
-            By confirming, you're telling Philomni you've sent this payment to the creator. The deal will be marked <span className="text-green-400 font-medium">Paid</span> and the creator will see it.
+            Philomni will process this payment through the selected provider and release funds to the creator. The deal is marked <span className="text-green-400 font-medium">Paid</span> once confirmed.
           </div>
           <div className="flex gap-3">
             <button onClick={onClose} className="flex-1 py-2.5 bg-zinc-800 text-zinc-300 rounded-xl text-sm font-medium">Cancel</button>
             <button disabled={!method} onClick={() => onConfirm(method, ref)}
               className="flex-1 py-2.5 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-xl text-sm font-semibold">
-              I've Sent Payment
+              Release Payment
             </button>
           </div>
         </div>
