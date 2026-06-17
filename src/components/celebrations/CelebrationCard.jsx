@@ -4,11 +4,17 @@ import { formatDistanceToNow } from 'date-fns'
 import { getTypeInfo, getTierInfo } from '../../lib/celebrations'
 
 export default function CelebrationCard({ celebration, compact = false }) {
-  const navigate = useNavigate()
-  const typeInfo = getTypeInfo(celebration.celebration_type)
-  const tierInfo = getTierInfo(celebration.tier)
-  const isGrand  = celebration.tier === 'grand' || celebration.tier === 'sponsored'
+  const navigate  = useNavigate()
+  const typeInfo  = getTypeInfo(celebration.celebration_type)
+  const tierInfo  = getTierInfo(celebration.tier)
+  const isGrand   = celebration.tier === 'grand' || celebration.tier === 'spotlight'
   const isFeatured = celebration.tier === 'featured'
+
+  // Creator comes from the joined `creator` object batch-fetched by the parent
+  const creator = celebration.creator
+  const creatorName   = creator?.full_name  || 'Someone'
+  const creatorAvatar = creator?.avatar_url || null
+  const creatorPath   = creator?.id ? `/profile/${creator.id}` : null
 
   const timeLeft = celebration.expires_at
     ? (() => {
@@ -42,25 +48,41 @@ export default function CelebrationCard({ celebration, compact = false }) {
   return (
     <div
       onClick={() => navigate(`/celebrations/${celebration.id}`)}
-      className={`bg-card border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group ${isGrand ? 'border-yellow-400/60 grand-shimmer col-span-2' : isFeatured ? 'border-amber-400/40' : 'border-border/60'}`}
+      className={`bg-card border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group ${
+        isGrand    ? 'border-yellow-400/60 grand-shimmer col-span-2' :
+        isFeatured ? 'border-amber-400/40' :
+                     'border-border/60'
+      }`}
     >
-      {/* Social proof header */}
-      {(celebration.creator_name) && (
-        <div className="flex items-center gap-2 px-4 pt-3 pb-0">
-          {celebration.creator_avatar
-            ? <img src={celebration.creator_avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-            : <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-[9px] font-bold">{celebration.creator_name[0]}</div>
-          }
-          <span className="text-[11px] text-muted-foreground">
-            <span className="font-semibold text-foreground">{celebration.creator_name}</span>
-            {' '}is celebrating{' '}
-            <span className="font-semibold text-foreground">{celebration.honoree_name}</span>
-          </span>
-        </div>
-      )}
-      {/* Grand: full width hero */}
+      {/* Creator attribution header — two separate clickable spans, never nested <a> */}
+      <div className="flex items-center gap-2 px-4 pt-3 pb-0 text-[11px] text-muted-foreground flex-wrap">
+        <button
+          onClick={e => { e.stopPropagation(); if (creatorPath) navigate(creatorPath) }}
+          className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+        >
+          <div className="w-5 h-5 rounded-full overflow-hidden bg-primary/20 flex-shrink-0">
+            {creatorAvatar
+              ? <img src={creatorAvatar} alt="" className="w-full h-full object-cover" />
+              : <div className="w-full h-full flex items-center justify-center text-primary text-[9px] font-bold">{creatorName[0]}</div>
+            }
+          </div>
+          <span className="font-semibold text-foreground">{creatorName}</span>
+        </button>
+        <span>is celebrating</span>
+        {celebration.honoree_user
+          ? <button
+              onClick={e => { e.stopPropagation(); navigate(`/profile/${celebration.honoree_user.id}`) }}
+              className="font-semibold text-primary hover:underline"
+            >
+              {celebration.honoree_name}
+            </button>
+          : <span className="font-semibold text-foreground">{celebration.honoree_name}</span>
+        }
+      </div>
+
+      {/* Grand: full-width hero */}
       {isGrand ? (
-        <div className="relative h-48 overflow-hidden">
+        <div className="relative h-48 overflow-hidden mt-2">
           {celebration.honoree_photo_url
             ? <img src={celebration.honoree_photo_url} alt={celebration.honoree_name} className="w-full h-full object-cover" />
             : <div className={`w-full h-full bg-gradient-to-br ${typeInfo.gradient}`} />
@@ -78,8 +100,7 @@ export default function CelebrationCard({ celebration, compact = false }) {
           </div>
         </div>
       ) : (
-        /* Regular: avatar + info */
-        <div className="p-4">
+        <div className="p-4 pt-2">
           <div className="flex items-start gap-3">
             <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 border-2 border-border">
               {celebration.honoree_photo_url
@@ -103,7 +124,7 @@ export default function CelebrationCard({ celebration, compact = false }) {
 
       <div className={`${isGrand ? '' : 'px-4'} pb-3`}>
         {!isGrand && (
-          <p className="text-xs text-muted-foreground line-clamp-2 mb-2 px-0">
+          <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
             {celebration.message?.slice(0, 80)}{celebration.message?.length > 80 ? '…' : ''}
           </p>
         )}
@@ -115,14 +136,11 @@ export default function CelebrationCard({ celebration, compact = false }) {
           </div>
           <div className="flex items-center gap-2">
             {timeLeft && <span className="text-[10px] text-muted-foreground/70">{timeLeft}</span>}
+            {celebration.is_sponsored && (
+              <span className="text-[10px] text-emerald-500 font-medium">Sponsored</span>
+            )}
           </div>
         </div>
-
-        {celebration.sponsor_brand_name && (
-          <p className="text-[10px] text-muted-foreground/60 mt-2 px-0">
-            Sponsored by {celebration.sponsor_brand_name}
-          </p>
-        )}
       </div>
     </div>
   )

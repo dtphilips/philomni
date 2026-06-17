@@ -304,12 +304,15 @@ function WishesSection({ celebration, user }) {
 }
 
 // ─── Who is celebrating section ──────────────────────────────────────────────
-function WhoIsCelebrating({ celebration, honoreeUser }) {
+function WhoIsCelebrating({ celebration, creatorUser, honoreeUser }) {
   const copyInvite = () => {
     const url = `${window.location.origin}/signup?ref=celebration&name=${encodeURIComponent(celebration.honoree_name)}`
     navigator.clipboard.writeText(url)
     alert('Invite link copied!')
   }
+
+  const creatorName   = creatorUser?.full_name  || 'Someone'
+  const creatorAvatar = creatorUser?.avatar_url || null
 
   return (
     <div className="bg-card border border-border/60 rounded-2xl p-5 mb-4 shadow-sm">
@@ -321,13 +324,13 @@ function WhoIsCelebrating({ celebration, honoreeUser }) {
           className="flex flex-col items-center gap-2 group flex-1 max-w-[140px]"
         >
           <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary/30 group-hover:border-primary transition-colors">
-            {celebration.creator_avatar
-              ? <img src={celebration.creator_avatar} alt="" className="w-full h-full object-cover" />
-              : <div className="w-full h-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xl">{celebration.creator_name?.[0] || '?'}</div>
+            {creatorAvatar
+              ? <img src={creatorAvatar} alt="" className="w-full h-full object-cover" />
+              : <div className="w-full h-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xl">{creatorName[0]}</div>
             }
           </div>
           <div className="text-center">
-            <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">{celebration.creator_name}</p>
+            <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">{creatorName}</p>
             <p className="text-[10px] text-muted-foreground">Celebrating</p>
             <span className="text-[10px] text-primary flex items-center justify-center gap-0.5 mt-0.5"><ExternalLink className="w-2.5 h-2.5" />View Profile</span>
           </div>
@@ -409,6 +412,8 @@ export default function CelebrationDetail() {
   const navigate = useNavigate()
   const [celebration, setCelebration]   = useState(null)
   const [honoreeUser, setHonoreeUser]   = useState(null)
+  const [creatorUser, setCreatorUser]   = useState(null)
+  const [catSponsor, setCatSponsor]     = useState(null)
   const [loading, setLoading]           = useState(true)
 
   useEffect(() => {
@@ -418,10 +423,23 @@ export default function CelebrationDetail() {
       setLoading(false)
       if (data) {
         supabase.from('celebrations').update({ view_count: (data.view_count || 0) + 1 }).eq('id', id).catch(() => null)
+        // Load creator profile
+        if (data.creator_id) {
+          supabase.from('users').select('id, full_name, avatar_url, headline, username').eq('id', data.creator_id).maybeSingle()
+            .then(({ data: u }) => { if (u) setCreatorUser(u) })
+        }
         // Load honoree profile if linked
         if (data.honoree_user_id) {
-          supabase.from('users').select('id, full_name, avatar_url, headline, bio').eq('id', data.honoree_user_id).single()
+          supabase.from('users').select('id, full_name, avatar_url, headline, bio').eq('id', data.honoree_user_id).maybeSingle()
             .then(({ data: u }) => { if (u) setHonoreeUser(u) })
+        }
+        // Load category sponsorship if this celebration was sponsored
+        if (data.category_sponsorship_id) {
+          supabase.from('celebration_category_sponsorships')
+            .select('*, company:company_id(id, name, logo_url)')
+            .eq('id', data.category_sponsorship_id)
+            .maybeSingle()
+            .then(({ data: s }) => { if (s) setCatSponsor(s) })
         }
       }
     }
@@ -456,7 +474,7 @@ export default function CelebrationDetail() {
 
   const typeInfo = getTypeInfo(celebration.celebration_type)
   const tierInfo = getTierInfo(celebration.tier)
-  const isGrand  = celebration.tier === 'grand' || celebration.tier === 'sponsored'
+  const isGrand  = celebration.tier === 'grand' || celebration.tier === 'spotlight'
 
   const timeLeft = celebration.expires_at
     ? (() => {
@@ -479,16 +497,19 @@ export default function CelebrationDetail() {
       </button>
 
       {/* Who is celebrating whom */}
-      <WhoIsCelebrating celebration={celebration} honoreeUser={honoreeUser} />
+      <WhoIsCelebrating celebration={celebration} creatorUser={creatorUser} honoreeUser={honoreeUser} />
 
-      {/* Sponsor banner (sponsored tier) */}
-      {celebration.sponsor_brand_name && (
-        <div className="bg-primary/10 border border-primary/30 rounded-xl px-4 py-2.5 mb-4 flex items-center gap-3">
-          {celebration.sponsor_logo_url && <img src={celebration.sponsor_logo_url} alt="" className="h-6 object-contain" />}
+      {/* Category sponsorship banner */}
+      {catSponsor && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 mb-4 flex items-center gap-3">
+          {catSponsor.company?.logo_url
+            ? <img src={catSponsor.company.logo_url} alt="" className="h-7 w-7 rounded-lg object-cover flex-shrink-0" />
+            : <span className="text-lg flex-shrink-0">🎁</span>
+          }
           <div>
-            <p className="text-xs text-muted-foreground">This celebration is sponsored by</p>
-            <p className="text-sm font-bold text-foreground">{celebration.sponsor_brand_name}</p>
-            {celebration.sponsor_message && <p className="text-xs text-muted-foreground">{celebration.sponsor_message}</p>}
+            <p className="text-xs text-muted-foreground">This celebration is brought to you by</p>
+            <p className="text-sm font-bold text-foreground">{catSponsor.company?.name}</p>
+            {catSponsor.brand_message && <p className="text-xs text-muted-foreground italic mt-0.5">"{catSponsor.brand_message}"</p>}
           </div>
         </div>
       )}
@@ -537,14 +558,14 @@ export default function CelebrationDetail() {
           <p className="text-sm text-muted-foreground mb-0.5">Celebrating <span className="font-semibold text-foreground">{celebration.honoree_name}</span></p>
 
           {/* Creator */}
-          <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-            <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-[10px] font-bold overflow-hidden">
-              {celebration.creator_avatar
-                ? <img src={celebration.creator_avatar} alt="" className="w-full h-full object-cover" />
-                : (celebration.creator_name?.[0] || '?')}
+          <Link to={`/profile/${celebration.creator_id}`} className="flex items-center gap-2 mt-2 text-xs text-muted-foreground hover:opacity-80 transition-opacity">
+            <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-[10px] font-bold overflow-hidden flex-shrink-0">
+              {creatorUser?.avatar_url
+                ? <img src={creatorUser.avatar_url} alt="" className="w-full h-full object-cover" />
+                : (creatorUser?.full_name?.[0] || '?')}
             </div>
-            <span>Posted by <span className="font-medium text-foreground">{celebration.creator_name}</span></span>
-          </div>
+            <span>Posted by <span className="font-medium text-foreground">{creatorUser?.full_name || 'Someone'}</span></span>
+          </Link>
         </div>
 
         {/* Message */}
@@ -607,15 +628,18 @@ export default function CelebrationDetail() {
         </div>
       )}
 
-      {/* Sponsor section */}
-      {celebration.sponsor_brand_name && (
-        <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
+      {/* Sponsorship footer card */}
+      {catSponsor && (
+        <div className="bg-card border border-emerald-500/30 rounded-2xl p-4 shadow-sm">
           <p className="text-xs text-muted-foreground mb-2">This celebration made possible by:</p>
           <div className="flex items-center gap-3">
-            {celebration.sponsor_logo_url && <img src={celebration.sponsor_logo_url} alt="" className="h-10 object-contain" />}
+            {catSponsor.company?.logo_url
+              ? <img src={catSponsor.company.logo_url} alt="" className="h-10 w-10 rounded-xl object-cover" />
+              : <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-xl">🎁</div>
+            }
             <div>
-              <p className="font-bold text-foreground">{celebration.sponsor_brand_name}</p>
-              {celebration.sponsor_message && <p className="text-sm text-muted-foreground">{celebration.sponsor_message}</p>}
+              <p className="font-bold text-foreground">{catSponsor.company?.name}</p>
+              {catSponsor.brand_message && <p className="text-sm text-muted-foreground">{catSponsor.brand_message}</p>}
             </div>
           </div>
         </div>
