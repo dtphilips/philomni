@@ -191,7 +191,7 @@ export default function CelebrationCreate() {
     relationship:      '',
     title:             '',
     message:           '',
-    tier:              'basic',
+    tier:              'featured',
   })
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
@@ -344,7 +344,7 @@ export default function CelebrationCreate() {
   const isSponsored = !!(activeSponsor && useSponsorship)
   const effectiveTier = isSponsored ? 'featured' : form.tier
   const tierInfo = TIERS[effectiveTier]
-  const maxMsg = effectiveTier === 'basic' ? 500 : 1000
+  const maxMsg = 1000
   const photoSrc = form.honoree_photo_url
 
   return (
@@ -522,9 +522,6 @@ export default function CelebrationCreate() {
               rows={6}
               className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary resize-none"
             />
-            {effectiveTier === 'basic' && !isSponsored && (
-              <p className="text-xs text-muted-foreground mt-1">Upgrade to a paid tier for up to 1,000 characters.</p>
-            )}
           </div>
         </div>
       )}

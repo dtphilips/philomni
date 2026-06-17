@@ -15,15 +15,6 @@ export const CELEBRATION_TYPES = [
 ]
 
 export const TIERS = {
-  basic: {
-    key: 'basic',
-    label: 'Basic',
-    price: 0,
-    badge: null,
-    duration: 1,   // days
-    color: 'text-muted-foreground',
-    features: ['24 hours in celebrations feed', 'Community reactions & wishes', 'Shareable link', 'Standard celebration page'],
-  },
   featured: {
     key: 'featured',
     label: 'Featured',
@@ -31,7 +22,7 @@ export const TIERS = {
     badge: '⭐',
     duration: 7,
     color: 'text-amber-400',
-    features: ['Everything in Basic', 'Pinned at top for 48 hours', 'Notify all your followers', 'Gold Featured badge', '7 days duration'],
+    features: ['7 days in celebrations feed', 'Pinned at top for 48 hours', 'Notify all your followers', 'Gold Featured badge', 'Shareable celebration page'],
   },
   grand: {
     key: 'grand',
@@ -43,14 +34,14 @@ export const TIERS = {
     popular: true,
     features: ['Everything in Featured', 'Platform-wide notification', '14 days duration', 'Animated gold border', 'Downloadable digital certificate', 'Grand Celebration badge'],
   },
-  sponsored: {
-    key: 'sponsored',
-    label: 'Sponsored',
+  spotlight: {
+    key: 'spotlight',
+    label: 'Spotlight',
     price: 49.99,
     badge: '🚀',
     duration: 30,
     color: 'text-primary',
-    features: ['Everything in Grand', 'Appears in main feed', 'Reaches ALL users', '30 days duration', 'Priority placement everywhere', 'Custom banner option'],
+    features: ['Everything in Grand', 'Appears in main feed for ALL users', '30 days duration', 'Priority placement everywhere', 'Custom banner option', 'Maximum visibility'],
   },
 }
 
@@ -70,7 +61,7 @@ export const RELATIONSHIPS = [
 export const getTypeInfo = (type) =>
   CELEBRATION_TYPES.find(t => t.type === type) || CELEBRATION_TYPES[CELEBRATION_TYPES.length - 1]
 
-export const getTierInfo = (tier) => TIERS[tier] || TIERS.basic
+export const getTierInfo = (tier) => TIERS[tier] || TIERS.featured
 
 export const getExpiresAt = (tier) => {
   const info = getTierInfo(tier)
