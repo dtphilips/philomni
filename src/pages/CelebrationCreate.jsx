@@ -6,6 +6,7 @@ import { Loader2, ArrowLeft, ArrowRight, Check, Upload, ChevronLeft, Search, X, 
 import {
   CELEBRATION_TYPES, TIERS, RELATIONSHIPS, getExpiresAt,
 } from '../lib/celebrations'
+import CelebrationPaymentModal from '../components/celebrations/CelebrationPaymentModal'
 
 const STEPS = ['Who', 'Message', 'Tier', 'Preview']
 
@@ -172,6 +173,7 @@ export default function CelebrationCreate() {
   const { user } = useAuth()
   const [step, setStep]             = useState(0)
   const [submitting, setSubmitting] = useState(false)
+  const [showPayModal, setShowPayModal] = useState(false)
   const photoInputRef               = useRef(null)
   const [photoUploading, setPhotoUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -270,13 +272,13 @@ export default function CelebrationCreate() {
     set('honoree_user', null)
   }
 
-  // ── Publish ────────────────────────────────────────────────────────────────
-  const publish = async () => {
+  // ── Publish (called after payment confirmed, or directly if sponsored) ────────
+  const publish = async (paymentInfo = null) => {
     if (!user) return
     setSubmitting(true)
+    setShowPayModal(false)
     try {
       const isSponsored = !!(activeSponsor && useSponsorship)
-      // Sponsored celebrations get 'featured' tier for free
       const effectiveTier = isSponsored ? 'featured' : form.tier
       const tier = TIERS[effectiveTier]
 
@@ -295,7 +297,9 @@ export default function CelebrationCreate() {
         expires_at:               getExpiresAt(effectiveTier),
         shareable_code:           generateCode(),
         is_sponsored:             isSponsored,
-        payment_status:           isSponsored ? 'sponsored' : (tier.price === 0 ? 'free' : 'pending'),
+        payment_status:           isSponsored ? 'sponsored' : 'paid',
+        payment_reference:        paymentInfo?.reference || null,
+        payment_gateway:          paymentInfo?.gateway || null,
         category_sponsorship_id:  isSponsored ? activeSponsor.id : null,
         opted_out_of_sponsorship: activeSponsor ? !useSponsorship : false,
       }
@@ -707,7 +711,13 @@ export default function CelebrationCreate() {
             )}
 
             <button
-              onClick={publish}
+              onClick={() => {
+                if (isSponsored) {
+                  publish(null)
+                } else {
+                  setShowPayModal(true)
+                }
+              }}
               disabled={submitting}
               className="w-full py-3.5 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
               style={{ background: isSponsored ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #14b8a6, #f59e0b)' }}
@@ -715,13 +725,21 @@ export default function CelebrationCreate() {
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {isSponsored
                 ? '🎁 Publish Free (Sponsored)'
-                : tierInfo.price === 0
-                  ? '🎉 Publish for Free'
-                  : `💳 Pay $${tierInfo.price} & Publish`
+                : `💳 Pay $${tierInfo.price} & Publish`
               }
             </button>
           </div>
         </div>
+      )}
+
+      {/* Payment modal */}
+      {showPayModal && (
+        <CelebrationPaymentModal
+          tier={effectiveTier}
+          user={user}
+          onPaid={(paymentInfo) => publish(paymentInfo)}
+          onClose={() => setShowPayModal(false)}
+        />
       )}
 
       {/* Navigation */}
