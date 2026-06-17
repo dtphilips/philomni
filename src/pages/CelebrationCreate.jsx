@@ -738,6 +738,37 @@ export default function CelebrationCreate() {
           tier={effectiveTier}
           user={user}
           onPaid={(paymentInfo) => publish(paymentInfo)}
+          onCreatePending={async () => {
+            // Used by Stripe redirect flow — insert celebration as pending first
+            const isSponsored = false
+            const tier = TIERS[effectiveTier]
+            const { data, error } = await supabase
+              .from('celebrations')
+              .insert({
+                creator_id:               user.id,
+                honoree_name:             form.honoree_name.trim(),
+                honoree_photo_url:        form.honoree_photo_url || null,
+                honoree_user_id:          form.honoree_user_id || null,
+                honoree_email:            form.honoree_email.trim() || null,
+                celebration_type:         form.celebration_type,
+                title:                    form.title.trim(),
+                message:                  form.message.trim(),
+                tier:                     effectiveTier,
+                amount_paid:              tier.price,
+                status:                   'active',
+                expires_at:               getExpiresAt(effectiveTier),
+                shareable_code:           generateCode(),
+                is_sponsored:             false,
+                payment_status:           'pending',
+                payment_gateway:          'stripe',
+                category_sponsorship_id:  null,
+                opted_out_of_sponsorship: activeSponsor ? true : false,
+              })
+              .select('id')
+              .single()
+            if (error) { alert(`Error: ${error.message}`); return null }
+            return data.id
+          }}
           onClose={() => setShowPayModal(false)}
         />
       )}
