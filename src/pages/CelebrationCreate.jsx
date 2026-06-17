@@ -287,7 +287,6 @@ export default function CelebrationCreate() {
         honoree_user_id:          form.honoree_user_id || null,
         honoree_email:            form.honoree_email.trim() || null,
         celebration_type:         form.celebration_type,
-        celebration_type_label:   typeInfo?.label || null,
         title:                    form.title.trim(),
         message:                  form.message.trim(),
         tier:                     effectiveTier,
