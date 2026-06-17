@@ -176,6 +176,23 @@ export default function CelebrationCreate() {
   const [photoUploading, setPhotoUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
 
+  // Custom celebration types added by the user
+  const [customTypes, setCustomTypes] = useState([])
+  const [customTypeInput, setCustomTypeInput] = useState('')
+
+  const addCustomType = () => {
+    const label = customTypeInput.trim()
+    if (!label) return
+    const key = 'custom_' + label.toLowerCase().replace(/[^a-z0-9]+/g, '_')
+    if (customTypes.some(t => t.type === key)) { setCustomTypeInput(''); return }
+    const newType = { type: key, emoji: '🎊', label, gradient: 'from-purple-500 to-pink-500' }
+    setCustomTypes(prev => [...prev, newType])
+    set('celebration_type', key)
+    setCustomTypeInput('')
+  }
+
+  const allTypes = [...CELEBRATION_TYPES, ...customTypes]
+
   // Sponsorship state
   const [activeSponsor, setActiveSponsor]   = useState(null)   // celebration_category_sponsorships row
   const [useSponsorship, setUseSponsorship] = useState(true)
@@ -270,6 +287,7 @@ export default function CelebrationCreate() {
         honoree_user_id:          form.honoree_user_id || null,
         honoree_email:            form.honoree_email.trim() || null,
         celebration_type:         form.celebration_type,
+        celebration_type_label:   typeInfo?.label || null,
         title:                    form.title.trim(),
         message:                  form.message.trim(),
         tier:                     effectiveTier,
@@ -316,11 +334,11 @@ export default function CelebrationCreate() {
           link:       `/celebrations/${data.id}`,
           created_at: new Date().toISOString(),
           is_read:    false,
-        }).catch(() => null)
+        }).then(null, () => null)
       }
 
-      // Platform-wide notification for Grand / Sponsored tier
-      if (effectiveTier === 'grand' || effectiveTier === 'sponsored') {
+      // Platform-wide notification for Grand / Spotlight tier
+      if (effectiveTier === 'grand' || effectiveTier === 'spotlight') {
         supabase.from('notifications').insert({
           type:       'grand_celebration',
           title:      '🎉 Grand Celebration!',
@@ -328,7 +346,7 @@ export default function CelebrationCreate() {
           link:       `/celebrations/${data.id}`,
           is_global:  true,
           created_at: new Date().toISOString(),
-        }).catch(() => null)
+        }).then(null, () => null)
       }
 
       navigate(`/celebrations/${data.id}`)
@@ -340,7 +358,7 @@ export default function CelebrationCreate() {
     }
   }
 
-  const typeInfo = CELEBRATION_TYPES.find(t => t.type === form.celebration_type)
+  const typeInfo = allTypes.find(t => t.type === form.celebration_type)
   const isSponsored = !!(activeSponsor && useSponsorship)
   const effectiveTier = isSponsored ? 'featured' : form.tier
   const tierInfo = TIERS[effectiveTier]
@@ -431,7 +449,7 @@ export default function CelebrationCreate() {
               {sponsorLoading && form.celebration_type && <span className="text-xs text-muted-foreground ml-2">Checking sponsorships…</span>}
             </label>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {CELEBRATION_TYPES.map(t => (
+              {allTypes.map(t => (
                 <button
                   key={t.type}
                   onClick={() => set('celebration_type', t.type)}
@@ -445,6 +463,24 @@ export default function CelebrationCreate() {
                   <span className="text-[10px] font-medium text-center leading-tight">{t.label}</span>
                 </button>
               ))}
+            </div>
+            {/* Custom type input */}
+            <div className="mt-3 flex gap-2">
+              <input
+                value={customTypeInput}
+                onChange={e => setCustomTypeInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addCustomType()}
+                placeholder="Can't find yours? Type it here..."
+                className="flex-1 bg-muted border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                maxLength={40}
+              />
+              <button
+                onClick={addCustomType}
+                disabled={!customTypeInput.trim()}
+                className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 flex-shrink-0"
+              >
+                + Add
+              </button>
             </div>
             {/* Show sponsor teaser on step 0 if found */}
             {activeSponsor && !sponsorLoading && (
