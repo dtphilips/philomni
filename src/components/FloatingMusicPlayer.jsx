@@ -280,7 +280,7 @@ export default function FloatingMusicPlayer() {
 
             {/* Use in Post */}
             <Link
-              to="/"
+              to="/feed"
               onClick={() => useTrackForPost(currentTrack)}
               className="hidden lg:flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/15 text-primary text-xs font-semibold hover:bg-primary/25 transition-colors whitespace-nowrap"
               title="Use in Post"

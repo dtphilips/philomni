@@ -12,7 +12,7 @@ import NotificationCenter from '@/components/feed/NotificationCenter';
 
 // Primary 4 tabs + 1 Create button
 const PRIMARY_TABS = [
-  { path: '/', icon: Home, label: 'Home' },
+  { path: '/feed', icon: Home, label: 'Home' },
   { path: '/search', icon: Search, label: 'Search' },
   // Create placeholder — rendered separately below
   { path: '/reels', icon: Clapperboard, label: 'Reels' },

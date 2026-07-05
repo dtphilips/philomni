@@ -12,7 +12,7 @@ import NotificationCenter from '@/components/feed/NotificationCenter';
 import { Badge } from '@/components/ui/badge';
 
 const NAV_ITEMS = [
-  { path: '/',                  icon: Home,          label: 'Feed' },
+  { path: '/feed',              icon: Home,          label: 'Feed' },
   { path: '/search',            icon: Search,        label: 'Search' },
   { path: '/marketplace',       icon: Briefcase,     label: 'Marketplace' },
   { path: '/pitch-vault',       icon: Lightbulb,     label: 'Pitch Vault' },
@@ -70,7 +70,7 @@ export default function Sidebar({ user }) {
       {/* Logo */}
       <div className="flex-shrink-0 px-4 xl:px-5 h-16 flex items-center"
            style={{ borderBottom: '1px solid hsl(var(--sidebar-border))' }}>
-        <Link to="/" className="flex items-center gap-3">
+        <Link to="/feed" className="flex items-center gap-3">
           <img src="/logo_v2.svg" alt="Philomni" className="w-9 h-9 rounded-xl flex-shrink-0" style={{ boxShadow: '0 0 16px rgba(109,40,217,0.3)' }} />
           <div>
             <h1 className="font-bold text-base leading-tight" style={{ fontFamily: 'var(--font-display)', color: 'hsl(var(--sidebar-foreground))' }}>

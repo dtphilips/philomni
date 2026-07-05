@@ -50,7 +50,7 @@ const STRENGTH_COLORS = ['', 'bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg
 
 export default function Login() {
   const [mode, setMode]         = useState('signin') // 'signin' | 'signup'
-  const returnUrl               = new URLSearchParams(window.location.search).get('returnUrl') || '/'
+  const returnUrl               = new URLSearchParams(window.location.search).get('returnUrl') || '/feed'
   const navigate                = useNavigate()
   const { user }                = useAuth()
 

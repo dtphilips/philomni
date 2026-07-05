@@ -68,7 +68,7 @@ function MobileHeader({ user }) {
       }}>
       {isFeed ? (
         <>
-          <Link to="/" className="flex items-center gap-2 mr-auto">
+          <Link to="/feed" className="flex items-center gap-2 mr-auto">
             <img src="/logo-full.svg" alt="Philomni" className="h-8 w-auto" />
           </Link>
           <Link to="/search" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors">

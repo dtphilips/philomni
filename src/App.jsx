@@ -170,6 +170,9 @@ const SellerDashboard      = lazy(() => import('./pages/SellerDashboard'))
 const AffiliateEarnings    = lazy(() => import('./pages/AffiliateEarnings'))
 const ProductDetail        = lazy(() => import('./pages/ProductDetail'))
 
+// Landing
+const Landing = lazy(() => import('./pages/Landing'))
+
 // Celebrations
 const Celebrations       = lazy(() => import('./pages/Celebrations'))
 const CelebrationCreate  = lazy(() => import('./pages/CelebrationCreate'))
@@ -262,7 +265,8 @@ export default function App() {
               <Route path="/reels" element={<Suspense fallback={<PageLoader />}><Reels /></Suspense>} />
 
               {/* Core */}
-              <Route path="/" element={<R page={Feed} />} />
+              <Route path="/" element={<Suspense fallback={<PageLoader />}><Landing /></Suspense>} />
+              <Route path="/feed" element={<R page={Feed} auth />} />
               <Route path="/pro-feed" element={<R page={ProFeed} />} />
               <Route path="/profile" element={<R page={Profile} auth />} />
               <Route path="/profile/:userId" element={<R page={Profile} auth />} />
