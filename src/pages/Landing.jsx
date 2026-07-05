@@ -1,12 +1,37 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   Music2, Video, Radio, Mic2, Zap, Users, Star, Gift,
   TrendingUp, Briefcase, Globe, ShoppingBag, BookOpen,
-  Calendar, Award, Cpu, BarChart2, ArrowRight, Play,
-  ChevronRight, CheckCircle2, Sparkles,
+  Calendar, Award, Cpu, BarChart2, Play,
+  ChevronRight, Clock, Sparkles,
 } from 'lucide-react'
+
+const BEEHIIV_URL = 'https://subscribe-forms.beehiiv.com/abb9c94b-7f63-4062-896d-b2128d0ab68b'
+
+function WaitlistForm({ className = '' }) {
+  return (
+    <div className={`w-full max-w-md mx-auto ${className}`}>
+      <iframe
+        src={BEEHIIV_URL}
+        data-test-id="beehiiv-embed"
+        width="100%"
+        height="320"
+        frameBorder="0"
+        scrolling="no"
+        style={{
+          display: 'block',
+          width: '100%',
+          borderRadius: '16px',
+          border: 'none',
+          background: 'transparent',
+        }}
+        title="Join the Philomni waitlist"
+      />
+    </div>
+  )
+}
 
 const FEATURES = [
   {
@@ -131,6 +156,11 @@ export default function Landing() {
   if (loading) return null
   if (user) return <Navigate to="/feed" replace />
 
+  const scrollToWaitlist = (e) => {
+    e.preventDefault()
+    document.getElementById('waitlist')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
@@ -146,12 +176,13 @@ export default function Landing() {
             >
               Log in
             </Link>
-            <Link
-              to="/signup"
+            <a
+              href="#waitlist"
+              onClick={scrollToWaitlist}
               className="text-sm font-semibold bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-xl hover:opacity-90 transition-opacity"
             >
-              Get started free
-            </Link>
+              Get early access
+            </a>
           </div>
         </div>
       </nav>
@@ -164,8 +195,8 @@ export default function Landing() {
         </div>
         <div className="relative max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-medium mb-6">
-            <Sparkles className="w-3 h-3" />
-            The all-in-one creator economy platform
+            <Clock className="w-3 h-3" />
+            Launching soon · Join the early access waitlist
           </div>
           <h1 className="text-5xl sm:text-6xl md:text-7xl font-black leading-tight tracking-tight mb-6">
             Create. Connect.{' '}
@@ -173,24 +204,24 @@ export default function Landing() {
               Get Paid.
             </span>
           </h1>
-          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-4 leading-relaxed">
             Philomni combines video, music, podcasts, live streaming, courses, brand deals,
             and a built-in marketplace — everything a modern creator needs in one platform.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/signup"
-              className="group flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold px-7 py-3.5 rounded-2xl hover:opacity-90 transition-all text-base shadow-lg shadow-purple-500/25"
-            >
-              Start for free
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
+          <p className="text-sm text-muted-foreground/70 mb-10">
+            The platform is built and being refined. We're launching in approximately one month — be among the first in.
+          </p>
+
+          {/* Waitlist form in hero */}
+          <WaitlistForm />
+
+          <div className="mt-6 flex items-center justify-center">
             <Link
               to="/celebrations"
-              className="flex items-center gap-2 border border-border text-foreground font-medium px-7 py-3.5 rounded-2xl hover:bg-muted/50 transition-colors text-base"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              <Play className="w-4 h-4" />
-              See Celebrations
+              <Play className="w-3.5 h-3.5" />
+              Browse active Celebrations while you wait
             </Link>
           </div>
         </div>
@@ -248,14 +279,14 @@ export default function Landing() {
       <section className="py-16 px-4 border-t border-border/50">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-xs font-medium mb-6">
-            🎉 New: Celebrations
+            🎉 Available now: Celebrations
           </div>
           <h2 className="text-3xl sm:text-4xl font-black mb-4">
             Shout your wins to the world
           </h2>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto mb-12">
             Birthdays, music debuts, graduations, business launches — celebrate any milestone
-            with a paid featured post that brands can sponsor.
+            with a paid featured post that brands can sponsor. Celebrations are live and open now.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
             {TIERS.map(t => (
@@ -300,33 +331,32 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-24 px-4 text-center">
+      {/* Waitlist CTA */}
+      <section id="waitlist" className="py-24 px-4 text-center">
         <div className="max-w-2xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-medium mb-6">
+            <Clock className="w-3 h-3" />
+            Launching in approximately one month
+          </div>
           <h2 className="text-4xl sm:text-5xl font-black mb-5">
-            Your audience is waiting.{' '}
+            Be among the first{' '}
             <span className="bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
-              Start today.
+              on the platform.
             </span>
           </h2>
           <p className="text-muted-foreground text-lg mb-10">
-            Join creators who are already earning from video, music, courses, live streams, and more.
+            We're putting the finishing touches on Philomni. Drop your email below and we'll
+            notify you the moment early access opens — no spam, just one message when it's ready.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/signup"
-              className="group flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold px-8 py-4 rounded-2xl hover:opacity-90 transition-all text-base shadow-lg shadow-purple-500/25"
-            >
-              Create your account — it's free
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-          </div>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
-            {['No credit card required', 'Start earning immediately', 'Cancel anytime'].map(t => (
-              <span key={t} className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> {t}
-              </span>
-            ))}
+
+          <WaitlistForm />
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-xs text-muted-foreground">
+            <span>Free to join the waitlist</span>
+            <span className="w-px h-3 bg-border" />
+            <span>Early access notification</span>
+            <span className="w-px h-3 bg-border" />
+            <span>No spam, ever</span>
           </div>
         </div>
       </section>
@@ -338,7 +368,6 @@ export default function Landing() {
             Philomni
           </span>
           <div className="flex items-center gap-6">
-            <Link to="/pricing" className="hover:text-foreground transition-colors">Pricing</Link>
             <Link to="/celebrations" className="hover:text-foreground transition-colors">Celebrations</Link>
             <Link to="/learn" className="hover:text-foreground transition-colors">Courses</Link>
             <Link to="/login" className="hover:text-foreground transition-colors">Log in</Link>
