@@ -173,6 +173,9 @@ const ProductDetail        = lazy(() => import('./pages/ProductDetail'))
 // Landing
 const Landing = lazy(() => import('./pages/Landing'))
 
+// Memory Studio
+const MemoryStudio = lazy(() => import('./pages/MemoryStudio'))
+
 // Celebrations
 const Celebrations       = lazy(() => import('./pages/Celebrations'))
 const CelebrationCreate  = lazy(() => import('./pages/CelebrationCreate'))
@@ -431,6 +434,9 @@ export default function App() {
               <Route path="/celebrations/create"  element={<R page={CelebrationCreate} auth />} />
               <Route path="/celebrations/sponsor" element={<R page={CelebrationSponsor} auth />} />
               <Route path="/celebrations/:id"     element={<R page={CelebrationDetail} />} />
+
+              {/* Memory Studio */}
+              <Route path="/memory-studio" element={<R page={MemoryStudio} auth />} />
 
               {/* Phase 1 & 2 — Community Intelligence + Creator Economy */}
               <Route path="/pulse"                     element={<R page={Pulse} />} />

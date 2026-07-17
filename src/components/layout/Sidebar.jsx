@@ -6,7 +6,7 @@ import {
   MessageSquare, BookOpen, Sparkles, User, Settings,
   LogOut, Crown, BarChart2, Headphones, Wand2,
   CalendarDays, Store, Clapperboard, CirclePlay, Video, Mic,
-  ArrowLeftRight, Music4, Radio
+  ArrowLeftRight, Music4, Radio, Film
 } from 'lucide-react';
 import NotificationCenter from '@/components/feed/NotificationCenter';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { path: '/ai-tools',          icon: Sparkles,      label: 'AI Tools' },
   { path: '/analytics',         icon: BarChart2,     label: 'Analytics' },
   { path: '/audio-studio',      icon: Headphones,    label: 'Audio Studio' },
+  { path: '/memory-studio',     icon: Film,          label: 'Memory Studio' },
   { path: '/creative-studio',   icon: Wand2,         label: 'Creative Studio' },
   { path: '/reels',             icon: Clapperboard,  label: 'Reels' },
   { path: '/rooms',             icon: CirclePlay,    label: 'Rooms' },
