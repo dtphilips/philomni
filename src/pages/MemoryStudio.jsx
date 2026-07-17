@@ -42,90 +42,82 @@ function parseTC(tc) {
   return 0
 }
 
-// ─── Frame extraction (Canvas API — works for any file size, no upload needed) ─
-// iOS Safari can't always seek in large files — we use a timeout per seek and
-// skip frames that fail rather than crashing the whole clip.
-function seekWithTimeout(video, time, timeoutMs = 8000) {
-  return new Promise(res => {
-    let done = false
-    const finish = () => { if (!done) { done = true; res() } }
-    const h = () => { video.removeEventListener('seeked', h); finish() }
-    video.addEventListener('seeked', h)
-    video.currentTime = time
-    setTimeout(finish, timeoutMs) // give up waiting after timeout, capture whatever frame is shown
-  })
-}
-
+// ─── Frame extraction (Canvas API) ───────────────────────────────────────────
+// Uses the same direct-seek approach as the original code that proved reliable
+// on Android Chrome. Max 8 frames per clip + 240px width + 0.3 quality keeps
+// the total POST payload well under 500 KB for a 10-clip batch.
 async function extractFrames(file, onProgress) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const video = document.createElement('video')
     video.muted = true
     video.preload = 'metadata'
     const url = URL.createObjectURL(file)
     video.src = url
 
-    // Timeout if metadata never loads (e.g. unsupported codec on iOS)
-    const metaTimeout = setTimeout(() => {
+    const cleanup = () => {
+      try { video.pause(); video.src = ''; video.load() } catch (_) {}
       URL.revokeObjectURL(url)
-      reject(new Error(`Could not read "${file.name}" — try converting to MP4 (H.264).`))
-    }, 15000)
+    }
 
     video.onloadedmetadata = async () => {
       try {
-      clearTimeout(metaTimeout)
-      let duration = video.duration
+        let duration = video.duration
+        if (!duration || duration === Infinity) duration = 60
 
-      // Some browsers report Infinity for streaming sources — fall back to 60s estimate
-      if (!duration || duration === Infinity) duration = 60
+        // Limit analysis window for large files
+        const isLargeFile = file.size > 200 * 1024 * 1024
+        const analysisWindow = isLargeFile ? Math.min(duration, 120) : duration
 
-      // For large files on iOS, limit seeks to the first portion of the video
-      // to avoid Safari's seek-buffering limitations on local files > 500 MB
-      const isLargeFile = file.size > 500 * 1024 * 1024
-      const analysisWindow = isLargeFile ? Math.min(duration, 300) : duration // max 5 min for large files
+        // Max 8 frames per clip — keeps total payload small for mobile networks
+        const interval = Math.max(10, analysisWindow / 8)
+        const times = []
+        for (let t = 2; t < analysisWindow - 1; t += interval) times.push(t)
+        if (times.length === 0) times.push(Math.min(5, duration / 2))
 
-      // 1 frame every 12s, max 40 frames total
-      const interval = Math.max(12, analysisWindow / 40)
-      const times = []
-      for (let t = 2; t < analysisWindow - 1; t += interval) times.push(t)
-      if (times.length === 0) times.push(Math.min(5, duration / 2))
+        const canvas = document.createElement('canvas')
+        const aspect = video.videoWidth / (video.videoHeight || 1)
+        canvas.width = 240
+        canvas.height = Math.round(240 / aspect) || 135
+        const ctx = canvas.getContext('2d')
 
-      const canvas = document.createElement('canvas')
-      const aspect = video.videoWidth / (video.videoHeight || 1)
-      canvas.width = 320
-      canvas.height = Math.round(320 / aspect) || 180
-      const ctx = canvas.getContext('2d')
-
-      const frames = []
-      for (let i = 0; i < times.length; i++) {
-        try {
-          await seekWithTimeout(video, times[i], 8000)
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-          const data = canvas.toDataURL('image/jpeg', 0.5).split(',')[1]
-          if (data && data.length > 100) { // skip blank frames
-            frames.push({ timestamp: times[i], data })
+        const frames = []
+        for (let i = 0; i < times.length; i++) {
+          // Direct seek — no timeout. This is the original approach that worked
+          // on Android Chrome. seeked fires reliably for local blob URLs.
+          await new Promise(res => {
+            const onSeeked = () => { video.removeEventListener('seeked', onSeeked); res() }
+            video.addEventListener('seeked', onSeeked)
+            video.currentTime = times[i]
+          })
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+            const data = canvas.toDataURL('image/jpeg', 0.3).split(',')[1]
+            if (data && data.length > 100) frames.push({ timestamp: times[i], data })
           }
-        } catch (_) {
-          // skip this frame silently and continue
+          onProgress?.(Math.round(((i + 1) / times.length) * 100))
         }
-        onProgress?.(Math.round(((i + 1) / times.length) * 100))
-      }
 
-      URL.revokeObjectURL(url)
-
-      // 0 frames = resolve gracefully so the pipeline continues with other clips
-      resolve({ frames, duration, error: frames.length === 0 ? `"${file.name}" could not be previewed on this device — it will be skipped in the analysis.` : undefined })
+        cleanup()
+        resolve({
+          frames,
+          duration,
+          error: frames.length === 0
+            ? `"${file.name}" could not be previewed on this device — it will be skipped.`
+            : undefined,
+        })
       } catch (err) {
-        URL.revokeObjectURL(url)
+        cleanup()
         resolve({ frames: [], duration: 0, error: `"${file.name}" could not be read: ${err.message}` })
       }
     }
 
-    // On iOS Safari, very large files may fire onerror instead of onloadedmetadata.
-    // Resolve with empty frames so other clips in the batch still get processed.
     video.onerror = () => {
-      clearTimeout(metaTimeout)
-      URL.revokeObjectURL(url)
-      resolve({ frames: [], duration: 0, error: `"${file.name}" could not be read on this device — it may be too large for mobile preview. The other clips will still be analyzed.` })
+      cleanup()
+      resolve({
+        frames: [],
+        duration: 0,
+        error: `"${file.name}" could not be read on this device — the other clips will still be analyzed.`,
+      })
     }
   })
 }
