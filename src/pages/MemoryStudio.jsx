@@ -60,7 +60,6 @@ async function extractFrames(file, onProgress) {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video')
     video.muted = true
-    video.playsInline = true
     video.preload = 'metadata'
     const url = URL.createObjectURL(file)
     video.src = url
@@ -72,6 +71,7 @@ async function extractFrames(file, onProgress) {
     }, 15000)
 
     video.onloadedmetadata = async () => {
+      try {
       clearTimeout(metaTimeout)
       let duration = video.duration
 
@@ -114,6 +114,10 @@ async function extractFrames(file, onProgress) {
 
       // 0 frames = resolve gracefully so the pipeline continues with other clips
       resolve({ frames, duration, error: frames.length === 0 ? `"${file.name}" could not be previewed on this device — it will be skipped in the analysis.` : undefined })
+      } catch (err) {
+        URL.revokeObjectURL(url)
+        resolve({ frames: [], duration: 0, error: `"${file.name}" could not be read: ${err.message}` })
+      }
     }
 
     // On iOS Safari, very large files may fire onerror instead of onloadedmetadata.
