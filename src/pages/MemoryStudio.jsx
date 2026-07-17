@@ -43,26 +43,51 @@ function parseTC(tc) {
 }
 
 // ─── Frame extraction (Canvas API — works for any file size, no upload needed) ─
+// iOS Safari can't always seek in large files — we use a timeout per seek and
+// skip frames that fail rather than crashing the whole clip.
+function seekWithTimeout(video, time, timeoutMs = 8000) {
+  return new Promise(res => {
+    let done = false
+    const finish = () => { if (!done) { done = true; res() } }
+    const h = () => { video.removeEventListener('seeked', h); finish() }
+    video.addEventListener('seeked', h)
+    video.currentTime = time
+    setTimeout(finish, timeoutMs) // give up waiting after timeout, capture whatever frame is shown
+  })
+}
+
 async function extractFrames(file, onProgress) {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video')
     video.muted = true
+    video.playsInline = true
     video.preload = 'metadata'
     const url = URL.createObjectURL(file)
     video.src = url
 
-    video.onloadedmetadata = async () => {
-      const duration = video.duration
-      if (!duration || duration === Infinity) {
-        URL.revokeObjectURL(url)
-        return reject(new Error(`Cannot read duration of ${file.name}`))
-      }
+    // Timeout if metadata never loads (e.g. unsupported codec on iOS)
+    const metaTimeout = setTimeout(() => {
+      URL.revokeObjectURL(url)
+      reject(new Error(`Could not read "${file.name}" — try converting to MP4 (H.264).`))
+    }, 15000)
 
-      // 1 frame every 12 seconds, max 60 frames per clip
-      const interval = Math.max(12, duration / 60)
+    video.onloadedmetadata = async () => {
+      clearTimeout(metaTimeout)
+      let duration = video.duration
+
+      // Some browsers report Infinity for streaming sources — fall back to 60s estimate
+      if (!duration || duration === Infinity) duration = 60
+
+      // For large files on iOS, limit seeks to the first portion of the video
+      // to avoid Safari's seek-buffering limitations on local files > 500 MB
+      const isLargeFile = file.size > 500 * 1024 * 1024
+      const analysisWindow = isLargeFile ? Math.min(duration, 300) : duration // max 5 min for large files
+
+      // 1 frame every 12s, max 40 frames total
+      const interval = Math.max(12, analysisWindow / 40)
       const times = []
-      for (let t = 2; t < duration - 1; t += interval) times.push(t)
-      if (times.length === 0) times.push(duration / 2)
+      for (let t = 2; t < analysisWindow - 1; t += interval) times.push(t)
+      if (times.length === 0) times.push(Math.min(5, duration / 2))
 
       const canvas = document.createElement('canvas')
       const aspect = video.videoWidth / (video.videoHeight || 1)
@@ -72,26 +97,33 @@ async function extractFrames(file, onProgress) {
 
       const frames = []
       for (let i = 0; i < times.length; i++) {
-        await new Promise(res => {
-          const h = () => { video.removeEventListener('seeked', h); res() }
-          video.addEventListener('seeked', h)
-          video.currentTime = times[i]
-        })
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-        frames.push({
-          timestamp: times[i],
-          data: canvas.toDataURL('image/jpeg', 0.5).split(',')[1],
-        })
+        try {
+          await seekWithTimeout(video, times[i], 8000)
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+          const data = canvas.toDataURL('image/jpeg', 0.5).split(',')[1]
+          if (data && data.length > 100) { // skip blank frames
+            frames.push({ timestamp: times[i], data })
+          }
+        } catch (_) {
+          // skip this frame silently and continue
+        }
         onProgress?.(Math.round(((i + 1) / times.length) * 100))
       }
 
       URL.revokeObjectURL(url)
+
+      if (frames.length === 0) {
+        return reject(new Error(`No frames could be extracted from "${file.name}". Try a different video file.`))
+      }
       resolve({ frames, duration })
     }
 
+    // On iOS Safari, very large files may fire onerror instead of onloadedmetadata.
+    // Resolve with empty frames so other clips in the batch still get processed.
     video.onerror = () => {
+      clearTimeout(metaTimeout)
       URL.revokeObjectURL(url)
-      reject(new Error(`Could not read ${file.name}. Make sure it's a valid video file.`))
+      resolve({ frames: [], duration: 0, error: `"${file.name}" could not be read on this device — it may be too large for mobile preview. The other clips will still be analyzed.` })
     }
   })
 }
@@ -351,12 +383,16 @@ export default function MemoryStudio() {
       for (let i = 0; i < clips.length; i++) {
         const clip = clips[i]
         setAnalyzeLog(`Reading clip ${i + 1} of ${clips.length}: ${clip.file.name}…`)
-        const { frames, duration } = await extractFrames(
+        const result = await extractFrames(
           clip.file,
           pct => setFrameProgress(p => ({ ...p, [clip.id]: pct }))
         )
-        clipsWithFrames.push({ name: clip.file.name, duration, frames })
-        setClips(prev => prev.map(c => c.id === clip.id ? { ...c, duration } : c))
+        if (result.error) {
+          setAnalyzeLog(`⚠️ ${result.error}`)
+          await new Promise(r => setTimeout(r, 2500)) // let user read the warning
+        }
+        clipsWithFrames.push({ name: clip.file.name, duration: result.duration, frames: result.frames })
+        setClips(prev => prev.map(c => c.id === clip.id ? { ...c, duration: result.duration } : c))
       }
 
       setAnalyzeLog('AI director is watching your footage… (30–60 seconds)')
