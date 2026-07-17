@@ -453,13 +453,27 @@ export default function MemoryStudio() {
         }
       }
 
-      setAnalyzeLog('AI director is watching your footage… (this may take 1–2 minutes for large clips)')
+      // Guard: if every clip failed to produce any data, don't bother calling the edge function
+      const usableClips = clipsPayload.filter(c => (c.frames?.length > 0) || c.storageUrl)
+      if (usableClips.length === 0) {
+        throw new Error(
+          'None of your clips could be read on this device. ' +
+          'Try using a desktop browser, or convert your videos to H.264 MP4 first.'
+        )
+      }
+
+      setAnalyzeLog('AI director is watching your footage… (30–90 seconds)')
 
       const { data, error: fnErr } = await supabase.functions.invoke('memory-studio-analyze', {
         body: { clips: clipsPayload, prompt, outputFormat },
       })
 
-      if (fnErr) throw new Error(fnErr.message || 'Analysis failed')
+      // Surface the real error from the function body, not the generic "non-2xx" message
+      if (fnErr) {
+        let detail = fnErr.message
+        try { const body = await fnErr.context?.json?.(); detail = body?.error || detail } catch (_) {}
+        throw new Error(detail)
+      }
       if (!data?.success) throw new Error(data?.error || 'Analysis failed')
 
       setEditPlan(data.editPlan)
