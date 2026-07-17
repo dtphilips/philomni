@@ -112,10 +112,8 @@ async function extractFrames(file, onProgress) {
 
       URL.revokeObjectURL(url)
 
-      if (frames.length === 0) {
-        return reject(new Error(`No frames could be extracted from "${file.name}". Try a different video file.`))
-      }
-      resolve({ frames, duration })
+      // 0 frames = resolve gracefully so the pipeline continues with other clips
+      resolve({ frames, duration, error: frames.length === 0 ? `"${file.name}" could not be previewed on this device — it will be skipped in the analysis.` : undefined })
     }
 
     // On iOS Safari, very large files may fire onerror instead of onloadedmetadata.
@@ -373,7 +371,9 @@ export default function MemoryStudio() {
   const removeClip = id => setClips(prev => prev.filter(c => c.id !== id))
 
   // ── Analyze: extract frames (small) or upload to storage (large) → edge fn ──
-  const LARGE_FILE_THRESHOLD = 200 * 1024 * 1024 // 200 MB
+  // Only use storage upload for truly large files — mobile browsers (Android Chrome)
+  // fail fetch() with large request bodies, so keep the threshold above ~500MB.
+  const LARGE_FILE_THRESHOLD = 1 * 1024 * 1024 * 1024 // 1 GB
 
   const analyze = async () => {
     if (!prompt.trim()) return setError('Please describe the feeling you want.')
@@ -399,24 +399,44 @@ export default function MemoryStudio() {
             ? clip.file.slice(0, Math.floor(1.9 * 1024 * 1024 * 1024))
             : clip.file
 
-          const { error: upErr } = await supabase.storage
-            .from('uploads')
-            .upload(storagePath, fileToUpload, {
-              cacheControl: '3600',
-              upsert: true,
-              contentType: clip.file.type || 'video/mp4',
+          let uploadedToStorage = false
+          try {
+            const { error: upErr } = await supabase.storage
+              .from('uploads')
+              .upload(storagePath, fileToUpload, {
+                cacheControl: '3600',
+                upsert: true,
+                contentType: clip.file.type || 'video/mp4',
+              })
+            if (upErr) throw new Error(upErr.message)
+
+            setUploadProgress(p => ({ ...p, [clip.id]: 100 }))
+            const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(storagePath)
+            clipsPayload.push({
+              name: clip.file.name,
+              duration: clip.duration || null,
+              size: fileToUpload.size,
+              storageUrl: publicUrl,
             })
-          if (upErr) throw new Error(`Upload failed for ${clip.file.name}: ${upErr.message}`)
+            uploadedToStorage = true
+          } catch (upErr) {
+            // Upload failed (network error, memory limit, etc.) — fall back to frame extraction
+            setAnalyzeLog(`Upload failed, trying local frame extraction for ${clip.file.name}…`)
+          }
 
-          setUploadProgress(p => ({ ...p, [clip.id]: 100 }))
-
-          const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(storagePath)
-          clipsPayload.push({
-            name: clip.file.name,
-            duration: clip.duration || null,
-            size: fileToUpload.size,
-            storageUrl: publicUrl,
-          })
+          if (!uploadedToStorage) {
+            // Fall back: try frame extraction even for large files
+            const result = await extractFrames(
+              clip.file,
+              pct => setFrameProgress(p => ({ ...p, [clip.id]: pct }))
+            )
+            if (result.error) {
+              setAnalyzeLog(`⚠️ ${result.error}`)
+              await new Promise(r => setTimeout(r, 2000))
+            }
+            setClips(prev => prev.map(c => c.id === clip.id ? { ...c, duration: result.duration } : c))
+            clipsPayload.push({ name: clip.file.name, duration: result.duration, frames: result.frames })
+          }
         } else {
           // ── Small file: extract frames in browser
           setAnalyzeLog(`Reading clip ${i + 1} of ${clips.length}: ${clip.file.name}…`)
