@@ -49,8 +49,9 @@ const CREATOR_NAV = [
   {
     label: 'Studio',
     items: [
-      { to: '/creator-studio', icon: Wand2,   label: 'Creator Studio' },
-      { to: '/content',        icon: Rss,     label: 'Content Suite' },
+      { to: '/creator-studio',  icon: Wand2,   label: 'Creator Studio' },
+      { to: '/memory-studio',   icon: Film,    label: 'Memory Studio' },
+      { to: '/content',         icon: Rss,     label: 'Content Suite' },
     ],
   },
   {
