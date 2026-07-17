@@ -311,7 +311,7 @@ function SegmentCard({ segment, onEditNarration }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MemoryStudio() {
-  useAuth()
+  const { user } = useAuth()
   const fileInputRef = useRef(null)
 
   const [clips, setClips]   = useState([]) // files stay in browser memory
@@ -336,6 +336,7 @@ export default function MemoryStudio() {
   const [videoBlob, setVideoBlob]         = useState(null)
 
   const [editingLine, setEditingLine] = useState(null)
+  const [uploadProgress, setUploadProgress] = useState({}) // clipId → 0-100
 
   // ── File selection ──────────────────────────────────────────────────────────
   const addFiles = useCallback((fileList) => {
@@ -371,34 +372,71 @@ export default function MemoryStudio() {
   const onDrop = useCallback(e => { e.preventDefault(); addFiles(e.dataTransfer.files) }, [addFiles])
   const removeClip = id => setClips(prev => prev.filter(c => c.id !== id))
 
-  // ── Analyze: extract frames → Gemini → Claude ───────────────────────────────
+  // ── Analyze: extract frames (small) or upload to storage (large) → edge fn ──
+  const LARGE_FILE_THRESHOLD = 200 * 1024 * 1024 // 200 MB
+
   const analyze = async () => {
     if (!prompt.trim()) return setError('Please describe the feeling you want.')
     if (!clips.length)  return setError('Please add at least one video clip.')
     setError('')
     setAnalyzing(true)
+    setUploadProgress({})
 
     try {
-      const clipsWithFrames = []
+      const clipsPayload = []
       for (let i = 0; i < clips.length; i++) {
         const clip = clips[i]
-        setAnalyzeLog(`Reading clip ${i + 1} of ${clips.length}: ${clip.file.name}…`)
-        const result = await extractFrames(
-          clip.file,
-          pct => setFrameProgress(p => ({ ...p, [clip.id]: pct }))
-        )
-        if (result.error) {
-          setAnalyzeLog(`⚠️ ${result.error}`)
-          await new Promise(r => setTimeout(r, 2500)) // let user read the warning
+        const isLarge = clip.file.size > LARGE_FILE_THRESHOLD
+
+        if (isLarge) {
+          // ── Large file: upload to Supabase Storage, edge fn uses Gemini Files API
+          setAnalyzeLog(`Uploading ${clip.file.name} to cloud… (${(clip.file.size / 1e9).toFixed(1)} GB)`)
+          const uid = user?.id || 'anon'
+          const storagePath = `memory-studio/${uid}/${Date.now()}_${clip.file.name}`
+
+          // Cap at 1.9 GB so Gemini Files API can accept it (2 GB limit)
+          const fileToUpload = clip.file.size > 1.9 * 1024 * 1024 * 1024
+            ? clip.file.slice(0, Math.floor(1.9 * 1024 * 1024 * 1024))
+            : clip.file
+
+          const { error: upErr } = await supabase.storage
+            .from('uploads')
+            .upload(storagePath, fileToUpload, {
+              cacheControl: '3600',
+              upsert: true,
+              contentType: clip.file.type || 'video/mp4',
+            })
+          if (upErr) throw new Error(`Upload failed for ${clip.file.name}: ${upErr.message}`)
+
+          setUploadProgress(p => ({ ...p, [clip.id]: 100 }))
+
+          const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(storagePath)
+          clipsPayload.push({
+            name: clip.file.name,
+            duration: clip.duration || null,
+            size: fileToUpload.size,
+            storageUrl: publicUrl,
+          })
+        } else {
+          // ── Small file: extract frames in browser
+          setAnalyzeLog(`Reading clip ${i + 1} of ${clips.length}: ${clip.file.name}…`)
+          const result = await extractFrames(
+            clip.file,
+            pct => setFrameProgress(p => ({ ...p, [clip.id]: pct }))
+          )
+          if (result.error) {
+            setAnalyzeLog(`⚠️ ${result.error}`)
+            await new Promise(r => setTimeout(r, 2500))
+          }
+          setClips(prev => prev.map(c => c.id === clip.id ? { ...c, duration: result.duration } : c))
+          clipsPayload.push({ name: clip.file.name, duration: result.duration, frames: result.frames })
         }
-        clipsWithFrames.push({ name: clip.file.name, duration: result.duration, frames: result.frames })
-        setClips(prev => prev.map(c => c.id === clip.id ? { ...c, duration: result.duration } : c))
       }
 
-      setAnalyzeLog('AI director is watching your footage… (30–60 seconds)')
+      setAnalyzeLog('AI director is watching your footage… (this may take 1–2 minutes for large clips)')
 
       const { data, error: fnErr } = await supabase.functions.invoke('memory-studio-analyze', {
-        body: { clips: clipsWithFrames, prompt, outputFormat },
+        body: { clips: clipsPayload, prompt, outputFormat },
       })
 
       if (fnErr) throw new Error(fnErr.message || 'Analysis failed')
@@ -423,6 +461,7 @@ export default function MemoryStudio() {
       setAnalyzing(false)
       setAnalyzeLog('')
       setFrameProgress({})
+      setUploadProgress({})
     }
   }
 
@@ -616,17 +655,19 @@ export default function MemoryStudio() {
             </div>
           </div>
 
-          {/* Frame progress (shown during analysis) */}
-          {analyzing && Object.keys(frameProgress).length > 0 && (
+          {/* Frame / upload progress (shown during analysis) */}
+          {analyzing && (Object.keys(frameProgress).length > 0 || Object.keys(uploadProgress).length > 0) && (
             <div className="space-y-2 p-4 rounded-xl border border-border bg-muted/20">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Extracting frames</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Preparing clips</p>
               {clips.map(clip => {
-                const pct = frameProgress[clip.id] ?? 0
+                const isLarge = clip.file.size > 200 * 1024 * 1024
+                const pct = isLarge ? (uploadProgress[clip.id] ?? 0) : (frameProgress[clip.id] ?? 0)
+                const label = isLarge ? 'Uploading' : 'Reading frames'
                 return (
                   <div key={clip.id}>
                     <div className="flex justify-between text-xs text-muted-foreground mb-1">
                       <span className="truncate">{clip.file.name}</span>
-                      <span className="flex-shrink-0 ml-2">{pct}%</span>
+                      <span className="flex-shrink-0 ml-2">{label} {pct}%</span>
                     </div>
                     <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                       <div className="h-full bg-purple-500 transition-all duration-200" style={{ width: `${pct}%` }} />
