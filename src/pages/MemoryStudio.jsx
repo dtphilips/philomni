@@ -366,10 +366,11 @@ export default function MemoryStudio() {
   const onDrop = useCallback(e => { e.preventDefault(); addFiles(e.dataTransfer.files) }, [addFiles])
   const removeClip = id => setClips(prev => prev.filter(c => c.id !== id))
 
-  // ── Analyze: extract frames (small) or upload to storage (large) → edge fn ──
-  // Only use storage upload for truly large files — mobile browsers (Android Chrome)
-  // fail fetch() with large request bodies, so keep the threshold above ~500MB.
-  const LARGE_FILE_THRESHOLD = 1 * 1024 * 1024 * 1024 // 1 GB
+  // ── Analyze: try frame extraction first; if 0 frames (HEVC/unsupported codec on
+  // Android Chrome), fall back to uploading a 50 MB slice so Gemini can analyze
+  // the real video. iPhone HEVC files can't be decoded by Canvas on Android Chrome
+  // but Gemini Files API handles them natively.
+  const FALLBACK_SLICE_SIZE = 50 * 1024 * 1024 // 50 MB — enough for Gemini to sample key moments
 
   const analyze = async () => {
     if (!prompt.trim()) return setError('Please describe the feeling you want.')
@@ -382,24 +383,32 @@ export default function MemoryStudio() {
       const clipsPayload = []
       for (let i = 0; i < clips.length; i++) {
         const clip = clips[i]
-        const isLarge = clip.file.size > LARGE_FILE_THRESHOLD
 
-        if (isLarge) {
-          // ── Large file: upload to Supabase Storage, edge fn uses Gemini Files API
-          setAnalyzeLog(`Uploading ${clip.file.name} to cloud… (${(clip.file.size / 1e9).toFixed(1)} GB)`)
+        // Step 1: try frame extraction (fast, works for H.264; fails silently for HEVC)
+        setAnalyzeLog(`Reading clip ${i + 1} of ${clips.length}: ${clip.file.name}…`)
+        const result = await extractFrames(
+          clip.file,
+          pct => setFrameProgress(p => ({ ...p, [clip.id]: pct }))
+        )
+        setClips(prev => prev.map(c => c.id === clip.id ? { ...c, duration: result.duration || c.duration } : c))
+
+        if (result.frames.length > 0) {
+          // Frame extraction worked (H.264 or compatible codec)
+          clipsPayload.push({ name: clip.file.name, duration: result.duration, frames: result.frames })
+        } else {
+          // Frame extraction got 0 frames — likely HEVC/unsupported codec.
+          // Upload a 50 MB slice so Gemini Files API can analyze the actual video.
+          setAnalyzeLog(`${clip.file.name} needs cloud processing — uploading slice…`)
+          const sliceSize = Math.min(clip.file.size, FALLBACK_SLICE_SIZE)
+          const fileSlice = clip.file.slice(0, sliceSize)
           const uid = user?.id || 'anon'
           const storagePath = `memory-studio/${uid}/${Date.now()}_${clip.file.name}`
 
-          // Cap at 1.9 GB so Gemini Files API can accept it (2 GB limit)
-          const fileToUpload = clip.file.size > 1.9 * 1024 * 1024 * 1024
-            ? clip.file.slice(0, Math.floor(1.9 * 1024 * 1024 * 1024))
-            : clip.file
-
-          let uploadedToStorage = false
           try {
+            setUploadProgress(p => ({ ...p, [clip.id]: 1 }))
             const { error: upErr } = await supabase.storage
               .from('uploads')
-              .upload(storagePath, fileToUpload, {
+              .upload(storagePath, fileSlice, {
                 cacheControl: '3600',
                 upsert: true,
                 contentType: clip.file.type || 'video/mp4',
@@ -410,42 +419,14 @@ export default function MemoryStudio() {
             const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(storagePath)
             clipsPayload.push({
               name: clip.file.name,
-              duration: clip.duration || null,
-              size: fileToUpload.size,
+              duration: result.duration || clip.duration || null,
+              size: sliceSize,
               storageUrl: publicUrl,
             })
-            uploadedToStorage = true
           } catch (upErr) {
-            // Upload failed (network error, memory limit, etc.) — fall back to frame extraction
-            setAnalyzeLog(`Upload failed, trying local frame extraction for ${clip.file.name}…`)
+            setAnalyzeLog(`⚠️ "${clip.file.name}" could not be uploaded — skipping.`)
+            await new Promise(r => setTimeout(r, 1200))
           }
-
-          if (!uploadedToStorage) {
-            // Fall back: try frame extraction even for large files
-            const result = await extractFrames(
-              clip.file,
-              pct => setFrameProgress(p => ({ ...p, [clip.id]: pct }))
-            )
-            if (result.error) {
-              setAnalyzeLog(`⚠️ ${result.error}`)
-              await new Promise(r => setTimeout(r, 2000))
-            }
-            setClips(prev => prev.map(c => c.id === clip.id ? { ...c, duration: result.duration } : c))
-            clipsPayload.push({ name: clip.file.name, duration: result.duration, frames: result.frames })
-          }
-        } else {
-          // ── Small file: extract frames in browser
-          setAnalyzeLog(`Reading clip ${i + 1} of ${clips.length}: ${clip.file.name}…`)
-          const result = await extractFrames(
-            clip.file,
-            pct => setFrameProgress(p => ({ ...p, [clip.id]: pct }))
-          )
-          if (result.error) {
-            setAnalyzeLog(`⚠️ ${result.error}`)
-            await new Promise(r => setTimeout(r, 2500))
-          }
-          setClips(prev => prev.map(c => c.id === clip.id ? { ...c, duration: result.duration } : c))
-          clipsPayload.push({ name: clip.file.name, duration: result.duration, frames: result.frames })
         }
       }
 
